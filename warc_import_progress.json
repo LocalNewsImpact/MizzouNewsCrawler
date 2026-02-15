@@ -1,0 +1,8 @@
+{
+  "current_warc_file": "test.warc.gz",
+  "last_warc_record_id": "<urn:uuid:last>",
+  "total_articles_imported": 1,
+  "total_failures": 0,
+  "batch_number": 0,
+  "timestamp": "2026-02-15T15:21:59.334781"
+}

@@ -1173,3 +1173,176 @@ def test_discover_with_newspaper4k_filters_external_domains():
     for article in result:
         assert article["discovery_method"] == "newspaper4k"
         assert article["source_url"] == "https://example.com"
+
+
+# ============================================================================
+# Test Global Proxy Environment Variables
+# ============================================================================
+def test_set_global_proxy_env_with_proxies():
+    """Test _set_global_proxy_env sets environment variables when proxy manager has proxies."""
+    with patch("src.crawler.discovery.DatabaseManager"):
+        with patch("src.crawler.discovery.create_telemetry_system"):
+            with patch("src.crawler.discovery.get_proxy_manager") as mock_pm:
+                # Setup mock proxy manager
+                mock_manager = MagicMock()
+                mock_manager.active_provider.value = "squid"
+                mock_manager.get_requests_proxies.return_value = {
+                    "http": "http://t9880447.eero.online:3128",
+                    "https": "http://t9880447.eero.online:3128",
+                }
+                mock_pm.return_value = mock_manager
+
+                # Clear any existing proxy env vars
+                for key in ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"]:
+                    os.environ.pop(key, None)
+
+                # Create NewsDiscovery instance (calls _set_global_proxy_env in __init__)
+                NewsDiscovery(database_url="sqlite:///:memory:")
+
+                # Verify all proxy environment variables are set
+                assert (
+                    os.environ.get("HTTP_PROXY") == "http://t9880447.eero.online:3128"
+                )
+                assert (
+                    os.environ.get("HTTPS_PROXY") == "http://t9880447.eero.online:3128"
+                )
+                assert (
+                    os.environ.get("http_proxy") == "http://t9880447.eero.online:3128"
+                )
+                assert (
+                    os.environ.get("https_proxy") == "http://t9880447.eero.online:3128"
+                )
+
+
+def test_set_global_proxy_env_with_no_proxies():
+    """Test _set_global_proxy_env does nothing when proxy manager returns no proxies."""
+    with patch("src.crawler.discovery.DatabaseManager"):
+        with patch("src.crawler.discovery.create_telemetry_system"):
+            with patch("src.crawler.discovery.get_proxy_manager") as mock_pm:
+                # Setup mock proxy manager with no proxies
+                mock_manager = MagicMock()
+                mock_manager.active_provider.value = "direct"
+                mock_manager.get_requests_proxies.return_value = {}
+                mock_pm.return_value = mock_manager
+
+                # Clear any existing proxy env vars
+                for key in ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"]:
+                    os.environ.pop(key, None)
+
+                # Create NewsDiscovery instance
+                NewsDiscovery(database_url="sqlite:///:memory:")
+
+                # Verify proxy environment variables are NOT set
+                assert os.environ.get("HTTP_PROXY") is None
+                assert os.environ.get("HTTPS_PROXY") is None
+                assert os.environ.get("http_proxy") is None
+                assert os.environ.get("https_proxy") is None
+
+
+def test_set_global_proxy_env_with_http_only():
+    """Test _set_global_proxy_env handles http-only proxy."""
+    with patch("src.crawler.discovery.DatabaseManager"):
+        with patch("src.crawler.discovery.create_telemetry_system"):
+            with patch("src.crawler.discovery.get_proxy_manager") as mock_pm:
+                # Setup mock proxy manager with HTTP proxy only
+                mock_manager = MagicMock()
+                mock_manager.active_provider.value = "squid"
+                mock_manager.get_requests_proxies.return_value = {
+                    "http": "http://proxy.local:8080"
+                }
+                mock_pm.return_value = mock_manager
+
+                # Clear any existing proxy env vars
+                for key in ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"]:
+                    os.environ.pop(key, None)
+
+                # Create NewsDiscovery instance
+                NewsDiscovery(database_url="sqlite:///:memory:")
+
+                # Verify proxy environment variables are set from http proxy
+                assert os.environ.get("HTTP_PROXY") == "http://proxy.local:8080"
+                assert os.environ.get("HTTPS_PROXY") == "http://proxy.local:8080"
+                assert os.environ.get("http_proxy") == "http://proxy.local:8080"
+                assert os.environ.get("https_proxy") == "http://proxy.local:8080"
+
+
+def test_set_global_proxy_env_with_https_only():
+    """Test _set_global_proxy_env handles https-only proxy."""
+    with patch("src.crawler.discovery.DatabaseManager"):
+        with patch("src.crawler.discovery.create_telemetry_system"):
+            with patch("src.crawler.discovery.get_proxy_manager") as mock_pm:
+                # Setup mock proxy manager with HTTPS proxy only
+                mock_manager = MagicMock()
+                mock_manager.active_provider.value = "squid"
+                mock_manager.get_requests_proxies.return_value = {
+                    "https": "https://secure-proxy.local:8443"
+                }
+                mock_pm.return_value = mock_manager
+
+                # Clear any existing proxy env vars
+                for key in ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"]:
+                    os.environ.pop(key, None)
+
+                # Create NewsDiscovery instance
+                NewsDiscovery(database_url="sqlite:///:memory:")
+
+                # Verify proxy environment variables are set from https proxy
+                assert os.environ.get("HTTP_PROXY") == "https://secure-proxy.local:8443"
+                assert (
+                    os.environ.get("HTTPS_PROXY") == "https://secure-proxy.local:8443"
+                )
+                assert os.environ.get("http_proxy") == "https://secure-proxy.local:8443"
+                assert (
+                    os.environ.get("https_proxy") == "https://secure-proxy.local:8443"
+                )
+
+
+def test_set_global_proxy_env_prefers_http_proxy():
+    """Test _set_global_proxy_env prefers http proxy when both exist."""
+    with patch("src.crawler.discovery.DatabaseManager"):
+        with patch("src.crawler.discovery.create_telemetry_system"):
+            with patch("src.crawler.discovery.get_proxy_manager") as mock_pm:
+                # Setup mock proxy manager with both proxies
+                mock_manager = MagicMock()
+                mock_manager.active_provider.value = "squid"
+                mock_manager.get_requests_proxies.return_value = {
+                    "http": "http://proxy1.local:8080",
+                    "https": "https://proxy2.local:8443",
+                }
+                mock_pm.return_value = mock_manager
+
+                # Clear any existing proxy env vars
+                for key in ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"]:
+                    os.environ.pop(key, None)
+
+                # Create NewsDiscovery instance
+                NewsDiscovery(database_url="sqlite:///:memory:")
+
+                # Verify http proxy is preferred (code uses: proxies.get("http") or proxies.get("https"))
+                assert os.environ.get("HTTP_PROXY") == "http://proxy1.local:8080"
+                assert os.environ.get("HTTPS_PROXY") == "http://proxy1.local:8080"
+                assert os.environ.get("http_proxy") == "http://proxy1.local:8080"
+                assert os.environ.get("https_proxy") == "http://proxy1.local:8080"
+
+
+def test_set_global_proxy_env_preserves_none_values():
+    """Test _set_global_proxy_env handles None proxy gracefully."""
+    with patch("src.crawler.discovery.DatabaseManager"):
+        with patch("src.crawler.discovery.create_telemetry_system"):
+            with patch("src.crawler.discovery.get_proxy_manager") as mock_pm:
+                # Setup mock proxy manager that returns None for get_requests_proxies
+                mock_manager = MagicMock()
+                mock_manager.active_provider.value = "direct"
+                mock_manager.get_requests_proxies.return_value = None
+                mock_pm.return_value = mock_manager
+
+                # Clear any existing proxy env vars
+                for key in ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"]:
+                    os.environ.pop(key, None)
+
+                # Create NewsDiscovery instance - should not crash
+                NewsDiscovery(database_url="sqlite:///:memory:")
+
+                # Verify proxy environment variables are NOT set
+                assert os.environ.get("HTTP_PROXY") is None
+                assert os.environ.get("HTTPS_PROXY") is None
