@@ -1197,7 +1197,7 @@ def test_set_global_proxy_env_with_proxies():
                     os.environ.pop(key, None)
 
                 # Create NewsDiscovery instance (calls _set_global_proxy_env in __init__)
-                nd = NewsDiscovery(database_url="sqlite:///:memory:")
+                NewsDiscovery(database_url="sqlite:///:memory:")
 
                 # Verify all proxy environment variables are set
                 assert os.environ.get("HTTP_PROXY") == "http://t9880447.eero.online:3128"
@@ -1222,7 +1222,7 @@ def test_set_global_proxy_env_with_no_proxies():
                     os.environ.pop(key, None)
 
                 # Create NewsDiscovery instance
-                nd = NewsDiscovery(database_url="sqlite:///:memory:")
+                NewsDiscovery(database_url="sqlite:///:memory:")
 
                 # Verify proxy environment variables are NOT set
                 assert os.environ.get("HTTP_PROXY") is None
@@ -1249,7 +1249,7 @@ def test_set_global_proxy_env_with_http_only():
                     os.environ.pop(key, None)
 
                 # Create NewsDiscovery instance
-                nd = NewsDiscovery(database_url="sqlite:///:memory:")
+                NewsDiscovery(database_url="sqlite:///:memory:")
 
                 # Verify proxy environment variables are set from http proxy
                 assert os.environ.get("HTTP_PROXY") == "http://proxy.local:8080"
@@ -1276,7 +1276,7 @@ def test_set_global_proxy_env_with_https_only():
                     os.environ.pop(key, None)
 
                 # Create NewsDiscovery instance
-                nd = NewsDiscovery(database_url="sqlite:///:memory:")
+                NewsDiscovery(database_url="sqlite:///:memory:")
 
                 # Verify proxy environment variables are set from https proxy
                 assert os.environ.get("HTTP_PROXY") == "https://secure-proxy.local:8443"
@@ -1304,7 +1304,7 @@ def test_set_global_proxy_env_prefers_http_proxy():
                     os.environ.pop(key, None)
 
                 # Create NewsDiscovery instance
-                nd = NewsDiscovery(database_url="sqlite:///:memory:")
+                NewsDiscovery(database_url="sqlite:///:memory:")
 
                 # Verify http proxy is preferred (code uses: proxies.get("http") or proxies.get("https"))
                 assert os.environ.get("HTTP_PROXY") == "http://proxy1.local:8080"
@@ -1326,7 +1326,7 @@ def test_set_global_proxy_env_preserves_none_values():
                     os.environ.pop(key, None)
 
                 # Create NewsDiscovery instance - should not crash
-                nd = NewsDiscovery(database_url="sqlite:///:memory:")
+                NewsDiscovery(database_url="sqlite:///:memory:")
 
                 # Verify proxy environment variables are NOT set
                 assert os.environ.get("HTTP_PROXY") is None

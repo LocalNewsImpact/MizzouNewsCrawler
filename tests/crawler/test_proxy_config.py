@@ -303,3 +303,164 @@ class TestGlobalFunctions:
         assert status["active"] == "squid"
         assert "squid" in status["providers"]
         assert "direct" in status["providers"]
+
+
+class TestProxyConfigEdgeCases:
+    """Test edge cases and error handling in proxy configuration."""
+
+    def test_success_rate_with_zero_requests(self):
+        """Success rate should be 0.0 when no requests made."""
+        config = ProxyConfig(provider=ProxyProvider.SQUID, enabled=True)
+        assert config.success_rate == 0.0
+
+    def test_health_status_boundaries(self):
+        """Test health status transitions at exact boundaries."""
+        config = ProxyConfig(provider=ProxyProvider.SQUID, enabled=True)
+        
+        # Exactly 90% - should be healthy
+        config.success_count = 90
+        config.failure_count = 10
+        assert config.success_rate == 90.0
+        assert config.health_status == "healthy"
+        
+        # Exactly 70% - should be degraded
+        config.success_count = 70
+        config.failure_count = 30
+        assert config.success_rate == 70.0
+        assert config.health_status == "degraded"
+        
+        # Exactly 50% - should be unhealthy
+        config.success_count = 50
+        config.failure_count = 50
+        assert config.success_rate == 50.0
+        assert config.health_status == "unhealthy"
+
+    def test_switch_provider_to_disabled_provider(self):
+        """Cannot switch to a disabled provider."""
+        with mock.patch.dict(os.environ, {}, clear=True):
+            manager = ProxyManager()
+            
+        # BRIGHTDATA not configured/enabled
+        result = manager.switch_provider(ProxyProvider.BRIGHTDATA)
+        assert result is False
+        assert manager.active_provider == ProxyProvider.SQUID
+
+    def test_record_success_updates_avg_response_time(self):
+        """Response time average should update correctly."""
+        with mock.patch.dict(os.environ, {}, clear=True):
+            manager = ProxyManager()
+            
+        config = manager.configs[ProxyProvider.SQUID]
+        
+        # First request: 1.0s
+        manager.record_success(response_time=1.0)
+        assert config.avg_response_time == 1.0
+        
+        # Second request: 2.0s, average should be 1.5s
+        manager.record_success(response_time=2.0)
+        assert abs(config.avg_response_time - 1.5) < 0.01
+
+    def test_get_requests_proxies_with_auth_injection(self):
+        """Proxy URLs with username/password should have auth injected."""
+        with mock.patch.dict(
+            os.environ,
+            {
+                "PROXY_PROVIDER": "standard",
+                "STANDARD_PROXY_URL": "http://proxy.example.com:8080",
+                "STANDARD_PROXY_USERNAME": "user",
+                "STANDARD_PROXY_PASSWORD": "pass",
+            },
+            clear=True,
+        ):
+            manager = ProxyManager()
+            proxies = manager.get_requests_proxies()
+            
+        assert proxies["http"] == "http://user:pass@proxy.example.com:8080"
+        assert proxies["https"] == "http://user:pass@proxy.example.com:8080"
+
+    def test_get_requests_proxies_with_username_no_password(self):
+        """Auth injection should work with only username."""
+        with mock.patch.dict(
+            os.environ,
+            {
+                "PROXY_PROVIDER": "standard",
+                "STANDARD_PROXY_URL": "http://proxy.example.com:8080",
+                "STANDARD_PROXY_USERNAME": "user",
+            },
+            clear=True,
+        ):
+            manager = ProxyManager()
+            proxies = manager.get_requests_proxies()
+            
+        # Should inject username with empty password
+        assert "user:@proxy.example.com" in proxies["http"]
+
+    def test_get_requests_proxies_url_without_protocol(self):
+        """URLs without protocol should get http:// added."""
+        with mock.patch.dict(
+            os.environ,
+            {
+                "PROXY_PROVIDER": "standard",
+                "STANDARD_PROXY_URL": "proxy.example.com:8080",
+                "STANDARD_PROXY_USERNAME": "user",
+                "STANDARD_PROXY_PASSWORD": "pass",
+            },
+            clear=True,
+        ):
+            manager = ProxyManager()
+            proxies = manager.get_requests_proxies()
+            
+        assert proxies["http"] == "http://user:pass@proxy.example.com:8080"
+
+    def test_active_provider_with_explicit_enum_value(self):
+        """PROXY_PROVIDER can be set to enum value directly."""
+        with mock.patch.dict(
+            os.environ,
+            {"PROXY_PROVIDER": "squid"},
+            clear=True,
+        ):
+            manager = ProxyManager()
+            assert manager.active_provider == ProxyProvider.SQUID
+
+    def test_active_provider_case_insensitive(self):
+        """PROXY_PROVIDER should be case insensitive."""
+        with mock.patch.dict(
+            os.environ,
+            {"PROXY_PROVIDER": "SQUID"},
+            clear=True,
+        ):
+            manager = ProxyManager()
+            assert manager.active_provider == ProxyProvider.SQUID
+
+    def test_list_providers_shows_all_metrics(self):
+        """list_providers should return all expected fields."""
+        with mock.patch.dict(os.environ, {}, clear=True):
+            manager = ProxyManager()
+            manager.record_success(response_time=1.5)
+            manager.record_failure()
+            
+        providers = manager.list_providers()
+        squid_info = providers["squid"]
+        
+        assert "enabled" in squid_info
+        assert "url" in squid_info
+        assert "health" in squid_info
+        assert "success_rate" in squid_info
+        assert "requests" in squid_info
+        assert "avg_response_time" in squid_info
+        
+        assert squid_info["requests"] == 2
+        assert squid_info["success_rate"] == "50.0%"
+
+    def test_record_failure_for_specific_provider(self):
+        """Can record failure for non-active provider."""
+        with mock.patch.dict(os.environ, {}, clear=True):
+            manager = ProxyManager()
+            
+        manager.record_failure(provider=ProxyProvider.DIRECT)
+        direct_config = manager.configs[ProxyProvider.DIRECT]
+        squid_config = manager.configs[ProxyProvider.SQUID]
+        
+        assert direct_config.failure_count == 1
+        assert squid_config.failure_count == 0
+
