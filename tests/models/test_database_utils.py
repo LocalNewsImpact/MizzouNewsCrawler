@@ -1,14 +1,15 @@
 """Tests for database.py utility functions to increase coverage."""
 
+from unittest.mock import MagicMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, patch, MagicMock
 from sqlalchemy import text
 from sqlalchemy.exc import ArgumentError, OperationalError
 
 from src.models.database import (
+    _is_sequence_of_sequences,
     _is_test_environment,
     _mask_database_url,
-    _is_sequence_of_sequences,
     safe_execute,
     safe_session_execute,
 )

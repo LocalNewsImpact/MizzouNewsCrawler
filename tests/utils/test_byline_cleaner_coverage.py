@@ -1,7 +1,8 @@
 """Tests for byline_cleaner.py to increase coverage."""
 
-import pytest
 from unittest.mock import Mock, patch
+
+import pytest
 
 from src.utils.byline_cleaner import BylineCleaner
 

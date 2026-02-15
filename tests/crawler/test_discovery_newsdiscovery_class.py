@@ -1,9 +1,10 @@
 """Tests for NewsDiscovery class to increase coverage to 80%."""
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
-from datetime import datetime, timedelta
 import os
+from datetime import datetime, timedelta
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 from src.crawler.discovery import NewsDiscovery
 

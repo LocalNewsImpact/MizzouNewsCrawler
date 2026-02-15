@@ -1,17 +1,18 @@
 """Tests for discovery.py utility functions to increase coverage."""
 
-import pytest
-from datetime import datetime
-from unittest.mock import Mock, patch, MagicMock
 import time as time_module
+from datetime import datetime
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 from src.crawler.discovery import (
-    _safe_struct_time_to_datetime,
-    _coerce_feed_entry,
-    get_sources_from_db,
     RSS_MISSING_THRESHOLD,
     RSS_TRANSIENT_THRESHOLD,
     RSS_TRANSIENT_WINDOW_DAYS,
+    _coerce_feed_entry,
+    _safe_struct_time_to_datetime,
+    get_sources_from_db,
 )
 
 
