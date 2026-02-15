@@ -316,7 +316,7 @@ class TestFormatProgress:
         assert "10 items" in result
 
 
-class TestFormatting Integration:
+class TestFormattingIntegration:
     """Integration tests for formatting functions."""
 
     def test_duration_and_progress_together(self):
