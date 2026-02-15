@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.models.database import BackgroundProcess
+from src.models import BackgroundProcess
 from src.utils.process_tracker import format_duration, format_progress
 
 
