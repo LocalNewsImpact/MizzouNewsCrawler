@@ -66,9 +66,6 @@ class TestNewsDiscoveryInit:
         mock_create_telemetry,
     ):
         """Should fall back to requests.Session when cloudscraper not available."""
-        # Setup mocks - cloudscraper is None
-        mock_cloudscraper = None
-
         mock_proxy_manager = Mock()
         mock_proxy_manager.active_provider = Mock(value="origin")
         mock_proxy_manager.get_requests_proxies.return_value = {}
