@@ -218,6 +218,11 @@ class ArticleLabel(Base):
     primary_label_confidence = Column(Float)
     alternate_label = Column(String)
     alternate_label_confidence = Column(Float)
+    all_predictions: Mapped[dict | None] = mapped_column(
+        JSON,  # Will be JSONB in PostgreSQL
+        nullable=True,
+        comment="All classifier predictions with confidence scores"
+    )
     applied_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=datetime.utcnow
     )

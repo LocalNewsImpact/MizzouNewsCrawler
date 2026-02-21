@@ -970,6 +970,11 @@ def save_article_classification(
 
     now = datetime.utcnow()
 
+    # Extract all predictions from metadata for storage
+    all_predictions = None
+    if metadata and "top_k" in metadata:
+        all_predictions = metadata["top_k"]
+
     if record:
         record.model_version = model_version
         record.model_path = model_path
@@ -977,6 +982,7 @@ def save_article_classification(
         record.primary_label_confidence = primary_score
         record.alternate_label = alt_label
         record.alternate_label_confidence = alt_score
+        record.all_predictions = all_predictions
         record.meta = metadata
         record.applied_at = now
     else:
@@ -989,6 +995,7 @@ def save_article_classification(
             primary_label_confidence=primary_score,
             alternate_label=alt_label,
             alternate_label_confidence=alt_score,
+            all_predictions=all_predictions,
             applied_at=now,
             meta=metadata,
         )
