@@ -301,6 +301,9 @@ class SourceProcessor:
     def _calculate_pause_threshold(self) -> int:
         """Calculate adaptive pause threshold based on publishing frequency.
 
+        Uses the publication cadence (not discovery interval) to determine
+        when lack of new content indicates a real problem.
+
         Logic:
         - Daily publications: 7 consecutive failures (1 week of no content)
         - Weekly publications: 5 consecutive failures (5 weeks)
@@ -312,22 +315,22 @@ class SourceProcessor:
             Number of consecutive failures before auto-pause
         """
         try:
-            from .scheduling import parse_frequency_to_days
+            from .scheduling import parse_frequency_to_publication_days
 
             freq = None
             if isinstance(self.source_meta, dict):
                 freq = self.source_meta.get("frequency")
 
-            cadence_days = parse_frequency_to_days(freq)
+            publication_days = parse_frequency_to_publication_days(freq)
 
-            # Map cadence to failure threshold
-            if cadence_days <= 1:  # Daily or more frequent
+            # Map publication cadence to failure threshold
+            if publication_days <= 1:  # Daily or more frequent
                 return 7  # Allow 1 week of failures
-            elif cadence_days <= 7:  # Weekly
+            elif publication_days <= 7:  # Weekly
                 return 5  # Allow 5 weeks
-            elif cadence_days <= 14:  # Bi-weekly
+            elif publication_days <= 14:  # Bi-weekly
                 return 5  # Allow ~10 weeks
-            elif cadence_days <= 30:  # Monthly
+            elif publication_days <= 30:  # Monthly
                 return 3  # Allow 3 months
             else:  # Less frequent or unknown
                 return 3  # Conservative default

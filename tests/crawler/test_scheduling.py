@@ -19,16 +19,57 @@ import src.crawler.scheduling as scheduling
         ("", 7),
         ("Daily updates", 0.25),
         ("Broadcast", 0.25),
-        ("Bi-weekly", 14),
-        ("Weekly", 3.5),  # Weekly publications: run discovery twice per week
-        ("Triweekly", 7),
-        ("Monthly", 30),
-        ("Hourly", 1),
+        ("Bi-weekly", 7),  # Check bi-weekly sites weekly
+        ("Weekly", 1),  # Check weekly publications daily
+        ("Triweekly", 3.5),  # Check triweekly sites twice per week
+        ("Monthly", 7),  # Check monthly publications weekly
+        ("Hourly", 0.25),  # Check hourly sites every 6 hours
         ("Other", 7),
     ],
 )
 def test_parse_frequency_to_days(freq, expected):
+    """Test parse_frequency_to_days (legacy wrapper for discovery interval)."""
     assert scheduling.parse_frequency_to_days(freq) == expected
+
+
+@pytest.mark.parametrize(
+    "freq, expected",
+    [
+        (None, 7),
+        ("", 7),
+        ("Daily updates", 0.25),
+        ("Broadcast", 0.25),
+        ("Bi-weekly", 7),  # Discovery checks: weekly for bi-weekly pubs
+        ("Weekly", 1),  # Discovery checks: daily for weekly pubs
+        ("Triweekly", 3.5),  # Discovery checks: twice weekly for triweekly pubs
+        ("Monthly", 7),  # Discovery checks: weekly for monthly pubs
+        ("Hourly", 0.25),  # Discovery checks: every 6 hours for hourly pubs
+        ("Other", 7),
+    ],
+)
+def test_parse_frequency_to_discovery_days(freq, expected):
+    """Test parse_frequency_to_discovery_days (discovery interval)."""
+    assert scheduling.parse_frequency_to_discovery_days(freq) == expected
+
+
+@pytest.mark.parametrize(
+    "freq, expected",
+    [
+        (None, 7),
+        ("", 7),
+        ("Daily updates", 1),  # Publication cadence: daily
+        ("Broadcast", 1),
+        ("Bi-weekly", 14),  # Publication cadence: bi-weekly (14 days)
+        ("Weekly", 7),  # Publication cadence: weekly (7 days)
+        ("Triweekly", 7),  # Publication cadence: ~3x per 21 days
+        ("Monthly", 30),  # Publication cadence: monthly (30 days)
+        ("Hourly", 0.25),  # Publication cadence: hourly
+        ("Other", 7),
+    ],
+)
+def test_parse_frequency_to_publication_days(freq, expected):
+    """Test parse_frequency_to_publication_days (publication interval)."""
+    assert scheduling.parse_frequency_to_publication_days(freq) == expected
 
 
 class _Connection:
@@ -205,21 +246,21 @@ class TestSchedulingEdgeCases:
             ("daily", 0.25),
             ("DaIlY uPdAtEs", 0.25),
             ("broadcast news", 0.25),
-            ("WEEKLY", 3.5),
-            ("Biweekly", 14),  # Alternative spelling
-            ("Bi-Weekly", 14),
-            ("monthly newsletter", 30),
+            ("WEEKLY", 1),  # Discovery interval for weekly (daily checks)
+            ("Biweekly", 7),  # Alternative spelling - discovery interval (weekly checks)
+            ("Bi-Weekly", 7),  # Discovery interval (weekly checks)
+            ("monthly newsletter", 7),  # Discovery interval (weekly checks)
             ("unknown frequency", 7),  # Default fallback
         ],
     )
     def test_parse_frequency_to_days_case_insensitive(self, freq, expected):
-        """Frequency parsing should be case insensitive."""
+        """Frequency parsing should be case insensitive (returns discovery interval)."""
         assert scheduling.parse_frequency_to_days(freq) == expected
 
     def test_parse_frequency_to_days_with_whitespace(self):
         """Whitespace should be handled correctly."""
         assert scheduling.parse_frequency_to_days("  Daily  ") == 0.25
-        assert scheduling.parse_frequency_to_days("Weekly\n") == 3.5
+        assert scheduling.parse_frequency_to_days("Weekly\n") == 1  # Discovery interval
 
     def test_get_last_processed_date_with_invalid_iso_string(self):
         """Invalid ISO strings should return None instead of crashing."""
@@ -233,8 +274,8 @@ class TestSchedulingEdgeCases:
     def test_should_schedule_discovery_at_exact_boundary(self, monkeypatch):
         """Test scheduling at exact cadence boundary."""
         now = datetime(2025, 9, 30, 12, 0, 0)
-        # Exactly 3.5 days ago (weekly cadence)
-        last_processed = now - timedelta(days=3.5)
+        # Exactly 1 day ago (weekly discovery cadence is daily)
+        last_processed = now - timedelta(days=1)
         monkeypatch.setattr(
             scheduling,
             "_get_last_processed_date",
@@ -253,8 +294,8 @@ class TestSchedulingEdgeCases:
     def test_should_schedule_discovery_just_before_boundary(self, monkeypatch):
         """Test scheduling just before cadence boundary."""
         now = datetime(2025, 9, 30, 12, 0, 0)
-        # 3.4 days ago (just under weekly 3.5 day cadence)
-        last_processed = now - timedelta(days=3.4)
+        # 0.9 days ago (just under weekly 1 day discovery cadence)
+        last_processed = now - timedelta(days=0.9)
         monkeypatch.setattr(
             scheduling,
             "_get_last_processed_date",

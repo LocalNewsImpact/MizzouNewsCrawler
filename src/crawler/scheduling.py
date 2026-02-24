@@ -27,39 +27,81 @@ from ..models.database import DatabaseManager, safe_execute
 logger = logging.getLogger(__name__)
 
 
-def parse_frequency_to_days(freq: str | None) -> float:
-    """Convert a human frequency string to an approximate cadence in days.
-
-    Returns a floating point number of days to use as a cadence. Conservative
-    defaults are used for ambiguous inputs.
+def parse_frequency_to_publication_days(freq: str | None) -> float:
+    """Convert a frequency string to expected publication cadence in days.
+    
+    This represents how often content is EXPECTED to be published, used for
+    failure threshold calculations.
+    
+    Returns:
+        Days between expected publications (7, 14, 30, etc.)
     """
     if not freq:
         return 7
-
+    
     f = str(freq).lower()
     if "daily" in f or f == "day":
-        # Daily outlets publish throughout the day; our pipeline runs every
-        # 6 hours, so treat 'daily' sources as due every job (0.25 days).
-        return 0.25
+        return 1  # Content expected daily
     if "broadcast" in f:
-        # Broadcast stations (radio/TV) operate continuously; treat as due
-        # every 6 hours (same as daily sources).
-        return 0.25
-    # Detect bi-weekly and tri-weekly patterns before generic weekly
+        return 1  # Continuous content
     if "bi-week" in f or "biweekly" in f or "every 2" in f:
-        return 14
+        return 14  # Content expected bi-weekly
     if "tri-week" in f or "triweekly" in f:
-        return 7  # 3x per 21-day window, default weekly with additional checks
+        return 7  # ~3x per 21 days
     if "weekly" in f or "week" in f:
-        # For weekly publications, run discovery twice per week (every 3.5 days)
-        return 3.5
+        return 7  # Content expected weekly
     if "monthly" in f or "month" in f:
-        return 30
+        return 30  # Content expected monthly
     if "hour" in f or "hourly" in f:
-        return 1
+        return 0.25  # Hourly content
+    
+    return 7  # Default to weekly
 
-    # Fallback conservative default
-    return 7
+
+def parse_frequency_to_discovery_days(freq: str | None) -> float:
+    """Convert a frequency string to discovery check interval in days.
+    
+    This represents how often we ATTEMPT discovery, which is more aggressive
+    than publication frequency to catch content as soon as it appears.
+    
+    Strategy:
+    - Daily sites: Check every 6 hours (0.25 days)
+    - Weekly sites: Check daily (1 day)
+    - Bi-weekly sites: Check weekly (7 days)
+    - Monthly sites: Check weekly (7 days)
+    
+    Returns:
+        Days between discovery attempts
+    """
+    if not freq:
+        return 7
+    
+    f = str(freq).lower()
+    if "daily" in f or f == "day":
+        return 0.25  # Check every 6 hours
+    if "broadcast" in f:
+        return 0.25  # Check every 6 hours
+    if "bi-week" in f or "biweekly" in f or "every 2" in f:
+        return 7  # Check weekly for bi-weekly pubs
+    if "tri-week" in f or "triweekly" in f:
+        return 3.5  # Check twice weekly
+    if "weekly" in f or "week" in f:
+        return 1  # Check daily for weekly pubs
+    if "monthly" in f or "month" in f:
+        return 7  # Check weekly for monthly pubs
+    if "hour" in f or "hourly" in f:
+        return 0.25  # Check every 6 hours
+    
+    return 7  # Default to weekly checks
+
+
+def parse_frequency_to_days(freq: str | None) -> float:
+    """Legacy function - redirects to discovery interval.
+
+    Deprecated: Use parse_frequency_to_discovery_days() or
+    parse_frequency_to_publication_days() explicitly.
+    """
+    return parse_frequency_to_discovery_days(freq)
 
 
 def _get_last_processed_date(
