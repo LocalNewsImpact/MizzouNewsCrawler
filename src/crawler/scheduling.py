@@ -29,16 +29,16 @@ logger = logging.getLogger(__name__)
 
 def parse_frequency_to_publication_days(freq: str | None) -> float:
     """Convert a frequency string to expected publication cadence in days.
-    
+
     This represents how often content is EXPECTED to be published, used for
     failure threshold calculations.
-    
+
     Returns:
         Days between expected publications (7, 14, 30, etc.)
     """
     if not freq:
         return 7
-    
+
     f = str(freq).lower()
     if "daily" in f or f == "day":
         return 1  # Content expected daily
@@ -54,28 +54,28 @@ def parse_frequency_to_publication_days(freq: str | None) -> float:
         return 30  # Content expected monthly
     if "hour" in f or "hourly" in f:
         return 0.25  # Hourly content
-    
+
     return 7  # Default to weekly
 
 
 def parse_frequency_to_discovery_days(freq: str | None) -> float:
     """Convert a frequency string to discovery check interval in days.
-    
+
     This represents how often we ATTEMPT discovery, which is more aggressive
     than publication frequency to catch content as soon as it appears.
-    
+
     Strategy:
     - Daily sites: Check every 6 hours (0.25 days)
     - Weekly sites: Check daily (1 day)
     - Bi-weekly sites: Check weekly (7 days)
     - Monthly sites: Check weekly (7 days)
-    
+
     Returns:
         Days between discovery attempts
     """
     if not freq:
         return 7
-    
+
     f = str(freq).lower()
     if "daily" in f or f == "day":
         return 0.25  # Check every 6 hours
@@ -91,7 +91,7 @@ def parse_frequency_to_discovery_days(freq: str | None) -> float:
         return 7  # Check weekly for monthly pubs
     if "hour" in f or "hourly" in f:
         return 0.25  # Check every 6 hours
-    
+
     return 7  # Default to weekly checks
 
 

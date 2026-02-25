@@ -247,7 +247,10 @@ class TestSchedulingEdgeCases:
             ("DaIlY uPdAtEs", 0.25),
             ("broadcast news", 0.25),
             ("WEEKLY", 1),  # Discovery interval for weekly (daily checks)
-            ("Biweekly", 7),  # Alternative spelling - discovery interval (weekly checks)
+            (
+                "Biweekly",
+                7,
+            ),  # Alternative spelling - discovery interval (weekly checks)
             ("Bi-Weekly", 7),  # Discovery interval (weekly checks)
             ("monthly newsletter", 7),  # Discovery interval (weekly checks)
             ("unknown frequency", 7),  # Default fallback

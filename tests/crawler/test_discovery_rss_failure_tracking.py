@@ -22,17 +22,15 @@ from src.crawler.discovery import NewsDiscovery
 @pytest.fixture
 def discovery_instance():
     """Create NewsDiscovery instance with mocked dependencies."""
-    with patch('src.crawler.discovery.create_telemetry_system'):
-        with patch('src.crawler.discovery.StorySniffer'):
-            with patch('src.crawler.discovery.get_proxy_manager') as mock_proxy:
+    with patch("src.crawler.discovery.create_telemetry_system"):
+        with patch("src.crawler.discovery.StorySniffer"):
+            with patch("src.crawler.discovery.get_proxy_manager") as mock_proxy:
                 mock_proxy_mgr = MagicMock()
                 mock_proxy_mgr.active_provider = MagicMock(value="origin")
                 mock_proxy_mgr.get_requests_proxies.return_value = {}
                 mock_proxy.return_value = mock_proxy_mgr
-                
-                discovery = NewsDiscovery(
-                    database_url="sqlite:///:memory:"
-                )
+
+                discovery = NewsDiscovery(database_url="sqlite:///:memory:")
                 return discovery
 
 
@@ -92,7 +90,7 @@ class TestResetRSSFailureState:
     @pytest.mark.skip(reason="Method no longer accepts conn parameter")
     def test_reset_rss_success_clears_failures(self, discovery_instance):
         """Successful RSS fetch should reset failure counters."""
-        mock_connection = MagicMock(spec=['execute'])
+        mock_connection = MagicMock(spec=["execute"])
         mock_result = MagicMock()
         mock_result.rowcount = 1
         mock_connection.execute.return_value = mock_result
@@ -107,13 +105,15 @@ class TestResetRSSFailureState:
         params = call_args[0][1]
 
         assert "UPDATE sources" in sql
-        assert "rss_consecutive_failures = 0" in sql or "rss_consecutive_failures" in sql
+        assert (
+            "rss_consecutive_failures = 0" in sql or "rss_consecutive_failures" in sql
+        )
         assert params["source_id"] == source_id
 
     @pytest.mark.skip(reason="Method no longer accepts conn parameter")
     def test_reset_updates_last_successful_rss(self, discovery_instance):
         """Reset should update last_successful_rss_at timestamp."""
-        mock_connection = MagicMock(spec=['execute'])
+        mock_connection = MagicMock(spec=["execute"])
         mock_result = MagicMock()
         mock_result.rowcount = 1
         mock_connection.execute.return_value = mock_result
@@ -131,7 +131,7 @@ class TestResetRSSFailureState:
     @pytest.mark.skip(reason="Method no longer accepts conn parameter")
     def test_reset_clears_skip_rss_until(self, discovery_instance):
         """Reset should clear skip_rss_until field."""
-        mock_connection = MagicMock(spec=['execute'])
+        mock_connection = MagicMock(spec=["execute"])
         mock_result = MagicMock()
         mock_result.rowcount = 1
         mock_connection.execute.return_value = mock_result
@@ -150,7 +150,7 @@ class TestTrackTransientRSSFailure:
 
     def test_track_transient_failure_updates_metadata(self, discovery_instance):
         """Transient failure tracking should update source metadata."""
-        mock_connection = MagicMock(spec=['execute'])
+        mock_connection = MagicMock(spec=["execute"])
         mock_row = MagicMock()
         # Simulate existing metadata
         mock_row._asdict.return_value = {
@@ -166,7 +166,7 @@ class TestTrackTransientRSSFailure:
 
     def test_track_transient_initializes_miss_count(self, discovery_instance):
         """First transient failure should initialize miss count to 1."""
-        mock_connection = MagicMock(spec=['execute'])
+        mock_connection = MagicMock(spec=["execute"])
         mock_row = MagicMock()
         # No existing rss_miss_count
         mock_row._asdict.return_value = {"meta": {"frequency": "daily"}}
@@ -177,14 +177,15 @@ class TestTrackTransientRSSFailure:
 
         # Should initialize to 1
         update_call = [
-            call for call in mock_connection.execute.call_args_list
+            call
+            for call in mock_connection.execute.call_args_list
             if "UPDATE" in str(call[0][0])
         ]
         assert len(update_call) >= 1
 
     def test_track_transient_handles_null_metadata(self, discovery_instance):
         """Null metadata should be handled gracefully."""
-        mock_connection = MagicMock(spec=['execute'])
+        mock_connection = MagicMock(spec=["execute"])
         mock_row = MagicMock()
         mock_row._asdict.return_value = {"meta": None}
         mock_connection.execute.return_value.fetchone.return_value = mock_row
@@ -197,7 +198,7 @@ class TestTrackTransientRSSFailure:
 
     def test_track_transient_with_json_string_metadata(self, discovery_instance):
         """JSON string metadata should be parsed and updated."""
-        mock_connection = MagicMock(spec=['execute'])
+        mock_connection = MagicMock(spec=["execute"])
         mock_row = MagicMock()
         # Metadata as JSON string
         mock_row._asdict.return_value = {
@@ -216,11 +217,11 @@ class TestIncrementRSSFailure:
 
     def test_increment_rss_failure_counter(self, discovery_instance):
         """Should increment rss_consecutive_failures counter."""
-        mock_connection = MagicMock(spec=['execute'])
+        mock_connection = MagicMock(spec=["execute"])
         mock_row = MagicMock()
         mock_row._asdict.return_value = {
             "rss_consecutive_failures": 2,
-            "meta": {"frequency": "weekly"}
+            "meta": {"frequency": "weekly"},
         }
         mock_connection.execute.return_value.fetchone.return_value = mock_row
 
@@ -229,7 +230,8 @@ class TestIncrementRSSFailure:
 
         # Should have executed UPDATE to increment counter
         update_calls = [
-            call for call in mock_connection.execute.call_args_list
+            call
+            for call in mock_connection.execute.call_args_list
             if "UPDATE sources" in str(call[0][0])
         ]
         assert len(update_calls) >= 1
@@ -237,12 +239,12 @@ class TestIncrementRSSFailure:
     @pytest.mark.skip(reason="Feature removed - skip_until set in different code path")
     def test_increment_sets_skip_until_after_threshold(self, discovery_instance):
         """After threshold, should set skip_rss_until."""
-        mock_connection = MagicMock(spec=['execute'])
+        mock_connection = MagicMock(spec=["execute"])
         mock_row = MagicMock()
         # Already at threshold (3 failures for weekly)
         mock_row._asdict.return_value = {
             "rss_consecutive_failures": 3,
-            "meta": {"frequency": "weekly"}
+            "meta": {"frequency": "weekly"},
         }
         mock_connection.execute.return_value.fetchone.return_value = mock_row
 
@@ -251,18 +253,19 @@ class TestIncrementRSSFailure:
 
         # Should set skip_rss_until
         update_call = [
-            call for call in mock_connection.execute.call_args_list
+            call
+            for call in mock_connection.execute.call_args_list
             if "skip_rss_until" in str(call[0][0])
         ]
         assert len(update_call) >= 1
 
     def test_increment_handles_none_failures(self, discovery_instance):
         """None failures should be treated as 0."""
-        mock_connection = MagicMock(spec=['execute'])
+        mock_connection = MagicMock(spec=["execute"])
         mock_row = MagicMock()
         mock_row._asdict.return_value = {
             "rss_consecutive_failures": None,
-            "meta": {"frequency": "daily"}
+            "meta": {"frequency": "daily"},
         }
         mock_connection.execute.return_value.fetchone.return_value = mock_row
 
@@ -274,11 +277,11 @@ class TestIncrementRSSFailure:
 
     def test_increment_uses_frequency_for_retry_window(self, discovery_instance):
         """Retry window should respect publication frequency."""
-        mock_connection = MagicMock(spec=['execute'])
+        mock_connection = MagicMock(spec=["execute"])
         mock_row = MagicMock()
         mock_row._asdict.return_value = {
             "rss_consecutive_failures": 5,
-            "meta": {"frequency": "monthly"}  # Should use longer retry window
+            "meta": {"frequency": "monthly"},  # Should use longer retry window
         }
         mock_connection.execute.return_value.fetchone.return_value = mock_row
 
@@ -291,17 +294,17 @@ class TestIncrementRSSFailure:
     @pytest.mark.skip(reason="Feature removed - logging not in this code path")
     def test_increment_logs_failure_count(self, discovery_instance):
         """Should log the current failure count."""
-        mock_connection = MagicMock(spec=['execute'])
+        mock_connection = MagicMock(spec=["execute"])
         mock_row = MagicMock()
         mock_row._asdict.return_value = {
             "rss_consecutive_failures": 4,
-            "meta": {"frequency": "daily"}
+            "meta": {"frequency": "daily"},
         }
         mock_connection.execute.return_value.fetchone.return_value = mock_row
 
         source_id = "test-source-104"
 
-        with patch('src.crawler.discovery.logger') as mock_logger:
+        with patch("src.crawler.discovery.logger") as mock_logger:
             discovery_instance._increment_rss_failure(source_id, conn=mock_connection)
             # Should have logged something about failures
             assert mock_logger.warning.called or mock_logger.info.called
@@ -312,38 +315,42 @@ class TestRSSFailureIntegration:
 
     def test_transient_to_persistent_failure_flow(self, discovery_instance):
         """Workflow: transient failures -> persistent -> skip."""
-        mock_connection = MagicMock(spec=['execute'])
+        mock_connection = MagicMock(spec=["execute"])
 
         # Simulate multiple transient failures
         for i in range(3):
             mock_row = MagicMock()
             mock_row._asdict.return_value = {
                 "meta": {"frequency": "daily", "rss_miss_count": i},
-                "rss_consecutive_failures": 0
+                "rss_consecutive_failures": 0,
             }
             mock_connection.execute.return_value.fetchone.return_value = mock_row
-            discovery_instance._track_transient_rss_failure("source-123", conn=mock_connection)
+            discovery_instance._track_transient_rss_failure(
+                "source-123", conn=mock_connection
+            )
 
         # Now trigger persistent failure
         mock_row = MagicMock()
         mock_row._asdict.return_value = {
             "meta": {"frequency": "daily", "rss_miss_count": 3},
-            "rss_consecutive_failures": 0
+            "rss_consecutive_failures": 0,
         }
         mock_connection.execute.return_value.fetchone.return_value = mock_row
         discovery_instance._increment_rss_failure("source-123", conn=mock_connection)
 
-        assert mock_connection.execute.call_count >= 8  # Multiple SELECT and UPDATE calls
+        assert (
+            mock_connection.execute.call_count >= 8
+        )  # Multiple SELECT and UPDATE calls
 
     def test_reset_after_success_flow(self, discovery_instance):
         """Workflow: failures -> success -> reset."""
-        mock_connection = MagicMock(spec=['execute'])
+        mock_connection = MagicMock(spec=["execute"])
 
         # Simulate failures
         mock_row = MagicMock()
         mock_row._asdict.return_value = {
             "rss_consecutive_failures": 2,
-            "meta": {"frequency": "weekly"}
+            "meta": {"frequency": "weekly"},
         }
         mock_connection.execute.return_value.fetchone.return_value = mock_row
         discovery_instance._increment_rss_failure("source-456", conn=mock_connection)
@@ -363,23 +370,25 @@ class TestRSSFailureEdgeCases:
 
     def test_concurrent_failure_tracking(self, discovery_instance):
         """Multiple failure trackers shouldn't interfere."""
-        mock_connection = MagicMock(spec=['execute'])
+        mock_connection = MagicMock(spec=["execute"])
         mock_row = MagicMock()
         mock_row._asdict.return_value = {
             "meta": {"frequency": "daily", "rss_miss_count": 1},
-            "rss_consecutive_failures": 1
+            "rss_consecutive_failures": 1,
         }
         mock_connection.execute.return_value.fetchone.return_value = mock_row
 
         # Track both transient and persistent for same source
-        discovery_instance._track_transient_rss_failure("source-789", conn=mock_connection)
+        discovery_instance._track_transient_rss_failure(
+            "source-789", conn=mock_connection
+        )
         discovery_instance._increment_rss_failure("source-789", conn=mock_connection)
 
         assert mock_connection.execute.call_count >= 4
 
     def test_database_error_handling(self, discovery_instance):
         """Database errors should be handled gracefully."""
-        mock_connection = MagicMock(spec=['execute'])
+        mock_connection = MagicMock(spec=["execute"])
         mock_connection.execute.side_effect = Exception("Database connection lost")
 
         source_id = "test-source-error"
@@ -392,7 +401,7 @@ class TestRSSFailureEdgeCases:
 
     def test_malformed_metadata_json(self, discovery_instance):
         """Malformed JSON metadata should not crash."""
-        mock_connection = MagicMock(spec=['execute'])
+        mock_connection = MagicMock(spec=["execute"])
         mock_row = MagicMock()
         # Invalid JSON string
         mock_row._asdict.return_value = {"meta": "{invalid json syntax"}
@@ -402,6 +411,8 @@ class TestRSSFailureEdgeCases:
 
         # Should handle parsing error gracefully
         try:
-            discovery_instance._track_transient_rss_failure(source_id, conn=mock_connection)
+            discovery_instance._track_transient_rss_failure(
+                source_id, conn=mock_connection
+            )
         except json.JSONDecodeError:
             pytest.fail("Should handle malformed JSON gracefully")

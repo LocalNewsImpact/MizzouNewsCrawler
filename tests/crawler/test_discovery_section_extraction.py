@@ -19,17 +19,15 @@ from src.crawler.discovery import NewsDiscovery
 @pytest.fixture
 def discovery_instance():
     """Create NewsDiscovery instance with mocked dependencies."""
-    with patch('src.crawler.discovery.create_telemetry_system'):
-        with patch('src.crawler.discovery.StorySniffer'):
-            with patch('src.crawler.discovery.get_proxy_manager') as mock_proxy:
+    with patch("src.crawler.discovery.create_telemetry_system"):
+        with patch("src.crawler.discovery.StorySniffer"):
+            with patch("src.crawler.discovery.get_proxy_manager") as mock_proxy:
                 mock_proxy_mgr = MagicMock()
                 mock_proxy_mgr.active_provider = MagicMock(value="origin")
                 mock_proxy_mgr.get_requests_proxies.return_value = {}
-                mock_proxy.return_value =mock_proxy_mgr
-                
-                discovery = NewsDiscovery(
-                    database_url="sqlite:///:memory:"
-                )
+                mock_proxy.return_value = mock_proxy_mgr
+
+                discovery = NewsDiscovery(database_url="sqlite:///:memory:")
                 return discovery
 
 
@@ -49,7 +47,9 @@ class TestExtractHomepageFeedURLs:
         """
 
         homepage_url = "https://example.com"
-        feeds = discovery_instance._extract_homepage_feed_urls(homepage_url, html_with_feeds)
+        feeds = discovery_instance._extract_homepage_feed_urls(
+            homepage_url, html_with_feeds
+        )
 
         assert len(feeds) >= 1
         assert any("rss" in feed.lower() or "atom" in feed.lower() for feed in feeds)
@@ -125,10 +125,10 @@ class TestExtractHomepageFeedURLs:
         html = "<html><body></body></html>"  # No feed links
 
         homepage_url = "https://example.com"
-        with patch('requests.Session.head') as mock_head:
+        with patch("requests.Session.head") as mock_head:
             mock_response = Mock()
             mock_response.status_code = 200
-            mock_response.headers = {'Content-Type': 'application/rss+xml'}
+            mock_response.headers = {"Content-Type": "application/rss+xml"}
             mock_head.return_value = mock_response
 
             feeds = discovery_instance._extract_homepage_feed_urls(homepage_url, html)
