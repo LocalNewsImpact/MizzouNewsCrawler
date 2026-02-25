@@ -325,7 +325,7 @@ def test_rss_retry_window_days(
 
     monkeypatch.setattr(
         discovery_module,
-        "parse_frequency_to_days",
+        "parse_frequency_to_publication_days",
         fake_parse,
     )
 
