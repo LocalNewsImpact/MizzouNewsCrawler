@@ -1079,9 +1079,9 @@ class SourceProcessor:
 
                             # Perform primary tracking (legacy + typed append)
                             self.discovery._track_transient_rss_failure(
+                                conn,
                                 self.source_id,
                                 last_transient_status,
-                                conn=conn,
                             )
 
                             # Post-fetch list to confirm growth; append if unchanged

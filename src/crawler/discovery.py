@@ -1172,7 +1172,9 @@ class NewsDiscovery:
                     """
                     UPDATE sources
                     SET rss_consecutive_failures = 0,
-                        rss_missing_at = NULL
+                        rss_missing_at = NULL,
+                        skip_rss_until = NULL,
+                        last_successful_rss_at = CURRENT_TIMESTAMP
                     WHERE id = :id
                     """,
                     {"id": source_id},
