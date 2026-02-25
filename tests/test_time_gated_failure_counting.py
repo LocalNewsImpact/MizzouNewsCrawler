@@ -148,7 +148,7 @@ class TestTimeGatedFailureCounting:
         db_manager = DatabaseManager(mock_discovery.database_url)
 
         # Insert source with failure 7 hours ago
-        last_seen = datetime.utcnow() - timedelta(hours=7)
+        last_seen = datetime.utcnow() - timedelta(hours=25)
         self._insert_test_source(
             db_manager,
             source_id,

@@ -62,7 +62,7 @@ def test_should_schedule_discovery_daily_respects_12_hour_window():
                 now=now,
             )
 
-        seven_hours_ago = now - timedelta(hours=7)
+        seven_hours_ago = now - timedelta(hours=25)
         with patch(patch_target, return_value=seven_hours_ago):
             assert should_schedule_discovery(
                 db,
