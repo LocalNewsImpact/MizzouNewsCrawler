@@ -153,7 +153,9 @@ class TestExtractHomepageArticleCandidates:
         """
 
         homepage_url = "https://example.com"
-        candidates = discovery_instance._extract_homepage_article_candidates(html, homepage_url)
+        candidates = discovery_instance._extract_homepage_article_candidates(
+            html, homepage_url
+        )
 
         assert len(candidates) >= 1
         assert any("/news/" in url for url in candidates)
@@ -178,7 +180,9 @@ class TestExtractHomepageArticleCandidates:
         """
 
         homepage_url = "https://example.com"
-        candidates = discovery_instance._extract_homepage_article_candidates(html, homepage_url)
+        candidates = discovery_instance._extract_homepage_article_candidates(
+            html, homepage_url
+        )
 
         # Should include article link
         assert any("/news/" in url for url in candidates)
@@ -196,7 +200,9 @@ class TestExtractHomepageArticleCandidates:
         """
 
         homepage_url = "https://example.com"
-        candidates = discovery_instance._extract_homepage_article_candidates(html, homepage_url)
+        candidates = discovery_instance._extract_homepage_article_candidates(
+            html, homepage_url
+        )
 
         assert all(url.startswith("https://example.com") for url in candidates)
 
@@ -213,7 +219,9 @@ class TestExtractHomepageArticleCandidates:
         """
 
         homepage_url = "https://example.com"
-        candidates = discovery_instance._extract_homepage_article_candidates(html, homepage_url)
+        candidates = discovery_instance._extract_homepage_article_candidates(
+            html, homepage_url
+        )
 
         # Should deduplicate (may normalize URLs first)
         assert isinstance(candidates, (list, set))
@@ -223,7 +231,9 @@ class TestExtractHomepageArticleCandidates:
         html = ""
 
         homepage_url = "https://example.com"
-        candidates = discovery_instance._extract_homepage_article_candidates(html, homepage_url)
+        candidates = discovery_instance._extract_homepage_article_candidates(
+            html, homepage_url
+        )
 
         assert len(candidates) == 0
 
@@ -239,7 +249,9 @@ class TestExtractHomepageArticleCandidates:
         """
 
         homepage_url = "https://example.com"
-        candidates = discovery_instance._extract_homepage_article_candidates(html, homepage_url)
+        candidates = discovery_instance._extract_homepage_article_candidates(
+            html, homepage_url
+        )
 
         # Should only include same-domain links
         assert all("example.com" in url for url in candidates)
@@ -258,7 +270,9 @@ class TestExtractSectionsFromArticleURLs:
             "https://example.com/sports/football/recap.html",
         ]
 
-        sections = discovery_instance._extract_sections_from_article_urls(article_urls, "https://example.com")
+        sections = discovery_instance._extract_sections_from_article_urls(
+            article_urls, "https://example.com"
+        )
 
         # Should identify /news/local and /sports
         assert len(sections) >= 2
@@ -273,7 +287,9 @@ class TestExtractSectionsFromArticleURLs:
             "https://example.com/sports/game.html",
         ]
 
-        sections = discovery_instance._extract_sections_from_article_urls(article_urls, "https://example.com")
+        sections = discovery_instance._extract_sections_from_article_urls(
+            article_urls, "https://example.com"
+        )
 
         # Should identify top-level sections
         assert len(sections) >= 1
@@ -286,7 +302,9 @@ class TestExtractSectionsFromArticleURLs:
             "https://example.com/news/story3.html",
         ]
 
-        sections = discovery_instance._extract_sections_from_article_urls(article_urls, "https://example.com")
+        sections = discovery_instance._extract_sections_from_article_urls(
+            article_urls, "https://example.com"
+        )
 
         # Should only return /news once
         news_sections = [s for s in sections if "news" in s]
@@ -300,7 +318,9 @@ class TestExtractSectionsFromArticleURLs:
             "https://example.com/author/john/posts.html",  # Author page
         ]
 
-        sections = discovery_instance._extract_sections_from_article_urls(article_urls, "https://example.com")
+        sections = discovery_instance._extract_sections_from_article_urls(
+            article_urls, "https://example.com"
+        )
 
         # Should filter out date/ID/author patterns
         # (exact behavior depends on implementation)
@@ -313,7 +333,9 @@ class TestExtractSectionsFromArticleURLs:
             "https://example.com/news/article.html?ref=homepage",
         ]
 
-        sections = discovery_instance._extract_sections_from_article_urls(article_urls, "https://example.com")
+        sections = discovery_instance._extract_sections_from_article_urls(
+            article_urls, "https://example.com"
+        )
 
         # Should not include query params in section URLs
         assert all("?" not in section for section in sections)
@@ -474,8 +496,12 @@ class TestSectionDiscoveryIntegration:
         nav_sections = discovery_instance._discover_section_urls(homepage_url, html)
 
         # Get article URLs and extract sections
-        article_urls = discovery_instance._extract_homepage_article_candidates(html, homepage_url)
-        article_sections = discovery_instance._extract_sections_from_article_urls(article_urls, "https://example.com")
+        article_urls = discovery_instance._extract_homepage_article_candidates(
+            html, homepage_url
+        )
+        article_sections = discovery_instance._extract_sections_from_article_urls(
+            article_urls, "https://example.com"
+        )
 
         # Combined sections should include both sources
         all_sections = set(nav_sections) | set(article_sections)
