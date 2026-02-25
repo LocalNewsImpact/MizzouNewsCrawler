@@ -2159,11 +2159,11 @@ class NewsDiscovery:
             # Use actual schema: id, host, host_norm, canonical_name,
             # city, county, owner, type, metadata
             # Prioritize sources that have never been attempted for discovery
-            # Exclude paused sources from discovery
+            # Exclude paused and retired sources from discovery
             where_clauses = [
                 "s.host IS NOT NULL",
                 "s.host != ''",
-                "(s.status IS NULL OR s.status != 'paused')",
+                "(s.status IS NULL OR s.status = 'active')",
             ]
             params: dict[str, Any] = {}
 

@@ -206,12 +206,18 @@ class URLVerificationService:
             )
 
     def get_unverified_urls(self, limit: int | None = None) -> list[dict]:
-        """Get candidate links that need verification."""
+        """Get candidate links that need verification.
+
+        Only returns URLs from active sources (excludes paused and retired sources).
+        """
         query = """
-            SELECT id, url, source_name, source_city, source_county, status
-            FROM candidate_links
-            WHERE status = 'discovered'
-            ORDER BY created_at ASC
+            SELECT cl.id, cl.url, cl.source_name, cl.source_city,
+                   cl.source_county, cl.status
+            FROM candidate_links cl
+            LEFT JOIN sources s ON cl.source_id = s.id
+            WHERE cl.status = 'discovered'
+            AND (s.status IS NULL OR s.status = 'active')
+            ORDER BY cl.created_at ASC
         """
 
         if limit:

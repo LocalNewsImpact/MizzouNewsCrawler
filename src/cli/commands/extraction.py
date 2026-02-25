@@ -428,7 +428,9 @@ def _analyze_dataset_domains(args, session):
     query = """
     SELECT DISTINCT cl.url
     FROM candidate_links cl
+    LEFT JOIN sources s ON cl.source_id = s.id
     WHERE cl.status = 'article'
+    AND (s.status IS NULL OR s.status = 'active')
     AND NOT EXISTS (
         SELECT 1 FROM articles a
         WHERE a.candidate_link_id = cl.id
@@ -728,8 +730,10 @@ def handle_extraction_command(args) -> int:
                     # Filter by specific dataset UUID
                     query = text(
                         "SELECT COUNT(*) FROM candidate_links cl "
+                        "LEFT JOIN sources s ON cl.source_id = s.id "
                         "WHERE cl.status = 'article' "
                         "AND cl.dataset_id = :dataset "
+                        "AND (s.status IS NULL OR s.status = 'active') "
                         "AND cl.id NOT IN "
                         "(SELECT candidate_link_id FROM articles "
                         "WHERE candidate_link_id IS NOT NULL)"
@@ -742,7 +746,9 @@ def handle_extraction_command(args) -> int:
                     # Count all remaining articles
                     query = text(
                         "SELECT COUNT(*) FROM candidate_links cl "
+                        "LEFT JOIN sources s ON cl.source_id = s.id "
                         "WHERE cl.status = 'article' "
+                        "AND (s.status IS NULL OR s.status = 'active') "
                         "AND cl.id NOT IN "
                         "(SELECT candidate_link_id FROM articles "
                         "WHERE candidate_link_id IS NOT NULL)"
@@ -1192,6 +1198,7 @@ def _process_batch(
                 SELECT 1 FROM articles a
                 WHERE a.candidate_link_id = cl.id
             )
+            AND (s.status IS NULL OR s.status = 'active')
             ORDER BY RANDOM()  -- Use random order to mix domains
             LIMIT :limit_with_buffer
             """
