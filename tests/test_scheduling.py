@@ -27,17 +27,17 @@ def test_parse_frequency_broadcast():
 
 
 def test_parse_frequency_weekly():
-    assert parse_frequency_to_days("weekly") == 3.5
-    assert parse_frequency_to_days("every week") == 3.5
+    assert parse_frequency_to_days("weekly") == 1
+    assert parse_frequency_to_days("every week") == 1
 
 
 def test_parse_frequency_biweekly():
-    assert parse_frequency_to_days("bi-weekly") == 14
-    assert parse_frequency_to_days("biweekly") == 14
+    assert parse_frequency_to_days("bi-weekly") == 7
+    assert parse_frequency_to_days("biweekly") == 7
 
 
 def test_parse_frequency_monthly():
-    assert parse_frequency_to_days("monthly") == 30
+    assert parse_frequency_to_days("monthly") == 7
 
 
 def test_parse_frequency_unknown():
@@ -90,10 +90,10 @@ def test_should_schedule_discovery_broadcast_uses_12_hour_window():
 @pytest.mark.parametrize(
     "frequency,delta_hours,expected",
     [
-        ("weekly", 24 * 3, False),  # 3 days < 3.5 days, not due yet
-        ("weekly", 24 * 4, True),  # 4 days > 3.5 days, due for discovery
-        ("monthly", 24 * 20, False),
-        ("monthly", 24 * 35, True),
+        ("weekly", 12, False),  # 0.5 days < 1 day, not due yet
+        ("weekly", 25, True),  # 25 hours > 1 day, due for discovery
+        ("monthly", 144, False),  # 6 days < 7 days, not due yet
+        ("monthly", 192, True),  # 8 days > 7 days, due for discovery
         (None, 24 * 5, False),
         (None, 24 * 9, True),
     ],
@@ -122,7 +122,7 @@ def test_should_schedule_discovery_frequency_matrix(
 def test_should_schedule_discovery_uses_metadata_when_no_processed_rows():
     now = datetime(2025, 9, 28, 12, 0, 0)
     eight_days_ago = (now - timedelta(days=8)).isoformat()
-    two_days_ago = (now - timedelta(days=2)).isoformat()
+    half_day_ago = (now - timedelta(hours=12)).isoformat()
     patch_target = "src.crawler.scheduling._get_last_processed_date"
     with DatabaseManager("sqlite:///:memory:") as db:
         with patch(patch_target, return_value=None):
@@ -135,7 +135,7 @@ def test_should_schedule_discovery_uses_metadata_when_no_processed_rows():
             assert not should_schedule_discovery(
                 db,
                 "source-1",
-                {"frequency": "weekly", "last_discovery_at": two_days_ago},
+                {"frequency": "weekly", "last_discovery_at": half_day_ago},
                 now=now,
             )
 

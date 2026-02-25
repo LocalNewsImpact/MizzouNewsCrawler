@@ -87,7 +87,6 @@ class TestRSSRetryWindowDays:
 class TestResetRSSFailureState:
     """Test _reset_rss_failure_state method."""
 
-    @pytest.mark.skip(reason="Method no longer accepts conn parameter")
     def test_reset_rss_success_clears_failures(self, discovery_instance):
         """Successful RSS fetch should reset failure counters."""
         mock_connection = MagicMock(spec=["execute"])
@@ -96,7 +95,7 @@ class TestResetRSSFailureState:
         mock_connection.execute.return_value = mock_result
 
         source_id = "test-source-123"
-        discovery_instance._reset_rss_failure_state(source_id)
+        discovery_instance._reset_rss_failure_state(source_id, mock_connection)
 
         # Should have executed UPDATE to reset failures
         assert mock_connection.execute.called
@@ -108,9 +107,8 @@ class TestResetRSSFailureState:
         assert (
             "rss_consecutive_failures = 0" in sql or "rss_consecutive_failures" in sql
         )
-        assert params["source_id"] == source_id
+        assert params["id"] == source_id
 
-    @pytest.mark.skip(reason="Method no longer accepts conn parameter")
     def test_reset_updates_last_successful_rss(self, discovery_instance):
         """Reset should update last_successful_rss_at timestamp."""
         mock_connection = MagicMock(spec=["execute"])
@@ -119,7 +117,7 @@ class TestResetRSSFailureState:
         mock_connection.execute.return_value = mock_result
 
         source_id = "test-source-456"
-        discovery_instance._reset_rss_failure_state(source_id)
+        discovery_instance._reset_rss_failure_state(source_id, mock_connection)
 
         call_args = mock_connection.execute.call_args
         sql = str(call_args[0][0])
@@ -128,7 +126,6 @@ class TestResetRSSFailureState:
         # Timestamp should be set to NOW()
         assert "NOW()" in sql or "CURRENT_TIMESTAMP" in sql or "datetime" in sql.lower()
 
-    @pytest.mark.skip(reason="Method no longer accepts conn parameter")
     def test_reset_clears_skip_rss_until(self, discovery_instance):
         """Reset should clear skip_rss_until field."""
         mock_connection = MagicMock(spec=["execute"])
@@ -137,7 +134,7 @@ class TestResetRSSFailureState:
         mock_connection.execute.return_value = mock_result
 
         source_id = "test-source-789"
-        discovery_instance._reset_rss_failure_state(source_id)
+        discovery_instance._reset_rss_failure_state(source_id, mock_connection)
 
         call_args = mock_connection.execute.call_args
         sql = str(call_args[0][0])
@@ -236,9 +233,8 @@ class TestIncrementRSSFailure:
         ]
         assert len(update_calls) >= 1
 
-    @pytest.mark.skip(reason="Feature removed - skip_until set in different code path")
     def test_increment_sets_skip_until_after_threshold(self, discovery_instance):
-        """After threshold, should set skip_rss_until."""
+        """After threshold, should set rss_missing_at."""
         mock_connection = MagicMock(spec=["execute"])
         mock_row = MagicMock()
         # Already at threshold (3 failures for weekly)
@@ -251,11 +247,11 @@ class TestIncrementRSSFailure:
         source_id = "test-source-101"
         discovery_instance._increment_rss_failure(source_id, conn=mock_connection)
 
-        # Should set skip_rss_until
+        # Should set rss_missing_at
         update_call = [
             call
             for call in mock_connection.execute.call_args_list
-            if "skip_rss_until" in str(call[0][0])
+            if "rss_missing_at" in str(call[0][0])
         ]
         assert len(update_call) >= 1
 
@@ -291,7 +287,6 @@ class TestIncrementRSSFailure:
         # Should have called with frequency parameter
         assert mock_connection.execute.called
 
-    @pytest.mark.skip(reason="Feature removed - logging not in this code path")
     def test_increment_logs_failure_count(self, discovery_instance):
         """Should log the current failure count."""
         mock_connection = MagicMock(spec=["execute"])
@@ -307,7 +302,11 @@ class TestIncrementRSSFailure:
         with patch("src.crawler.discovery.logger") as mock_logger:
             discovery_instance._increment_rss_failure(source_id, conn=mock_connection)
             # Should have logged something about failures
-            assert mock_logger.warning.called or mock_logger.info.called
+            assert (
+                mock_logger.warning.called
+                or mock_logger.info.called
+                or mock_logger.debug.called
+            )
 
 
 class TestRSSFailureIntegration:

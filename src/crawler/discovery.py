@@ -1160,13 +1160,31 @@ class NewsDiscovery:
     def _reset_rss_failure_state(
         self,
         source_id: str | None,
+        conn=None,
     ) -> None:
         if not source_id:
             return
         # Column-based reset: clear missing marker, consecutive failures.
         try:
-            dbm = DatabaseManager(self.database_url)
-            with dbm.engine.begin() as conn:
+            if conn is None:
+                dbm = DatabaseManager(self.database_url)
+                try:
+                    with dbm.engine.begin() as tx_conn:
+                        safe_execute(
+                            tx_conn,
+                            """
+                            UPDATE sources
+                            SET rss_consecutive_failures = 0,
+                                rss_missing_at = NULL,
+                                skip_rss_until = NULL,
+                                last_successful_rss_at = CURRENT_TIMESTAMP
+                            WHERE id = :id
+                            """,
+                            {"id": source_id},
+                        )
+                finally:
+                    dbm.close()
+            else:
                 safe_execute(
                     conn,
                     """
