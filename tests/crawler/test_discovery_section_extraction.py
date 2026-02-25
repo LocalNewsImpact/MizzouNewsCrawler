@@ -48,7 +48,7 @@ class TestExtractHomepageFeedURLs:
 
         homepage_url = "https://example.com"
         feeds = discovery_instance._extract_homepage_feed_urls(
-            homepage_url, html_with_feeds
+            html_with_feeds, homepage_url
         )
 
         assert len(feeds) >= 1
@@ -65,7 +65,7 @@ class TestExtractHomepageFeedURLs:
         """
 
         homepage_url = "https://example.com"
-        feeds = discovery_instance._extract_homepage_feed_urls(homepage_url, html)
+        feeds = discovery_instance._extract_homepage_feed_urls(html, homepage_url)
 
         assert len(feeds) >= 1
         assert any(feed.startswith("https://example.com") for feed in feeds)
@@ -83,7 +83,7 @@ class TestExtractHomepageFeedURLs:
         """
 
         homepage_url = "https://example.com"
-        feeds = discovery_instance._extract_homepage_feed_urls(homepage_url, html)
+        feeds = discovery_instance._extract_homepage_feed_urls(html, homepage_url)
 
         assert len(feeds) >= 2
 
@@ -100,7 +100,7 @@ class TestExtractHomepageFeedURLs:
         """
 
         homepage_url = "https://example.com"
-        feeds = discovery_instance._extract_homepage_feed_urls(homepage_url, html)
+        feeds = discovery_instance._extract_homepage_feed_urls(html, homepage_url)
 
         # Should not include stylesheets, icons, etc.
         assert not any("css" in feed for feed in feeds)
@@ -117,7 +117,7 @@ class TestExtractHomepageFeedURLs:
 
         homepage_url = "https://example.com"
         # Should not raise exception
-        feeds = discovery_instance._extract_homepage_feed_urls(homepage_url, html)
+        feeds = discovery_instance._extract_homepage_feed_urls(html, homepage_url)
         assert isinstance(feeds, (list, set))
 
     def test_extract_feed_from_common_locations(self, discovery_instance):
@@ -131,7 +131,7 @@ class TestExtractHomepageFeedURLs:
             mock_response.headers = {"Content-Type": "application/rss+xml"}
             mock_head.return_value = mock_response
 
-            feeds = discovery_instance._extract_homepage_feed_urls(homepage_url, html)
+            feeds = discovery_instance._extract_homepage_feed_urls(html, homepage_url)
 
             # May attempt common locations
             assert isinstance(feeds, (list, set))
@@ -515,7 +515,7 @@ class TestSectionDiscoveryIntegration:
 
         homepage_url = "https://example.com"
 
-        feeds = discovery_instance._extract_homepage_feed_urls(homepage_url, html)
+        feeds = discovery_instance._extract_homepage_feed_urls(html, homepage_url)
         sections = discovery_instance._discover_section_urls(homepage_url, html)
 
         assert len(feeds) >= 1
