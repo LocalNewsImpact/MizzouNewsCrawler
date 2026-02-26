@@ -80,6 +80,16 @@ BigQuery Export → analytics datasets
 - Local Docker validation catches issues before they reach GitHub CI
 - Do NOT rely on "it will work in CI" - fix all Docker test failures locally
 
+### 7. **NEVER INTERRUPT LOCAL CI/CD PROCESSES**
+- **NEVER** send Ctrl-C or interrupt `git push` while tests are running
+- **NEVER** interrupt pre-push hooks, pre-commit hooks, or any test execution
+- **NEVER** use background mode for git push (`isBackground: true`) - tests must complete
+- Let ALL tests run to completion, even if they take 10+ minutes
+- If tests are failing, wait for them to fail completely and show the errors
+- Interrupting tests wastes time and forces re-running everything
+- Be patient: local CI/CD is validating your changes before they hit GitHub
+- If you need to stop a test run, tell the user first and explain why
+
 ## Database Query Protocol
 
 ### Production Database Access (PostgreSQL via Cloud SQL)
