@@ -148,7 +148,7 @@ class TestTimeGatedFailureCounting:
         db_manager = DatabaseManager(mock_discovery.database_url)
 
         # Insert source with failure 7 hours ago
-        last_seen = datetime.utcnow() - timedelta(hours=7)
+        last_seen = datetime.utcnow() - timedelta(hours=25)
         self._insert_test_source(
             db_manager,
             source_id,
@@ -585,8 +585,8 @@ class TestTimeGatedFailureCounting:
 
         db_manager.close()
 
-    def test_hourly_frequency_requires_1_day(self, mock_discovery):
-        """Hourly frequency should require 1 day between increments."""
+    def test_hourly_frequency_allows_after_6_hours(self, mock_discovery):
+        """Hourly source should allow increment after 6+ hours."""
         source_id = "test-hourly"
         host = "hourly.com"
         db_manager = DatabaseManager(mock_discovery.database_url)
@@ -602,12 +602,16 @@ class TestTimeGatedFailureCounting:
             current_count=1,
         )
 
-        # Try to increment (should be blocked - only 12 hours)
+        # Try to increment (should succeed - 12 hours > 6 hour gate)
         count = mock_discovery._increment_no_effective_methods(
             source_id,
             source_meta={"frequency": "hourly"},
         )
 
-        assert count == 1  # Should remain 1
+        assert count == 2  # Should be incremented
+
+        # Verify database was updated
+        state = read_source_state(db_manager.engine, source_id)
+        assert state.get("no_effective_methods_consecutive") == 2
 
         db_manager.close()

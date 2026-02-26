@@ -30,7 +30,7 @@ from sqlalchemy.exc import IntegrityError
 # Suppress InsecureRequestWarning for proxies without SSL certs
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-from .scheduling import parse_frequency_to_days
+from .scheduling import parse_frequency_to_publication_days
 
 # Using multiprocessing for build timeouts; no concurrent.futures needed here
 
@@ -1160,19 +1160,39 @@ class NewsDiscovery:
     def _reset_rss_failure_state(
         self,
         source_id: str | None,
+        conn=None,
     ) -> None:
         if not source_id:
             return
         # Column-based reset: clear missing marker, consecutive failures.
         try:
-            dbm = DatabaseManager(self.database_url)
-            with dbm.engine.begin() as conn:
+            if conn is None:
+                dbm = DatabaseManager(self.database_url)
+                try:
+                    with dbm.engine.begin() as tx_conn:
+                        safe_execute(
+                            tx_conn,
+                            """
+                            UPDATE sources
+                            SET rss_consecutive_failures = 0,
+                                rss_missing_at = NULL,
+                                skip_rss_until = NULL,
+                                last_successful_rss_at = CURRENT_TIMESTAMP
+                            WHERE id = :id
+                            """,
+                            {"id": source_id},
+                        )
+                finally:
+                    dbm.close()
+            else:
                 safe_execute(
                     conn,
                     """
                     UPDATE sources
                     SET rss_consecutive_failures = 0,
-                        rss_missing_at = NULL
+                        rss_missing_at = NULL,
+                        skip_rss_until = NULL,
+                        last_successful_rss_at = CURRENT_TIMESTAMP
                     WHERE id = :id
                     """,
                     {"id": source_id},
@@ -1581,7 +1601,7 @@ class NewsDiscovery:
                     freq = None
                     if isinstance(source_meta, dict):
                         freq = source_meta.get("frequency")
-                    cadence_days = parse_frequency_to_days(freq)
+                    cadence_days = parse_frequency_to_publication_days(freq)
 
                     # Require at least one publication cycle to pass
                     # before counting another failure
@@ -1966,7 +1986,7 @@ class NewsDiscovery:
         """
 
         try:
-            days = parse_frequency_to_days(freq)
+            days = parse_frequency_to_publication_days(freq)
         except Exception:
             return 7
 
@@ -2159,11 +2179,11 @@ class NewsDiscovery:
             # Use actual schema: id, host, host_norm, canonical_name,
             # city, county, owner, type, metadata
             # Prioritize sources that have never been attempted for discovery
-            # Exclude paused sources from discovery
+            # Exclude paused and retired sources from discovery
             where_clauses = [
                 "s.host IS NOT NULL",
                 "s.host != ''",
-                "(s.status IS NULL OR s.status != 'paused')",
+                "(s.status IS NULL OR s.status = 'active')",
             ]
             params: dict[str, Any] = {}
 
@@ -3364,7 +3384,7 @@ class NewsDiscovery:
                                     "freq"
                                 )
                             if freq:
-                                parsed = parse_frequency_to_days(freq)
+                                parsed = parse_frequency_to_publication_days(freq)
                                 recent_activity_days = max(1, int(parsed * 3))
                         except Exception:
                             recent_activity_days = 90

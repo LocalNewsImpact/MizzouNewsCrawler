@@ -218,6 +218,11 @@ class ArticleLabel(Base):
     primary_label_confidence = Column(Float)
     alternate_label = Column(String)
     alternate_label_confidence = Column(Float)
+    all_predictions: Mapped[dict | None] = mapped_column(
+        JSON,  # Will be JSONB in PostgreSQL
+        nullable=True,
+        comment="All classifier predictions with confidence scores",
+    )
     applied_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=datetime.utcnow
     )
@@ -608,6 +613,8 @@ class Source(Base):
     rss_transient_failures = Column(JSON, nullable=False, default=list)
     rss_missing_at = Column(DateTime, nullable=True)
     rss_last_failed_at = Column(DateTime, nullable=True)
+    last_successful_rss_at = Column(DateTime, nullable=True)
+    skip_rss_until = Column(DateTime, nullable=True)
     last_successful_method = Column(String(32), nullable=True)
     no_effective_methods_consecutive = Column(Integer, nullable=False, default=0)
     no_effective_methods_last_seen = Column(DateTime, nullable=True)
