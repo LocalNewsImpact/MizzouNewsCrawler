@@ -673,7 +673,8 @@ def test_due_only_respects_metadata_and_updates_state(
 
     now = datetime.utcnow().replace(microsecond=0)
     due_last = (now - timedelta(days=8)).isoformat()
-    recent_last = (now - timedelta(days=2)).isoformat()
+    # Weekly discovery interval is 1 day - make recent source < 1 day to not be due
+    recent_last = (now - timedelta(hours=12)).isoformat()
 
     with DatabaseManager(database_url) as db:
         due_source = _add_source(

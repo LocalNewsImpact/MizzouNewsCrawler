@@ -473,12 +473,15 @@ class TestTimeGatedFailurePersistence:
         weekly_id = f"test-weekly-{timestamp}"
         monthly_id = f"test-monthly-{timestamp}"
 
-        # All with failures 4 days ago
-        last_seen = datetime.utcnow() - timedelta(days=4)
+        # Different last_seen times based on frequency gates
+        # Daily gate: 1 day, Weekly gate: 7 days, Monthly gate: 30 days
+        daily_last_seen = datetime.utcnow() - timedelta(days=2)  # > 1 day
+        weekly_last_seen = datetime.utcnow() - timedelta(days=8)  # > 7 days
+        monthly_last_seen = datetime.utcnow() - timedelta(days=4)  # < 30 days
 
         try:
             self._create_test_source(
-                cloud_sql_session, daily_id, "daily.com", "daily", 1, last_seen
+                cloud_sql_session, daily_id, "daily.com", "daily", 1, daily_last_seen
             )
             self._create_test_source(
                 cloud_sql_session,
@@ -486,7 +489,7 @@ class TestTimeGatedFailurePersistence:
                 "weekly.com",
                 "weekly",
                 1,
-                last_seen,
+                weekly_last_seen,
             )
             self._create_test_source(
                 cloud_sql_session,
@@ -494,7 +497,7 @@ class TestTimeGatedFailurePersistence:
                 "monthly.com",
                 "monthly",
                 1,
-                last_seen,
+                monthly_last_seen,
             )
 
             import os
