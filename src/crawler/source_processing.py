@@ -588,11 +588,12 @@ class SourceProcessor:
                 e,
             )
 
-        # Filter out sections that match exclusion patterns
+        # Filter out sections that match exclusion patterns or wire content
         filtered_sections: list[str] = []
         if section_urls:
             # Get exclusion patterns from source metadata
             exclusion_patterns = []
+            metadata = {}
             try:
                 from src.models.database import DatabaseManager
 
@@ -617,44 +618,103 @@ class SourceProcessor:
                     e,
                 )
 
-            # Filter sections: reject any that match exclusion patterns or date patterns
+            # Add common wire/syndicated section patterns to exclusion list
+            # These are URL path segments that typically contain wire content
+            wire_section_patterns = [
+                "/ap/",
+                "/ap-",
+                "-ap/",
+                "/nation/",
+                "/national/",
+                "/world/",
+                "/international/",
+                "/nation-world/",
+                "/nationworld/",
+                "/us-world/",
+                "/usworld/",
+                "/wire/",
+                "/syndicated/",
+                "/region/",  # Often syndicated regional wire
+            ]
+            exclusion_patterns.extend(wire_section_patterns)
+
+            # Load wire URL patterns from database and add to exclusion list
+            try:
+                from src.utils.content_type_detector import ContentTypeDetector
+
+                detector = ContentTypeDetector()
+                wire_url_patterns = detector._get_wire_service_patterns(
+                    pattern_type="url"
+                )
+
+                # Extract pattern strings and add URL-like patterns
+                for pattern, service_name, case_sensitive in wire_url_patterns:
+                    # Add patterns that look like URL path segments
+                    if "/" in pattern:
+                        exclusion_patterns.append(pattern.lower())
+
+                logger.debug(
+                    "Loaded %d wire URL patterns from database",
+                    len([p for p, _, _ in wire_url_patterns if "/" in p]),
+                )
+            except Exception as e:
+                logger.debug("Could not load wire URL patterns: %s", e)
+
+            # Filter sections: reject date patterns, wire patterns, exclusions
             import re
 
             date_pattern = re.compile(
                 r"/(\d{4})(/(0?[1-9]|1[0-2])?)?/?$"
             )  # Matches /YYYY/ or /YYYY/MM/
 
+            wire_filtered_count = 0
+            date_filtered_count = 0
+            exclude_filtered_count = 0
+
             for section_url in section_urls:
                 url_lower = section_url.lower()
 
-                # Reject if matches exclusion patterns
-                if any(pattern in url_lower for pattern in exclusion_patterns):
+                # Reject if matches date pattern
+                if date_pattern.search(section_url):
+                    date_filtered_count += 1
                     continue
 
-                # Reject if matches date pattern (archive URLs like /2026/ or /2026/01/)
-                if date_pattern.search(section_url):
+                # Check for pattern matches
+                matched_pattern = None
+                for pattern in exclusion_patterns:
+                    if pattern in url_lower:
+                        matched_pattern = pattern
+                        break
+
+                if matched_pattern:
+                    # Track if wire vs user-configured exclusion
+                    if matched_pattern in wire_section_patterns or (
+                        "/" in matched_pattern
+                        and matched_pattern not in metadata.get("exclude_patterns", [])
+                    ):
+                        wire_filtered_count += 1
+                    else:
+                        exclude_filtered_count += 1
                     continue
 
                 filtered_sections.append(section_url)
 
             if filtered_sections != section_urls:
                 logger.info(
-                    "Filtered %d section(s) for %s (excluded %d date archive URLs, %d exclusion pattern matches)",
+                    "Filtered %d section(s) for %s: "
+                    "%d date archives, %d wire/syndicated, %d user exclusions",
                     len(section_urls) - len(filtered_sections),
                     self.source_name,
-                    sum(1 for s in section_urls if date_pattern.search(s)),
-                    sum(
-                        1
-                        for s in section_urls
-                        if any(p in s.lower() for p in exclusion_patterns)
-                    ),
+                    date_filtered_count,
+                    wire_filtered_count,
+                    exclude_filtered_count,
                 )
 
         # Deduplicate and store
         if filtered_sections:
             unique_sections = list(dict.fromkeys(filtered_sections))  # Preserve order
             logger.info(
-                "Discovered %d unique section(s) for %s (combined strategies, after filtering)",
+                "Discovered %d unique section(s) for %s (after filtering)",
                 len(unique_sections),
                 self.source_name,
             )

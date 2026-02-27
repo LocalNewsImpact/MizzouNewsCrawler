@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.pipeline.url_filters import check_is_article
+from src.pipeline.url_filters import _normalize_url_for_patterns, check_is_article
 
 FILE_URLS = (
     "https://example.com/image.jpg",
@@ -99,3 +99,39 @@ def test_category_urls_not_auto_filtered():
     )
     for url in category_urls:
         assert isinstance(check_is_article(url), bool)
+
+
+def test_normalize_url_empty_string_direct():
+    """Test _normalize_url_for_patterns with empty string (line 28)."""
+    assert _normalize_url_for_patterns("") == ""
+
+
+def test_normalize_url_none_direct():
+    """Test _normalize_url_for_patterns with None (line 28)."""
+    assert _normalize_url_for_patterns(None) == ""
+
+
+def test_normalize_url_whitespace_only():
+    """Test _normalize_url_for_patterns with whitespace (line 28)."""
+    assert _normalize_url_for_patterns("   ") == ""
+
+
+def test_storysniffer_exception_during_check(monkeypatch):
+    """Test StorySniffer.is_news() raising exception (line 119)."""
+
+    class FailingSniffer:  # pylint: disable=too-few-public-methods
+        def __init__(self):
+            pass
+
+        def is_news(self, _url):
+            raise ValueError("StorySniffer check failed")
+
+        def guess(self, _url):
+            raise ValueError("StorySniffer guess failed")
+
+    monkeypatch.setattr(
+        "src.pipeline.url_filters.StorySniffer", lambda: FailingSniffer()
+    )
+    result = check_is_article("https://example.com/unknown")
+    # Exception handler returns False
+    assert result is False

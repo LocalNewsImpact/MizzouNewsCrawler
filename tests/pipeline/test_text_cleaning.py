@@ -1,4 +1,9 @@
-from src.pipeline.text_cleaning import _rot47, decode_rot47_segments
+from src.pipeline.text_cleaning import (
+    _decode_segment,
+    _looks_like_rot47_token,
+    _rot47,
+    decode_rot47_segments,
+)
 
 
 def test_decode_rot47_segments_returns_original_without_markers():
@@ -38,3 +43,43 @@ def test_decode_rot47_segments_ignores_short_runs():
     text = f"Intro {encoded} Outro"
 
     assert decode_rot47_segments(text) == text
+
+
+def test_looks_like_rot47_token_short_token():
+    """Test short tokens return False (line 26)."""
+    assert not _looks_like_rot47_token("abc")
+    assert not _looks_like_rot47_token("ab")
+    assert not _looks_like_rot47_token("a")
+    assert not _looks_like_rot47_token("")
+
+
+def test_looks_like_rot47_token_no_letters():
+    """Test tokens with no letters return False (line 32)."""
+    token_no_letters = "@?:;[]"  # ROT47 markers but no letters
+    assert not _looks_like_rot47_token(token_no_letters)
+
+
+def test_looks_like_rot47_token_too_many_letters():
+    """Test tokens with >60% letters return False (line 36)."""
+    # Need 4+ chars, has markers, but too many letters (>60%)
+    token_mostly_letters = "abcd@e"  # 5 letters, 1 marker = 83% letters
+    assert not _looks_like_rot47_token(token_mostly_letters)
+
+
+def test_decode_segment_empty_decoded():
+    """Test _decode_segment returns None for empty decoded text (line 71)."""
+    # _decode_segment applies ROT47 first, then checks if result is empty
+    # Need input that ROT47-decodes to whitespace
+    # However, this is hard to construct. Let's test with actual whitespace.
+    empty_segment = "   "
+    result = _decode_segment(empty_segment)
+    # ROT47 of whitespace is still whitespace, so decoded.strip() is empty
+    assert result is None
+
+
+def test_decode_rot47_segments_no_kAm_markers():
+    """Test early return when kAm/k^Am markers absent (line 82)."""
+    text = "This is normal text without any ROT47 encoding markers."
+    # Should return immediately without processing
+    result = decode_rot47_segments(text)
+    assert result == text
