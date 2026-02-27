@@ -1,7 +1,7 @@
 from src.pipeline.text_cleaning import (
-    _rot47,
-    _looks_like_rot47_token,
     _decode_segment,
+    _looks_like_rot47_token,
+    _rot47,
     decode_rot47_segments,
 )
 

@@ -335,9 +335,7 @@ class TestJobRecords:
             with DatabaseManager(database_url=db_url) as db:
                 job = create_job_record(db.session, job_type="test", job_name="Test")
 
-                finished = finish_job_record(
-                    db.session, job.id, exit_status="success"
-                )
+                finished = finish_job_record(db.session, job.id, exit_status="success")
 
                 assert finished.exit_status == "success"
                 assert finished.finished_at is not None
@@ -486,7 +484,9 @@ class TestPandasBulkOperations:
 
         try:
             with DatabaseManager(database_url=db_url) as db:
-                df = pd.DataFrame([{"url": "https://example.com/minimal", "source": "Test"}])
+                df = pd.DataFrame(
+                    [{"url": "https://example.com/minimal", "source": "Test"}]
+                )
 
                 count = bulk_insert_candidate_links(db.engine, df)
 
@@ -495,7 +495,9 @@ class TestPandasBulkOperations:
                 # Verify defaults were added
                 with db.engine.connect() as conn:
                     result = conn.execute(
-                        text("SELECT status, id FROM candidate_links WHERE url LIKE '%minimal%'")
+                        text(
+                            "SELECT status, id FROM candidate_links WHERE url LIKE '%minimal%'"
+                        )
                     ).fetchone()
                     assert result[0] == "new"  # default status
                     assert result[1] is not None  # id was generated
@@ -540,7 +542,9 @@ class TestPandasBulkOperations:
                 # Verify source was copied from source_name
                 with db.engine.connect() as conn:
                     result = conn.execute(
-                        text("SELECT source FROM candidate_links WHERE url LIKE '%alt%'")
+                        text(
+                            "SELECT source FROM candidate_links WHERE url LIKE '%alt%'"
+                        )
                     ).scalar()
                     assert result == "AltSource"
 

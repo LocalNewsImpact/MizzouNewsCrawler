@@ -118,6 +118,7 @@ def test_normalize_url_whitespace_only():
 
 def test_storysniffer_exception_during_check(monkeypatch):
     """Test StorySniffer.is_news() raising exception (line 119)."""
+
     class FailingSniffer:  # pylint: disable=too-few-public-methods
         def __init__(self):
             pass
@@ -128,8 +129,9 @@ def test_storysniffer_exception_during_check(monkeypatch):
         def guess(self, _url):
             raise ValueError("StorySniffer guess failed")
 
-    monkeypatch.setattr("src.pipeline.url_filters.StorySniffer", 
-                       lambda: FailingSniffer())
+    monkeypatch.setattr(
+        "src.pipeline.url_filters.StorySniffer", lambda: FailingSniffer()
+    )
     result = check_is_article("https://example.com/unknown")
     # Exception handler returns False
     assert result is False

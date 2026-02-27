@@ -2,18 +2,18 @@
 
 import os
 import tempfile
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import ArgumentError
 
 from src.models.database import (
+    DatabaseManager,
     _configure_sqlite_engine,
     _ConnectionProxy,
     _EngineProxy,
     _wrap_engine_connections,
-    DatabaseManager,
 )
 
 
@@ -324,7 +324,7 @@ class TestWrapEngineConnections:
             with engine.connect() as conn:
                 # Verify first connection is patched
                 assert getattr(conn, "_safe_execute_patched", False) is True
-                
+
             # Get a second connection - should also be patched but not double-patched
             with engine.connect() as conn2:
                 assert getattr(conn2, "_safe_execute_patched", False) is True
@@ -344,9 +344,11 @@ class TestDatabaseManagerCloudSQL:
         # Use a temporary SQLite database for testing
         fd, path = tempfile.mkstemp(suffix=".db")
         os.close(fd)
-        
+
         try:
-            with patch.dict(os.environ, {"USE_CLOUD_SQL_CONNECTOR": "false"}, clear=False):
+            with patch.dict(
+                os.environ, {"USE_CLOUD_SQL_CONNECTOR": "false"}, clear=False
+            ):
                 db = DatabaseManager(database_url=f"sqlite:///{path}")
                 assert db._should_use_cloud_sql_connector() is False
                 db.close()
@@ -358,11 +360,14 @@ class TestDatabaseManagerCloudSQL:
         """Should return False if config module has no cloud SQL settings."""
         fd, path = tempfile.mkstemp(suffix=".db")
         os.close(fd)
-        
+
         try:
             db = DatabaseManager(database_url=f"sqlite:///{path}")
             # Patch the method to test return value
-            with patch("src.models.database.DatabaseManager._should_use_cloud_sql_connector", return_value=False):
+            with patch(
+                "src.models.database.DatabaseManager._should_use_cloud_sql_connector",
+                return_value=False,
+            ):
                 result = db._should_use_cloud_sql_connector()
                 assert result is False
             db.close()
@@ -375,7 +380,7 @@ class TestDatabaseManagerCloudSQL:
         # Test that database manager initializes correctly even if cloud SQL fails
         fd, path = tempfile.mkstemp(suffix=".db")
         os.close(fd)
-        
+
         try:
             db = DatabaseManager(database_url=f"sqlite:///{path}")
             assert db.engine is not None
@@ -383,5 +388,3 @@ class TestDatabaseManagerCloudSQL:
         finally:
             if os.path.exists(path):
                 os.remove(path)
-
-

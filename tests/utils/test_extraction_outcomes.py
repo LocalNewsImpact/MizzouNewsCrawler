@@ -88,7 +88,7 @@ class TestExtractionResult:
         )
         assert result.is_bot_protection is True
 
-    def test_content_quality_score_full( self):
+    def test_content_quality_score_full(self):
         """Test content quality score with all fields present."""
         result = ExtractionResult(
             url="https://example.com/article",

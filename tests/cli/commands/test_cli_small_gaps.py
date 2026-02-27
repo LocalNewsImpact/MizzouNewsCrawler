@@ -12,7 +12,12 @@ from unittest.mock import MagicMock, Mock, patch
 import pandas as pd
 import pytest
 
-from src.cli.commands import cleanup_candidates, discovery_report, gazetteer, list_sources
+from src.cli.commands import (
+    cleanup_candidates,
+    discovery_report,
+    gazetteer,
+    list_sources,
+)
 
 
 class TestCleanupCandidates:
@@ -26,7 +31,7 @@ class TestCleanupCandidates:
 
             # Capture stdout
             captured_output = StringIO()
-            with patch('sys.stdout', captured_output):
+            with patch("sys.stdout", captured_output):
                 result = cleanup_candidates.handle_cleanup_candidates_command(Mock())
 
             assert result == 1
@@ -44,12 +49,17 @@ class TestDiscoveryReport:
         discovery_report.add_discovery_report_parser(subparsers)
 
         # Parse with all args
-        args = parser.parse_args([
-            "discovery-report",
-            "--operation-id", "test-op-123",
-            "--hours-back", "48",
-            "--format", "json"
-        ])
+        args = parser.parse_args(
+            [
+                "discovery-report",
+                "--operation-id",
+                "test-op-123",
+                "--hours-back",
+                "48",
+                "--format",
+                "json",
+            ]
+        )
 
         assert args.operation_id == "test-op-123"
         assert args.hours_back == 48
@@ -81,12 +91,12 @@ class TestDiscoveryReport:
                 "total_expired_articles": 5,
             },
             "outcome_breakdown": [],
-            "top_performing_sources": []  # Empty list
+            "top_performing_sources": [],  # Empty list
         }
 
         # Should not raise exception
         captured_output = StringIO()
-        with patch('sys.stdout', captured_output):
+        with patch("sys.stdout", captured_output):
             discovery_report._print_detailed_discovery_report(report)
 
         output = captured_output.getvalue()
@@ -105,11 +115,9 @@ class TestListSources:
         list_sources.add_list_sources_parser(subparsers)
 
         # Parse with all args
-        args = parser.parse_args([
-            "list-sources",
-            "--dataset", "mizzou",
-            "--format", "csv"
-        ])
+        args = parser.parse_args(
+            ["list-sources", "--dataset", "mizzou", "--format", "csv"]
+        )
 
         assert args.dataset == "mizzou"
         assert args.format == "csv"
@@ -130,7 +138,7 @@ class TestListSources:
         empty_df = pd.DataFrame(columns=["uuid", "name", "city"])
 
         captured_output = StringIO()
-        with patch('sys.stdout', captured_output):
+        with patch("sys.stdout", captured_output):
             list_sources._format_table(empty_df)
 
         output = captured_output.getvalue()
@@ -148,14 +156,20 @@ class TestGazetteer:
         gazetteer.add_gazetteer_parser(subparsers)
 
         # Parse with all args
-        args = parser.parse_args([
-            "populate-gazetteer",
-            "--dataset", "mizzou",
-            "--address", "123 Main St, Columbia, MO",
-            "--radius", "25.5",
-            "--publisher", "pub-uuid-123",
-            "--dry-run"
-        ])
+        args = parser.parse_args(
+            [
+                "populate-gazetteer",
+                "--dataset",
+                "mizzou",
+                "--address",
+                "123 Main St, Columbia, MO",
+                "--radius",
+                "25.5",
+                "--publisher",
+                "pub-uuid-123",
+                "--dry-run",
+            ]
+        )
 
         assert args.dataset == "mizzou"
         assert args.address == "123 Main St, Columbia, MO"
@@ -168,7 +182,7 @@ class TestGazetteer:
         # Mock the import to simulate unavailable script
         with patch("src.cli.commands.gazetteer.run_gazetteer_population", None):
             captured_output = StringIO()
-            with patch('sys.stdout', captured_output):
+            with patch("sys.stdout", captured_output):
                 result = gazetteer.handle_gazetteer_command(Mock())
 
             assert result == 1
@@ -188,10 +202,6 @@ class TypeLLMCommand:
         llm.add_llm_parser(subparsers)
 
         # Parse with args - just verify it doesn't raise
-        args = parser.parse_args([
-            "llm-analyze",
-            "--limit", "50",
-            "--batch-size", "10"
-        ])
+        args = parser.parse_args(["llm-analyze", "--limit", "50", "--batch-size", "10"])
 
-        assert hasattr(args, 'func')
+        assert hasattr(args, "func")
