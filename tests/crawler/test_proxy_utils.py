@@ -90,3 +90,18 @@ def test_mask_proxy_url_url_encoded_password():
     result = mask_proxy_url(url)
     assert result == "https://user:***@proxy.net:3128"
     assert "p%40ss%23word" not in result
+
+
+def test_mask_proxy_url_urlparse_exception(monkeypatch):
+    """Test exception path in mask_proxy_url (lines 34-36)."""
+    from urllib.parse import urlparse as real_urlparse
+
+    def failing_urlparse(url):
+        # Only fail for our test URL, let other calls through
+        if "trigger_exception" in url:
+            raise RuntimeError("urlparse failed")
+        return real_urlparse(url)
+
+    monkeypatch.setattr("src.crawler.utils.urlparse", failing_urlparse)
+    result = mask_proxy_url("http://trigger_exception:pass@proxy.com")
+    assert result == "<redacted>"
