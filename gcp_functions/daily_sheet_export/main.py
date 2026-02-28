@@ -140,17 +140,23 @@ def export_daily_analytics(request):
                 continue
 
             # 4. Format Data for Sheets
-            # Determine next serial ID by counting existing rows in Column A
+            # Determine next serial ID by getting actual row count from sheet metadata
+            # CRITICAL: Use metadata, not values().get(), to avoid filter/sort issues
             next_id = 1
             try:
-                id_col_result = sheets_service.spreadsheets().values().get(
-                    spreadsheetId=SHEET_ID,
-                    range=f"'{target_sheet}'!A:A"
-                ).execute()
-                row_count = len(id_col_result.get('values', []))
-                next_id = max(1, row_count)
+                # Get sheet metadata to find actual grid dimensions (ignores filters)
+                sheet_metadata = sheets_service.spreadsheets().get(spreadsheetId=SHEET_ID).execute()
+                for sheet in sheet_metadata.get('sheets', []):
+                    sheet_title_meta = sheet['properties']['title']
+                    if sheet_title_meta == target_sheet:
+                        grid_properties = sheet['properties'].get('gridProperties', {})
+                        actual_row_count = grid_properties.get('rowCount', 0)
+                        # Next ID should be at least the row count (accounts for header + data)
+                        next_id = max(1, actual_row_count)
+                        print(f"Using actual row count from metadata: {actual_row_count} (ignoring any active filters)")
+                        break
             except Exception as e:
-                print(f"Warning: Could not determine next ID from sheet: {e}")
+                print(f"Warning: Could not determine next ID from sheet metadata: {e}")
                 next_id = 1
 
             # Convert Row objects to list of lists

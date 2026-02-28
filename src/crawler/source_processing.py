@@ -61,7 +61,34 @@ class SourceProcessor:
 
         # Discover and store section URLs after article discovery
         # (uses both navigation-based and URL pattern extraction strategies)
-        self._discover_and_store_sections(all_discovered)
+        discovered_sections = self._discover_and_store_sections(all_discovered)
+
+        # If sections were discovered, immediately crawl them for articles
+        # (don't wait for next discovery run)
+        if discovered_sections:
+            logger.info(
+                "Crawling %d discovered sections for additional articles",
+                len(discovered_sections),
+            )
+            try:
+                section_articles = self.discovery._discover_from_section_urls(
+                    source_url=self.source_url,
+                    source_id=self.source_id,
+                    source_meta=self.source_meta,
+                )
+                if section_articles:
+                    logger.info(
+                        "Section crawling found %d additional articles for %s",
+                        len(section_articles),
+                        self.source_name,
+                    )
+                    all_discovered.extend(section_articles)
+            except Exception as e:
+                logger.warning(
+                    "Failed to crawl discovered sections for %s: %s",
+                    self.source_name,
+                    e,
+                )
 
         stats = self._store_candidates(all_discovered)
 
@@ -487,7 +514,7 @@ class SourceProcessor:
     def _discover_and_store_sections(
         self,
         discovered_articles: list[dict[str, Any]],
-    ) -> None:
+    ) -> list[str]:
         """
         Discover section URLs using two complementary strategies:
 
@@ -507,6 +534,9 @@ class SourceProcessor:
 
         Args:
             discovered_articles: List of article dicts from all discovery methods
+
+        Returns:
+            List of discovered section URLs (for immediate crawling)
         """
         # Check if section discovery is enabled for this source
         try:
@@ -524,14 +554,14 @@ class SourceProcessor:
                         "Section discovery disabled for %s, skipping",
                         self.source_name,
                     )
-                    return
+                    return []
         except Exception as e:
             logger.warning(
                 "Failed to check section_discovery_enabled for %s: %s",
                 self.source_name,
                 e,
             )
-            return
+            return []
 
         logger.info(
             "Discovering sections for %s using navigation and URL patterns",
@@ -754,17 +784,20 @@ class SourceProcessor:
                     len(unique_sections),
                     self.source_name,
                 )
+                return unique_sections  # Return for immediate crawling
             except Exception as e:
                 logger.error(
                     "Failed to store sections for %s: %s",
                     self.source_name,
                     e,
                 )
+                return unique_sections  # Return even if storage failed
         else:
             logger.info(
                 "No sections discovered for %s (both strategies returned empty)",
                 self.source_name,
             )
+            return []
 
     # ------------------------------------------------------------------
     # Discovery method orchestration

@@ -187,3 +187,20 @@ gcloud functions describe export-daily-analytics \
 2. Date range uses Central Time (America/Chicago)
 3. Status filter excludes wire/obituary/opinion articles
 4. Google Sheet permissions allow the service account to write
+
+### ⚠️ CRITICAL: Filtered/Sorted Sheets (FIXED as of 2026-02-27)
+
+**Previous Issue**: If the sheet was filtered or sorted when the export ran, the ID counter would only count visible rows, causing duplicate IDs and data loss.
+
+**Fix Applied**: Now uses sheet metadata (`gridProperties.rowCount`) instead of counting visible values, which correctly handles filtered/sorted sheets.
+
+**Recovery**: If you lost 2-3 days of exports:
+1. Check Cloud Functions logs for the affected date range
+2. Re-run the export with date parameters:
+   ```bash
+   curl -X POST "https://us-central1-mizzou-news-crawler.cloudfunctions.net/export-daily-analytics?start_date=2026-02-24&end_date=2026-02-26" \
+     -H "Authorization: Bearer $(gcloud auth print-identity-token)"
+   ```
+
+**Best Practice**: Clear all filters before running manual exports (automated runs are now safe).
+

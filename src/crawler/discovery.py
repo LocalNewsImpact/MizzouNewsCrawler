@@ -2736,48 +2736,67 @@ class NewsDiscovery:
                     homepage_candidates = []
 
                 if homepage_candidates:
-                    logger.info(
-                        "Homepage link-scan found %d candidate URLs; "
-                        "returning those instead of building",
-                        len(homepage_candidates),
+                    # Check if candidates are section/category URLs that should be crawled
+                    # rather than used directly as articles
+                    section_patterns = ["/category", "/tag", "/section"]
+                    all_sections = all(
+                        any(pattern in u.lower() for pattern in section_patterns)
+                        for u in homepage_candidates
                     )
-                    from urllib.parse import urlparse
 
-                    source_host = urlparse(source_url).netloc if source_url else None
-                    existing_urls = self._get_existing_urls(source_host)
-                    out = []
-                    discovered_at = datetime.utcnow().isoformat()
-                    for u in homepage_candidates:
-                        normalized_candidate = self._normalize_candidate_url(u)
-                        if normalized_candidate in existing_urls:
-                            continue
+                    if all_sections:
+                        logger.info(
+                            "Homepage link-scan found %d section/category URLs; "
+                            "skipping early return to allow full build + section crawling",
+                            len(homepage_candidates),
+                        )
+                        # Don't return early - let newspaper.build() happen
+                        # so section discovery can crawl these for articles
+                    else:
+                        logger.info(
+                            "Homepage link-scan found %d candidate URLs; "
+                            "returning those instead of building",
+                            len(homepage_candidates),
+                        )
+                        from urllib.parse import urlparse
 
-                        out.append(
-                            {
-                                "url": u,
-                                "source_url": source_url,
-                                "discovery_method": "homepage_links",
-                                "discovered_at": discovered_at,
-                                "metadata": {"homepage_sniff": True},
-                            }
+                        source_host = (
+                            urlparse(source_url).netloc if source_url else None
                         )
-                        existing_urls.add(normalized_candidate)
-                    if out:
-                        record_newspaper_effectiveness(
-                            DiscoveryMethodStatus.SUCCESS,
-                            len(out),
-                            status_codes=(
-                                [homepage_status_code]
-                                if homepage_status_code is not None
-                                else None
-                            ),
-                            notes=(
-                                "homepage link-scan"
-                                f" ({len(out)} candidates, "
-                                f"fetch ~{homepage_fetch_ms:.0f}ms)"
-                            ),
-                        )
-                        return out
+                        existing_urls = self._get_existing_urls(source_host)
+                        out = []
+                        discovered_at = datetime.utcnow().isoformat()
+                        for u in homepage_candidates:
+                            normalized_candidate = self._normalize_candidate_url(u)
+                            if normalized_candidate in existing_urls:
+                                continue
+
+                            out.append(
+                                {
+                                    "url": u,
+                                    "source_url": source_url,
+                                    "discovery_method": "homepage_links",
+                                    "discovered_at": discovered_at,
+                                    "metadata": {"homepage_sniff": True},
+                                }
+                            )
+                            existing_urls.add(normalized_candidate)
+                        if out:
+                            record_newspaper_effectiveness(
+                                DiscoveryMethodStatus.SUCCESS,
+                                len(out),
+                                status_codes=(
+                                    [homepage_status_code]
+                                    if homepage_status_code is not None
+                                    else None
+                                ),
+                                notes=(
+                                    "homepage link-scan"
+                                    f" ({len(out)} candidates, "
+                                    f"fetch ~{homepage_fetch_ms:.0f}ms)"
+                                ),
+                            )
+                            return out
             except Exception:
                 # Non-fatal — if homepage sniff fails, fall back to build
                 pass
