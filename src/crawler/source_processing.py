@@ -62,7 +62,7 @@ class SourceProcessor:
         # Discover and store section URLs after article discovery
         # (uses both navigation-based and URL pattern extraction strategies)
         discovered_sections = self._discover_and_store_sections(all_discovered)
-        
+
         # If sections were discovered, immediately crawl them for articles
         # (don't wait for next discovery run)
         if discovered_sections:
@@ -534,7 +534,7 @@ class SourceProcessor:
 
         Args:
             discovered_articles: List of article dicts from all discovery methods
-            
+
         Returns:
             List of discovered section URLs (for immediate crawling)
         """

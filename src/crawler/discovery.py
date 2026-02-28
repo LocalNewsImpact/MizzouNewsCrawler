@@ -2743,7 +2743,7 @@ class NewsDiscovery:
                         any(pattern in u.lower() for pattern in section_patterns)
                         for u in homepage_candidates
                     )
-                    
+
                     if all_sections:
                         logger.info(
                             "Homepage link-scan found %d section/category URLs; "
@@ -2760,7 +2760,9 @@ class NewsDiscovery:
                         )
                         from urllib.parse import urlparse
 
-                        source_host = urlparse(source_url).netloc if source_url else None
+                        source_host = (
+                            urlparse(source_url).netloc if source_url else None
+                        )
                         existing_urls = self._get_existing_urls(source_host)
                         out = []
                         discovered_at = datetime.utcnow().isoformat()
