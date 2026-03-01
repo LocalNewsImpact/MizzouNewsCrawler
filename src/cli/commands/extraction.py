@@ -120,6 +120,73 @@ def _initial_wire_check_status(article_status: str) -> str:
     return WIRE_CHECK_STATUS_PENDING
 
 
+def _get_canonical_url(original_url: str, metadata: dict) -> str:
+    """Extract canonical URL from metadata, preferring it over the original URL.
+
+    If the canonical URL is on the same domain as the original URL, return
+    the canonical URL. This helps capture wire service path indicators
+    (e.g., /entertainment/cnn-style/) that may be lost when articles are
+    discovered via section crawl redirects.
+
+    Args:
+        original_url: The URL used to fetch the article
+        metadata: Extracted metadata dict from ContentExtractor
+
+    Returns:
+        Canonical URL if valid and same-domain, otherwise original URL
+    """
+    from urllib.parse import urlparse
+
+    try:
+        # Extract canonical_url from mcmetadata
+        if isinstance(metadata, dict):
+            mcmetadata = metadata.get("mcmetadata", {})
+        else:
+            mcmetadata = {}
+        canonical_url = mcmetadata.get("canonical_url")
+
+        if not canonical_url or not isinstance(canonical_url, str):
+            return original_url
+
+        canonical_url = canonical_url.strip()
+        if not canonical_url:
+            return original_url
+
+        # Parse both URLs
+        original_parsed = urlparse(original_url)
+        canonical_parsed = urlparse(canonical_url)
+
+        # Get domains, removing www. prefix
+        original_domain = original_parsed.netloc.lower()
+        canonical_domain = canonical_parsed.netloc.lower()
+        if original_domain.startswith("www."):
+            original_domain = original_domain[4:]
+        if canonical_domain.startswith("www."):
+            canonical_domain = canonical_domain[4:]
+
+        # Only use canonical URL if it's on the same domain
+        # (avoids cross-domain canonical URLs that point to wire services)
+        if original_domain == canonical_domain:
+            logger.debug(
+                "Using canonical URL instead of original: %s → %s",
+                original_url[:80],
+                canonical_url[:80],
+            )
+            return canonical_url
+
+        # Different domain - keep original URL
+        logger.debug(
+            "Canonical URL on different domain, keeping original: %s (canonical: %s)",
+            original_url[:80],
+            canonical_url[:80],
+        )
+        return original_url
+
+    except Exception as e:
+        logger.warning("Failed to extract canonical URL: %s", e)
+        return original_url
+
+
 def _get_worker_id() -> str:
     """Get unique worker identifier for work queue coordination.
 
@@ -1050,6 +1117,9 @@ def handle_extract_url_command(args) -> int:
         # Insert article row
         wire_check_status = _initial_wire_check_status(article_status)
 
+        # Prefer canonical URL if available (preserves wire path indicators)
+        article_url = _get_canonical_url(url, metadata_value)
+
         try:
             safe_session_execute(
                 session,
@@ -1057,7 +1127,7 @@ def handle_extract_url_command(args) -> int:
                 {
                     "id": article_id,
                     "candidate_link_id": str(candidate.id),
-                    "url": url,
+                    "url": article_url,
                     "title": content.get("title"),
                     "author": cleaned_author,
                     "publish_date": content.get("publish_date"),
@@ -1693,6 +1763,11 @@ def _process_batch(
                     except Exception:
                         dump_sql_flag = False
 
+                    wire_check_status = _initial_wire_check_status(article_status)
+
+                    # Prefer canonical URL if available (preserves wire path indicators)
+                    article_url = _get_canonical_url(url, content.get("metadata", {}))
+
                     if dump_sql_flag:
                         try:
                             logger.info(
@@ -1706,7 +1781,10 @@ def _process_batch(
                                     {
                                         "id": article_id,
                                         "candidate_link_id": str(url_id),
-                                        "url": url,
+                                        "url": article_url,
+                                        "original_url": (
+                                            url if url != article_url else None
+                                        ),
                                         "title": content.get("title"),
                                     }
                                 ),
@@ -1714,15 +1792,13 @@ def _process_batch(
                         except Exception:
                             logger.exception("Failed to log diagnostic SQL/params")
 
-                    wire_check_status = _initial_wire_check_status(article_status)
-
                     safe_session_execute(
                         session,
                         ARTICLE_INSERT_SQL,
                         {
                             "id": article_id,
                             "candidate_link_id": str(url_id),
-                            "url": url,
+                            "url": article_url,
                             "title": content.get("title"),
                             "author": cleaned_author,
                             "publish_date": content.get("publish_date"),
@@ -1752,7 +1828,7 @@ def _process_batch(
                         logger.debug(
                             "Successfully committed article %s (%s) to database",
                             article_id,
-                            url[:80],
+                            article_url[:80],
                         )
                     except Exception as commit_error:
                         logger.error(
@@ -1783,7 +1859,7 @@ def _process_batch(
                                     text(
                                         "SELECT id, url FROM articles WHERE url = :url"
                                     ),
-                                    {"url": url},
+                                    {"url": article_url},
                                 ).fetchone()
 
                             if verify_row:
@@ -1795,7 +1871,7 @@ def _process_batch(
                                 logger.error(
                                     "[DIAGNOSTIC] Post-commit verification FAILED for article %s (url=%s)",
                                     article_id,
-                                    url,
+                                    article_url,
                                 )
                                 # As extra diagnostic, count matching rows by url
                                 try:
@@ -1804,7 +1880,7 @@ def _process_batch(
                                         text(
                                             "SELECT COUNT(*) FROM articles WHERE url = :url"
                                         ),
-                                        {"url": url},
+                                        {"url": article_url},
                                     ).scalar()
                                 except Exception:
                                     cnt = None
