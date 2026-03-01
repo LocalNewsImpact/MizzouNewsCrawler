@@ -92,6 +92,58 @@ class SourceProcessor:
 
         stats = self._store_candidates(all_discovered)
 
+        # FALLBACK: If discovery found articles but 0 were stored (all filtered),
+        # and we haven't tried newspaper4k yet, try it as a last resort.
+        # This handles cases where RSS returns only podcast URLs or other
+        # non-article patterns that get filtered during storage.
+        effective_methods = getattr(self, "effective_methods", [])
+        methods_attempted = getattr(self, "discovery_methods_attempted", [])
+        if (
+            stats.get("stored_count", 0) == 0
+            and len(all_discovered) > 0
+            and DiscoveryMethod.NEWSPAPER4K not in effective_methods
+            and "newspaper4k" not in methods_attempted
+        ):
+            logger.warning(
+                "All %d discovered articles filtered for %s, trying newspaper4k fallback",
+                len(all_discovered),
+                self.source_name,
+            )
+            try:
+                fallback_articles = self._try_newspaper(
+                    skip_rss=False, rss_attempted=False
+                )
+                if fallback_articles:
+                    logger.info(
+                        "Fallback newspaper4k found %d additional articles for %s",
+                        len(fallback_articles),
+                        self.source_name,
+                    )
+                    all_discovered.extend(fallback_articles)
+                    # Re-run storage for fallback articles
+                    fallback_stats = self._store_candidates(fallback_articles)
+                    # Merge stats
+                    stats["articles_found_total"] += fallback_stats.get(
+                        "articles_found_total", 0
+                    )
+                    stats["articles_new"] += fallback_stats.get("articles_new", 0)
+                    stats["stored_count"] += fallback_stats.get("stored_count", 0)
+                    stats["articles_duplicate"] += fallback_stats.get(
+                        "articles_duplicate", 0
+                    )
+                    stats["articles_expired"] += fallback_stats.get(
+                        "articles_expired", 0
+                    )
+                    stats["articles_out_of_scope"] += fallback_stats.get(
+                        "articles_out_of_scope", 0
+                    )
+            except Exception as e:
+                logger.warning(
+                    "Fallback newspaper4k failed for %s: %s",
+                    self.source_name,
+                    e,
+                )
+
         if not all_discovered:
             # Pass articles_new from stats to check if ANY new articles discovered
             self._record_no_articles(stats.get("articles_new", 0))
@@ -885,6 +937,38 @@ class SourceProcessor:
             )
         # Legacy code path kept for reference but effectively disabled
         # as discover_with_storysniffer now returns empty list immediately
+
+        # FALLBACK: If effective methods produced 0 articles, try skipped methods
+        # This prevents single-point-of-failure when historical effectiveness
+        # data is stale or when RSS feeds return 0 results due to filtering.
+        if len(all_discovered) == 0:
+            logger.warning(
+                "Effective methods found 0 articles for %s, trying fallback methods",
+                self.source_name,
+            )
+
+            # Try newspaper4k if it was skipped
+            effective_methods = getattr(self, "effective_methods", [])
+            if DiscoveryMethod.NEWSPAPER4K not in effective_methods:
+                logger.info(
+                    "Fallback: trying newspaper4k for %s despite historical ineffectiveness",
+                    self.source_name,
+                )
+                try:
+                    newspaper_articles = self._try_newspaper(skip_rss, rss_attempted)
+                    if newspaper_articles:
+                        logger.info(
+                            "Fallback newspaper4k found %d articles for %s",
+                            len(newspaper_articles),
+                            self.source_name,
+                        )
+                        all_discovered.extend(newspaper_articles)
+                except Exception as e:
+                    logger.warning(
+                        "Fallback newspaper4k failed for %s: %s",
+                        self.source_name,
+                        e,
+                    )
 
         return all_discovered
 
