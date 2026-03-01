@@ -5356,20 +5356,8 @@ class ContentExtractor:
 
             if matches >= 2:  # At least 2 subscription indicators
                 logger.info(f"Detected subscription wall ({matches} indicators found)")
-                # Capture screenshot for diagnostics
-                try:
-                    import os
-
-                    screenshot_dir = "/tmp/paywall_screenshots"
-                    os.makedirs(screenshot_dir, exist_ok=True)
-                    from datetime import datetime
-
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    screenshot_path = f"{screenshot_dir}/paywall_{timestamp}.png"
-                    driver.save_screenshot(screenshot_path)
-                    logger.info(f"Saved paywall screenshot: {screenshot_path}")
-                except Exception as ss_err:
-                    logger.warning(f"Failed to save paywall screenshot: {ss_err}")
+                # Screenshot capture disabled - no longer saving paywall diagnostics
+                # Screenshots were ephemeral in /tmp and not being persisted
                 return True
 
             # Check for common paywall provider elements
@@ -5627,24 +5615,8 @@ class ContentExtractor:
                             return False  # Not a blocking challenge
 
                         logger.info(f"Detected CAPTCHA element: {selector}")
-                        # Capture screenshot for diagnostics
-                        try:
-                            import os
-
-                            screenshot_dir = "/tmp/captcha_screenshots"
-                            os.makedirs(screenshot_dir, exist_ok=True)
-                            from datetime import datetime
-
-                            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                            screenshot_path = (
-                                f"{screenshot_dir}/captcha_{timestamp}.png"
-                            )
-                            driver.save_screenshot(screenshot_path)
-                            logger.info(f"Saved CAPTCHA screenshot: {screenshot_path}")
-                        except Exception as ss_err:
-                            logger.warning(
-                                f"Failed to save CAPTCHA screenshot: {ss_err}"
-                            )
+                        # Screenshot capture disabled - no longer saving captcha diagnostics
+                        # Screenshots were ephemeral in /tmp and not being persisted
                         return True
                 except Exception:
                     continue

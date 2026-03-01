@@ -239,3 +239,5 @@ tmp/
 # Local helper folders
 inspect_clienthello/
 utls/
+downloaded_screenshots/
+scripts/analyze_canonical_urls.py
