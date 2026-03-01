@@ -42,8 +42,9 @@ spec:
               value: "10000"
             # Discovery parameters
             # No source-limit = process ALL 157 sources in dataset each run
+            # Increased to 150 per session to find local content when wire is prevalent
             - name: max-articles
-              value: "50"
+              value: "150"
             - name: days-back
               value: "7"
             # Verification parameters
