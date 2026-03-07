@@ -419,33 +419,22 @@ class SourceProcessor:
     def _has_persistent_technical_errors(self) -> tuple[bool, str | None]:
         """Check if source has persistent technical/network errors.
 
+        NOTE: This function previously used RSS-only errors to trigger
+        accelerated pausing, which incorrectly penalized sites just because
+        RSS failed. RSS is ONE discovery method; failing at RSS should NOT
+        doom the entire site. This function now always returns (False, None)
+        to disable accelerated pausing based on RSS errors.
+
+        Sites will still be paused after the normal frequency-based threshold
+        (3-7 cycles) if they produce zero articles, but the accelerated
+        threshold (2 cycles) based on "technical errors" is disabled.
+
         Returns:
-            (has_persistent_errors, error_description)
+            (False, None) - always, to prevent RSS errors from triggering
+            accelerated pause thresholds.
         """
-        rss_summary = getattr(self, "rss_summary", {}) or {}
-        network_errors = rss_summary.get("network_errors", 0)
-        last_status = rss_summary.get("last_transient_status")
-
-        # Check if we have HTTP errors (4xx/5xx) indicating technical barriers
-        if network_errors > 0 and last_status:
-            if last_status == 401:
-                return True, "401 Unauthorized (authentication required)"
-            elif last_status == 403:
-                return True, "403 Forbidden (access blocked/bot detection)"
-            elif last_status == 429:
-                return True, "429 Too Many Requests (rate limiting)"
-            elif last_status >= 500:
-                return True, f"{last_status} Server Error (site technical issues)"
-            elif last_status == 408:
-                return True, "408 Timeout (persistent connectivity issues)"
-
-        # Check for consistent network failures without any success
-        feeds_tried = rss_summary.get("feeds_tried", 0)
-        feeds_successful = rss_summary.get("feeds_successful", 0)
-
-        if feeds_tried > 0 and feeds_successful == 0 and network_errors > 0:
-            return True, f"Network failures ({network_errors} errors, 0 successes)"
-
+        # Disabled: RSS failures should NOT trigger accelerated pausing.
+        # RSS is one method among many (newspaper4k, section crawling, etc.)
         return False, None
 
     def _determine_effective_methods(self) -> list[DiscoveryMethod]:
@@ -801,20 +790,64 @@ class SourceProcessor:
                 self.source_name,
             )
 
-            # Store in database with metadata
+            # Store in database with metadata - but preserve manual configurations
             try:
                 from src.models.database import DatabaseManager
-
-                section_data = {
-                    "urls": unique_sections,
-                    "discovered_at": datetime.utcnow().isoformat(),
-                    "discovery_method": "adaptive_combined",
-                    "count": len(unique_sections),
-                }
 
                 with DatabaseManager(
                     self.discovery.database_url
                 ).engine.begin() as conn:
+                    # First, check if there are existing sections with manual config
+                    existing_row = safe_execute(
+                        conn,
+                        "SELECT discovered_sections FROM sources WHERE id = :id",
+                        {"id": self.source_id},
+                    ).fetchone()
+
+                    existing_sections = None
+                    if existing_row and existing_row[0]:
+                        existing_sections = existing_row[0]
+                        if isinstance(existing_sections, str):
+                            existing_sections = json.loads(existing_sections)
+
+                    # If existing sections have manual_configuration or manual_override,
+                    # preserve them entirely - don't overwrite
+                    if existing_sections:
+                        existing_method = existing_sections.get("discovery_method", "")
+                        if existing_method in (
+                            "manual_configuration",
+                            "manual_override",
+                        ):
+                            logger.info(
+                                "Preserving manual sections for %s (method=%s, %d URLs)",
+                                self.source_name,
+                                existing_method,
+                                len(existing_sections.get("urls", [])),
+                            )
+                            # Return existing URLs for crawling, don't update DB
+                            return existing_sections.get("urls", [])
+
+                        # Merge new sections with existing ones (dedup)
+                        existing_urls = existing_sections.get("urls", [])
+                        merged_urls = list(
+                            dict.fromkeys(existing_urls + unique_sections)
+                        )
+                        unique_sections = merged_urls
+                        logger.info(
+                            "Merged %d existing + %d new = %d total sections for %s",
+                            len(existing_urls),
+                            len(filtered_sections),
+                            len(unique_sections),
+                            self.source_name,
+                        )
+
+                    section_data = {
+                        "urls": unique_sections,
+                        "discovered_at": datetime.utcnow().isoformat(),
+                        "discovery_method": "adaptive_combined",
+                        "count": len(unique_sections),
+                    }
+
                     # PostgreSQL JSON column accepts string directly
                     update_sql = """
                         UPDATE sources SET
