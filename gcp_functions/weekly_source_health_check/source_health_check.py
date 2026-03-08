@@ -190,6 +190,7 @@ def diagnose_source_health(session, source_id, canonical_name, lookback_days=30,
             diagnostics["metrics"]["articles_at_labeled"] = al or 0
 
         # Classification to mimic legacy health_status/issue_details
+        # Also update diagnostics["status"] so email summary counts these correctly
         td14 = diagnostics["metrics"].get("total_discovered_14d", 0) or 0
         ex14 = diagnostics["metrics"].get("total_extracted_14d", 0) or 0
         d7 = diagnostics["metrics"].get("discovered_7d", 0) or 0
@@ -200,15 +201,23 @@ def diagnose_source_health(session, source_id, canonical_name, lookback_days=30,
         if ex14 == 0 and td14 == 0:
             health_status = "No Activity"
             issue_details = "No discoveries or extractions in 14 days"
+            diagnostics["status"] = "warning"
+            diagnostics["issues"].append("NO_ACTIVITY_14D")
         elif e7 == 0 and td14 > 0:
             health_status = "Extraction Issue"
             issue_details = "No extractions in past 7 days (may indicate scraping failure)"
+            diagnostics["status"] = "warning"
+            diagnostics["issues"].append("EXTRACTION_STALLED")
         elif d7 == 0 and td14 > 0:
             health_status = "Discovery Issue"
             issue_details = "No recent discoveries (7d); discovery may be paused or misconfigured"
+            diagnostics["status"] = "warning"
+            diagnostics["issues"].append("DISCOVERY_STALLED")
         elif td14 > 0 and ex14 > 0 and rate14 < 25.0:
             health_status = "Warning"
             issue_details = "Low extraction success rate (<25%)"
+            diagnostics["status"] = "warning"
+            diagnostics["issues"].append("LOW_EXTRACTION_RATE")
         diagnostics["health_status"] = health_status
         diagnostics["issue_details"] = issue_details
 

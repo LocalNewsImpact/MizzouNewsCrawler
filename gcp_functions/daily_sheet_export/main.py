@@ -66,9 +66,9 @@ def export_daily_analytics(request):
             except Exception:
                 return default
 
-        # Daily export limit: clamp to max 750
-        limit_raw = _parse_int(_get_arg('limit', 750), 750)
-        limit = min(limit_raw, 750)
+        # Daily export limit: no cap, export all eligible articles
+        # If no limit specified, export all (use 10000 as practical max)
+        limit = _parse_int(_get_arg('limit'), 10000)
         dry_run = _parse_bool(_get_arg('dry_run', False))
 
         date_param = _get_arg('date')

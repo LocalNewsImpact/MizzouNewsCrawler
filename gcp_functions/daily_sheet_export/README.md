@@ -4,7 +4,7 @@ Cloud Function that exports BigQuery analytics data to Google Sheets on a daily 
 
 ## Overview
 
-This function queries the `mizzou_analytics.articles` table in BigQuery and appends results to a Google Sheet. It filters out wire service content, obituaries, and opinion pieces, and exports up to 750 articles per day.
+This function queries the `mizzou_analytics.articles` table in BigQuery and appends results to a Google Sheet. It filters out wire service content, obituaries, and opinion pieces, and exports all eligible articles per day (no limit).
 
 **Target Sheet**: [Active Month Tab](https://docs.google.com/spreadsheets/d/1_0T4QeDUCBOSU7qXOkszhYVf2_6XATub8DsXBaORgwI)
 
