@@ -234,17 +234,24 @@ class TestSourceProcessorCoverage:
         assert processor.source_meta["no_effective_methods_consecutive"] == 2
 
     def test_has_persistent_technical_errors(self, mock_processor_setup):
+        """Test that _has_persistent_technical_errors is disabled.
+
+        NOTE: This method was intentionally disabled to prevent RSS failures
+        from triggering accelerated pause thresholds. RSS is one discovery
+        method among many, and failing at RSS should not doom the entire site.
+        The method now always returns (False, None).
+        """
         discovery, _, _ = mock_processor_setup
         processor = self._create_processor(discovery, "tech-err", "tech.com")
         processor._initialize_context()
 
-        # Case 1: 403 Forbidden
+        # Case 1: 403 Forbidden - no longer triggers accelerated pause
         processor.rss_summary = {"network_errors": 5, "last_transient_status": 403}
         has_error, reason = processor._has_persistent_technical_errors()
-        assert has_error is True
-        assert "403 Forbidden" in reason
+        assert has_error is False
+        assert reason is None
 
-        # Case 2: 0 success, many tries
+        # Case 2: 0 success, many tries - no longer triggers accelerated pause
         processor.rss_summary = {
             "network_errors": 10,
             "feeds_tried": 5,
@@ -252,10 +259,10 @@ class TestSourceProcessorCoverage:
             "last_transient_status": None,
         }
         has_error, reason = processor._has_persistent_technical_errors()
-        assert has_error is True
-        assert "Network failures" in reason
+        assert has_error is False
+        assert reason is None
 
-        # Case 3: No errors
+        # Case 3: No errors - still returns (False, None)
         processor.rss_summary = {"network_errors": 0}
         has_error, reason = processor._has_persistent_technical_errors()
         assert has_error is False
