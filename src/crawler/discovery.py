@@ -278,6 +278,16 @@ class NewsDiscovery:
             self.session.headers.update({"User-Agent": self.user_agent})
             logger.info("Using standard requests session")
 
+        # Initialize fallback session for sites where cloudscraper has SSL issues
+        # Uses curl-like headers which bypass some bot detection
+        self._fallback_session = requests.Session()
+        self._fallback_session.headers.update(
+            {
+                "User-Agent": "curl/8.0.0",
+                "Accept": "*/*",
+            }
+        )
+
         # Configure proxy behavior (origin adapter or standard proxies)
         self._configure_proxy_routing()
 
@@ -437,6 +447,47 @@ class NewsDiscovery:
         logger.info(
             "🌍 No proxy configured, third-party libraries will use direct connections"
         )
+
+    def _fetch_with_ssl_fallback(
+        self, url: str, timeout: int | None = None
+    ) -> requests.Response:
+        """Fetch URL with SSL error fallback.
+
+        Cloudscraper's custom TLS fingerprinting can fail with SSL handshake
+        errors on some sites (e.g., auroraadvertiser.net, neoshodailynews.com).
+        When this happens, we fall back to standard requests with curl-like
+        headers which often bypasses bot detection while avoiding SSL issues.
+
+        Args:
+            url: URL to fetch
+            timeout: Request timeout in seconds (defaults to self.timeout)
+
+        Returns:
+            Response object from either primary or fallback session
+
+        Raises:
+            requests.exceptions.RequestException: If both sessions fail
+        """
+        if timeout is None:
+            timeout = self.timeout
+
+        # Try primary session first (cloudscraper or requests)
+        try:
+            return self.session.get(url, timeout=timeout)
+        except requests.exceptions.SSLError as e:
+            logger.warning(
+                "SSL error with primary session for %s, trying fallback: %s",
+                url,
+                str(e)[:80],
+            )
+            # Fall through to fallback session
+        except requests.exceptions.RequestException:
+            # Non-SSL errors should propagate normally
+            raise
+
+        # Fallback to curl-like session
+        logger.info("Using fallback session (curl-like UA) for %s", url)
+        return self._fallback_session.get(url, timeout=timeout)
 
     def _create_db_manager(self) -> DatabaseManager:
         """Factory method for database manager instances."""
@@ -2656,7 +2707,9 @@ class NewsDiscovery:
             # to prevent unnecessary feed fetches that are known to fail.
             try:
                 homepage_request_start = time.time()
-                resp = self.session.get(source_url, timeout=min(5, self.timeout))
+                resp = self._fetch_with_ssl_fallback(
+                    source_url, timeout=min(5, self.timeout)
+                )
                 homepage_status_code = getattr(resp, "status_code", None)
                 homepage_fetch_ms = (time.time() - homepage_request_start) * 1000
                 html = resp.text or ""
@@ -3226,7 +3279,9 @@ class NewsDiscovery:
 
                 response_start = time.time()
                 try:
-                    response = self.session.get(feed_url, timeout=self.timeout)
+                    response = self._fetch_with_ssl_fallback(
+                        feed_url, timeout=self.timeout
+                    )
                 except requests.exceptions.Timeout:
                     network_error_count += 1
                     response_time_ms = (time.time() - response_start) * 1000

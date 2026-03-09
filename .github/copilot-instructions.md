@@ -90,6 +90,34 @@ BigQuery Export → analytics datasets
 - Be patient: local CI/CD is validating your changes before they hit GitHub
 - If you need to stop a test run, tell the user first and explain why
 
+### 8. **ALWAYS look up table schema before writing queries**
+- **NEVER** assume column names exist - query `information_schema.columns` first
+- Before writing ANY SQL query, verify the actual table structure:
+  ```sql
+  SELECT column_name FROM information_schema.columns 
+  WHERE table_name = 'your_table' ORDER BY ordinal_position
+  ```
+- Column names change over time - don't rely on memory or assumptions
+- This applies to ALL tables: `sources`, `candidate_links`, `articles`, etc.
+- If a query fails with "column does not exist", you violated this rule
+
+### 9. **ALWAYS use script files for database queries - NEVER heredoc or inline quotes**
+- Heredoc (`<<EOF`) and complex quote escaping break the terminal
+- Write queries to a script file first (e.g., `/tmp/query.py`), then `kubectl cp` and execute
+- This prevents quote escaping hell and makes debugging easier
+- Pattern:
+  ```bash
+  # 1. Create script locally
+  cat > /tmp/my_query.py << 'EOF'
+  from src.models.database import DatabaseManager
+  ...
+  EOF
+  
+  # 2. Copy to pod and execute
+  kubectl cp /tmp/my_query.py production/$(kubectl get pod -n production -l app=mizzou-api -o jsonpath='{.items[0].metadata.name}'):/app/my_query.py
+  kubectl exec -n production deployment/mizzou-api -- python /app/my_query.py
+  ```
+
 ## Database Query Protocol
 
 ### Production Database Access (PostgreSQL via Cloud SQL)

@@ -810,43 +810,54 @@ class SourceProcessor:
                         if isinstance(existing_sections, str):
                             existing_sections = json.loads(existing_sections)
 
-                    # If existing sections have manual_configuration or manual_override,
-                    # preserve them entirely - don't overwrite
+                    # If existing sections exist, NEVER replace them - only add new URLs
+                    # This prevents overwriting manually configured sections
                     if existing_sections:
                         existing_method = existing_sections.get("discovery_method", "")
-                        if existing_method in (
-                            "manual_configuration",
-                            "manual_override",
-                        ):
-                            logger.info(
-                                "Preserving manual sections for %s (method=%s, %d URLs)",
-                                self.source_name,
-                                existing_method,
-                                len(existing_sections.get("urls", [])),
-                            )
-                            # Return existing URLs for crawling, don't update DB
-                            return existing_sections.get("urls", [])
-
-                        # Merge new sections with existing ones (dedup)
                         existing_urls = existing_sections.get("urls", [])
-                        merged_urls = list(
-                            dict.fromkeys(existing_urls + unique_sections)
-                        )
-                        unique_sections = merged_urls
+
+                        # Find genuinely new sections not already present
+                        new_urls = [
+                            u for u in unique_sections if u not in existing_urls
+                        ]
+
+                        if not new_urls:
+                            # No new sections to add - preserve existing entirely
+                            logger.info(
+                                "No new sections for %s (keeping %d existing)",
+                                self.source_name,
+                                len(existing_urls),
+                            )
+                            return existing_urls
+
+                        # Add new URLs but preserve original method and URLs
+                        merged_urls = existing_urls + new_urls
                         logger.info(
-                            "Merged %d existing + %d new = %d total sections for %s",
+                            "Adding %d new sections to %d existing for %s",
+                            len(new_urls),
                             len(existing_urls),
-                            len(filtered_sections),
-                            len(unique_sections),
                             self.source_name,
                         )
 
-                    section_data = {
-                        "urls": unique_sections,
-                        "discovered_at": datetime.utcnow().isoformat(),
-                        "discovery_method": "adaptive_combined",
-                        "count": len(unique_sections),
-                    }
+                        orig_discovered = existing_sections.get(
+                            "discovered_at", datetime.utcnow().isoformat()
+                        )
+                        method = existing_method or "adaptive_combined"
+                        section_data = {
+                            "urls": merged_urls,
+                            "discovered_at": orig_discovered,
+                            "discovery_method": method,
+                            "count": len(merged_urls),
+                            "last_updated": datetime.utcnow().isoformat(),
+                        }
+                    else:
+                        # No existing sections - create new
+                        section_data = {
+                            "urls": unique_sections,
+                            "discovered_at": datetime.utcnow().isoformat(),
+                            "discovery_method": "adaptive_combined",
+                            "count": len(unique_sections),
+                        }
 
                     # PostgreSQL JSON column accepts string directly
                     update_sql = """
