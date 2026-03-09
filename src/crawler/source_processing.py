@@ -613,10 +613,9 @@ class SourceProcessor:
 
         # Strategy 1: Navigation-based discovery from homepage HTML
         try:
-            response = self.discovery.session.get(
+            response = self.discovery._fetch_with_ssl_fallback(
                 self.source_url,
                 timeout=self.discovery.timeout,
-                allow_redirects=True,
             )
             response.raise_for_status()
             html = response.text
