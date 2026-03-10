@@ -193,6 +193,16 @@ def extract_from_html(html_text: str, url: str | None = None) -> dict[str, Any]:
                 else:
                     result["wire_signals"] = canonical_signals
 
+    # =========================================================================
+    # 4. HTML-based byline extraction (fallback for local news sites)
+    # =========================================================================
+    if not result.get("author"):
+        html_author = _extract_author_from_html(html_text)
+        if html_author:
+            result["author"] = html_author
+            if not result["source"]:
+                result["source"] = "html_byline"
+
     return result
 
 
@@ -301,23 +311,41 @@ def _extract_author_from_jsonld_field(author: Any) -> str | None:
     - String: "John Smith"
     - Object: {"@type": "Person", "name": "John Smith"}
     - Array: [{"@type": "Person", "name": "John Smith"}, ...]
+
+    Validates that author names are at least 3 characters (avoid "B" type errors
+    from corrupt JSON-LD data).
     """
+    def _is_valid_author(name: str) -> bool:
+        """Check if name is a valid author (not too short, not nonsense)."""
+        if not name or len(name) < 3:
+            return False
+        # Reject names that are just single letters or initials
+        if len(name.replace(".", "").replace(" ", "")) < 2:
+            return False
+        return True
+
     if isinstance(author, str):
-        return author.strip()
+        name = author.strip()
+        return name if _is_valid_author(name) else None
     elif isinstance(author, dict):
         name = author.get("name")
         if name and isinstance(name, str):
-            return name.strip()
+            name = name.strip()
+            return name if _is_valid_author(name) else None
     elif isinstance(author, list) and author:
         # Collect all author names
         names = []
         for auth in author:
             if isinstance(auth, str):
-                names.append(auth.strip())
+                name = auth.strip()
+                if _is_valid_author(name):
+                    names.append(name)
             elif isinstance(auth, dict):
                 name = auth.get("name")
                 if name and isinstance(name, str):
-                    names.append(name.strip())
+                    name = name.strip()
+                    if _is_valid_author(name):
+                        names.append(name)
         if names:
             return ", ".join(names)
     return None
@@ -485,3 +513,88 @@ def _extract_canonical_url(html_text: str) -> str | None:
     if not match:
         match = _CANONICAL_LINK_ALT_RE.search(html_text)
     return match.group(1).strip() if match else None
+
+
+# HTML-based byline extraction patterns (class and ID selectors)
+_HTML_BYLINE_SELECTORS = [
+    # ID-based selectors (common in Creative Circle Media sites)
+    r'id=["\']byline["\']',
+    r'id=["\']author["\']',
+    # Class-based selectors
+    r'class=["\'][^"\']*(?:byline|author|user-name)[^"\']*["\']',
+    r'rel=["\']author["\']',
+    r'itemprop=["\']author["\']',
+]
+
+# Pattern: "By {Name}" with optional email/date suffix
+_HTML_BYLINE_TEXT_RE = re.compile(
+    r"\bBy\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3})"
+    r"(?:\s*,?\s*[\w.+-]+@[\w.-]+\.\w+)?"
+    r"(?:\s+Posted|\s+\||\s+Time|\s*$)",
+    re.IGNORECASE,
+)
+
+
+def _extract_author_from_html(html_text: str) -> str | None:
+    """Extract author from HTML content using CSS selectors and text patterns.
+
+    This is a fallback for when JSON-LD and meta tags don't have author info.
+    Used primarily for local news sites that don't use structured data.
+
+    Tries:
+    1. Common CSS class/attribute patterns via regex
+    2. Text pattern matching for "By {Name}" patterns
+    """
+    # Strategy 1: Find elements with author/byline ID or class via regex
+    for selector_pattern in _HTML_BYLINE_SELECTORS:
+        # Find the element with this ID/class/attribute
+        match = re.search(
+            rf'<[^>]*{selector_pattern}[^>]*>(.*?)</[^>]+>',
+            html_text,
+            re.IGNORECASE | re.DOTALL,
+        )
+        if match:
+            # Extract text content, strip tags
+            content = re.sub(r'<[^>]+>', ' ', match.group(1))
+            content = re.sub(r'\s+', ' ', content).strip()
+            author = _clean_author_text(content)
+            # Validate: must be at least 3 chars (avoid "B" type errors)
+            if author and 3 <= len(author) < 100:
+                return author
+
+    # Strategy 2: Text pattern search for "By {Name}"
+    # Focus on first 5000 chars (header/info area)
+    search_text = html_text[:5000]
+    match = _HTML_BYLINE_TEXT_RE.search(search_text)
+    if match:
+        author = match.group(1).strip()
+        # Validate: should be 1-4 words, each capitalized
+        words = author.split()
+        if 1 <= len(words) <= 4:
+            # Check it looks like a name (not "By The Numbers" etc.)
+            if all(w[0].isupper() for w in words if w):
+                return author
+
+    return None
+
+
+def _clean_author_text(text: str) -> str:
+    """Clean up author/byline text by removing common prefixes and normalizing."""
+    if not text:
+        return ""
+    # Remove common prefixes
+    cleaned = re.sub(
+        r"^(By|Written by|Author:?|Reporter:?)\s+",
+        "",
+        text.strip(),
+        flags=re.IGNORECASE,
+    )
+    # Remove extra whitespace
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    # Remove email addresses that follow the name
+    cleaned = re.sub(r",?\s*[\w.+-]+@[\w.-]+\.\w+.*$", "", cleaned)
+    # Remove "Posted" or date info that follows
+    cleaned = re.sub(r"\s+Posted\s+.*$", "", cleaned, flags=re.IGNORECASE)
+    # Remove "Time to read" etc.
+    cleaned = re.sub(r"\s+Time\s+to\s+read.*$", "", cleaned, flags=re.IGNORECASE)
+    return cleaned.strip()

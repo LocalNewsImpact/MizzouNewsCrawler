@@ -5711,32 +5711,134 @@ class ContentExtractor:
         return None
 
     def _extract_author(self, soup: BeautifulSoup) -> Optional[str]:
-        """Extract article author."""
-        # Try common meta tags
-        author_selectors = [
+        """Extract article author from HTML using multiple strategies.
+
+        Tries in order:
+        1. Meta tags (most reliable)
+        2. CSS selectors for common byline classes
+        3. Text pattern search for "By {Name}" patterns
+        """
+        # Strategy 1: Try common meta tags first (most reliable)
+        meta_selectors = [
             ("meta", {"name": "author"}),
             ("meta", {"property": "article:author"}),
             ("meta", {"name": "article:author"}),
-            ('[rel="author"]', {}),
-            (".author", {}),
-            (".byline", {}),
+            ("meta", {"name": "byl"}),
+            ("meta", {"name": "sailthru.author"}),
         ]
 
-        # local imports kept minimal to avoid heavy startup costs
-
-        for selector, attrs in author_selectors:
+        for selector, attrs in meta_selectors:
             element = soup.find(selector, _ensure_attrs_dict(attrs))
             if isinstance(element, Tag):
-                if element.name == "meta":
-                    author = element.get("content")
-                    if author is not None:
-                        author_str = str(author).strip()
-                        if author_str:
-                            return author_str
-                else:
-                    author_txt = element.get_text().strip()
-                    if author_txt:
+                author = element.get("content")
+                if author is not None:
+                    author_str = self._clean_author_text(str(author))
+                    if author_str:
+                        return author_str
+
+        # Strategy 2: CSS selectors for common byline classes/elements
+        css_selectors = [
+            '[rel="author"]',
+            '[itemprop="author"]',
+            ".byline",
+            ".byline__name",
+            ".author",
+            ".author-name",
+            ".article-author",
+            ".post-author",
+            ".story-byline",
+            ".article__byline",
+            ".entry-author",
+            # Creative Circle Media (warrensburgstarjournal, etc.)
+            ".story-info",
+            ".article-info",
+            # eType Services (richmond-dailynews, etc.)
+            ".field--name-uid",
+            ".node__submitted",
+        ]
+
+        for selector in css_selectors:
+            try:
+                element = soup.select_one(selector)
+                if element:
+                    author_txt = self._clean_author_text(element.get_text())
+                    if author_txt and len(author_txt) < 200:
                         return author_txt
+            except Exception:
+                continue
+
+        # Strategy 3: Text pattern search for "By {Name}" in article header area
+        # Focus on the first part of the page (header/info area)
+        author = self._extract_author_by_text_pattern(soup)
+        if author:
+            return author
+
+        return None
+
+    def _clean_author_text(self, text: str) -> str:
+        """Clean up author/byline text by removing common prefixes and normalizing."""
+        if not text:
+            return ""
+        # Remove common prefixes
+        cleaned = re.sub(
+            r"^(By|Written by|Author:?|Reporter:?)\s+",
+            "",
+            text.strip(),
+            flags=re.IGNORECASE,
+        )
+        # Remove extra whitespace
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        # Remove email addresses that follow the name
+        cleaned = re.sub(r",?\s*[\w.+-]+@[\w.-]+\.\w+.*$", "", cleaned)
+        # Remove "Posted" or date info that follows
+        cleaned = re.sub(r"\s+Posted\s+.*$", "", cleaned, flags=re.IGNORECASE)
+        return cleaned.strip()
+
+    def _extract_author_by_text_pattern(
+        self, soup: BeautifulSoup
+    ) -> Optional[str]:
+        """Extract author from text patterns like 'By John Smith' in the HTML.
+
+        Searches in likely locations: header, article info, first paragraphs.
+        """
+        # Pattern: "By {Name}" possibly followed by email or date
+        by_pattern = re.compile(
+            r"\bBy\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3})"
+            r"(?:\s*,?\s*[\w.+-]+@[\w.-]+\.\w+)?"
+            r"(?:\s+Posted|\s+\||\s*$)",
+            re.IGNORECASE,
+        )
+
+        # Search in likely areas: article info sections, first few elements
+        search_areas = [
+            soup.find(class_=re.compile(r"story.?info|article.?info", re.I)),
+            soup.find(class_=re.compile(r"byline|author", re.I)),
+            soup.find("article"),
+        ]
+
+        # Also check first N elements in body for "By" pattern
+        body = soup.find("body")
+        if body:
+            # Get text content of early elements
+            for elem in body.find_all(["p", "div", "span"], limit=30):
+                text = elem.get_text()
+                if text and "By " in text:
+                    search_areas.append(elem)
+                    break
+
+        for area in search_areas:
+            if not area:
+                continue
+            text = area.get_text(" ", strip=True)
+            match = by_pattern.search(text)
+            if match:
+                author = match.group(1).strip()
+                # Validate: should be 2-4 words, each capitalized
+                words = author.split()
+                if 1 <= len(words) <= 4:
+                    # Check it looks like a name (not "By The Numbers" etc.)
+                    if all(w[0].isupper() for w in words if w):
+                        return author
 
         return None
 
