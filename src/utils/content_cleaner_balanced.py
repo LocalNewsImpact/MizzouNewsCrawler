@@ -123,6 +123,32 @@ SOCIAL_SHARE_PHRASES = (
 
 SOCIAL_SHARE_PREFIX_SEPARATORS = " \t\u2022•|-–—:\u00b7·"
 
+# Video player UI patterns (Lee Enterprises/TownNews embedded players)
+# These appear as long concatenated strings of player controls
+VIDEO_PLAYER_UI_PATTERN = re.compile(
+    r"Video Player is loading\..*?End of dialog window\.",
+    re.IGNORECASE | re.DOTALL,
+)
+
+# Lee Enterprises footer boilerplate pattern
+LEE_FOOTER_PATTERN = re.compile(
+    r"(?:\d+\s*Comments?\s*)?Be the first to know.*?"
+    r"(?:Author twitter\s*Author email\s*(?:Follow\s*)?)?[^\n]*?(?:Post-Dispatch|Reporter|Editor|Author)\b.*$",
+    re.IGNORECASE | re.DOTALL,
+)
+
+# Alternative simpler patterns for partial matches
+VIDEO_PLAYER_START_PATTERN = re.compile(
+    r"Video Player is loading\..*?(?=(?:Advertisement|The St\. Louis|$))",
+    re.IGNORECASE | re.DOTALL,
+)
+
+# Advertisement section pattern
+ADVERTISEMENT_PATTERN = re.compile(
+    r"\s*Advertisement\s+",
+    re.IGNORECASE,
+)
+
 
 class BalancedBoundaryContentCleaner:
     """
@@ -1149,6 +1175,48 @@ class BalancedBoundaryContentCleaner:
         removed_text = "\n".join(removed_segments)
         return {"cleaned_text": cleaned_text, "removed_text": removed_text}
 
+    def _remove_video_player_ui(self, text: str) -> dict[str, Any]:
+        """Remove video player UI garbage text (Lee Enterprises/TownNews).
+        
+        These appear as long concatenated strings like:
+        "Video Player is loading.Play VideoPlayMuteCurrent Time 0:00..."
+        """
+        removed_segments = []
+        cleaned = text
+        
+        # Try full pattern first
+        match = VIDEO_PLAYER_UI_PATTERN.search(cleaned)
+        if match:
+            removed_segments.append(match.group(0))
+            cleaned = cleaned[:match.start()] + cleaned[match.end():]
+        else:
+            # Try simpler start pattern
+            match = VIDEO_PLAYER_START_PATTERN.search(cleaned)
+            if match:
+                removed_segments.append(match.group(0))
+                cleaned = cleaned[:match.start()] + cleaned[match.end():]
+        
+        # Remove "Advertisement" labels
+        match = ADVERTISEMENT_PATTERN.search(cleaned)
+        if match:
+            removed_segments.append(match.group(0))
+            cleaned = cleaned[:match.start()] + " " + cleaned[match.end():]
+        
+        # Remove Lee Enterprises footer boilerplate
+        match = LEE_FOOTER_PATTERN.search(cleaned)
+        if match:
+            removed_segments.append(match.group(0))
+            cleaned = cleaned[:match.start()] + cleaned[match.end():]
+        
+        # Clean up extra whitespace
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+        
+        return {
+            "cleaned_text": cleaned,
+            "removed_segments": removed_segments,
+            "chars_removed": len(text) - len(cleaned),
+        }
+
     def process_single_article(
         self,
         text: str,
@@ -1162,8 +1230,18 @@ class BalancedBoundaryContentCleaner:
             self.telemetry.start_cleaning_session(domain, article_count=1)
 
         original_text = text
+        
+        # First remove video player UI garbage (common in Lee Enterprises sites)
+        video_removal = self._remove_video_player_ui(text)
+        if video_removal["chars_removed"] > 0:
+            text = video_removal["cleaned_text"]
+            self.logger.debug(
+                "Removed %d chars of video player UI from article %s",
+                video_removal["chars_removed"],
+                article_id,
+            )
 
-        # First check persistent patterns for quick matching
+        # Check persistent patterns for quick matching
         removed_by_persistent = self._remove_persistent_patterns(
             text, domain, article_id
         )
@@ -1542,6 +1620,43 @@ class BalancedBoundaryContentCleaner:
             "search site",
         ]
 
+        # Video player UI patterns (Lee Enterprises/TownNews)
+        video_player_patterns = [
+            "video player is loading",
+            "play video",
+            "current time",
+            "stream type live",
+            "seek to live",
+            "playback rate",
+            "captions settings",
+            "captions off",
+            "audio track",
+            "beginning of dialog window",
+            "end of dialog window",
+            "escape will cancel and close the window",
+            "restore all settings to the default values",
+            "close modal dialog",
+            "font family",
+            "proportional sans-serif",
+            "monospace sans-serif",
+            "text edge style",
+            "colorwhiteblackredgreenblueyellowmagentacyan",
+            "transparencyopaquesemi-transparent",
+        ]
+
+        # Comments and newsletter patterns
+        comments_newsletter_patterns = [
+            "0 comments",
+            "be the first to know",
+            "get local news delivered to your inbox",
+            "sign up!",
+            "i understand and agree that registration",
+            "constitutes agreement to its user agreement",
+            "author twitter author email",
+            "post-dispatch",
+            "explore the homicide tracker",
+        ]
+
         # Subscription and newsletter patterns
         subscription_patterns = [
             "subscribe to our newsletter",
@@ -1572,6 +1687,8 @@ class BalancedBoundaryContentCleaner:
         all_patterns = (
             social_sharing_patterns
             + navigation_patterns
+            + video_player_patterns
+            + comments_newsletter_patterns
             + subscription_patterns
             + copyright_patterns
         )
