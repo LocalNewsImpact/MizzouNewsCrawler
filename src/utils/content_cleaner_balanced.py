@@ -138,6 +138,17 @@ VIDEO_PLAYER_UI_PATTERN = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 
+# Sinclair/TEGNA video player UI pattern (abc17, kolr10, etc.)
+# Format: "Local News 0:00 / 2:22 LIVE Quality Auto 240p Audio Subtitle Speed Normal"
+SINCLAIR_VIDEO_PLAYER_PATTERN = re.compile(
+    r"(?:Local News|Breaking News|Top Stories?|Weather)\s+"
+    r"\d+:\d+\s*/\s*\d+:\d+\s*"
+    r"(?:LIVE\s+)?"
+    r"Quality\s+Auto\s+\d+p\s+"
+    r"Audio\s+Subtitle\s+Speed\s+Normal",
+    re.IGNORECASE,
+)
+
 # Lee Enterprises footer boilerplate pattern
 LEE_FOOTER_PATTERN = re.compile(
     r"(?:\d+\s*Comments?\s*)?Be the first to know.*?"
@@ -1184,16 +1195,23 @@ class BalancedBoundaryContentCleaner:
         return {"cleaned_text": cleaned_text, "removed_text": removed_text}
 
     def _remove_video_player_ui(self, text: str) -> dict[str, Any]:
-        """Remove video player UI garbage text (Lee Enterprises/TownNews).
+        """Remove video player UI garbage text from various CMS platforms.
         
-        These appear as long concatenated strings like:
-        "Video Player is loading.Play VideoPlayMuteCurrent Time 0:00..."
+        Handles:
+        - Lee Enterprises/TownNews: "Video Player is loading.Play VideoPlayMute..."
+        - Sinclair/TEGNA: "Local News 0:00 / 2:22 LIVE Quality Auto 240p..."
         """
         removed_segments = []
         cleaned = text
         
         # Remove social share toolbar (e.g., "Facebook Twitter Bluesky WhatsApp SMS Email Print Copy article link Save")
         match = SOCIAL_SHARE_TOOLBAR_PATTERN.search(cleaned)
+        if match:
+            removed_segments.append(match.group(0))
+            cleaned = cleaned[:match.start()] + cleaned[match.end():]
+        
+        # Remove Sinclair/TEGNA video player UI (abc17, kolr10, etc.)
+        match = SINCLAIR_VIDEO_PLAYER_PATTERN.search(cleaned)
         if match:
             removed_segments.append(match.group(0))
             cleaned = cleaned[:match.start()] + cleaned[match.end():]
