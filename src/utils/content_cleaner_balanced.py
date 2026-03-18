@@ -426,7 +426,7 @@ class BalancedBoundaryContentCleaner:
             for sentence in sentences:
                 sentence = sentence.strip()
                 if 30 <= len(sentence) <= 600:
-                    normalized = re.sub(r"\s+", " ", sentence)
+                    normalized = self._normalize_for_matching(sentence)
                     candidates[normalized].add(article_id)
 
             # Method 2: Paragraphs
@@ -434,7 +434,7 @@ class BalancedBoundaryContentCleaner:
             for paragraph in paragraphs:
                 paragraph = paragraph.strip()
                 if 40 <= len(paragraph) <= 1200:
-                    normalized = re.sub(r"\s+", " ", paragraph)
+                    normalized = self._normalize_for_matching(paragraph)
                     candidates[normalized].add(article_id)
 
             # Method 3: Lines (for navigation)
@@ -442,13 +442,13 @@ class BalancedBoundaryContentCleaner:
             for line in lines:
                 line = line.strip()
                 if 20 <= len(line) <= 1200:
-                    normalized = re.sub(r"\s+", " ", line)
+                    normalized = self._normalize_for_matching(line)
                     candidates[normalized].add(article_id)
 
             # Method 4: Leading navigation prefix without separators
             nav_prefix = self._extract_navigation_prefix(content)
             if nav_prefix:
-                normalized = re.sub(r"\s+", " ", nav_prefix.strip())
+                normalized = self._normalize_for_matching(nav_prefix.strip())
                 if 50 <= len(normalized) <= 400:
                     candidates[normalized].add(article_id)
 
@@ -461,6 +461,41 @@ class BalancedBoundaryContentCleaner:
 
         self.logger.info(f"Found {len(filtered_candidates)} rough candidates")
         return filtered_candidates
+
+    @staticmethod
+    def _normalize_for_matching(text: str) -> str:
+        """Normalize text for boilerplate matching, replacing dynamic values with placeholders.
+        
+        This allows detection of near-identical patterns that differ only in:
+        - Timestamps (0:00, 1:45, 2:22)
+        - Video quality (240p, 360p, 720p)
+        - Percentages (0%, 50%, 100%)
+        - Dates (March 15, 2026)
+        """
+        normalized = re.sub(r"\s+", " ", text)
+        
+        # Replace timestamps (video duration: 0:00, 1:45, 12:34)
+        normalized = re.sub(r"\b\d{1,2}:\d{2}\b", "__TIME__", normalized)
+        
+        # Replace video quality markers (240p, 360p, 720p, 1080p)
+        normalized = re.sub(r"\b\d{3,4}p\b", "__QUALITY__", normalized)
+        
+        # Replace percentages (0%, 50%, 100%)
+        normalized = re.sub(r"\b\d{1,3}%", "__PERCENT__", normalized)
+        
+        # Replace dates (March 15, 2026 or Mar 15, 2026)
+        normalized = re.sub(
+            r"\b(?:January|February|March|April|May|June|July|August|September|October|November|December|"
+            r"Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},?\s+\d{4}\b",
+            "__DATE__",
+            normalized,
+            flags=re.IGNORECASE
+        )
+        
+        # Replace time with AM/PM (10:38 PM, 6:19 AM)
+        normalized = re.sub(r"\b\d{1,2}:\d{2}\s*[AP]M\b", "__DATETIME__", normalized, flags=re.IGNORECASE)
+        
+        return normalized
 
     @staticmethod
     def _normalize_navigation_token(token: str) -> str:
