@@ -85,6 +85,7 @@ SUPPRESSIBLE_WIRE_PROVIDERS: set[str] = {
 SOCIAL_SHARE_WORDS: set[str] = {
     "facebook",
     "twitter",
+    "bluesky",
     "whatsapp",
     "linkedin",
     "sms",
@@ -122,6 +123,13 @@ SOCIAL_SHARE_PHRASES = (
 )
 
 SOCIAL_SHARE_PREFIX_SEPARATORS = " \t\u2022•|-–—:\u00b7·"
+
+# Social sharing toolbar pattern (Lee Enterprises/TownNews)
+# Appears as concatenated social button labels
+SOCIAL_SHARE_TOOLBAR_PATTERN = re.compile(
+    r"Facebook\s+Twitter\s+(?:Bluesky\s+)?WhatsApp\s+SMS\s+Email\s+Print\s+Copy\s+article\s+link\s+Save",
+    re.IGNORECASE,
+)
 
 # Video player UI patterns (Lee Enterprises/TownNews embedded players)
 # These appear as long concatenated strings of player controls
@@ -1183,6 +1191,12 @@ class BalancedBoundaryContentCleaner:
         """
         removed_segments = []
         cleaned = text
+        
+        # Remove social share toolbar (e.g., "Facebook Twitter Bluesky WhatsApp SMS Email Print Copy article link Save")
+        match = SOCIAL_SHARE_TOOLBAR_PATTERN.search(cleaned)
+        if match:
+            removed_segments.append(match.group(0))
+            cleaned = cleaned[:match.start()] + cleaned[match.end():]
         
         # Try full pattern first
         match = VIDEO_PLAYER_UI_PATTERN.search(cleaned)
