@@ -37,6 +37,14 @@ from .utils import mask_proxy_url
 
 UNBLOCK_MIN_HTML_BYTES = 3000
 
+# Modern browser profile for cloudscraper to bypass Cloudflare bot detection
+# Default Firefox 53/Linux profile is flagged as bot - use Chrome/Windows instead
+CLOUDSCRAPER_BROWSER_PROFILE = {
+    'browser': 'chrome',
+    'platform': 'windows',
+    'desktop': True
+}
+
 _SELENIUM_DEFAULT_USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
@@ -900,8 +908,8 @@ class ContentExtractor:
         """Create a new session with current user agent and clear cookies."""
         # Initialize cloudscraper session for better Cloudflare handling
         if CLOUDSCRAPER_AVAILABLE and cloudscraper is not None:
-            self.session = cloudscraper.create_scraper()
-            logger.info("🔧 Created new cloudscraper session (anti-Cloudflare enabled)")
+            self.session = cloudscraper.create_scraper(browser=CLOUDSCRAPER_BROWSER_PROFILE)
+            logger.info("🔧 Created new cloudscraper session (Chrome/Windows profile)")
         else:
             self.session = requests.Session()
             logger.info("🔧 Created new requests session (cloudscraper NOT available)")
@@ -1038,7 +1046,7 @@ class ContentExtractor:
             # Create new session with clean cookies
             session_type = None
             if CLOUDSCRAPER_AVAILABLE and cloudscraper is not None:
-                new_session = cloudscraper.create_scraper()
+                new_session = cloudscraper.create_scraper(browser=CLOUDSCRAPER_BROWSER_PROFILE)
                 session_type = "cloudscraper"
             else:
                 new_session = requests.Session()
@@ -1104,7 +1112,7 @@ class ContentExtractor:
     def _create_session_with_fingerprint_ua(self):
         """Create a new session using fingerprint profile user agent."""
         if CLOUDSCRAPER_AVAILABLE and cloudscraper is not None:
-            new_session = cloudscraper.create_scraper()
+            new_session = cloudscraper.create_scraper(browser=CLOUDSCRAPER_BROWSER_PROFILE)
         else:
             new_session = requests.Session()
 
