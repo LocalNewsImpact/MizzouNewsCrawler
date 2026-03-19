@@ -272,7 +272,7 @@ class NewsDiscovery:
         # Use modern Chrome/Windows profile to avoid bot detection
         if cloudscraper is not None:
             self.session = cloudscraper.create_scraper(
-                browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True}
+                browser={"browser": "chrome", "platform": "windows", "desktop": True}
             )
             self.session.headers.update({"User-Agent": self.user_agent})
             logger.info("Cloudscraper initialized with Chrome/Windows profile")

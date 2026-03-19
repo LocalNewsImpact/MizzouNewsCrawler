@@ -84,29 +84,29 @@ def _decode_segment(segment: str) -> str | None:
 
 def _decode_rot47_by_markers(text: str) -> str | None:
     """Decode ROT47 text using paragraph markers (kAm/k^Am).
-    
+
     Lee Enterprises encodes article text with ROT47, using markers:
     - kAm = <p> (paragraph open)
     - k^Am = </p> (paragraph close)
     - k9C ^m = <hr > (horizontal rule)
-    
+
     This is more reliable than token-based detection since short words
     like "of", "33," don't break the pattern matching.
     """
     if "kAm" not in text:
         return None
-    
+
     # Find all ROT47 paragraph segments
     matches = list(_ROT47_PARAGRAPH_PATTERN.finditer(text))
     if not matches:
         return None
-    
+
     # Decode each match and validate
     replacements: list[tuple[int, int, str]] = []
     for match in matches:
         segment = match.group(0)
         decoded = _rot47(segment)
-        
+
         # Basic validation: decoded should have reasonable letter ratio
         letters = sum(1 for ch in decoded if ch.isalpha())
         if len(decoded) > 0 and letters / len(decoded) >= 0.3:
@@ -114,10 +114,10 @@ def _decode_rot47_by_markers(text: str) -> str | None:
             cleaned = re.sub(r"</?p>", " ", decoded)
             cleaned = re.sub(r"<hr\s*/?>", " ", cleaned)
             replacements.append((match.start(), match.end(), cleaned))
-    
+
     if not replacements:
         return None
-    
+
     # Build result with replacements
     parts: list[str] = []
     last_index = 0
@@ -126,7 +126,7 @@ def _decode_rot47_by_markers(text: str) -> str | None:
         parts.append(replacement)
         last_index = end
     parts.append(text[last_index:])
-    
+
     result = "".join(parts)
     # Also handle standalone markers like k9C ^m (<hr >)
     result = re.sub(r"k9C\s*\^m", " ", result)

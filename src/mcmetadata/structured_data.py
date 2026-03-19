@@ -315,6 +315,7 @@ def _extract_author_from_jsonld_field(author: Any) -> str | None:
     Validates that author names are at least 3 characters (avoid "B" type errors
     from corrupt JSON-LD data).
     """
+
     def _is_valid_author(name: str) -> bool:
         """Check if name is a valid author (not too short, not nonsense)."""
         if not name or len(name) < 3:
@@ -549,14 +550,14 @@ def _extract_author_from_html(html_text: str) -> str | None:
     for selector_pattern in _HTML_BYLINE_SELECTORS:
         # Find the element with this ID/class/attribute
         match = re.search(
-            rf'<[^>]*{selector_pattern}[^>]*>(.*?)</[^>]+>',
+            rf"<[^>]*{selector_pattern}[^>]*>(.*?)</[^>]+>",
             html_text,
             re.IGNORECASE | re.DOTALL,
         )
         if match:
             # Extract text content, strip tags
-            content = re.sub(r'<[^>]+>', ' ', match.group(1))
-            content = re.sub(r'\s+', ' ', content).strip()
+            content = re.sub(r"<[^>]+>", " ", match.group(1))
+            content = re.sub(r"\s+", " ", content).strip()
             author = _clean_author_text(content)
             # Validate: must be at least 3 chars (avoid "B" type errors)
             if author and 3 <= len(author) < 100:

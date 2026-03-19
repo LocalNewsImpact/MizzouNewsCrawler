@@ -465,7 +465,7 @@ class BalancedBoundaryContentCleaner:
     @staticmethod
     def _normalize_for_matching(text: str) -> str:
         """Normalize text for boilerplate matching, replacing dynamic values with placeholders.
-        
+
         This allows detection of near-identical patterns that differ only in:
         - Timestamps (0:00, 1:45, 2:22)
         - Video quality (240p, 360p, 720p)
@@ -473,28 +473,33 @@ class BalancedBoundaryContentCleaner:
         - Dates (March 15, 2026)
         """
         normalized = re.sub(r"\s+", " ", text)
-        
+
         # Replace timestamps (video duration: 0:00, 1:45, 12:34)
         normalized = re.sub(r"\b\d{1,2}:\d{2}\b", "__TIME__", normalized)
-        
+
         # Replace video quality markers (240p, 360p, 720p, 1080p)
         normalized = re.sub(r"\b\d{3,4}p\b", "__QUALITY__", normalized)
-        
+
         # Replace percentages (0%, 50%, 100%)
         normalized = re.sub(r"\b\d{1,3}%", "__PERCENT__", normalized)
-        
+
         # Replace dates (March 15, 2026 or Mar 15, 2026)
         normalized = re.sub(
             r"\b(?:January|February|March|April|May|June|July|August|September|October|November|December|"
             r"Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},?\s+\d{4}\b",
             "__DATE__",
             normalized,
-            flags=re.IGNORECASE
+            flags=re.IGNORECASE,
         )
-        
+
         # Replace time with AM/PM (10:38 PM, 6:19 AM)
-        normalized = re.sub(r"\b\d{1,2}:\d{2}\s*[AP]M\b", "__DATETIME__", normalized, flags=re.IGNORECASE)
-        
+        normalized = re.sub(
+            r"\b\d{1,2}:\d{2}\s*[AP]M\b",
+            "__DATETIME__",
+            normalized,
+            flags=re.IGNORECASE,
+        )
+
         return normalized
 
     @staticmethod
@@ -1231,53 +1236,53 @@ class BalancedBoundaryContentCleaner:
 
     def _remove_video_player_ui(self, text: str) -> dict[str, Any]:
         """Remove video player UI garbage text from various CMS platforms.
-        
+
         Handles:
         - Lee Enterprises/TownNews: "Video Player is loading.Play VideoPlayMute..."
         - Sinclair/TEGNA: "Local News 0:00 / 2:22 LIVE Quality Auto 240p..."
         """
         removed_segments = []
         cleaned = text
-        
+
         # Remove social share toolbar (e.g., "Facebook Twitter Bluesky WhatsApp SMS Email Print Copy article link Save")
         match = SOCIAL_SHARE_TOOLBAR_PATTERN.search(cleaned)
         if match:
             removed_segments.append(match.group(0))
-            cleaned = cleaned[:match.start()] + cleaned[match.end():]
-        
+            cleaned = cleaned[: match.start()] + cleaned[match.end() :]
+
         # Remove Sinclair/TEGNA video player UI (abc17, kolr10, etc.)
         match = SINCLAIR_VIDEO_PLAYER_PATTERN.search(cleaned)
         if match:
             removed_segments.append(match.group(0))
-            cleaned = cleaned[:match.start()] + cleaned[match.end():]
-        
+            cleaned = cleaned[: match.start()] + cleaned[match.end() :]
+
         # Try full pattern first
         match = VIDEO_PLAYER_UI_PATTERN.search(cleaned)
         if match:
             removed_segments.append(match.group(0))
-            cleaned = cleaned[:match.start()] + cleaned[match.end():]
+            cleaned = cleaned[: match.start()] + cleaned[match.end() :]
         else:
             # Try simpler start pattern
             match = VIDEO_PLAYER_START_PATTERN.search(cleaned)
             if match:
                 removed_segments.append(match.group(0))
-                cleaned = cleaned[:match.start()] + cleaned[match.end():]
-        
+                cleaned = cleaned[: match.start()] + cleaned[match.end() :]
+
         # Remove "Advertisement" labels
         match = ADVERTISEMENT_PATTERN.search(cleaned)
         if match:
             removed_segments.append(match.group(0))
-            cleaned = cleaned[:match.start()] + " " + cleaned[match.end():]
-        
+            cleaned = cleaned[: match.start()] + " " + cleaned[match.end() :]
+
         # Remove Lee Enterprises footer boilerplate
         match = LEE_FOOTER_PATTERN.search(cleaned)
         if match:
             removed_segments.append(match.group(0))
-            cleaned = cleaned[:match.start()] + cleaned[match.end():]
-        
+            cleaned = cleaned[: match.start()] + cleaned[match.end() :]
+
         # Clean up extra whitespace
-        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
-        
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+
         return {
             "cleaned_text": cleaned,
             "removed_segments": removed_segments,
@@ -1297,7 +1302,7 @@ class BalancedBoundaryContentCleaner:
             self.telemetry.start_cleaning_session(domain, article_count=1)
 
         original_text = text
-        
+
         # First remove video player UI garbage (common in Lee Enterprises sites)
         video_removal = self._remove_video_player_ui(text)
         if video_removal["chars_removed"] > 0:

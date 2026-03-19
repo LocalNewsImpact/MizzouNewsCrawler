@@ -40,9 +40,9 @@ UNBLOCK_MIN_HTML_BYTES = 3000
 # Modern browser profile for cloudscraper to bypass Cloudflare bot detection
 # Default Firefox 53/Linux profile is flagged as bot - use Chrome/Windows instead
 CLOUDSCRAPER_BROWSER_PROFILE = {
-    'browser': 'chrome',
-    'platform': 'windows',
-    'desktop': True
+    "browser": "chrome",
+    "platform": "windows",
+    "desktop": True,
 }
 
 _SELENIUM_DEFAULT_USER_AGENTS = [
@@ -908,7 +908,9 @@ class ContentExtractor:
         """Create a new session with current user agent and clear cookies."""
         # Initialize cloudscraper session for better Cloudflare handling
         if CLOUDSCRAPER_AVAILABLE and cloudscraper is not None:
-            self.session = cloudscraper.create_scraper(browser=CLOUDSCRAPER_BROWSER_PROFILE)
+            self.session = cloudscraper.create_scraper(
+                browser=CLOUDSCRAPER_BROWSER_PROFILE
+            )
             logger.info("🔧 Created new cloudscraper session (Chrome/Windows profile)")
         else:
             self.session = requests.Session()
@@ -1046,7 +1048,9 @@ class ContentExtractor:
             # Create new session with clean cookies
             session_type = None
             if CLOUDSCRAPER_AVAILABLE and cloudscraper is not None:
-                new_session = cloudscraper.create_scraper(browser=CLOUDSCRAPER_BROWSER_PROFILE)
+                new_session = cloudscraper.create_scraper(
+                    browser=CLOUDSCRAPER_BROWSER_PROFILE
+                )
                 session_type = "cloudscraper"
             else:
                 new_session = requests.Session()
@@ -1112,7 +1116,9 @@ class ContentExtractor:
     def _create_session_with_fingerprint_ua(self):
         """Create a new session using fingerprint profile user agent."""
         if CLOUDSCRAPER_AVAILABLE and cloudscraper is not None:
-            new_session = cloudscraper.create_scraper(browser=CLOUDSCRAPER_BROWSER_PROFILE)
+            new_session = cloudscraper.create_scraper(
+                browser=CLOUDSCRAPER_BROWSER_PROFILE
+            )
         else:
             new_session = requests.Session()
 
@@ -5802,9 +5808,7 @@ class ContentExtractor:
         cleaned = re.sub(r"\s+Posted\s+.*$", "", cleaned, flags=re.IGNORECASE)
         return cleaned.strip()
 
-    def _extract_author_by_text_pattern(
-        self, soup: BeautifulSoup
-    ) -> Optional[str]:
+    def _extract_author_by_text_pattern(self, soup: BeautifulSoup) -> Optional[str]:
         """Extract author from text patterns like 'By John Smith' in the HTML.
 
         Searches in likely locations: header, article info, first paragraphs.

@@ -189,6 +189,8 @@ class BylineCleaner:
         "states newsroom",
         "states-newsroom",
         "statesnewsroom",
+        "newsusa",
+        "news usa",
     }
 
     # Normalization mapping for wire services to canonical names
@@ -215,6 +217,8 @@ class BylineCleaner:
         "missouriindependent": "The Missouri Independent",
         "wave": "WAVE",
         "wave3": "WAVE",
+        "newsusa": "NewsUSA",
+        "news usa": "NewsUSA",
     }
     # Journalism-specific nouns that are never names
     JOURNALISM_NOUNS = {
