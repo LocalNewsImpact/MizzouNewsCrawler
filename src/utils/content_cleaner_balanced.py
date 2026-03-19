@@ -1063,8 +1063,20 @@ class BalancedBoundaryContentCleaner:
 
         for pattern in patterns:
             pattern_text = pattern["text_content"]
+            # Normalize pattern whitespace to match how text is processed
+            pattern_normalized = re.sub(r"\s+", " ", pattern_text).strip()
 
-            pattern_present = pattern_text in cleaned_text
+            # Check both original and normalized versions
+            pattern_present = pattern_text in cleaned_text or (
+                pattern_normalized != pattern_text
+                and pattern_normalized in cleaned_text
+            )
+            # Use the version that actually matches for removal
+            pattern_to_remove = (
+                pattern_text
+                if pattern_text in cleaned_text
+                else pattern_normalized if pattern_normalized in cleaned_text else None
+            )
 
             # WIRE SERVICE DETECTION: Check pattern before removal
             if pattern_present and not wire_detected:
@@ -1098,10 +1110,10 @@ class BalancedBoundaryContentCleaner:
             if len(pattern_text) < 150 and not is_high_confidence:
                 continue
 
-            if pattern_present:
+            if pattern_present and pattern_to_remove:
                 # Calculate position before removal
-                position = cleaned_text.find(pattern_text)
-                cleaned_text = cleaned_text.replace(pattern_text, "")
+                position = cleaned_text.find(pattern_to_remove)
+                cleaned_text = cleaned_text.replace(pattern_to_remove, "")
 
                 removals.append(
                     {
@@ -1280,8 +1292,10 @@ class BalancedBoundaryContentCleaner:
             removed_segments.append(match.group(0))
             cleaned = cleaned[: match.start()] + cleaned[match.end() :]
 
-        # Clean up extra whitespace
-        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        # Only normalize whitespace if we actually removed something
+        # (preserving newlines is important for downstream processing)
+        if removed_segments:
+            cleaned = re.sub(r"\s+", " ", cleaned).strip()
 
         return {
             "cleaned_text": cleaned,
