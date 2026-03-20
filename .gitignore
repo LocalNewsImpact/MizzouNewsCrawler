@@ -135,6 +135,7 @@ scripts/
 !scripts/test_webrtc_stub_check.py
 !scripts/test_perimeterx_pod.py
 !scripts/test_webgl_pod.py
+!scripts/setup-hooks.sh
 read_excel.py
 configure_ky3_production.py
 convert_to_articleurls.py
