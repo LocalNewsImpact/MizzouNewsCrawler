@@ -329,10 +329,10 @@ def _extract_author_from_jsonld_field(author: Any) -> str | None:
         name = author.strip()
         return name if _is_valid_author(name) else None
     elif isinstance(author, dict):
-        name = author.get("name")
-        if name and isinstance(name, str):
-            name = name.strip()
-            return name if _is_valid_author(name) else None
+        author_name = author.get("name")
+        if author_name and isinstance(author_name, str):
+            author_name = author_name.strip()
+            return author_name if _is_valid_author(author_name) else None
     elif isinstance(author, list) and author:
         # Collect all author names
         names = []
@@ -342,11 +342,11 @@ def _extract_author_from_jsonld_field(author: Any) -> str | None:
                 if _is_valid_author(name):
                     names.append(name)
             elif isinstance(auth, dict):
-                name = auth.get("name")
-                if name and isinstance(name, str):
-                    name = name.strip()
-                    if _is_valid_author(name):
-                        names.append(name)
+                auth_name = auth.get("name")
+                if auth_name and isinstance(auth_name, str):
+                    auth_name = auth_name.strip()
+                    if _is_valid_author(auth_name):
+                        names.append(auth_name)
         if names:
             return ", ".join(names)
     return None
