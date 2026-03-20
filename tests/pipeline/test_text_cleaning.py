@@ -37,12 +37,18 @@ def test_decode_rot47_segments_decodes_long_rot47_run():
     assert encoded not in decoded
 
 
-def test_decode_rot47_segments_ignores_short_runs():
+def test_decode_rot47_segments_decodes_short_runs_with_markers():
+    """Short runs WITH paragraph markers should be decoded (marker-based detection)."""
     tokens = ["short1", "short2", "short3", "short4", "short5"]
     encoded = _rot47("<p>" + " ".join(tokens) + "</p>")
     text = f"Intro {encoded} Outro"
 
-    assert decode_rot47_segments(text) == text
+    decoded = decode_rot47_segments(text)
+    # With markers present (kAm/k^Am from <p></p>), content should be decoded
+    for token in tokens:
+        assert token in decoded
+    assert decoded.startswith("Intro ")
+    assert decoded.endswith(" Outro")
 
 
 def test_looks_like_rot47_token_short_token():

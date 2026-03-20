@@ -107,6 +107,7 @@ def export_daily_analytics(request):
 
         for target_day in dates_to_run:
             # 3. Define per-day query
+            # Note: extracted_at is stored as DATETIME in UTC. Cast to TIMESTAMP then convert to CT for date filtering.
             query = f"""
                 SELECT 
                     IFNULL(title, '') as title,
@@ -119,7 +120,7 @@ def export_daily_analytics(request):
                     IFNULL(primary_label, '') as primary_label,
                     IFNULL(alternate_label, '') as alternate_label
                 FROM `mizzou-news-crawler.mizzou_analytics.articles`
-                WHERE DATE(TIMESTAMP(extracted_at, "America/Chicago")) = DATE('{target_day.isoformat()}')
+                WHERE DATE(TIMESTAMP(extracted_at), "America/Chicago") = DATE('{target_day.isoformat()}')
                   AND status NOT IN ('wire', 'obituary', 'opinion')
                 ORDER BY extracted_at DESC
                 LIMIT {limit}

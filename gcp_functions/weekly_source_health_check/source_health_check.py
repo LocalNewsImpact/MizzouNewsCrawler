@@ -5,13 +5,16 @@ import io
 
 
 def get_all_sources(session, limit=None, host_prefix=None):
-    """Return sources (id, host, canonical_name) with optional host filter and limit."""
+    """Return sources (id, host, canonical_name) with optional host filter and limit.
+    
+    Excludes retired sources from health checks.
+    """
     base_sql = """
         SELECT id, host, canonical_name
         FROM sources
     """
     params = {}
-    where = []
+    where = ["status != 'retired'"]
     if host_prefix:
         where.append("(host ILIKE :hp OR canonical_name ILIKE :hp)")
         params["hp"] = f"{host_prefix}%"
@@ -19,7 +22,7 @@ def get_all_sources(session, limit=None, host_prefix=None):
     if limit and isinstance(limit, int) and limit > 0:
         order_limit += " LIMIT :lim"
         params["lim"] = int(limit)
-    sql = base_sql + (" WHERE " + " AND ".join(where) if where else "") + order_limit
+    sql = base_sql + " WHERE " + " AND ".join(where) + order_limit
     return session.execute(text(sql), params).fetchall()
 
 
@@ -38,10 +41,10 @@ def diagnose_source_health(session, source_id, canonical_name, lookback_days=30,
     }
 
     try:
-        # Resolve host and status in one query
+        # Resolve host, status, and discovery_method in one query
         src_row = session.execute(text(
             """
-            SELECT host, status, rss_consecutive_failures, rss_last_failed_at, rss_missing_at, paused_at
+            SELECT host, status, rss_consecutive_failures, rss_last_failed_at, rss_missing_at, paused_at, discovery_method
             FROM sources
             WHERE id = :id
             """
@@ -51,8 +54,9 @@ def diagnose_source_health(session, source_id, canonical_name, lookback_days=30,
         source_status = src_row[1:] if src_row else None
 
         if source_status:
-            source_db_status, rss_failures, rss_last_fail, rss_missing, paused_at = source_status
+            source_db_status, rss_failures, rss_last_fail, rss_missing, paused_at, discovery_method = source_status
             diagnostics["metrics"]["database_status"] = source_db_status
+            diagnostics["metrics"]["discovery_method"] = discovery_method
             diagnostics["metrics"]["rss_consecutive_failures"] = rss_failures
             diagnostics["metrics"]["rss_last_failed_at"] = str(rss_last_fail) if rss_last_fail else None
             diagnostics["metrics"]["rss_missing_since"] = str(rss_missing) if rss_missing else None
@@ -62,7 +66,9 @@ def diagnose_source_health(session, source_id, canonical_name, lookback_days=30,
                 diagnostics["issues"].append("SOURCE_PAUSED")
                 diagnostics["status"] = "critical"
 
-            if rss_failures and rss_failures >= 3:
+            # Only flag RSS failures if discovery_method is 'rss' (no fallback)
+            # Sources with sitemap/homepage discovery don't depend on RSS
+            if rss_failures and rss_failures >= 3 and discovery_method == 'rss':
                 diagnostics["issues"].append("RSS_FAILURES")
                 diagnostics["status"] = "warning" if diagnostics["status"] != "critical" else diagnostics["status"]
 

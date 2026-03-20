@@ -85,6 +85,7 @@ SUPPRESSIBLE_WIRE_PROVIDERS: set[str] = {
 SOCIAL_SHARE_WORDS: set[str] = {
     "facebook",
     "twitter",
+    "bluesky",
     "whatsapp",
     "linkedin",
     "sms",
@@ -122,6 +123,50 @@ SOCIAL_SHARE_PHRASES = (
 )
 
 SOCIAL_SHARE_PREFIX_SEPARATORS = " \t\u2022•|-–—:\u00b7·"
+
+# Social sharing toolbar pattern (Lee Enterprises/TownNews)
+# Appears as concatenated social button labels
+SOCIAL_SHARE_TOOLBAR_PATTERN = re.compile(
+    r"Facebook\s+Twitter\s+(?:Bluesky\s+)?WhatsApp\s+SMS\s+Email\s+Print\s+Copy\s+article\s+link\s+Save",
+    re.IGNORECASE,
+)
+
+# Video player UI patterns (Lee Enterprises/TownNews embedded players)
+# These appear as long concatenated strings of player controls
+VIDEO_PLAYER_UI_PATTERN = re.compile(
+    r"Video Player is loading\..*?End of dialog window\.",
+    re.IGNORECASE | re.DOTALL,
+)
+
+# Sinclair/TEGNA video player UI pattern (abc17, kolr10, etc.)
+# Format: "Local News 0:00 / 2:22 LIVE Quality Auto 240p Audio Subtitle Speed Normal"
+SINCLAIR_VIDEO_PLAYER_PATTERN = re.compile(
+    r"(?:Local News|Breaking News|Top Stories?|Weather)\s+"
+    r"\d+:\d+\s*/\s*\d+:\d+\s*"
+    r"(?:LIVE\s+)?"
+    r"Quality\s+Auto\s+\d+p\s+"
+    r"Audio\s+Subtitle\s+Speed\s+Normal",
+    re.IGNORECASE,
+)
+
+# Lee Enterprises footer boilerplate pattern
+LEE_FOOTER_PATTERN = re.compile(
+    r"(?:\d+\s*Comments?\s*)?Be the first to know.*?"
+    r"(?:Author twitter\s*Author email\s*(?:Follow\s*)?)?[^\n]*?(?:Post-Dispatch|Reporter|Editor|Author)\b.*$",
+    re.IGNORECASE | re.DOTALL,
+)
+
+# Alternative simpler patterns for partial matches
+VIDEO_PLAYER_START_PATTERN = re.compile(
+    r"Video Player is loading\..*?(?=(?:Advertisement|The St\. Louis|$))",
+    re.IGNORECASE | re.DOTALL,
+)
+
+# Advertisement section pattern
+ADVERTISEMENT_PATTERN = re.compile(
+    r"\s*Advertisement\s+",
+    re.IGNORECASE,
+)
 
 
 class BalancedBoundaryContentCleaner:
@@ -381,7 +426,7 @@ class BalancedBoundaryContentCleaner:
             for sentence in sentences:
                 sentence = sentence.strip()
                 if 30 <= len(sentence) <= 600:
-                    normalized = re.sub(r"\s+", " ", sentence)
+                    normalized = self._normalize_for_matching(sentence)
                     candidates[normalized].add(article_id)
 
             # Method 2: Paragraphs
@@ -389,7 +434,7 @@ class BalancedBoundaryContentCleaner:
             for paragraph in paragraphs:
                 paragraph = paragraph.strip()
                 if 40 <= len(paragraph) <= 1200:
-                    normalized = re.sub(r"\s+", " ", paragraph)
+                    normalized = self._normalize_for_matching(paragraph)
                     candidates[normalized].add(article_id)
 
             # Method 3: Lines (for navigation)
@@ -397,13 +442,13 @@ class BalancedBoundaryContentCleaner:
             for line in lines:
                 line = line.strip()
                 if 20 <= len(line) <= 1200:
-                    normalized = re.sub(r"\s+", " ", line)
+                    normalized = self._normalize_for_matching(line)
                     candidates[normalized].add(article_id)
 
             # Method 4: Leading navigation prefix without separators
             nav_prefix = self._extract_navigation_prefix(content)
             if nav_prefix:
-                normalized = re.sub(r"\s+", " ", nav_prefix.strip())
+                normalized = self._normalize_for_matching(nav_prefix.strip())
                 if 50 <= len(normalized) <= 400:
                     candidates[normalized].add(article_id)
 
@@ -416,6 +461,46 @@ class BalancedBoundaryContentCleaner:
 
         self.logger.info(f"Found {len(filtered_candidates)} rough candidates")
         return filtered_candidates
+
+    @staticmethod
+    def _normalize_for_matching(text: str) -> str:
+        """Normalize text for boilerplate matching, replacing dynamic values with placeholders.
+
+        This allows detection of near-identical patterns that differ only in:
+        - Timestamps (0:00, 1:45, 2:22)
+        - Video quality (240p, 360p, 720p)
+        - Percentages (0%, 50%, 100%)
+        - Dates (March 15, 2026)
+        """
+        normalized = re.sub(r"\s+", " ", text)
+
+        # Replace timestamps (video duration: 0:00, 1:45, 12:34)
+        normalized = re.sub(r"\b\d{1,2}:\d{2}\b", "__TIME__", normalized)
+
+        # Replace video quality markers (240p, 360p, 720p, 1080p)
+        normalized = re.sub(r"\b\d{3,4}p\b", "__QUALITY__", normalized)
+
+        # Replace percentages (0%, 50%, 100%)
+        normalized = re.sub(r"\b\d{1,3}%", "__PERCENT__", normalized)
+
+        # Replace dates (March 15, 2026 or Mar 15, 2026)
+        normalized = re.sub(
+            r"\b(?:January|February|March|April|May|June|July|August|September|October|November|December|"
+            r"Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},?\s+\d{4}\b",
+            "__DATE__",
+            normalized,
+            flags=re.IGNORECASE,
+        )
+
+        # Replace time with AM/PM (10:38 PM, 6:19 AM)
+        normalized = re.sub(
+            r"\b\d{1,2}:\d{2}\s*[AP]M\b",
+            "__DATETIME__",
+            normalized,
+            flags=re.IGNORECASE,
+        )
+
+        return normalized
 
     @staticmethod
     def _normalize_navigation_token(token: str) -> str:
@@ -978,8 +1063,20 @@ class BalancedBoundaryContentCleaner:
 
         for pattern in patterns:
             pattern_text = pattern["text_content"]
+            # Normalize pattern whitespace to match how text is processed
+            pattern_normalized = re.sub(r"\s+", " ", pattern_text).strip()
 
-            pattern_present = pattern_text in cleaned_text
+            # Check both original and normalized versions
+            pattern_present = pattern_text in cleaned_text or (
+                pattern_normalized != pattern_text
+                and pattern_normalized in cleaned_text
+            )
+            # Use the version that actually matches for removal
+            pattern_to_remove = (
+                pattern_text
+                if pattern_text in cleaned_text
+                else pattern_normalized if pattern_normalized in cleaned_text else None
+            )
 
             # WIRE SERVICE DETECTION: Check pattern before removal
             if pattern_present and not wire_detected:
@@ -1013,10 +1110,10 @@ class BalancedBoundaryContentCleaner:
             if len(pattern_text) < 150 and not is_high_confidence:
                 continue
 
-            if pattern_present:
+            if pattern_present and pattern_to_remove:
                 # Calculate position before removal
-                position = cleaned_text.find(pattern_text)
-                cleaned_text = cleaned_text.replace(pattern_text, "")
+                position = cleaned_text.find(pattern_to_remove)
+                cleaned_text = cleaned_text.replace(pattern_to_remove, "")
 
                 removals.append(
                     {
@@ -1149,6 +1246,63 @@ class BalancedBoundaryContentCleaner:
         removed_text = "\n".join(removed_segments)
         return {"cleaned_text": cleaned_text, "removed_text": removed_text}
 
+    def _remove_video_player_ui(self, text: str) -> dict[str, Any]:
+        """Remove video player UI garbage text from various CMS platforms.
+
+        Handles:
+        - Lee Enterprises/TownNews: "Video Player is loading.Play VideoPlayMute..."
+        - Sinclair/TEGNA: "Local News 0:00 / 2:22 LIVE Quality Auto 240p..."
+        """
+        removed_segments = []
+        cleaned = text
+
+        # Remove social share toolbar (e.g., "Facebook Twitter Bluesky WhatsApp SMS Email Print Copy article link Save")
+        match = SOCIAL_SHARE_TOOLBAR_PATTERN.search(cleaned)
+        if match:
+            removed_segments.append(match.group(0))
+            cleaned = cleaned[: match.start()] + cleaned[match.end() :]
+
+        # Remove Sinclair/TEGNA video player UI (abc17, kolr10, etc.)
+        match = SINCLAIR_VIDEO_PLAYER_PATTERN.search(cleaned)
+        if match:
+            removed_segments.append(match.group(0))
+            cleaned = cleaned[: match.start()] + cleaned[match.end() :]
+
+        # Try full pattern first
+        match = VIDEO_PLAYER_UI_PATTERN.search(cleaned)
+        if match:
+            removed_segments.append(match.group(0))
+            cleaned = cleaned[: match.start()] + cleaned[match.end() :]
+        else:
+            # Try simpler start pattern
+            match = VIDEO_PLAYER_START_PATTERN.search(cleaned)
+            if match:
+                removed_segments.append(match.group(0))
+                cleaned = cleaned[: match.start()] + cleaned[match.end() :]
+
+        # Remove "Advertisement" labels
+        match = ADVERTISEMENT_PATTERN.search(cleaned)
+        if match:
+            removed_segments.append(match.group(0))
+            cleaned = cleaned[: match.start()] + " " + cleaned[match.end() :]
+
+        # Remove Lee Enterprises footer boilerplate
+        match = LEE_FOOTER_PATTERN.search(cleaned)
+        if match:
+            removed_segments.append(match.group(0))
+            cleaned = cleaned[: match.start()] + cleaned[match.end() :]
+
+        # Only normalize whitespace if we actually removed something
+        # (preserving newlines is important for downstream processing)
+        if removed_segments:
+            cleaned = re.sub(r"\s+", " ", cleaned).strip()
+
+        return {
+            "cleaned_text": cleaned,
+            "removed_segments": removed_segments,
+            "chars_removed": len(text) - len(cleaned),
+        }
+
     def process_single_article(
         self,
         text: str,
@@ -1163,7 +1317,17 @@ class BalancedBoundaryContentCleaner:
 
         original_text = text
 
-        # First check persistent patterns for quick matching
+        # First remove video player UI garbage (common in Lee Enterprises sites)
+        video_removal = self._remove_video_player_ui(text)
+        if video_removal["chars_removed"] > 0:
+            text = video_removal["cleaned_text"]
+            self.logger.debug(
+                "Removed %d chars of video player UI from article %s",
+                video_removal["chars_removed"],
+                article_id,
+            )
+
+        # Check persistent patterns for quick matching
         removed_by_persistent = self._remove_persistent_patterns(
             text, domain, article_id
         )
@@ -1542,6 +1706,43 @@ class BalancedBoundaryContentCleaner:
             "search site",
         ]
 
+        # Video player UI patterns (Lee Enterprises/TownNews)
+        video_player_patterns = [
+            "video player is loading",
+            "play video",
+            "current time",
+            "stream type live",
+            "seek to live",
+            "playback rate",
+            "captions settings",
+            "captions off",
+            "audio track",
+            "beginning of dialog window",
+            "end of dialog window",
+            "escape will cancel and close the window",
+            "restore all settings to the default values",
+            "close modal dialog",
+            "font family",
+            "proportional sans-serif",
+            "monospace sans-serif",
+            "text edge style",
+            "colorwhiteblackredgreenblueyellowmagentacyan",
+            "transparencyopaquesemi-transparent",
+        ]
+
+        # Comments and newsletter patterns
+        comments_newsletter_patterns = [
+            "0 comments",
+            "be the first to know",
+            "get local news delivered to your inbox",
+            "sign up!",
+            "i understand and agree that registration",
+            "constitutes agreement to its user agreement",
+            "author twitter author email",
+            "post-dispatch",
+            "explore the homicide tracker",
+        ]
+
         # Subscription and newsletter patterns
         subscription_patterns = [
             "subscribe to our newsletter",
@@ -1572,6 +1773,8 @@ class BalancedBoundaryContentCleaner:
         all_patterns = (
             social_sharing_patterns
             + navigation_patterns
+            + video_player_patterns
+            + comments_newsletter_patterns
             + subscription_patterns
             + copyright_patterns
         )
