@@ -1526,12 +1526,15 @@ class SourceProcessor:
         articles: list[dict[str, Any]] = []
         try:
             self.discovery_methods_attempted.append("newspaper4k")
+            # When RSS is skipped/failed, we NEED full newspaper build to
+            # discover articles via sections and homepage crawling.
+            # allow_build=True always - newspaper4k is our fallback method.
             articles = self.discovery.discover_with_newspaper4k(
                 self.source_url,
                 self.source_id,
                 self.operation_id,
                 source_meta=self.source_meta,
-                allow_build=(not skip_rss),
+                allow_build=True,
                 rss_already_attempted=rss_attempted,
             )
             logger.info(

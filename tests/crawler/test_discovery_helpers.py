@@ -1159,7 +1159,8 @@ def test_source_processor_skips_rss_when_recently_missing(
     assert "newspaper4k" in result.metadata["methods_attempted"]
 
     assert newspaper_calls, "newspaper4k should run when RSS is skipped"
-    assert newspaper_calls[0]["allow_build"] is False
+    # When RSS is skipped, newspaper4k should still do full build to discover via sections
+    assert newspaper_calls[0]["allow_build"] is True
 
     assert len(store_calls) == 1
     assert store_calls[0]["url"] == "https://example.com/newspaper"
