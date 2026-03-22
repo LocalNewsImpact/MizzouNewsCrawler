@@ -512,7 +512,10 @@ class URLVerificationService:
             # Quick URL-only wire detection (no content needed)
             wire_patterns = detector._get_wire_service_patterns(pattern_type="url")
 
-            for pattern, service_name, case_sensitive in wire_patterns:
+            for pattern, service_name, case_sensitive, exclude_domains in wire_patterns:
+                # Skip if URL's domain is excluded for this pattern
+                if detector._is_domain_excluded_for_pattern(url, exclude_domains):
+                    continue
                 flags = 0 if case_sensitive else re.IGNORECASE
                 if re.search(pattern, url, flags):
                     # This is a wire service URL - mark immediately

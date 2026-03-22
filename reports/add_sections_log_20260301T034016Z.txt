@@ -1,0 +1,74 @@
+UPDATED ABC 17 KMIZ News (abc17news.com) - added 1 urls
+NO CHANGE for source St. Louis Call Newspapers (callnewspapers.com) - all urls already present
+UPDATED Daily Journal, Park Hills (dailyjournalonline.com) - added 2 urls
+UPDATED Dos Mundos Bilingual Newspaper (dosmundos.com) - added 1 urls
+NO CHANGE for source Drury Mirror (drurymirror.org) - all urls already present
+NO CHANGE for source Atchinson County Mail (farmerpublishing.com) - all urls already present
+UPDATED KPLR11/Fox 2 Now (fox2now.com) - added 5 urls
+UPDATED FOX4KC WDAF TV (fox4kc.com) - added 8 urls
+NO CHANGE for source Greenfield Vedette (greenfieldvedette.com) - all urls already present
+UPDATED Houston Herald (houstonherald.com) - added 1 urls
+UPDATED Troy Free Press (jamesporttricountyweekly.com) - added 1 urls
+UPDATED KC Magazine (kansascitymag.com) - added 1 urls
+NO CHANGE for source UMKC Roo News (kcroonews.com) - all urls already present
+NO CHANGE for source KCRG (krcgtv.com) - all urls already present
+NO CHANGE for source Lamar Democrat (lamardemocrat.com) - all urls already present
+NO CHANGE for source Press News Journal (lewispnj.com) - all urls already present
+NO CHANGE for source The Macon County Home Press (maconhomepress.com) - all urls already present
+NO CHANGE for source McDonald County Press (mdcp.nwaonline.com) - all urls already present
+UPDATED Metro Voice Christian Newspaper (metrovoicenews.com) - added 1 urls
+NO CHANGE for source The Missouri Independent (missouriindependent.com) - all urls already present
+NO CHANGE for source Citizen Observer (mycameronnews.com) - all urls already present
+UPDATED News Press Now (newspressnow.com) - added 5 urls
+NO CHANGE for source St. Louis Jewish Light (stljewishlight.org) - all urls already present
+UPDATED KC Beacon (thebeaconnews.org) - added 1 urls
+NO CHANGE for source The Chart (thechartonline.com) - all urls already present
+NO CHANGE for source The Maneater (themaneater.com) - all urls already present
+NO CHANGE for source Booneville Daily News (www.boonvilledailynews.com) - all urls already present
+NO CHANGE for source California Democrat (www.californiademocrat.com) - all urls already present
+UPDATED Cassville Democrat (www.cassville-democrat.com) - added 5 urls
+NO CHANGE for source Constitution-Tribune (www.chillicothenews.com) - all urls already present
+NO CHANGE for source The Dixon Pilot (www.dixonpilot.com) - all urls already present
+NO CHANGE for source Douglas County Herald (www.douglascountyherald.com) - all urls already present
+NO CHANGE for source The Edina Sentinel (www.edinasentinel.com) - all urls already present
+NO CHANGE for source The Examiner / Examiner Weekend (www.examiner.net) - all urls already present
+NO CHANGE for source Excelsior Springs Standard (www.excelsiorspringsstandard.com) - all urls already present
+UPDATED Centralia Fireside Guard (www.firesideguard.com) - added 3 urls
+NO CHANGE for source KSN/KODE TV (www.fourstateshomepage.com) - all urls already present
+NO CHANGE for source The Fulton Sun (www.fultonsun.com) - all urls already present
+NO CHANGE for source Gladstone Dispatch (www.gladstonedispatch.com) - all urls already present
+NO CHANGE for source The Hermann Advertiser Courier (www.hermannadvertisercourier.com) - all urls already present
+NO CHANGE for source The Media (www.kahokamedia.com) - all urls already present
+NO CHANGE for source KCTV5 (www.kctv5.com) - all urls already present
+NO CHANGE for source KCUR (www.kcur.org) - all urls already present
+NO CHANGE for source KFVS 12 (www.kfvs12.com) - all urls already present
+NO CHANGE for source KMBC News 9 (www.kmbc.com) - all urls already present
+NO CHANGE for source KMOV CBS (www.kmov.com) - all urls already present
+NO CHANGE for source KXCV (www.kxcv.org) - all urls already present
+NO CHANGE for source Lake Gazette (www.lakegazette.net) - all urls already present
+NO CHANGE for source Linn County Leader (www.linncountyleader.com) - all urls already present
+NO CHANGE for source The Marshall Democrat-News (www.marshallnews.com) - all urls already present
+NO CHANGE for source Memphis Democrat (www.memphisdemocrat.com) - all urls already present
+NO CHANGE for source Courier Tribune (www.mycouriertribune.com) - all urls already present
+NO CHANGE for source Jefferson City News Tribune/News Tribune (www.newstribune.com) - all urls already present
+UPDATED KOLR (www.ozarksfirst.com) - added 6 urls
+NO CHANGE for source Palmyra Spectator (www.palmyra-spectator.com) - all urls already present
+NO CHANGE for source Pike County News/Bowling Green Times (www.pikecountynews.com) - all urls already present
+NO CHANGE for source The Platte County Citizen (www.plattecountycitizen.com) - all urls already present
+NO CHANGE for source Richmond Daily News (www.richmond-dailynews.com) - all urls already present
+NO CHANGE for source Shelby County Herald (www.shelbycountyherald.com) - all urls already present
+NO CHANGE for source South Missourian News (www.southmissouriannews.com) - all urls already present
+NO CHANGE for source Student Life (www.studlife.com) - all urls already present
+NO CHANGE for source Independent-Journal (www.theijnews.com) - all urls already present
+UPDATED The Pitch/Kansas City Pitch (www.thepitchkc.com) - added 1 urls
+NO CHANGE for source Vandalia Leader (www.vandalialeader.com) - all urls already present
+NO CHANGE for source Boone County Journal (columbiamissourian.com/boonecountyjournal) - all urls already present
+UPDATED Columbia Missourian (www.columbiamissourian.com) - added 1 urls
+NO CHANGE for source The Landmark (plattecountylandmark.com) - all urls already present
+NO CHANGE for source The University News (unewsonline.com) - all urls already present
+NO CHANGE for source 417 Magazine (www.417mag.com) - all urls already present
+NO CHANGE for source Gasconade County Republican (www.gasconadecountyrepublican.com) - all urls already present
+NO CHANGE for source KRCU (www.krcu.org) - all urls already present
+NO CHANGE for source KSMU Ozarks Public Radio (www.ksmu.org) - all urls already present
+UPDATED Lehigh Valley News (www.lehighvalleynews.com) - added 1 urls
+NO CHANGE for source The Kansas City Globe (www.thekansascityglobe.com) - all urls already present

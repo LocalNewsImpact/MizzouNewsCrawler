@@ -432,6 +432,29 @@ def wire_detection_test_session():
 
     session.commit()
 
+    # Populate exclude_domains based on service_name
+    exclude_domains_map = {
+        "Associated Press": "apnews.com",
+        "Reuters": "reuters.com",
+        "AFP": "afp.com",
+        "Bloomberg": "bloomberg.com",
+        "NPR": "npr.org",
+        "CNN": "cnn.com",
+        "USA TODAY": "usatoday.com",
+        "States Newsroom": "statesnewsroom.org,missouriindependent.com,kansasreflector.com",
+        "Missouri Independent": "missouriindependent.com",
+        "Kansas Reflector": "kansasreflector.com",
+        "WAVE": "wave3.com",
+        "Los Angeles Times": "latimes.com",
+        "Washington Post": "washingtonpost.com",
+        "New York Times": "nytimes.com",
+    }
+    for service_name, domains in exclude_domains_map.items():
+        session.query(WireService).filter(
+            WireService.service_name == service_name
+        ).update({WireService.exclude_domains: domains})
+    session.commit()
+
     # Set known wire reporters cache (from byline_cleaning_telemetry data)
     # These are bylines flagged as wire service content
     wire_reporters_cache = {
@@ -613,6 +636,22 @@ def populated_wire_services(cloud_sql_session, monkeypatch):
     for pattern in patterns:
         cloud_sql_session.add(pattern)
 
+    cloud_sql_session.commit()
+
+    # Populate exclude_domains based on service_name
+    exclude_domains_map = {
+        "Associated Press": "apnews.com",
+        "Reuters": "reuters.com",
+        "AFP": "afp.com",
+        "Bloomberg": "bloomberg.com",
+        "USA TODAY": "usatoday.com",
+        "Broadcaster": "",  # Generic pattern, no exclusions
+    }
+    for service_name, domains in exclude_domains_map.items():
+        if domains:
+            cloud_sql_session.query(WireService).filter(
+                WireService.service_name == service_name
+            ).update({WireService.exclude_domains: domains})
     cloud_sql_session.commit()
 
     # Mock DatabaseManager to use cloud_sql_session
@@ -913,6 +952,26 @@ def populate_wire_service_patterns():
         for pattern in patterns:
             session.add(pattern)
 
+        session.commit()
+
+        # Populate exclude_domains based on service_name
+        exclude_domains_map = {
+            "Associated Press": "apnews.com",
+            "Reuters": "reuters.com",
+            "AFP": "afp.com",
+            "Bloomberg": "bloomberg.com",
+            "NPR": "npr.org",
+            "CNN": "cnn.com",
+            "USA TODAY": "usatoday.com",
+            "States Newsroom": "statesnewsroom.org,missouriindependent.com,kansasreflector.com",
+            "Missouri Independent": "missouriindependent.com",
+            "Kansas Reflector": "kansasreflector.com",
+            "WAVE": "wave3.com",
+        }
+        for service_name, domains in exclude_domains_map.items():
+            session.query(WireService).filter(
+                WireService.service_name == service_name
+            ).update({WireService.exclude_domains: domains})
         session.commit()
 
     yield
