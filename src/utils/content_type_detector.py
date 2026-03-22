@@ -324,6 +324,7 @@ class ContentTypeDetector:
                     WireService.service_name,
                     WireService.case_sensitive,
                     WireService.priority,
+                    WireService.exclude_domains,
                 ).filter(WireService.active.is_(True))
 
                 # Apply pattern_type filter if specified
@@ -332,7 +333,8 @@ class ContentTypeDetector:
 
                 patterns = query.order_by(WireService.priority, WireService.id).all()
 
-                result = [(p[0], p[1], p[2]) for p in patterns]
+                # Return 4-tuple: (pattern, service_name, case_sensitive, exclude_domains)
+                result = [(p[0], p[1], p[2], p[4]) for p in patterns]
 
                 # Store in appropriate cache
                 if pattern_type:
@@ -354,6 +356,7 @@ class ContentTypeDetector:
                         WireService.service_name,
                         WireService.case_sensitive,
                         WireService.priority,
+                        WireService.exclude_domains,
                     ).filter(WireService.active.is_(True))
 
                     # Apply pattern_type filter if specified
@@ -364,7 +367,8 @@ class ContentTypeDetector:
                         WireService.priority, WireService.id
                     ).all()
 
-                    result = [(p[0], p[1], p[2]) for p in patterns]
+                    # Return 4-tuple: (pattern, service_name, case_sensitive, exclude_domains)
+                    result = [(p[0], p[1], p[2], p[4]) for p in patterns]
 
                     # Store in appropriate cache
                     if pattern_type:
@@ -382,8 +386,8 @@ class ContentTypeDetector:
     def _is_wire_services_own_domain(self, url: str) -> bool:
         """Check if URL is from a wire service's own domain (not syndicated).
 
-        Queries the sources table to see if the URL's host matches a known
-        wire service domain that should be excluded from wire detection.
+        Queries the wire_services table to collect all exclude_domains and
+        checks if the URL's host matches any of them.
 
         Args:
             url: The article URL to check
@@ -399,50 +403,66 @@ class ContentTypeDetector:
             if not host:
                 return False
 
-            # Known wire service domains that should be excluded
-            # These are typically set with is_wire_service=true in sources table
-            wire_service_indicators = [
-                "cnn.com",
-                "apnews.com",
-                "reuters.com",
-                "bloomberg.com",
-                "npr.org",
-                "pbs.org",
-                "nytimes.com",
-                "washingtonpost.com",
-                "usatoday.com",
-                "wsj.com",
-                "latimes.com",
-                "statesnewsroom.org",
-                "kansasreflector.com",
-                "missouriindependent.org",
-                "missouriindependent.com",
-                "wave3.com",
-            ]
+            # Strip www. prefix for matching
+            host_normalized = host.removeprefix("www.")
 
-            # Quick check against known domains first (fast path)
-            for domain in wire_service_indicators:
-                if domain in host:
+            # Get all patterns to collect exclude_domains
+            # This is cached, so it's efficient
+            all_patterns = self._get_wire_service_patterns()
+
+            # Collect all unique excluded domains from all patterns
+            excluded_domains: set[str] = set()
+            for pattern_tuple in all_patterns:
+                if len(pattern_tuple) >= 4 and pattern_tuple[3]:
+                    # exclude_domains is comma-separated
+                    for domain in pattern_tuple[3].split(","):
+                        domain = domain.strip().lower().removeprefix("www.")
+                        if domain:
+                            excluded_domains.add(domain)
+
+            # Check if host matches any excluded domain (exact or subdomain)
+            for domain in excluded_domains:
+                # Exact match
+                if host_normalized == domain:
                     return True
-
-            # Fallback: Query sources table for is_wire_service flag
-            # This allows dynamic management without code changes
-            try:
-                from src.models import Source
-                from src.models.database import DatabaseManager
-
-                db = DatabaseManager()
-                with db.get_session() as session:
-                    source = session.query(Source).filter(Source.host == host).first()
-
-                    if source and hasattr(source, "is_wire_service"):
-                        return source.is_wire_service or False
-
-            except Exception:
-                pass  # Database unavailable, fall through
+                # Subdomain match (e.g., "api.apnews.com" matches "apnews.com")
+                if host_normalized.endswith("." + domain):
+                    return True
 
             return False
 
+        except Exception:
+            return False
+
+    def _is_domain_excluded_for_pattern(
+        self, url: str, exclude_domains: str | None
+    ) -> bool:
+        """Check if the article's domain is excluded for a specific pattern.
+
+        Args:
+            url: The article URL
+            exclude_domains: Comma-separated list of domains to exclude, or None
+
+        Returns:
+            True if this pattern should NOT be applied to this URL
+        """
+        if not exclude_domains:
+            return False
+
+        from urllib.parse import urlparse
+
+        try:
+            parsed = urlparse(url)
+            host = parsed.netloc.lower().removeprefix("www.")
+
+            for domain in exclude_domains.split(","):
+                domain = domain.strip().lower().removeprefix("www.")
+                if domain:
+                    # Exact match or subdomain match
+                    if host == domain or host.endswith("." + domain):
+                        return True
+
+            return False
         except Exception:
             return False
 
@@ -597,7 +617,10 @@ class ContentTypeDetector:
         # Load patterns from database
         wire_url_patterns = self._get_wire_service_patterns(pattern_type="url")
 
-        for pattern, service_name, case_sensitive in wire_url_patterns:
+        for pattern, service_name, case_sensitive, exclude_domains in wire_url_patterns:
+            # Skip if URL's domain is excluded for this pattern
+            if self._is_domain_excluded_for_pattern(url, exclude_domains):
+                continue
             flags = 0 if case_sensitive else re.IGNORECASE
             if re.search(pattern, url, flags):
                 matches.setdefault("url", []).append(pattern)
@@ -674,7 +697,15 @@ class ContentTypeDetector:
             wire_author_patterns = self._get_wire_service_patterns(
                 pattern_type="author"
             )
-            for pattern, service_name, case_sensitive in wire_author_patterns:
+            for (
+                pattern,
+                service_name,
+                case_sensitive,
+                exclude_domains,
+            ) in wire_author_patterns:
+                # Skip if URL's domain is excluded for this pattern
+                if self._is_domain_excluded_for_pattern(url, exclude_domains):
+                    continue
                 flags = 0 if case_sensitive else re.IGNORECASE
                 if re.search(pattern, author_str, flags):
                     matches.setdefault("author", []).append(
@@ -754,7 +785,15 @@ class ContentTypeDetector:
                 ) + self._get_wire_service_patterns(pattern_type="content")
 
                 for text in metadata_texts:
-                    for pattern, service_name, case_sensitive in metadata_patterns:
+                    for (
+                        pattern,
+                        service_name,
+                        case_sensitive,
+                        exclude_domains,
+                    ) in metadata_patterns:
+                        # Skip if URL's domain is excluded for this pattern
+                        if self._is_domain_excluded_for_pattern(url, exclude_domains):
+                            continue
                         flags = 0 if case_sensitive else re.IGNORECASE
                         if re.search(pattern, text, flags):
                             matches.setdefault("metadata", []).append(
@@ -790,9 +829,9 @@ class ContentTypeDetector:
             # Build copyright pattern dynamically from database
             # Get all unique service names for copyright detection
             wire_services = self._get_wire_service_patterns(pattern_type="author")
-            # Deduplicate service names
+            # Deduplicate service names (4-tuple: pattern, service_name, case_sensitive, exclude_domains)
             service_names = sorted(
-                set(svc_name for _, svc_name, _ in wire_services),
+                set(svc_name for _, svc_name, _, _ in wire_services),
                 key=len,
                 reverse=True,  # Match longer names first
             )
@@ -833,9 +872,9 @@ class ContentTypeDetector:
             # Build copyright pattern dynamically from database
             # Get all unique service names for copyright detection
             wire_services = self._get_wire_service_patterns(pattern_type="author")
-            # Deduplicate service names
+            # Deduplicate service names (4-tuple: pattern, service_name, case_sensitive, exclude_domains)
             service_names = sorted(
-                set(svc_name for _, svc_name, _ in wire_services),
+                set(svc_name for _, svc_name, _, _ in wire_services),
                 key=len,
                 reverse=True,  # Match longer names first
             )
@@ -890,7 +929,15 @@ class ContentTypeDetector:
             for section_name, section_text in content_search_sections:
                 if content_signal:
                     break
-                for pattern, service_name, case_sensitive in wire_content_patterns:
+                for (
+                    pattern,
+                    service_name,
+                    case_sensitive,
+                    exclude_domains,
+                ) in wire_content_patterns:
+                    # Skip if URL's domain is excluded for this pattern
+                    if self._is_domain_excluded_for_pattern(url, exclude_domains):
+                        continue
                     flags = 0 if case_sensitive else re.IGNORECASE
                     if re.search(pattern, section_text, flags):
                         matches.setdefault("content", []).append(

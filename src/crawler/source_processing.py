@@ -718,14 +718,20 @@ class SourceProcessor:
                 )
 
                 # Extract pattern strings and add URL-like patterns
-                for pattern, service_name, case_sensitive in wire_url_patterns:
+                # 4-tuple: (pattern, service_name, case_sensitive, exclude_domains)
+                for (
+                    pattern,
+                    service_name,
+                    case_sensitive,
+                    exclude_domains,
+                ) in wire_url_patterns:
                     # Add patterns that look like URL path segments
                     if "/" in pattern:
                         exclusion_patterns.append(pattern.lower())
 
                 logger.debug(
                     "Loaded %d wire URL patterns from database",
-                    len([p for p, _, _ in wire_url_patterns if "/" in p]),
+                    len([p for p, _, _, _ in wire_url_patterns if "/" in p]),
                 )
             except Exception as e:
                 logger.debug("Could not load wire URL patterns: %s", e)

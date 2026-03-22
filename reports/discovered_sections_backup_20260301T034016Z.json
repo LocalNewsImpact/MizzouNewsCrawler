@@ -1,0 +1,854 @@
+{
+  "66ffb8e5-61ff-46e2-ad80-8f3308152f69": {
+    "urls": [
+      "https://abc17news.com/news/",
+      "https://abc17news.com/news/education/",
+      "https://abc17news.com/news/crime/",
+      "https://abc17news.com/abc-17-investigates/",
+      "https://abc17news.com/sports/",
+      "https://abc17news.com/sports/high-school-sports/",
+      "https://abc17news.com/category/entertainment/",
+      "https://abc17news.com/politics/",
+      "https://abc17news.com/video/",
+      "https://abc17news.com/entertainment/"
+    ],
+    "discovered_at": "2026-03-01T01:03:11.124477",
+    "discovery_method": "adaptive_combined",
+    "count": 20
+  },
+  "403b57f9-8636-4e4b-a853-9794c71d73bf": {
+    "urls": [
+      "https://callnewspapers.com/category/news/",
+      "https://callnewspapers.com/category/breaking-news/",
+      "https://callnewspapers.com/category/business/",
+      "https://callnewspapers.com/category/crime/",
+      "https://callnewspapers.com/category/entertainment/",
+      "https://callnewspapers.com/category/sports/",
+      "https://callnewspapers.com/category/community/",
+      "https://callnewspapers.com/category/news-by-area/",
+      "https://callnewspapers.com/category/school-news/",
+      "https://callnewspapers.com/category/lindbergh-schools-news/",
+      "https://callnewspapers.com/category/mehlville-school-district-news/"
+    ],
+    "discovered_at": "2026-02-28T21:49:36.817016",
+    "discovery_method": "adaptive_combined",
+    "count": 17
+  },
+  "8f43ebcd-48cf-4665-a66a-2de03918c682": {
+    "urls": [
+      "https://dailyjournalonline.com/category/daily-journal-news/",
+      "https://dailyjournalonline.com/category/democrat-area-news/",
+      "https://dailyjournalonline.com/category/farmington-press-news/",
+      "https://dailyjournalonline.com/missouri-news/",
+      "https://dailyjournalonline.com/stlouis-cardinals-news/",
+      "https://dailyjournalonline.com/kansas-city-news/",
+      "https://dailyjournalonline.com/category/local-news/",
+      "https://dailyjournalonline.com/category/community/",
+      "https://dailyjournalonline.com/category/local-business/",
+      "https://dailyjournalonline.com/category/state-news/",
+      "https://dailyjournalonline.com/category/national-news/",
+      "https://dailyjournalonline.com/daily-journal-sports/",
+      "https://dailyjournalonline.com/democrat-news-sports/",
+      "https://dailyjournalonline.com/farmington-press-sports/",
+      "https://dailyjournalonline.com/democrat-news-photos/",
+      "https://dailyjournalonline.com/sports-photos/"
+    ],
+    "discovered_at": "2026-03-01T02:13:14.512140",
+    "discovery_method": "adaptive_combined",
+    "count": 17,
+    "configured_at": "2026-03-01T03:35:13.439931Z",
+    "reason": "Removed via remove_section.py"
+  },
+  "11ee5265-04a2-44c8-8a2b-d522c10a3a02": {
+    "urls": [
+      "https://dosmundos.com/category/business/",
+      "https://dosmundos.com/category/community/",
+      "https://dosmundos.com/category/education/",
+      "https://dosmundos.com/category/entertainment/",
+      "https://dosmundos.com/category/local-news/",
+      "https://dosmundos.com/category/sports/",
+      "https://dosmundos.com/sportingkc/",
+      "https://dosmundos.com/kccurrent-news/",
+      "https://dosmundos.com/chiefsnewsfeed/"
+    ],
+    "discovered_at": "2026-02-28T19:29:02.935085",
+    "discovery_method": "adaptive_combined",
+    "count": 11
+  },
+  "3a68f788-c0ff-4d19-af69-3caf2397c0da": {
+    "urls": [
+      "https://drurymirror.org/category/sports/",
+      "https://drurymirror.org/category/lifestyle/",
+      "https://drurymirror.org/category/campus-news/",
+      "https://drurymirror.org/category/news/",
+      "https://drurymirror.org/category/community/",
+      "https://drurymirror.org/category/politics/",
+      "https://drurymirror.org/category/entertainment/"
+    ],
+    "discovered_at": "2026-02-28T19:37:42.525361",
+    "discovery_method": "adaptive_combined",
+    "count": 7
+  },
+  "b308c072-fa3c-4fa8-bdaf-92476cbc5d46": {
+    "urls": [
+      "https://farmerpublishing.com/category/news/",
+      "https://farmerpublishing.com/category/sports/"
+    ],
+    "discovered_at": "2026-03-01T01:20:16.638038",
+    "discovery_method": "adaptive_combined",
+    "count": 4
+  },
+  "c74e5418-9995-4c2f-8ef8-b955c740b058": {
+    "urls": [
+      "https://fox2now.com/news/",
+      "https://fox2now.com/news/missouri/"
+    ],
+    "discovered_at": "2026-03-01T03:15:41.846511",
+    "discovery_method": "adaptive_combined",
+    "count": 2
+  },
+  "3ae4fd69-4f19-49de-8d10-f498d0b1ba7c": {
+    "urls": [
+      "https://fox4kc.com/news/"
+    ],
+    "discovered_at": "2026-02-28T06:20:19.232706",
+    "discovery_method": "adaptive_combined",
+    "count": 1
+  },
+  "50a9107b-a3c7-4a91-a956-d70e5669cb81": {
+    "urls": [
+      "https://greenfieldvedette.com/category/business/",
+      "https://greenfieldvedette.com/category/local-news/",
+      "https://greenfieldvedette.com/category/news/",
+      "https://greenfieldvedette.com/category/sports/"
+    ],
+    "discovered_at": "2026-03-01T02:34:10.016711",
+    "discovery_method": "adaptive_combined",
+    "count": 4
+  },
+  "b199ffa3-fba3-4d23-b656-563a6b177db0": {
+    "urls": [
+      "https://houstonherald.com/local/",
+      "https://houstonherald.com/business/",
+      "https://houstonherald.com/k-12-education/",
+      "https://houstonherald.com/city-of-houston/",
+      "https://houstonherald.com/texas-county/",
+      "https://houstonherald.com/state/",
+      "https://houstonherald.com/houston-sports/",
+      "https://houstonherald.com/news/"
+    ],
+    "discovered_at": "2026-02-28T19:53:25.554406",
+    "discovery_method": "adaptive_combined",
+    "count": 10
+  },
+  "46c8baa9-065f-479f-aece-1ce6e4c7f889": {
+    "urls": [
+      "https://jamesporttricountyweekly.com/category/news/",
+      "https://jamesporttricountyweekly.com/category/church-news/",
+      "https://jamesporttricountyweekly.com/category/court-news/",
+      "https://jamesporttricountyweekly.com/category/daviess-county-news/",
+      "https://jamesporttricountyweekly.com/category/grundy-county/",
+      "https://jamesporttricountyweekly.com/category/front-page/",
+      "https://jamesporttricountyweekly.com/category/livingston-county/",
+      "https://jamesporttricountyweekly.com/category/local-news/",
+      "https://jamesporttricountyweekly.com/category/missouri-news/",
+      "https://jamesporttricountyweekly.com/category/university-college-news/",
+      "https://jamesporttricountyweekly.com/category/state-government/",
+      "https://jamesporttricountyweekly.com/category/city-local-government/",
+      "https://jamesporttricountyweekly.com/category/state-parks/",
+      "https://jamesporttricountyweekly.com/category/education/",
+      "https://jamesporttricountyweekly.com/category/political/",
+      "https://jamesporttricountyweekly.com/category/entertainment/"
+    ],
+    "discovered_at": "2026-02-27T19:15:43.015640",
+    "discovery_method": "adaptive_combined",
+    "count": 21
+  },
+  "14473d2b-b3fa-4962-a9d2-2b0b556d8151": {
+    "urls": [
+      "https://kansascitymag.com/news/",
+      "https://kansascitymag.com/politics/",
+      "https://kansascitymag.com/sports/",
+      "https://kansascitymag.com/food-news/",
+      "https://kansascitymag.com/business/"
+    ],
+    "discovered_at": "2026-02-26T07:09:07.312867",
+    "discovery_method": "adaptive_combined",
+    "count": 11
+  },
+  "699ed493-be2f-4b0f-8ce6-0ad765159248": {
+    "urls": [
+      "https://kcroonews.com/category/news/",
+      "https://kcroonews.com/category/sports-2/",
+      "https://kcroonews.com/news-3/",
+      "https://kcroonews.com/category/"
+    ],
+    "discovered_at": "2026-02-28T22:41:12.920469",
+    "discovery_method": "adaptive_combined",
+    "count": 7
+  },
+  "3027694a-39af-4528-bfe0-6cc8bdc27585": {
+    "urls": [
+      "https://krcgtv.com/news/local/",
+      "https://krcgtv.com/news/connect-to-congress/",
+      "https://krcgtv.com/news/entertainment/",
+      "https://krcgtv.com/news/offbeat/",
+      "https://krcgtv.com/news/election-results/",
+      "https://krcgtv.com/news/armstrong-army-strong/",
+      "https://krcgtv.com/news/beyond-the-podium/",
+      "https://krcgtv.com/news/spotlight-on-america/",
+      "https://krcgtv.com/sign-up/",
+      "https://krcgtv.com/news/eye-on-the-election/",
+      "https://krcgtv.com/news/back-to-the-classroom/",
+      "https://krcgtv.com/news/behind-the-crisis/",
+      "https://krcgtv.com/news/"
+    ],
+    "discovered_at": "2026-03-01T02:53:11.005359",
+    "discovery_method": "adaptive_combined",
+    "count": 13
+  },
+  "c8ca1509-62ba-4d85-83b9-cbf840c1aa67": {
+    "urls": [
+      "https://lamardemocrat.com/category/news/",
+      "https://lamardemocrat.com/category/regional-news/",
+      "https://lamardemocrat.com/category/sports/",
+      "https://lamardemocrat.com/articles/"
+    ],
+    "discovered_at": "2026-02-27T18:40:01.223284",
+    "discovery_method": "adaptive_combined",
+    "count": 4
+  },
+  "90f1964a-0503-4efe-bfb1-bf7a30b02a32": {
+    "urls": [
+      "https://lewispnj.com/category/education/",
+      "https://lewispnj.com/category/local-news/",
+      "https://lewispnj.com/category/sports/"
+    ],
+    "discovered_at": "2026-02-28T01:24:36.115667",
+    "discovery_method": "adaptive_combined",
+    "count": 3
+  },
+  "7639a495-6773-4544-a89f-467318bdd31e": {
+    "urls": [
+      "https://maconhomepress.com/category/education/",
+      "https://maconhomepress.com/category/local-news/",
+      "https://maconhomepress.com/category/news/",
+      "https://maconhomepress.com/category/regional-news/",
+      "https://maconhomepress.com/category/sports/"
+    ],
+    "discovered_at": "2026-02-28T22:21:36.582420",
+    "discovery_method": "adaptive_combined",
+    "count": 7
+  },
+  "415db98c-8358-4e67-aeb5-f848eb60f704": {
+    "urls": [
+      "https://mdcp.nwaonline.com/home/news/",
+      "https://mdcp.nwaonline.com/sports/",
+      "https://mdcp.nwaonline.com/community/"
+    ],
+    "discovered_at": "2026-02-28T20:52:07.232453",
+    "discovery_method": "adaptive_combined",
+    "count": 5
+  },
+  "58776880-2a8e-4893-93dd-1468217851dd": {
+    "urls": [
+      "https://metrovoicenews.com/category/local/",
+      "https://metrovoicenews.com/category/topeka-news/",
+      "https://metrovoicenews.com/topeka-and-kansas-news/"
+    ],
+    "discovered_at": "2026-02-28T13:12:06.048758",
+    "discovery_method": "adaptive_combined",
+    "count": 4
+  },
+  "1e47c484-401d-4c7c-9a16-d300863e3a1a": {
+    "urls": [
+      "https://missouriindependent.com/news/",
+      "https://missouriindependent.com/category/education/"
+    ],
+    "discovered_at": "2026-02-28T14:06:04.329333",
+    "discovery_method": "adaptive_combined",
+    "count": 2
+  },
+  "107fe57e-c29a-4f72-862a-c375e5199bce": {
+    "urls": [
+      "https://mycameronnews.com/opinion/",
+      "https://mycameronnews.com/sports/",
+      "https://mycameronnews.com/premium/stories/"
+    ],
+    "discovered_at": "2026-02-28T19:02:17.622373",
+    "discovery_method": "adaptive_combined",
+    "count": 22
+  },
+  "cad749a0-8b4b-4207-8bb1-816475f9f9f3": {
+    "urls": [
+      "https://newspressnow.com/news/",
+      "https://newspressnow.com/news/local_news/",
+      "https://newspressnow.com/news/regional_news/",
+      "https://newspressnow.com/sports/",
+      "https://newspressnow.com/life/"
+    ],
+    "discovered_at": "2026-02-28T13:16:03.836643",
+    "discovery_method": "adaptive_combined",
+    "count": 6
+  },
+  "4d0eb743-6133-4831-b4ec-401e46a0dbd0": {
+    "urls": [
+      "https://stljewishlight.org/category/news/",
+      "https://stljewishlight.org/category/newsmakers/",
+      "https://stljewishlight.org/category/arts-entertainment/"
+    ],
+    "discovered_at": "2026-02-28T22:00:33.579110",
+    "discovery_method": "adaptive_combined",
+    "count": 9
+  },
+  "dbccd180-b5ad-4ae6-981d-da777994c0b8": {
+    "urls": [
+      "https://thebeaconnews.org/kansas-city/",
+      "https://thebeaconnews.org/documenters/"
+    ],
+    "discovered_at": "2026-02-28T20:06:37.605522",
+    "discovery_method": "adaptive_combined",
+    "count": 6
+  },
+  "b8a8cd33-dfb9-4fac-b934-b7e55f5c966a": {
+    "urls": [
+      "https://thechartonline.com/category/news/",
+      "https://thechartonline.com/category/sports/"
+    ],
+    "discovered_at": "2026-02-28T01:31:49.622798",
+    "discovery_method": "adaptive_combined",
+    "count": 4
+  },
+  "4543bfa8-1c63-4833-8dd7-dbaf1611fbc9": {
+    "urls": [
+      "https://themaneater.com/news/",
+      "https://themaneater.com/sports/"
+    ],
+    "discovered_at": "2026-02-27T19:08:17.512580",
+    "discovery_method": "adaptive_combined",
+    "count": 4
+  },
+  "b3b2be64-7d85-413a-8541-98d78c32e039": {
+    "urls": [
+      "https://www.boonvilledailynews.com/category/news/",
+      "https://www.boonvilledailynews.com/category/sports/",
+      "https://www.boonvilledailynews.com/category/community/",
+      "https://www.boonvilledailynews.com/category/opinion/"
+    ],
+    "discovered_at": "2026-02-28T18:30:02.608511",
+    "discovery_method": "adaptive_combined",
+    "count": 4
+  },
+  "f9c26822-7ffa-4792-b40a-eaa82079cacc": {
+    "urls": [
+      "https://www.californiademocrat.com/news/news/",
+      "https://www.californiademocrat.com/news/sports/",
+      "https://www.californiademocrat.com/news/california/",
+      "https://www.californiademocrat.com/news/missouri/",
+      "https://www.californiademocrat.com/news/education/",
+      "https://www.californiademocrat.com/community/"
+    ],
+    "discovered_at": "2026-03-01T01:36:33.122082",
+    "discovery_method": "adaptive_combined",
+    "count": 7
+  },
+  "8946913d-ec9a-4053-a074-2a6c37de7f71": {
+    "urls": [],
+    "discovered_at": "2026-02-28T18:53:46.636647",
+    "discovery_method": "adaptive_combined",
+    "count": 7
+  },
+  "f9ba83de-0ae1-4640-9bae-5f383a66ac10": {
+    "urls": [
+      "https://www.chillicothenews.com/category/news/",
+      "https://www.chillicothenews.com/category/sports/",
+      "https://www.chillicothenews.com/category/entertainment/",
+      "https://www.chillicothenews.com/category/lifestyle/",
+      "https://www.chillicothenews.com/category/"
+    ],
+    "discovered_at": "2026-03-01T01:58:54.072538",
+    "discovery_method": "adaptive_combined",
+    "count": 5
+  },
+  "d0393cc7-1f17-40d6-aad5-980f39329104": {
+    "urls": [
+      "https://www.dixonpilot.com/missori-news/",
+      "https://www.dixonpilot.com/missouri-tigers-news/",
+      "https://www.dixonpilot.com/saint-lewis-missouri-news/",
+      "https://www.dixonpilot.com/category/breaking-news/"
+    ],
+    "discovered_at": "2026-02-28T22:09:52.176882",
+    "discovery_method": "adaptive_combined",
+    "count": 9
+  },
+  "7ca36ad1-dd5c-41f7-a0c0-b6a86a13321b": {
+    "urls": [
+      "https://www.douglascountyherald.com/category/city-of-ava/",
+      "https://www.douglascountyherald.com/category/douglas-county/",
+      "https://www.douglascountyherald.com/category/school-news/"
+    ],
+    "discovered_at": "2026-02-28T00:22:46.771119",
+    "discovery_method": "adaptive_combined",
+    "count": 4
+  },
+  "38c48720-9b17-4da0-ab09-19396962c915": {
+    "urls": [
+      "https://www.edinasentinel.com/category/news/",
+      "https://www.edinasentinel.com/category/sports/",
+      "https://www.edinasentinel.com/missouri-news/",
+      "https://www.edinasentinel.com/knox-county-eagles-news/",
+      "https://www.edinasentinel.com/jefferson-city-news/"
+    ],
+    "discovered_at": "2026-02-28T22:12:49.299084",
+    "discovery_method": "adaptive_combined",
+    "count": 5
+  },
+  "c73bea4b-1aef-458f-856d-5282885d303f": {
+    "urls": [
+      "https://www.examiner.net/category/news/",
+      "https://www.examiner.net/category/sports/",
+      "https://www.examiner.net/category/entertainment/",
+      "https://www.examiner.net/category/lifestyle/"
+    ],
+    "discovered_at": "2026-02-28T13:42:15.840174",
+    "discovery_method": "adaptive_combined",
+    "count": 5
+  },
+  "f55a6546-b696-4968-ad53-1268adf46e5f": {
+    "urls": [
+      "https://www.excelsiorspringsstandard.com/news/",
+      "https://www.excelsiorspringsstandard.com/sports/",
+      "https://www.excelsiorspringsstandard.com/opinion/",
+      "https://www.excelsiorspringsstandard.com/lifestyle/"
+    ],
+    "discovered_at": "2026-02-28T12:28:20.289760",
+    "discovery_method": "adaptive_combined",
+    "count": 4
+  },
+  "def1b716-b0f8-45dd-a87f-1780343bbe2b": {
+    "urls": [],
+    "discovered_at": "2026-02-28T00:14:31.266969",
+    "discovery_method": "adaptive_combined",
+    "count": 4
+  },
+  "b35c19f6-b038-4620-b0f9-0e4defa4cea3": {
+    "urls": [
+      "https://www.fourstateshomepage.com/news/local/",
+      "https://www.fourstateshomepage.com/news/crime/",
+      "https://www.fourstateshomepage.com/news/your-local-election-headquarters/",
+      "https://www.fourstateshomepage.com/news/missouri/",
+      "https://www.fourstateshomepage.com/news/kansas/",
+      "https://www.fourstateshomepage.com/news/oklahoma/",
+      "https://www.fourstateshomepage.com/news/arkansas/",
+      "https://www.fourstateshomepage.com/news/washington-dc/",
+      "https://www.fourstateshomepage.com/hill-politics/",
+      "https://www.fourstateshomepage.com/news/living-well/",
+      "https://www.fourstateshomepage.com/news/local-news-today/",
+      "https://www.fourstateshomepage.com/news/gmfs/",
+      "https://www.fourstateshomepage.com/news/medical-focus/",
+      "https://www.fourstateshomepage.com/news/suicide-crisis/",
+      "https://www.fourstateshomepage.com/business/press-releases/",
+      "https://www.fourstateshomepage.com/news/"
+    ],
+    "discovered_at": "2026-03-01T03:27:41.702183",
+    "discovery_method": "adaptive_combined",
+    "count": 16
+  },
+  "0e6d6996-d6da-40f9-8dbb-7acf942d870d": {
+    "urls": [
+      "https://www.fultonsun.com/news/news/",
+      "https://www.fultonsun.com/news/sports/",
+      "https://www.fultonsun.com/news/local/",
+      "https://www.fultonsun.com/news/missouri/",
+      "https://www.fultonsun.com/news/features/",
+      "https://www.fultonsun.com/news/education/",
+      "https://www.fultonsun.com/news/politics/",
+      "https://www.fultonsun.com/community/",
+      "https://www.fultonsun.com/news/"
+    ],
+    "discovered_at": "2026-02-28T13:43:12.335883",
+    "discovery_method": "adaptive_combined",
+    "count": 9
+  },
+  "9f69f37b-15f9-4798-9cb3-d2ca7e86721b": {
+    "urls": [
+      "https://www.gladstonedispatch.com/category/news/",
+      "https://www.gladstonedispatch.com/category/entertainment/"
+    ],
+    "discovered_at": "2026-02-28T19:46:04.310017",
+    "discovery_method": "adaptive_combined",
+    "count": 3
+  },
+  "73a017d5-66b7-49fb-805c-2c11d89e1611": {
+    "urls": [
+      "https://www.hermannadvertisercourier.com/category/news/",
+      "https://www.hermannadvertisercourier.com/category/sports/",
+      "https://www.hermannadvertisercourier.com/category/community/"
+    ],
+    "discovered_at": "2026-02-28T22:15:37.092196",
+    "discovery_method": "adaptive_combined",
+    "count": 4
+  },
+  "f453fda7-09b2-4d86-82c8-a85d2e3bf65e": {
+    "urls": [
+      "https://www.kahokamedia.com/category/news/",
+      "https://www.kahokamedia.com/category/sports/"
+    ],
+    "discovered_at": "2026-02-28T01:58:17.886553",
+    "discovery_method": "adaptive_combined",
+    "count": 2
+  },
+  "8902e556-72cb-45f4-9ad2-e7c822b6615f": {
+    "urls": [
+      "https://www.kctv5.com/community/kctv-tower/",
+      "https://www.kctv5.com/weather/3-degree-guarantee/",
+      "https://www.kctv5.com/lifestyle/living-kc/",
+      "https://www.kctv5.com/business/jobs/",
+      "https://www.kctv5.com/community/kctv5cares/",
+      "https://www.kctv5.com/community/we-the-people/",
+      "https://www.kctv5.com/video/"
+    ],
+    "discovered_at": "2026-03-01T02:58:10.776030",
+    "discovery_method": "adaptive_combined",
+    "count": 7
+  },
+  "6f3a4aa6-4ae8-4efa-ab8d-2da6a3f61966": {
+    "urls": [
+      "https://www.kcur.org/news/",
+      "https://www.kcur.org/politics-elections-and-government/",
+      "https://www.kcur.org/education/",
+      "https://www.kcur.org/arts-life/"
+    ],
+    "discovered_at": "2026-02-28T20:09:47.609682",
+    "discovery_method": "adaptive_combined",
+    "count": 7
+  },
+  "a4ce9b7f-0d17-42bd-b03c-9d9a3712d7d4": {
+    "urls": [
+      "https://www.kfvs12.com/politics/",
+      "https://www.kfvs12.com/news/first-alert-investigation/",
+      "https://www.kfvs12.com/news/full-throttle-thursday/",
+      "https://www.kfvs12.com/video/"
+    ],
+    "discovered_at": "2026-03-01T03:00:02.750167",
+    "discovery_method": "adaptive_combined",
+    "count": 4
+  },
+  "85dd25dc-2e90-4b96-aa9b-6e55e22f619e": {
+    "urls": [
+      "https://www.kmbc.com/local-news/",
+      "https://www.kmbc.com/national-news/",
+      "https://www.kmbc.com/community/",
+      "https://www.kmbc.com/investigates/",
+      "https://www.kmbc.com/consumer/",
+      "https://www.kmbc.com/entertainment/",
+      "https://www.kmbc.com/projectcommunity/",
+      "https://www.kmbc.com/news-we-love/",
+      "https://www.kmbc.com/weather/",
+      "https://www.kmbc.com/weather/maps/",
+      "https://www.kmbc.com/weather/radar/",
+      "https://www.kmbc.com/sports/",
+      "https://www.kmbc.com/high-school-sports/",
+      "https://www.kmbc.com/politics/",
+      "https://www.kmbc.com/news-team/",
+      "https://www.kmbc.com/very-local/",
+      "https://www.kmbc.com/article/"
+    ],
+    "discovered_at": "2026-03-01T03:01:18.299426",
+    "discovery_method": "adaptive_combined",
+    "count": 17
+  },
+  "2c53a550-95fc-4aca-92cd-f59fba6bc2e0": {
+    "urls": [
+      "https://www.kmov.com/community/surprise-squad/",
+      "https://www.kmov.com/news/drone4/",
+      "https://www.kmov.com/community/4you/",
+      "https://www.kmov.com/news/black-history/",
+      "https://www.kmov.com/news/first-alert-forward/",
+      "https://www.kmov.com/news/headlines/",
+      "https://www.kmov.com/video/"
+    ],
+    "discovered_at": "2026-03-01T03:06:15.537721",
+    "discovery_method": "adaptive_combined",
+    "count": 7
+  },
+  "baed46ce-5af5-4e9d-8871-108b895d6884": {
+    "urls": [
+      "https://www.kxcv.org/news/",
+      "https://www.kxcv.org/sports/",
+      "https://www.kxcv.org/community-calendar/",
+      "https://www.kxcv.org/2026-02-28/"
+    ],
+    "discovered_at": "2026-03-01T03:36:29.432814",
+    "discovery_method": "adaptive_combined",
+    "count": 4
+  },
+  "5ddf8b1a-cb19-4c53-8eff-64143e004e58": {
+    "urls": [
+      "https://www.lakegazette.net/category/news/",
+      "https://www.lakegazette.net/category/sports/",
+      "https://www.lakegazette.net/category/community/"
+    ],
+    "discovered_at": "2026-02-28T20:43:12.473282",
+    "discovery_method": "adaptive_combined",
+    "count": 5
+  },
+  "3d3e2b44-28fa-4df6-9058-c5372b73e9c6": {
+    "urls": [
+      "https://www.linncountyleader.com/category/news/",
+      "https://www.linncountyleader.com/category/sports/",
+      "https://www.linncountyleader.com/category/entertainment/",
+      "https://www.linncountyleader.com/category/lifestyle/"
+    ],
+    "discovered_at": "2026-02-27T18:40:40.468848",
+    "discovery_method": "adaptive_combined",
+    "count": 4
+  },
+  "d15fd4e1-0dbc-486d-a967-3ebee62e2acc": {
+    "urls": [
+      "https://www.marshallnews.com/category/news/",
+      "https://www.marshallnews.com/category/sports/",
+      "https://www.marshallnews.com/category/community/"
+    ],
+    "discovered_at": "2026-02-27T14:37:25.489285",
+    "discovery_method": "adaptive_combined",
+    "count": 3
+  },
+  "e776fc4d-f81b-4990-9f38-d456d216f55a": {
+    "urls": [
+      "https://www.memphisdemocrat.com/category/news/",
+      "https://www.memphisdemocrat.com/category/sports/"
+    ],
+    "discovered_at": "2026-02-28T20:56:47.544464",
+    "discovery_method": "adaptive_combined",
+    "count": 2
+  },
+  "3ed59726-f8d6-4199-9dea-d19f497362f1": {
+    "urls": [
+      "https://www.mycouriertribune.com/category/news/",
+      "https://www.mycouriertribune.com/category/sports/",
+      "https://www.mycouriertribune.com/category/community-living/",
+      "https://www.mycouriertribune.com/category/entertainment/",
+      "https://www.mycouriertribune.com/category/opinion/"
+    ],
+    "discovered_at": "2026-02-28T19:16:37.394191",
+    "discovery_method": "adaptive_combined",
+    "count": 5
+  },
+  "009f8695-a4d1-4732-bcfc-f74efba1b6bb": {
+    "urls": [
+      "https://www.newstribune.com/news/jefferson-city/",
+      "https://www.newstribune.com/news/sports/",
+      "https://www.newstribune.com/news/",
+      "https://www.newstribune.com/news/missouri/",
+      "https://www.newstribune.com/news/business/",
+      "https://www.newstribune.com/news/politics/",
+      "https://www.newstribune.com/news/election/",
+      "https://www.newstribune.com/news/features/",
+      "https://www.newstribune.com/news/health/",
+      "https://www.newstribune.com/news/gomidmo/"
+    ],
+    "discovered_at": "2026-02-28T20:02:43.588897",
+    "discovery_method": "adaptive_combined",
+    "count": 12
+  },
+  "7dbf487c-60b2-4541-a41e-dd66f5f00128": {
+    "urls": [
+      "https://www.ozarksfirst.com/news/",
+      "https://www.ozarksfirst.com/sports/"
+    ],
+    "discovered_at": "2026-03-01T03:11:10.667354",
+    "discovery_method": "adaptive_combined",
+    "count": 2
+  },
+  "77a1d3e8-5697-4ba8-b596-169228709fe3": {
+    "urls": [
+      "https://www.palmyra-spectator.com/category/news/",
+      "https://www.palmyra-spectator.com/category/sports/",
+      "https://www.palmyra-spectator.com/missouri-news/",
+      "https://www.palmyra-spectator.com/palmyra-panthers-news/",
+      "https://www.palmyra-spectator.com/jefferson-city-news/"
+    ],
+    "discovered_at": "2026-02-28T21:17:21.057392",
+    "discovery_method": "adaptive_combined",
+    "count": 5
+  },
+  "378d5277-0778-4323-8a1b-a96b99ab2a0d": {
+    "urls": [
+      "https://www.pikecountynews.com/category/news/",
+      "https://www.pikecountynews.com/category/sports/",
+      "https://www.pikecountynews.com/category/community/"
+    ],
+    "discovered_at": "2026-02-28T01:16:41.841204",
+    "discovery_method": "adaptive_combined",
+    "count": 4
+  },
+  "63c58d0c-5693-4051-9a20-049f636a2ac9": {
+    "urls": [
+      "https://www.plattecountycitizen.com/news/",
+      "https://www.plattecountycitizen.com/sports/",
+      "https://www.plattecountycitizen.com/platte-county-r3/"
+    ],
+    "discovered_at": "2026-02-28T22:32:37.848571",
+    "discovery_method": "adaptive_combined",
+    "count": 5
+  },
+  "713aaa33-013d-4d77-a36f-61c9cca74fb9": {
+    "urls": [
+      "https://www.richmond-dailynews.com/news/",
+      "https://www.richmond-dailynews.com/sports/",
+      "https://www.richmond-dailynews.com/lifestyle/",
+      "https://www.richmond-dailynews.com/roy-county-voices/",
+      "https://www.richmond-dailynews.com/sports-shorts/",
+      "https://www.richmond-dailynews.com/sports-editor-in-charge/",
+      "https://www.richmond-dailynews.com/user/"
+    ],
+    "discovered_at": "2026-02-28T21:33:51.338150",
+    "discovery_method": "adaptive_combined",
+    "count": 8
+  },
+  "b5b6f47f-01d8-4e01-b6b0-39df80d10a88": {
+    "urls": [
+      "https://www.shelbycountyherald.com/category/news/",
+      "https://www.shelbycountyherald.com/category/sports/"
+    ],
+    "discovered_at": "2026-02-28T21:40:05.069173",
+    "discovery_method": "adaptive_combined",
+    "count": 2
+  },
+  "30365966-bc74-4098-be83-7c7007817a5b": {
+    "urls": [
+      "https://www.southmissouriannews.com/category/news/",
+      "https://www.southmissouriannews.com/category/sports/"
+    ],
+    "discovered_at": "2026-02-28T21:42:38.304218",
+    "discovery_method": "adaptive_combined",
+    "count": 3
+  },
+  "4fb02d62-dfb1-418f-a18f-2e0e71be53ea": {
+    "urls": [
+      "https://www.studlife.com/news/",
+      "https://www.studlife.com/sports/"
+    ],
+    "discovered_at": "2026-02-26T08:19:50.048798",
+    "discovery_method": "adaptive_combined",
+    "count": 4
+  },
+  "e84477b8-47d4-4937-bfc0-5ae268873bae": {
+    "urls": [
+      "https://www.theijnews.com/category/local-news/",
+      "https://www.theijnews.com/category/school-news/",
+      "https://www.theijnews.com/category/sports/"
+    ],
+    "discovered_at": "2026-03-01T02:45:19.773830",
+    "discovery_method": "adaptive_combined",
+    "count": 3
+  },
+  "d760bda6-a12c-4e4a-913f-6613a6b5ddb1": {
+    "urls": [
+      "https://www.thepitchkc.com/news/",
+      "https://www.thepitchkc.com/city-rag-kansas-city-news/",
+      "https://www.thepitchkc.com/category/politics/"
+    ],
+    "discovered_at": "2026-02-28T22:27:20.125642",
+    "discovery_method": "adaptive_combined",
+    "count": 5
+  },
+  "a77c9620-c161-48f9-aab7-90afb33b9859": {
+    "urls": [
+      "https://www.vandalialeader.com/category/news/",
+      "https://www.vandalialeader.com/category/sports/",
+      "https://www.vandalialeader.com/category/community/",
+      "https://www.vandalialeader.com/category/lifestyle/"
+    ],
+    "discovered_at": "2026-02-28T02:12:15.884171",
+    "discovery_method": "adaptive_combined",
+    "count": 5
+  },
+  "ad3a9b80-85e6-4551-a57a-a0dbe4dbbd10": {
+    "urls": [
+      "https://columbiamissourian.com/boonecountyjournal/"
+    ],
+    "discovered_at": "2026-02-28T18:21:57.847864",
+    "discovery_method": "adaptive_combined",
+    "count": 1
+  },
+  "c932a159-99c3-4622-a04d-266b9b40e029": {
+    "urls": [
+      "https://www.columbiamissourian.com/news/",
+      "https://www.columbiamissourian.com/news/nation_world/",
+      "https://www.columbiamissourian.com/news/state_news/"
+    ],
+    "discovered_at": "2026-03-01T01:47:21.665415",
+    "discovery_method": "adaptive_combined",
+    "count": 3
+  },
+  "87f2b803-bb91-4665-9f95-5fc9edd11ffb": {
+    "urls": [
+      "https://plattecountylandmark.com/local-news/"
+    ],
+    "discovered_at": "2026-02-27T19:05:10.541087",
+    "discovery_method": "adaptive_combined",
+    "count": 2
+  },
+  "90eb8df7-0be0-4714-b830-c108e23fc6a9": {
+    "urls": [
+      "https://unewsonline.com/category/news/"
+    ],
+    "discovered_at": "2026-02-28T22:36:31.620548",
+    "discovery_method": "adaptive_combined",
+    "count": 5
+  },
+  "fdff81cf-0774-4aa6-9d3e-293cfac239e8": {
+    "urls": [
+      "https://www.417mag.com/lifestyle/",
+      "https://www.417mag.com/lifestyle/travel/"
+    ],
+    "discovered_at": "2026-03-01T00:44:47.880567",
+    "discovery_method": "adaptive_combined",
+    "count": 3
+  },
+  "cd80cd2f-310c-4a3a-b39b-d5a3ca8156d8": {
+    "urls": [
+      "https://www.gasconadecountyrepublican.com/county-fair/"
+    ],
+    "discovered_at": "2026-03-01T02:25:15.998601",
+    "discovery_method": "adaptive_combined",
+    "count": 1
+  },
+  "f4cd100b-531b-44e7-b511-c45556c80e11": {
+    "urls": [
+      "https://www.krcu.org/news/"
+    ],
+    "discovered_at": "2026-02-28T20:18:51.524668",
+    "discovery_method": "adaptive_combined",
+    "count": 6
+  },
+  "5357bbfc-aff9-4477-93bb-7507042b77a1": {
+    "urls": [
+      "https://www.ksmu.org/news/",
+      "https://www.ksmu.org/community-calendar/",
+      "https://www.ksmu.org/the-green-room/",
+      "https://www.ksmu.org/2026-02-28/",
+      "https://www.ksmu.org/show/"
+    ],
+    "discovered_at": "2026-03-01T03:24:42.364238",
+    "discovery_method": "adaptive_combined",
+    "count": 5
+  },
+  "b9033f21-1110-4be7-aa93-15ff48bce725": {
+    "urls": [],
+    "discovered_at": "2026-01-31T21:01:18.370886",
+    "discovery_method": "adaptive_combined",
+    "count": 11
+  },
+  "95b9ed1a-8f8f-44d0-8ba8-e6f6f3642c81": {
+    "urls": [
+      "https://www.thekansascityglobe.com/news/",
+      "https://www.thekansascityglobe.com/e-globe-extra-news/"
+    ],
+    "discovered_at": "2026-02-28T07:02:16.034996",
+    "discovery_method": "adaptive_combined",
+    "count": 2
+  }
+}

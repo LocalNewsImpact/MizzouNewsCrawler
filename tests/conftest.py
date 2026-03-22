@@ -439,6 +439,7 @@ def populate_wire_service_patterns():
                 priority=50,
                 active=True,
                 notes="National news section",
+                exclude_domains="nytimes.com,washingtonpost.com,latimes.com",
             ),
             WireService(
                 pattern="/world/",
@@ -448,6 +449,7 @@ def populate_wire_service_patterns():
                 priority=50,
                 active=True,
                 notes="World news section",
+                exclude_domains="nytimes.com,washingtonpost.com,latimes.com",
             ),
             # ==================== AUTHOR PATTERNS ====================
             # Explicit wire service names (STRONGEST SIGNALS)
@@ -694,4 +696,30 @@ def populate_wire_service_patterns():
         for wire_service in patterns:
             session.add(wire_service)
 
+        session.commit()
+
+        # Populate exclude_domains based on service_name
+        # (mirrors migration cea12b602254_add_exclude_domains_to_wire_services.py)
+        exclude_domains_map = {
+            "Associated Press": "apnews.com",
+            "Reuters": "reuters.com",
+            "AFP": "afp.com",
+            "Bloomberg": "bloomberg.com",
+            "NPR": "npr.org",
+            "CNN": "cnn.com",
+            "Fox News": "foxnews.com",
+            "ABC News": "abcnews.go.com",
+            "CBS News": "cbsnews.com",
+            "NBC News": "nbcnews.com",
+            "USA TODAY": "usatoday.com",
+            "States Newsroom": "statesnewsroom.org,missouriindependent.com,kansasreflector.com",
+            "Missouri Independent": "missouriindependent.com",
+            "Kansas Reflector": "kansasreflector.com",
+            "Missouri News Network": "komu.com,kbia.org,columbiamissourian.com,missouribusinessalert.com",
+            "WAVE": "wave3.com",
+        }
+        for service_name, domains in exclude_domains_map.items():
+            session.query(WireService).filter(
+                WireService.service_name == service_name
+            ).update({WireService.exclude_domains: domains})
         session.commit()

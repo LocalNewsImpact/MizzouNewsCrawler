@@ -124,3 +124,9 @@
 {"warc_filename": "test.warc.gz", "warc_record_id": "batch-commit", "url": "http://example.com/0", "error_type": "CommitError", "error_message": "Database error", "timestamp": "2026-02-27T15:56:48.005533"}
 {"warc_filename": "test.warc.gz", "warc_record_id": "batch-commit", "url": "http://example.com/1", "error_type": "CommitError", "error_message": "Database error", "timestamp": "2026-02-27T15:56:48.007384"}
 {"warc_filename": "test.warc.gz", "warc_record_id": "batch-commit", "url": "http://example.com/2", "error_type": "CommitError", "error_message": "Database error", "timestamp": "2026-02-27T15:56:48.008846"}
+{"warc_filename": "test.warc.gz", "warc_record_id": "batch-commit", "url": "http://example.com/0", "error_type": "CommitError", "error_message": "Database error", "timestamp": "2026-03-22T01:03:34.558669"}
+{"warc_filename": "test.warc.gz", "warc_record_id": "batch-commit", "url": "http://example.com/1", "error_type": "CommitError", "error_message": "Database error", "timestamp": "2026-03-22T01:03:34.560318"}
+{"warc_filename": "test.warc.gz", "warc_record_id": "batch-commit", "url": "http://example.com/2", "error_type": "CommitError", "error_message": "Database error", "timestamp": "2026-03-22T01:03:34.560690"}
+{"warc_filename": "test.warc.gz", "warc_record_id": "batch-commit", "url": "http://example.com/0", "error_type": "CommitError", "error_message": "Database error", "timestamp": "2026-03-22T01:16:13.616631"}
+{"warc_filename": "test.warc.gz", "warc_record_id": "batch-commit", "url": "http://example.com/1", "error_type": "CommitError", "error_message": "Database error", "timestamp": "2026-03-22T01:16:13.618324"}
+{"warc_filename": "test.warc.gz", "warc_record_id": "batch-commit", "url": "http://example.com/2", "error_type": "CommitError", "error_message": "Database error", "timestamp": "2026-03-22T01:16:13.618667"}

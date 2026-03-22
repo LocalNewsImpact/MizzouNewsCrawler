@@ -100,7 +100,7 @@ class TestWireServiceURLFiltering:
             "_get_wire_service_patterns"
         ) as mock_patterns:
             # Use a more specific pattern that matches the URL structure
-            mock_patterns.return_value = [(r"/ap/", "Associated Press", False)]
+            mock_patterns.return_value = [(r"/ap/", "Associated Press", False, None)]
 
             result = service.verify_url("https://newspressnow.com/ap/news/story-123")
 
@@ -115,7 +115,7 @@ class TestWireServiceURLFiltering:
             "src.utils.content_type_detector.ContentTypeDetector."
             "_get_wire_service_patterns"
         ) as mock_patterns:
-            mock_patterns.return_value = [(r"/stacker/", "Stacker", False)]
+            mock_patterns.return_value = [(r"/stacker/", "Stacker", False, None)]
 
             result = service.verify_url(
                 "https://example.com/stacker/travel/best-beaches"
@@ -130,7 +130,7 @@ class TestWireServiceURLFiltering:
             "src.utils.content_type_detector.ContentTypeDetector."
             "_get_wire_service_patterns"
         ) as mock_patterns:
-            mock_patterns.return_value = [(r"/reuters-", "Reuters", False)]
+            mock_patterns.return_value = [(r"/reuters-", "Reuters", False, None)]
 
             result = service.verify_url("https://news.com/reuters-world/story")
 
@@ -143,7 +143,9 @@ class TestWireServiceURLFiltering:
             "src.utils.content_type_detector.ContentTypeDetector."
             "_get_wire_service_patterns"
         ) as mock_patterns:
-            mock_patterns.return_value = [(r"/national/", "National Section", False)]
+            mock_patterns.return_value = [
+                (r"/national/", "National Section", False, None)
+            ]
 
             result = service.verify_url("https://localnews.com/national/politics/story")
 
@@ -156,7 +158,7 @@ class TestWireServiceURLFiltering:
             "src.utils.content_type_detector.ContentTypeDetector."
             "_get_wire_service_patterns"
         ) as mock_patterns:
-            mock_patterns.return_value = [(r"/world/", "Wire Service", False)]
+            mock_patterns.return_value = [(r"/world/", "Wire Service", False, None)]
 
             result = service.verify_url("https://localnews.com/world/europe/story")
 
@@ -169,7 +171,7 @@ class TestWireServiceURLFiltering:
             "src.utils.content_type_detector.ContentTypeDetector."
             "_get_wire_service_patterns"
         ) as mock_patterns:
-            mock_patterns.return_value = [(r"/wire/", "Wire Service", False)]
+            mock_patterns.return_value = [(r"/wire/", "Wire Service", False, None)]
 
             # Mock StorySniffer to raise error if called
             with patch.object(
@@ -189,7 +191,7 @@ class TestWireServiceURLFiltering:
             "src.utils.content_type_detector.ContentTypeDetector."
             "_get_wire_service_patterns"
         ) as mock_patterns:
-            mock_patterns.return_value = [(r"/wire/", "Wire Service", False)]
+            mock_patterns.return_value = [(r"/wire/", "Wire Service", False, None)]
 
             result = service.verify_url("https://example.com/local/news/story")
 
@@ -205,7 +207,7 @@ class TestWireServiceURLFiltering:
             "_get_wire_service_patterns"
         ) as mock_patterns:
             mock_patterns.return_value = [
-                (r"/AP-", "Associated Press", False)  # case_sensitive=False
+                (r"/AP-", "Associated Press", False, None)  # case_sensitive=False
             ]
 
             result = service.verify_url("https://example.com/AP-NEWS/story")
@@ -219,9 +221,9 @@ class TestWireServiceURLFiltering:
             "_get_wire_service_patterns"
         ) as mock_patterns:
             mock_patterns.return_value = [
-                (r"/ap-", "Associated Press", False),
-                (r"/wire/", "Wire Service", False),
-                (r"/reuters", "Reuters", False),
+                (r"/ap-", "Associated Press", False, None),
+                (r"/wire/", "Wire Service", False, None),
+                (r"/reuters", "Reuters", False, None),
             ]
 
             result = service.verify_url("https://example.com/ap-world/story")
@@ -239,7 +241,7 @@ class TestWireServiceBatchProcessing:
             "src.utils.content_type_detector.ContentTypeDetector."
             "_get_wire_service_patterns"
         ) as mock_patterns:
-            mock_patterns.return_value = [(r"/stacker/", "Stacker", False)]
+            mock_patterns.return_value = [(r"/stacker/", "Stacker", False, None)]
 
             # Mock update_candidate_status to track calls
             update_calls = []
@@ -283,7 +285,7 @@ class TestWireServiceBatchProcessing:
             "src.utils.content_type_detector.ContentTypeDetector."
             "_get_wire_service_patterns"
         ) as mock_patterns:
-            mock_patterns.return_value = [(r"/wire/", "Wire Service", False)]
+            mock_patterns.return_value = [(r"/wire/", "Wire Service", False, None)]
 
             with patch.object(
                 service,
@@ -316,7 +318,7 @@ class TestWireDetectionPerformance:
             "src.utils.content_type_detector.ContentTypeDetector."
             "_get_wire_service_patterns"
         ) as mock_patterns:
-            mock_patterns.return_value = [(r"/ap-", "Associated Press", False)]
+            mock_patterns.return_value = [(r"/ap-", "Associated Press", False, None)]
 
             result = service.verify_url("https://example.com/ap-news/story")
 
@@ -331,7 +333,7 @@ class TestWireDetectionPerformance:
         with patch.object(
             ContentTypeDetector,
             "_get_wire_service_patterns",
-            return_value=[(r"/wire/", "Wire Service", False)],
+            return_value=[(r"/wire/", "Wire Service", False, None)],
         ):
             # Enable HTTP precheck
             service.run_http_precheck = True

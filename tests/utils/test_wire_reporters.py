@@ -127,17 +127,23 @@ class TestWireReportersIntegration:
 
     def test_is_wire_reporter_database_error_handling(self):
         """Test that database errors are handled gracefully."""
+        from unittest.mock import MagicMock, patch
+
         # First clear cache to force database load attempt
         clear_wire_reporters_cache()
 
-        # When database is unavailable (as in test environment without proper setup),
-        # the function should not crash but return None
-        result = is_wire_reporter("John Smith")
+        # Mock DatabaseManager to raise an exception when get_session is called
+        with patch("src.models.database.DatabaseManager") as mock_db_class:
+            mock_db = MagicMock()
+            mock_db.get_session.side_effect = Exception("Database unavailable")
+            mock_db_class.return_value = mock_db
 
-        # After DB load failure, cache should be empty dict
-        # So any lookup should return None
-        assert result is None
+            # When database is unavailable, the function should not crash but return None
+            result = is_wire_reporter("John Smith")
 
-        # Subsequent calls should also work (using cached empty dict)
-        result2 = is_wire_reporter("Jane Doe")
-        assert result2 is None
+            # After DB load failure, cache should be empty dict
+            # So any lookup should return None
+            assert result is None
+
+        # Clear cache again to ensure next test starts fresh
+        clear_wire_reporters_cache()

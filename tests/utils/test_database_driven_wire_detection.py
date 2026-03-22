@@ -61,13 +61,14 @@ class TestDatabaseDrivenWirePatterns:
         assert isinstance(patterns, list)
         assert len(patterns) > 0, "Should load patterns from database"
 
-        # Each pattern is a tuple: (pattern, service_name, case_sensitive)
+        # Each pattern is a tuple: (pattern, service_name, case_sensitive, exclude_domains)
         for pattern_tuple in patterns:
-            assert len(pattern_tuple) == 3
-            pattern, service_name, case_sensitive = pattern_tuple
+            assert len(pattern_tuple) == 4
+            pattern, service_name, case_sensitive, exclude_domains = pattern_tuple
             assert isinstance(pattern, str)
             assert isinstance(service_name, str)
             assert isinstance(case_sensitive, bool)
+            assert exclude_domains is None or isinstance(exclude_domains, str)
 
     def test_wire_patterns_include_standard_services(
         self, detector, populated_wire_services

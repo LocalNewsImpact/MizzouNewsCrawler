@@ -107,7 +107,9 @@ def setup_logging(
     logging.getLogger("urllib3").setLevel(logging.WARNING)
     logging.getLogger("selenium").setLevel(logging.WARNING)
     logging.getLogger("google.cloud").setLevel(logging.INFO)
-    logging.getLogger("newspaper.parsers").setLevel(logging.ERROR)  # Suppress fromstring() warnings
+    logging.getLogger("newspaper.parsers").setLevel(
+        logging.ERROR
+    )  # Suppress fromstring() warnings
 
 
 def get_logger(name: str | None = None) -> Any:

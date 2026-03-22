@@ -406,6 +406,11 @@ class WireService(Base):
         comment="Whether this pattern is active",
     )
     notes = Column(Text, nullable=True)
+    exclude_domains = Column(
+        Text,
+        nullable=True,
+        comment="Comma-separated domains where this pattern should NOT apply (e.g., wire service's own domain)",
+    )
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(
         DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
