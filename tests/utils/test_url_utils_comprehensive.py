@@ -56,9 +56,13 @@ class TestNormalizeUrl:
         assert normalize_url("https://example.com/") == "https://example.com/"
 
     def test_preserves_scheme(self):
-        """URL scheme should be preserved."""
-        assert normalize_url("https://example.com/story").startswith("https://")
-        assert normalize_url("http://example.com/story").startswith("http://")
+        """URL scheme should be preserved (not converted)."""
+        assert normalize_url("https://example.com/story") == "https://example.com/story"
+        assert normalize_url("http://example.com/story") == "http://example.com/story"
+        # www is still stripped
+        assert (
+            normalize_url("http://www.example.com/story") == "http://example.com/story"
+        )
 
     def test_preserves_port_number(self):
         """Port numbers should be preserved."""
@@ -71,15 +75,19 @@ class TestNormalizeUrl:
             == "http://localhost:3000/article"
         )
 
-    def test_preserves_subdomain(self):
-        """Subdomains should be preserved."""
+    def test_preserves_subdomain_except_www(self):
+        """Subdomains should be preserved, except www which is stripped."""
         assert (
             normalize_url("https://news.example.com/story")
             == "https://news.example.com/story"
         )
+        # www should be stripped but scheme preserved
         assert (
             normalize_url("https://www.example.com/story")
-            == "https://www.example.com/story"
+            == "https://example.com/story"
+        )
+        assert (
+            normalize_url("http://www.example.com/story") == "http://example.com/story"
         )
 
     def test_handles_empty_string(self):
@@ -199,11 +207,20 @@ class TestIsSameArticleUrl:
         url2 = "https://example2.com/story"
         assert is_same_article_url(url1, url2) is False
 
-    def test_different_schemes_should_not_match(self):
-        """HTTP vs HTTPS should not match (different schemes)."""
+    def test_http_and_https_should_match(self):
+        """HTTP vs HTTPS should match (normalized to same scheme)."""
         url1 = "http://example.com/story"
         url2 = "https://example.com/story"
-        assert is_same_article_url(url1, url2) is False
+        assert is_same_article_url(url1, url2) is True
+
+    def test_www_and_non_www_should_match(self):
+        """www vs non-www should match (www is stripped)."""
+        url1 = "https://www.example.com/story"
+        url2 = "https://example.com/story"
+        assert is_same_article_url(url1, url2) is True
+        url3 = "http://www.example.com/story"
+        assert is_same_article_url(url1, url3) is True
+        assert is_same_article_url(url2, url3) is True
 
     def test_different_ports_should_not_match(self):
         """Different ports should not match."""
