@@ -27,7 +27,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.attributes import flag_modified
 
-from src.utils.url_utils import normalize_url
+from src.utils.url_utils import normalize_url, normalize_url_for_dedup
 
 from . import (
     Article,
@@ -818,12 +818,25 @@ def upsert_candidate_link(
     source: str,
     **kwargs,
 ) -> CandidateLink:
-    """Insert or update candidate link (idempotent by URL)."""
-    # Normalize URL for consistent deduplication
+    """Insert or update candidate link (idempotent by URL).
+
+    Deduplication ignores scheme differences (http vs https) and www prefix.
+    """
+    # Normalize URL for storage (strips www, query params, fragments)
     normalized_url = normalize_url(url)
 
-    # Check if link already exists (using normalized URL)
-    existing = session.query(CandidateLink).filter_by(url=normalized_url).first()
+    # Get scheme-agnostic version for deduplication check
+    dedup_path = normalize_url_for_dedup(url)
+
+    # Check both http and https variants to avoid duplicates
+    http_url = f"http://{dedup_path}"
+    https_url = f"https://{dedup_path}"
+
+    existing = (
+        session.query(CandidateLink)
+        .filter(CandidateLink.url.in_([http_url, https_url]))
+        .first()
+    )
 
     if existing:
         # Update existing record with new data
@@ -832,7 +845,7 @@ def upsert_candidate_link(
                 setattr(existing, key, value)
         # Commit with retry to mitigate transient sqlite locks
         _commit_with_retry(session)
-        logger.debug(f"Updated existing candidate link: {normalized_url}")
+        logger.debug(f"Updated existing candidate link: {existing.url}")
         return existing
     else:
         # Create new record (using normalized URL)
