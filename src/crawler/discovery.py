@@ -834,6 +834,61 @@ class NewsDiscovery:
                 ):
                     continue
 
+                # Skip non-section garbage URLs (newsletter signups, contact, etc.)
+                garbage_patterns = [
+                    "newsletter",
+                    "subscribe",
+                    "signup",
+                    "sign-up",
+                    "register",
+                    "login",
+                    "signin",
+                    "sign-in",
+                    "account",
+                    "profile",
+                    "contact",
+                    "about",
+                    "privacy",
+                    "terms",
+                    "advertis",
+                    "classifieds",
+                    "obituar",
+                    "jobs",
+                    "careers",
+                    "employment",
+                    "e-edition",
+                    "e-paper",
+                    "eedition",
+                    "epaper",
+                    "digital-edition",
+                    "submit",
+                    "send-us",
+                    "tip",
+                    "feedback",
+                    "survey",
+                    "podcast",
+                    "video",
+                    "gallery",
+                    "photos",
+                    "images",
+                    "app",
+                    "mobile",
+                    "download",
+                    "store",
+                    "shop",
+                    "merch",
+                    "events",
+                    "calendar",
+                    "directory",
+                    "listings",
+                    "faq",
+                    "help",
+                    "support",
+                    "customer-service",
+                ]
+                if any(g in path for g in garbage_patterns):
+                    continue
+
                 # Skip homepage/root
                 if not path or path == "index.html":
                     continue

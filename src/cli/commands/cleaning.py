@@ -14,6 +14,7 @@ from src.models.database import (
     calculate_content_hash,
     safe_session_execute,
 )
+from src.pipeline.text_cleaning import decode_rot47_segments
 from src.utils.content_cleaner_balanced import BalancedBoundaryContentCleaner
 
 logger = logging.getLogger(__name__)
@@ -118,6 +119,11 @@ def handle_cleaning_command(args) -> int:
 
                 for article_id, original_content, current_status in domain_articles:
                     try:
+                        # Decode ROT47 encoded content (Lee Enterprises sites)
+                        decoded_content = decode_rot47_segments(original_content)
+                        if decoded_content and decoded_content != original_content:
+                            original_content = decoded_content
+
                         cleaned_content, metadata = cleaner.process_single_article(
                             text=original_content,
                             domain=domain,

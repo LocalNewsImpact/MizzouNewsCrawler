@@ -59,9 +59,10 @@ class TestNormalizeUrl:
         """URL scheme should be preserved (not converted)."""
         assert normalize_url("https://example.com/story") == "https://example.com/story"
         assert normalize_url("http://example.com/story") == "http://example.com/story"
-        # www is still stripped
+        # www is now preserved (only stripped for dedup comparison)
         assert (
-            normalize_url("http://www.example.com/story") == "http://example.com/story"
+            normalize_url("http://www.example.com/story")
+            == "http://www.example.com/story"
         )
 
     def test_preserves_port_number(self):
@@ -75,19 +76,20 @@ class TestNormalizeUrl:
             == "http://localhost:3000/article"
         )
 
-    def test_preserves_subdomain_except_www(self):
-        """Subdomains should be preserved, except www which is stripped."""
+    def test_preserves_all_subdomains(self):
+        """All subdomains including www should be preserved."""
         assert (
             normalize_url("https://news.example.com/story")
             == "https://news.example.com/story"
         )
-        # www should be stripped but scheme preserved
+        # www is now preserved (only stripped for dedup comparison)
         assert (
             normalize_url("https://www.example.com/story")
-            == "https://example.com/story"
+            == "https://www.example.com/story"
         )
         assert (
-            normalize_url("http://www.example.com/story") == "http://example.com/story"
+            normalize_url("http://www.example.com/story")
+            == "http://www.example.com/story"
         )
 
     def test_handles_empty_string(self):
