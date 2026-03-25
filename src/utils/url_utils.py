@@ -8,14 +8,13 @@ logger = logging.getLogger(__name__)
 
 def normalize_url(url: str) -> str:
     """
-    Normalize a URL for consistent deduplication by:
-    - Stripping www. prefix from hostname
+    Normalize a URL for consistent storage by:
     - Removing fragments and query parameters
     - Removing trailing slashes
 
-    Note: Scheme (http/https) is preserved to avoid breaking sites that
-    only support HTTP. For comparison, use is_same_article_url() which
-    ignores scheme differences.
+    Note: Scheme (http/https) and subdomain (www.) are preserved.
+    For deduplication comparison, use normalize_url_for_dedup() or
+    is_same_article_url() which ignore scheme and www differences.
 
     Args:
         url: The URL to normalize
@@ -24,12 +23,10 @@ def normalize_url(url: str) -> str:
         Normalized URL
 
     Examples:
-        normalize_url("http://www.example.com/story")
-            -> "http://example.com/story"
-        normalize_url("https://example.com/story#section")
-            -> "https://example.com/story"
+        normalize_url("https://www.example.com/story#section")
+            -> "https://www.example.com/story"
         normalize_url("https://www.example.com/story?ref=home")
-            -> "https://example.com/story"
+            -> "https://www.example.com/story"
     """
     if not url or not url.strip():
         return url
@@ -37,10 +34,9 @@ def normalize_url(url: str) -> str:
     try:
         parsed = urlparse(url.strip())
 
-        # Strip www. prefix from hostname
+        # Keep hostname as-is (including www. if present)
+        # Subdomain stripping is done only in dedup functions for comparison
         netloc = parsed.netloc
-        if netloc.startswith("www."):
-            netloc = netloc[4:]
 
         # Reconstruct URL without fragment and query parameters
         normalized = urlunparse(
@@ -100,6 +96,12 @@ def is_same_article_url(url1: str, url2: str) -> bool:
     norm1_no_scheme = norm1.split("://", 1)[1] if "://" in norm1 else norm1
     norm2_no_scheme = norm2.split("://", 1)[1] if "://" in norm2 else norm2
 
+    # Strip www. prefix for comparison (www.example.com and example.com should match)
+    if norm1_no_scheme.startswith("www."):
+        norm1_no_scheme = norm1_no_scheme[4:]
+    if norm2_no_scheme.startswith("www."):
+        norm2_no_scheme = norm2_no_scheme[4:]
+
     return norm1_no_scheme == norm2_no_scheme
 
 
@@ -117,8 +119,15 @@ def normalize_url_for_dedup(url: str) -> str:
     """
     normalized = normalize_url(url)
     if "://" in normalized:
-        return normalized.split("://", 1)[1]
-    return normalized
+        path = normalized.split("://", 1)[1]
+    else:
+        path = normalized
+
+    # Strip www. prefix for dedup comparison only
+    if path.startswith("www."):
+        path = path[4:]
+
+    return path
 
 
 def extract_base_url(url: str) -> str | None:

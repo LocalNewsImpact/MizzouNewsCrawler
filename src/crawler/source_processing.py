@@ -708,6 +708,60 @@ class SourceProcessor:
             ]
             exclusion_patterns.extend(wire_section_patterns)
 
+            # Add common garbage/non-news section patterns
+            garbage_section_patterns = [
+                "/newsletter",
+                "/subscribe",
+                "/signup",
+                "/sign-up",
+                "/register",
+                "/login",
+                "/signin",
+                "/sign-in",
+                "/account",
+                "/profile",
+                "/contact",
+                "/about",
+                "/privacy",
+                "/terms",
+                "/advertis",
+                "/classifieds",
+                "/obituar",
+                "/jobs",
+                "/careers",
+                "/employment",
+                "/e-edition",
+                "/e-paper",
+                "/eedition",
+                "/epaper",
+                "/digital-edition",
+                "/submit",
+                "/send-us",
+                "/tip",
+                "/feedback",
+                "/survey",
+                "/podcast",
+                "/video",
+                "/gallery",
+                "/photos",
+                "/images",
+                "/app",
+                "/mobile",
+                "/download",
+                "/store",
+                "/shop",
+                "/merch",
+                "/events",
+                "/calendar",
+                "/directory",
+                "/listings",
+                "/faq",
+                "/help",
+                "/support",
+                "/customer-service",
+            ]
+            exclusion_patterns.extend(garbage_section_patterns)
+
             # Load wire URL patterns from database and add to exclusion list
             try:
                 from src.utils.content_type_detector import ContentTypeDetector
