@@ -993,7 +993,7 @@ class SourceProcessor:
             except Exception as e:
                 logger.error(f"Proxy scraping failed for {self.source_name}: {e}")
 
-        # Method 1: RSS feeds - always try regardless of historical effectiveness
+        # Method 1: RSS feeds (respects rss_missing flag - skips if feed broken)
         (
             rss_articles,
             rss_summary,
@@ -1002,14 +1002,13 @@ class SourceProcessor:
         ) = self._try_rss()
         self.rss_summary = rss_summary
         all_discovered.extend(rss_articles)
-        # Note: Don't return early - always continue to homepage/section discovery
 
         # ALWAYS run homepage/section discovery after RSS - don't skip based on
         # RSS article count. This ensures we catch articles that aren't in RSS feeds.
         # The deduplication in _store_candidates handles overlapping URLs.
 
         # Method 2: newspaper4k (homepage and section crawling)
-        # Always run regardless of historical effectiveness - we want comprehensive discovery
+        # Always run after RSS - ensures comprehensive discovery even when RSS is active
         newspaper_articles = self._try_newspaper(skip_rss, rss_attempted)
         all_discovered.extend(newspaper_articles)
 
