@@ -385,6 +385,10 @@ class WorkQueueCoordinator:
     def update_worker_heartbeat(self, worker_id: str) -> None:
         """Update worker last_seen timestamp.
 
+        If worker is unknown (e.g., after work-queue restart), re-register it
+        with empty domain set. This prevents workers from being marked stale
+        when work-queue loses state.
+
         Args:
             worker_id: Worker sending heartbeat
         """
@@ -392,6 +396,13 @@ class WorkQueueCoordinator:
             if worker_id in self.worker_domains:
                 self.worker_domains[worker_id]["last_seen"] = time.time()
                 logger.debug(f"Heartbeat received from worker {worker_id}")
+            else:
+                # Re-register unknown worker (survives work-queue restart)
+                self.worker_domains[worker_id] = {
+                    "domains": set(),
+                    "last_seen": time.time(),
+                }
+                logger.info(f"Re-registered unknown worker {worker_id} via heartbeat")
 
     def report_failure(self, worker_id: str, domain: str) -> None:
         """Report a domain failure (rate limit, bot protection, etc.).

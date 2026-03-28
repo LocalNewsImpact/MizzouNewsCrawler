@@ -784,55 +784,23 @@ def handle_extraction_command(args) -> int:
             articles_processed = result["processed"]
             total_processed += articles_processed
 
-            # Query remaining articles for progress visibility
+            # Log batch completion with status counts (skip expensive remaining count)
+            # The remaining count query was causing 20+ minute delays due to
+            # expensive LEFT JOIN even with proper indexing
             try:
-                # Expire all objects and close transaction to get fresh count
                 db.session.expire_all()
                 db.session.commit()
-                db.session.close()
 
-                # Build count query matching the extraction filters
-                dataset_uuid = getattr(args, "dataset", None)
-                if dataset_uuid:
-                    # Filter by specific dataset UUID
-                    query = text(
-                        "SELECT COUNT(*) FROM candidate_links cl "
-                        "LEFT JOIN sources s ON cl.source_id = s.id "
-                        "WHERE cl.status = 'article' "
-                        "AND cl.dataset_id = :dataset "
-                        "AND (s.status IS NULL OR s.status = 'active') "
-                        "AND cl.id NOT IN "
-                        "(SELECT candidate_link_id FROM articles "
-                        "WHERE candidate_link_id IS NOT NULL)"
-                    )
-                    count_result = safe_session_execute(
-                        db.session, query, {"dataset": dataset_uuid}
-                    )
-                    remaining_count = _to_int(count_result.scalar(), 0)
-                else:
-                    # Count all remaining articles
-                    query = text(
-                        "SELECT COUNT(*) FROM candidate_links cl "
-                        "LEFT JOIN sources s ON cl.source_id = s.id "
-                        "WHERE cl.status = 'article' "
-                        "AND (s.status IS NULL OR s.status = 'active') "
-                        "AND cl.id NOT IN "
-                        "(SELECT candidate_link_id FROM articles "
-                        "WHERE candidate_link_id IS NOT NULL)"
-                    )
-                    count_result = safe_session_execute(db.session, query)
-                    remaining_count = _to_int(count_result.scalar(), 0)
+                # Get status breakdown (fast GROUP BY query)
+                status_counts = _get_status_counts(args, db.session)
+                remaining_estimate = status_counts.get("article", "?")
 
                 print(
                     f"✓ Batch {batch_num} complete: {articles_processed} "
-                    f"articles extracted ({remaining_count} remaining "
-                    f"with status='article')"
+                    f"articles extracted (~{remaining_estimate} remaining)"
                 )
 
-                # Get and display status breakdown
-                status_counts = _get_status_counts(args, db.session)
                 if status_counts:
-                    # Focus on key statuses
                     key_statuses = [
                         "article",
                         "extracted",
@@ -856,7 +824,6 @@ def handle_extraction_command(args) -> int:
                         )
 
             except Exception as e:
-                # Fallback if query fails
                 logger.warning("Failed to get status counts: %s", e)
                 print(
                     f"✓ Batch {batch_num} complete: "
