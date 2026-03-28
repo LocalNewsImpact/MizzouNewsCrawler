@@ -285,7 +285,11 @@ def test_fallback_when_articles_discovered_but_all_filtered(
 def test_no_fallback_when_effective_methods_succeed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Test that fallback is NOT triggered when effective methods succeed."""
+    """Test that BOTH RSS and newspaper4k always run (no fallback logic).
+
+    Per requirement: we should always use RSS first and then homepage/section
+    discovery regardless of whether RSS found articles.
+    """
     instance = _make_discovery_stub()
     instance.database_url = "sqlite://"
     instance.max_articles_per_source = 50
@@ -362,8 +366,8 @@ def test_no_fallback_when_effective_methods_succeed(
     # Verify RSS was tried
     assert len(rss_calls) == 1
 
-    # Verify newspaper4k was NOT tried (RSS succeeded, no fallback needed)
-    assert len(newspaper_calls) == 0
+    # Verify newspaper4k WAS tried (always runs for comprehensive discovery)
+    assert len(newspaper_calls) == 1
 
     # Verify article was stored from RSS
     assert len(stored_candidates) == 1

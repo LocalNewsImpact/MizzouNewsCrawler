@@ -993,41 +993,25 @@ class SourceProcessor:
             except Exception as e:
                 logger.error(f"Proxy scraping failed for {self.source_name}: {e}")
 
-        if DiscoveryMethod.RSS_FEED in self.effective_methods:
-            (
-                rss_articles,
-                rss_summary,
-                rss_attempted,
-                skip_rss,
-            ) = self._try_rss()
-            self.rss_summary = rss_summary
-            all_discovered.extend(rss_articles)
-            # Removed early return: allow newspaper4k to run even when RSS
-            # yields articles so tests expecting expired classification from
-            # secondary methods remain valid and we can pick up additional
-            # duplicates/expired articles for telemetry.
-        else:
-            logger.info(
-                "Skipping RSS discovery for %s (historically ineffective)",
-                self.source_name,
-            )
+        # Method 1: RSS feeds - always try regardless of historical effectiveness
+        (
+            rss_articles,
+            rss_summary,
+            rss_attempted,
+            skip_rss,
+        ) = self._try_rss()
+        self.rss_summary = rss_summary
+        all_discovered.extend(rss_articles)
+        # Note: Don't return early - always continue to homepage/section discovery
 
-        # If RSS found a healthy volume, skip slower methods.
-        if len(all_discovered) >= self.discovery.max_articles_per_source // 2:
-            logger.info(
-                "RSS found sufficient articles, skipping slower methods",
-            )
-            return all_discovered
+        # ALWAYS run homepage/section discovery after RSS - don't skip based on
+        # RSS article count. This ensures we catch articles that aren't in RSS feeds.
+        # The deduplication in _store_candidates handles overlapping URLs.
 
-        # Method 2: newspaper4k
-        if DiscoveryMethod.NEWSPAPER4K in self.effective_methods:
-            newspaper_articles = self._try_newspaper(skip_rss, rss_attempted)
-            all_discovered.extend(newspaper_articles)
-        else:
-            logger.info(
-                "Skipping newspaper4k for %s (historically ineffective)",
-                self.source_name,
-            )
+        # Method 2: newspaper4k (homepage and section crawling)
+        # Always run regardless of historical effectiveness - we want comprehensive discovery
+        newspaper_articles = self._try_newspaper(skip_rss, rss_attempted)
+        all_discovered.extend(newspaper_articles)
 
         # Method 3: storysniffer
         # Note: StorySniffer is a URL classifier (returns boolean), not a
@@ -1038,40 +1022,6 @@ class SourceProcessor:
                 "StorySniffer in effective methods but cannot discover URLs "
                 "from homepages (it's a classifier, not a crawler). Skipping."
             )
-        # Legacy code path kept for reference but effectively disabled
-        # as discover_with_storysniffer now returns empty list immediately
-
-        # FALLBACK: If effective methods produced 0 articles, try skipped methods
-        # This prevents single-point-of-failure when historical effectiveness
-        # data is stale or when RSS feeds return 0 results due to filtering.
-        if len(all_discovered) == 0:
-            logger.warning(
-                "Effective methods found 0 articles for %s, trying fallback methods",
-                self.source_name,
-            )
-
-            # Try newspaper4k if it was skipped
-            effective_methods = getattr(self, "effective_methods", [])
-            if DiscoveryMethod.NEWSPAPER4K not in effective_methods:
-                logger.info(
-                    "Fallback: trying newspaper4k for %s despite historical ineffectiveness",
-                    self.source_name,
-                )
-                try:
-                    newspaper_articles = self._try_newspaper(skip_rss, rss_attempted)
-                    if newspaper_articles:
-                        logger.info(
-                            "Fallback newspaper4k found %d articles for %s",
-                            len(newspaper_articles),
-                            self.source_name,
-                        )
-                        all_discovered.extend(newspaper_articles)
-                except Exception as e:
-                    logger.warning(
-                        "Fallback newspaper4k failed for %s: %s",
-                        self.source_name,
-                        e,
-                    )
 
         return all_discovered
 
