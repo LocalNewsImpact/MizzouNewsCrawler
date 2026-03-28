@@ -358,13 +358,40 @@ def test_heartbeat_prevents_worker_timeout(coordinator):
     assert "worker-1" in coordinator.worker_domains
 
 
-def test_heartbeat_unknown_worker_ignored(coordinator):
-    """Heartbeat from unknown worker handled gracefully."""
+def test_heartbeat_unknown_worker_reregisters(coordinator):
+    """Heartbeat from unknown worker re-registers it with empty domains.
+
+    This is important for recovering after work-queue restarts - workers
+    that were mid-batch when work-queue restarted can re-register via
+    heartbeat instead of being marked stale.
+    """
+    # Ensure worker doesn't exist
+    assert "worker-999" not in coordinator.worker_domains
+
     # Send heartbeat for non-existent worker
     coordinator.update_worker_heartbeat("worker-999")
 
-    # Assert no error and worker not added
-    assert "worker-999" not in coordinator.worker_domains
+    # Assert worker is now registered with empty domain set
+    assert "worker-999" in coordinator.worker_domains
+    assert coordinator.worker_domains["worker-999"]["domains"] == set()
+    assert coordinator.worker_domains["worker-999"]["last_seen"] >= time.time() - 1
+
+
+def test_heartbeat_reregistered_worker_survives_cleanup(coordinator):
+    """Worker re-registered via heartbeat should not be immediately cleaned up."""
+    from src.services.work_queue import WORKER_TIMEOUT_SECONDS
+
+    # Re-register unknown worker via heartbeat
+    coordinator.update_worker_heartbeat("worker-new")
+
+    # Verify registered
+    assert "worker-new" in coordinator.worker_domains
+
+    # Run cleanup - worker should survive (just registered)
+    coordinator._cleanup_stale_workers()
+
+    # Assert worker still exists
+    assert "worker-new" in coordinator.worker_domains
 
 
 def test_single_domain_per_request_enforced(coordinator):
