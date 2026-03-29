@@ -44,5 +44,10 @@ def test_prioritize_last_successful_method(monkeypatch):
 
     discovery.process_source(src, dataset_label="test", operation_id=None)
 
-    # The first attempted method should be the preferred one
-    assert call_order[0] == "newspaper4k"
+    # Both RSS and newspaper4k should be called for comprehensive discovery
+    # RSS is always attempted first, then newspaper4k
+    assert "rss" in call_order
+    assert "newspaper4k" in call_order
+    # RSS runs first, then newspaper4k
+    assert call_order[0] == "rss"
+    assert call_order[1] == "newspaper4k"

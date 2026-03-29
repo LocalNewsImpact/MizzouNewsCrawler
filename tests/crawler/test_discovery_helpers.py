@@ -1807,7 +1807,8 @@ def test_source_processor_stores_when_publish_date_parse_fails(
     assert result.outcome == DiscoveryOutcome.NEW_ARTICLES_FOUND
     assert result.articles_new == 1
     assert result.metadata["stored_count"] == 1
-    assert result.metadata["methods_attempted"] == ["rss_feed"]
+    # Both RSS and newspaper4k are always attempted for comprehensive discovery
+    assert result.metadata["methods_attempted"] == ["rss_feed", "newspaper4k"]
 
     assert len(store_calls) == 1
     stored = store_calls[0]
@@ -1937,7 +1938,8 @@ def test_source_processor_continues_when_upsert_raises(
     assert result.outcome == DiscoveryOutcome.NEW_ARTICLES_FOUND
     assert result.articles_new == 2
     assert result.metadata["stored_count"] == 1
-    assert result.metadata["methods_attempted"] == ["rss_feed"]
+    # Both RSS and newspaper4k are always attempted for comprehensive discovery
+    assert result.metadata["methods_attempted"] == ["rss_feed", "newspaper4k"]
 
     assert len(store_calls) == 1
     assert store_calls[0]["url"] == "https://example.com/good"
