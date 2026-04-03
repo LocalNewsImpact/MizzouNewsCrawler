@@ -3164,6 +3164,25 @@ class ContentExtractor:
         if isinstance(text_content, str):
             text_content = text_content.strip()
 
+        # Reject text that is clearly a cookie consent banner dump rather than article
+        # content. Trafilatura (used internally by mcmetadata) can mistake WPConsent /
+        # OneTrust cookie description tables for the main body text.
+        if text_content:
+            _cmp_dump_markers = [
+                "A powerful search engine that organizes",  # WPConsent/Google cookie desc
+                "wpconsent-service-google",
+                "onetrust-consent-sdk",
+                "This cookie is for authentication with your Google account",
+                "CookieConsent[stamp]",
+            ]
+            if any(marker in text_content for marker in _cmp_dump_markers):
+                logger.warning(
+                    "mcmetadata returned consent-banner text for %s; discarding content "
+                    "so downstream extractors can provide it",
+                    url,
+                )
+                text_content = None
+
         article_title = mc_result.get("article_title")
 
         # Use article_author from mcmetadata (now populated from structured data)
@@ -5298,6 +5317,10 @@ class ContentExtractor:
         """
         try:
             close_selectors = [
+                # WPConsent CMP (used by Nexstar/kq2.com and other Nexstar stations)
+                "#wpconsent-accept-all",
+                ".wpconsent-accept-cookies.wpconsent-accept-all",
+                "button[class*='wpconsent'][class*='accept' i]",
                 "button[aria-label*='close' i]",  # Case-insensitive close button
                 "button[title*='close' i]",
                 "button[aria-label*='dismiss' i]",
@@ -6910,6 +6933,23 @@ class ContentExtractor:
         """Extract main article content."""
         # Remove unwanted elements
         for element in soup(["script", "style", "nav", "header", "footer", "aside"]):
+            element.decompose()
+
+        # Remove consent management platform (CMP) overlays before extraction.
+        # These banners (WPConsent, OneTrust, TrustArc, etc.) inject large blocks
+        # of cookie-policy text that extractors can mistake for article content.
+        _cmp_id_patterns = re.compile(
+            r"wpconsent|onetrust|trustarc|cookiebot|cookieconsent|"
+            r"gdpr-consent|cookie-banner|cookie-notice|cmpbox|sp_message",
+            re.I,
+        )
+        for element in soup.find_all(id=_cmp_id_patterns):
+            element.decompose()
+        for element in soup.find_all(
+            class_=lambda c: bool(
+                c and _cmp_id_patterns.search(" ".join(c) if isinstance(c, list) else c)
+            )
+        ):
             element.decompose()
 
         # Try common content selectors

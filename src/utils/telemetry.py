@@ -23,7 +23,7 @@ from collections.abc import Iterable
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 import requests
@@ -39,7 +39,7 @@ def _is_missing_table_error(exc: Exception) -> bool:
     return "no such table" in message or "does not exist" in message
 
 
-class OperationType(str, Enum):
+class OperationType(StrEnum):
     """Types of crawler operations."""
 
     LOAD_SOURCES = "load_sources"
@@ -49,7 +49,7 @@ class OperationType(str, Enum):
     DATA_EXPORT = "data_export"
 
 
-class OperationStatus(str, Enum):
+class OperationStatus(StrEnum):
     """Status of operations."""
 
     STARTED = "started"
@@ -59,7 +59,7 @@ class OperationStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
-class DiscoveryMethod(str, Enum):
+class DiscoveryMethod(StrEnum):
     """Discovery methods for URL finding."""
 
     RSS_FEED = "rss_feed"
@@ -67,7 +67,7 @@ class DiscoveryMethod(str, Enum):
     STORYSNIFFER = "storysniffer"
 
 
-class HTTPStatusCategory(str, Enum):
+class HTTPStatusCategory(StrEnum):
     """HTTP status code categories for tracking."""
 
     SUCCESS = "2xx"
@@ -76,7 +76,7 @@ class HTTPStatusCategory(str, Enum):
     SERVER_ERROR = "5xx"
 
 
-class DiscoveryMethodStatus(str, Enum):
+class DiscoveryMethodStatus(StrEnum):
     """Status of discovery methods for sources."""
 
     SUCCESS = "success"
@@ -89,7 +89,7 @@ class DiscoveryMethodStatus(str, Enum):
     SKIPPED = "skipped"
 
 
-class FailureType(str, Enum):
+class FailureType(StrEnum):
     """Types of site/operation failures."""
 
     NETWORK_ERROR = "network_error"
