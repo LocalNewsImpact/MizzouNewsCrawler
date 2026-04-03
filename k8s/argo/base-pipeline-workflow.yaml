@@ -146,7 +146,7 @@ spec:
         factor: 2
         maxDuration: "20m"
     container:
-      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:6a52f94
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:dcc138e
       imagePullPolicy: IfNotPresent
       command:
         - python
@@ -241,7 +241,7 @@ spec:
         factor: 2
         maxDuration: "20m"
     container:
-      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:6a52f94
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:dcc138e
       imagePullPolicy: IfNotPresent
       command:
         - python
@@ -341,7 +341,7 @@ spec:
         factor: 2
         maxDuration: "20m"
     container:
-      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:6a52f94
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:dcc138e
       imagePullPolicy: IfNotPresent
       command: ["/bin/bash", "-c"]
       args:
@@ -453,7 +453,7 @@ spec:
         workflow-name: "{{workflow.name}}"
         workflow-uid: "{{workflow.uid}}"
     container:
-      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:6fa0c07
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:dcc138e
       imagePullPolicy: IfNotPresent
       command: ["/bin/sh","-c"]
       args:
@@ -539,7 +539,7 @@ spec:
         workflow-name: "{{workflow.name}}"
         workflow-uid: "{{workflow.uid}}"
     container:
-      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:6fa0c07
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:dcc138e
       imagePullPolicy: IfNotPresent
       command: ["/bin/sh","-c"]
       args:
@@ -633,7 +633,7 @@ spec:
         workflow-name: "{{workflow.name}}"
         workflow-uid: "{{workflow.uid}}"
     container:
-      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:6fa0c07
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:dcc138e
       imagePullPolicy: IfNotPresent
       command: ["/bin/sh", "-c"]
       args:
