@@ -180,8 +180,9 @@ class WorkQueueCoordinator:
                 s.canonical_name,
                 COUNT(*) as article_count
             FROM candidate_links cl
-            LEFT JOIN sources s ON cl.source_id = s.id
+            JOIN sources s ON cl.source_id = s.id
             WHERE cl.status = 'article'
+            AND s.status = 'active'
             AND NOT EXISTS (
                 SELECT 1 FROM articles a
                 WHERE a.candidate_link_id = cl.id
