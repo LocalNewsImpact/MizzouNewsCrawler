@@ -119,6 +119,21 @@ exports/
 # Additional local logs
 logs/pre-push/*.log
 
+# Debug screenshots (captcha/paywall/etc. captured during crawls)
+captcha_*.png
+paywall_*.png
+*_screenshot.png
+downloaded_screenshots/
+
+# Compiled binaries (built locally / cross-compiled, not source)
+/inspect_clienthello
+/utls-client
+/utls-client-amd64
+
+# WARC import runtime state
+warc_import_errors.jsonl
+warc_import_progress.json
+
 # ============================================
 # Exported data files (should not be committed)
 # ============================================
@@ -173,6 +188,12 @@ debug_*.py
 test_*.py
 !tests/
 !tests/**
+
+# ...but never track Python bytecode/caches under tests/ — the broad "!tests/**"
+# above otherwise re-includes them, which kept committing *.pyc for months.
+tests/**/__pycache__/
+tests/**/*.pyc
+tests/**/*.pyo
 
 # Temporary test output
 new_detector_*.csv
