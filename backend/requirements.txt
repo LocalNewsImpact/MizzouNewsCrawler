@@ -5,4 +5,4 @@ sqlalchemy
 databases
 alembic
 pandas
-python-multipart
+python-multipart>=0.0.30
