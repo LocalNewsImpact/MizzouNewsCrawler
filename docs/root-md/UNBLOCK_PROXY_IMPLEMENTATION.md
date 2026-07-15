@@ -113,8 +113,8 @@ H1: "Young mother shot in car; police search for suspect"
 1. **Create secret** (one-time):
   Use `scripts/sync-decodo-credentials.sh` to synchronize credentials across GCP Secret Manager, GitHub, and Kubernetes. Example using environment variables (preferred):
   ```bash
-  export UNBLOCK_PROXY_USER=U0000332559
-  export UNBLOCK_PROXY_PASS=PW_XXXX
+  export UNBLOCK_PROXY_USER=your-proxy-username
+  export UNBLOCK_PROXY_PASS=your-proxy-password
   export GOOGLE_CLOUD_PROJECT=mizzou-news-crawler
 
   # Sync to GCP Secret Manager, GitHub repo secrets (LocalNewsImpact/MizzouNewsCrawler), and Kubernetes namespace (production)
