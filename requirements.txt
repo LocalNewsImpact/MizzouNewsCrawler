@@ -20,13 +20,13 @@ structlog>=24.0.0  # Structured logging for production
 
 # Papermill
 papermill>=2.4.0
-jupyterlab>=4.0.0
+jupyterlab>=4.5.7
 
 # ML/NLP
 scikit-learn>=1.7.2,<1.8  # Compatible with StorySniffer 1.0.9+ skops models (model trained with 1.7.2)
 spacy>=3.8.0  # Python 3.11+ supports latest spacy with numpy 2.x
 transformers>=4.30.0
-nltk>=3.8
+nltk>=3.9.4
 torch>=2.1.0
 
 # Data formats
@@ -57,7 +57,7 @@ requests-mock
 
 # Development
 pre-commit>=3.3.0
-black>=23.0.0
+black>=26.3.1
 isort>=5.12.0
 flake8>=6.0.0
 

@@ -1,7 +1,7 @@
 google-cloud-storage==2.10.0
 google-cloud-secret-manager==2.16.0
 sqlalchemy==2.0.23
-pg8000==1.30.3
+pg8000==1.31.5
 cloud-sql-python-connector==1.20.0
 python-dotenv==1.0.0
 
