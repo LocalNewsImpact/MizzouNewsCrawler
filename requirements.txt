@@ -3,9 +3,9 @@ pandas>=2.0.0
 numpy>=2.0.0  # Python 3.11+ supports numpy 2.x with all dependencies
 requests>=2.28.0
 beautifulsoup4>=4.11.0
-lxml>=4.9.0
+lxml>=6.1.0
 lxml_html_clean>=0.4.0  # Required for newspaper3k HTML cleaning
-urllib3>=1.26.0
+urllib3>=2.7.0
 
 # Database
 sqlalchemy>=2.0.0
@@ -25,12 +25,12 @@ jupyterlab>=4.5.7
 # ML/NLP
 scikit-learn>=1.7.2,<1.8  # Compatible with StorySniffer 1.0.9+ skops models (model trained with 1.7.2)
 spacy>=3.8.0  # Python 3.11+ supports latest spacy with numpy 2.x
-transformers>=4.30.0
+transformers>=5.5.0
 nltk>=3.9.4
 torch>=2.1.0
 
 # Data formats
-pyarrow>=12.0.0  # For Parquet support
+pyarrow>=23.0.1  # For Parquet support
 
 # Web scraping
 selenium>=4.10.0
