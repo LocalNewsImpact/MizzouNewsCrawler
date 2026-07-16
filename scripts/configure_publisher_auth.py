@@ -9,7 +9,7 @@ Credentials are NEVER written here — only the non-secret login configuration a
 the *name* of the secret that holds the credentials. The credentials themselves
 live in GCP Secret Manager (JSON ``{"username": ..., "password": ...}``) or an
 environment override, resolved at runtime by
-``src.crawler.authenticated_login.resolve_credentials``.
+``src.crawler.authenticated_login.resolve_auth_credentials``.
 
 Note: dataset membership is modeled via ``datasets`` + ``dataset_sources`` in
 this repo. The optional ``--dataset`` flag verifies that the host belongs to the
@@ -33,6 +33,29 @@ Configure The Spokesman-Review (Auth0)::
                    "redirect_uri": "https://www.spokesman.com/login-redirect/",
                    "scope": "openid profile email",
                    "success_text": "My Account"}'
+
+Configure The Columbian (Newzware SSO)::
+
+    python scripts/configure_publisher_auth.py \
+        --host www.columbian.com \
+        --dataset WSU Washington State \
+        --auth-type newzware \
+        --secret-name publisher-auth-columbian-com \
+        --config '{"login_url": "https://www.columbian.com/login/",
+                   "return_host": "www.columbian.com",
+                   "success_text": "Log Out"}'
+
+Configure the Port Townsend Leader (SimpleCirc)::
+
+    python scripts/configure_publisher_auth.py \
+        --host www.ptleader.com \
+        --dataset WSU Washington State \
+        --auth-type simplecirc \
+        --secret-name publisher-auth-ptleader-com \
+        --config '{"login_url": "https://ptleader.com/login/"}'
+
+Note that SimpleCirc publishers have no password: the secret payload is
+``{"username": "<subscriber email>", "zip": "<billing ZIP on the account>"}``.
 
 Disable authenticated extraction for a publisher::
 
@@ -80,7 +103,7 @@ def _parse_args(argv=None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--auth-type",
-        choices=["auth0", "form"],
+        choices=["auth0", "form", "newzware", "simplecirc"],
         help="Login mechanism (required unless --disable)",
     )
     parser.add_argument(
@@ -156,11 +179,13 @@ def main(argv=None) -> int:
                     auth_config = CAST(:auth_config AS JSON)
                 WHERE host = :host
                   AND (
-                        :dataset_id IS NULL OR EXISTS (
+                        -- Casts are required: Postgres cannot infer the type of
+                        -- a bare parameter used only in an IS NULL test.
+                        CAST(:dataset_id AS TEXT) IS NULL OR EXISTS (
                             SELECT 1
                             FROM dataset_sources ds
                             WHERE ds.source_id = sources.id
-                              AND ds.dataset_id = :dataset_id
+                              AND ds.dataset_id = CAST(:dataset_id AS TEXT)
                         )
                   )
                 """),

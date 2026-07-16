@@ -1729,11 +1729,14 @@ class ContentExtractor:
         try:
             from src.crawler.authenticated_login import (
                 perform_login,
-                resolve_credentials,
+                resolve_auth_credentials,
             )
 
-            username, password = resolve_credentials(secret_name)
-            if not (username and password):
+            # Not every mechanism uses a password (SimpleCirc authenticates with
+            # an email + billing ZIP), so only the identifier is required here;
+            # each mechanism validates the fields it actually needs.
+            credentials = resolve_auth_credentials(secret_name)
+            if not credentials.get("username") and not credentials.get("account_id"):
                 logger.warning(
                     "Skipping login for %s: credentials for secret '%s' "
                     "could not be resolved",
@@ -1747,8 +1750,7 @@ class ContentExtractor:
                 driver,
                 auth_type=auth.get("auth_type"),
                 auth_config=auth.get("auth_config"),
-                username=username,
-                password=password,
+                credentials=credentials,
             )
             if ok:
                 ContentExtractor._authenticated_domains.add(domain)
