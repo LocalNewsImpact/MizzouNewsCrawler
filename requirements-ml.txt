@@ -4,7 +4,7 @@
 
 # Core ML frameworks
 torch>=2.1.0  # PyTorch for deep learning models
-transformers>=4.30.0  # HuggingFace transformers for NLP
+transformers>=5.5.0  # HuggingFace transformers for NLP
 
 # ML utilities
 scikit-learn>=1.7.2,<1.8  # Compatible with StorySniffer 1.0.9+ skops models (model trained with 1.7.2)
