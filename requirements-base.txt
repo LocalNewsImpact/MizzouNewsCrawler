@@ -39,8 +39,6 @@ pytest>=7.4.0
 pytest-cov>=4.1.0
 pytest-mock
 requests-mock
-nbformat
-nbconvert
 fastapi>=0.103.0  # Needed for test fixtures
 httpx  # Needed for FastAPI TestClient
 
