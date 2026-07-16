@@ -44,7 +44,7 @@ cloudscraper>=1.2.71  # Bypass Cloudflare protection
 # Content extraction & processing (mcmetadata dependencies)
 readability-lxml>=0.8.1  # Article content extraction
 trafilatura>=1.6.0  # Web content extraction
-boilerpy3>=1.0.8  # Boilerplate removal
+boilerpy3>=1.0.6  # Boilerplate removal (1.0.7 is the latest release; >=1.0.8 broke installs)
 goose3>=3.1.9  # Content extraction
 htmldate>=1.4.0  # HTML date extraction
 py3langid>=0.2.2  # Language detection
