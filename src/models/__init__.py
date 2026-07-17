@@ -586,8 +586,15 @@ class Dataset(Base):
         nullable=False,
         server_default=text("TRUE"),
     )
-    # Timestamp for dataset creation (present in older SQLite test schema)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    # Timestamp for dataset creation. server_default mirrors migration
+    # b2d9f4c7e1a3 so raw SQL INSERTs that omit created_at still succeed;
+    # ORM-created rows use the Python-side default.
+    created_at = Column(
+        DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
 
 
 class Source(Base):
