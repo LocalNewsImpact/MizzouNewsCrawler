@@ -1,5 +1,21 @@
 import re
+import subprocess
 from pathlib import Path
+
+
+def _git_tracked(pathspec):
+    """Return git-tracked files matching pathspec.
+
+    Only files committed to git are gated: this hook/test validates what will
+    be pushed to origin, not untracked scratch files in the working tree.
+    """
+    out = subprocess.run(
+        ["git", "ls-files", "-z", "--", pathspec],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    return [Path(p) for p in out.split("\0") if p]
 
 
 def test_scripts_sql_include_wire_check_status():
@@ -7,7 +23,6 @@ def test_scripts_sql_include_wire_check_status():
 
     This prevents premature export/backfills that include 'labeled' articles before wire checks complete.
     """
-    root = Path("scripts")
     pattern_text = re.compile(
         r"(?:text|sql_text)\s*\(\s*([\"']{3})(.*?)(\1)\s*\)", re.DOTALL | re.IGNORECASE
     )
@@ -23,7 +38,7 @@ def test_scripts_sql_include_wire_check_status():
 
     issues = []
 
-    for f in root.rglob("*.py"):
+    for f in _git_tracked("scripts/*.py"):
         path = str(f)
         if any(w in path for w in whitelist_paths):
             continue
