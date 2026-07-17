@@ -98,7 +98,7 @@ with db.get_session() as session:
             'python', '-c', python_script
         ]
         
-        result = subprocess.run(cmd, check=True, text=True)
+        subprocess.run(cmd, check=True, text=True)
         
         logger.info("")
         logger.info("✨ Configuration complete!")
