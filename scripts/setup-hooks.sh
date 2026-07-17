@@ -139,24 +139,117 @@ fi
 echo "✅ Step 3/4: Dockerfile validation passed"
 echo ""
 
-# Step 4: Run all tests including integration tests
+# Steps 4-6 run the two test suites in succession and ACCUMULATE coverage
+# across both (via --cov-append), then gate on the COMBINED total in Step 6 —
+# neither suite alone can reach the threshold. Erase stale data first so the
+# run starts clean. addopts is overridden per phase so its single
+# --cov-fail-under=78 doesn't fire mid-succession; the combined check is Step 6.
+(source venv/bin/activate 2>/dev/null || true; python -m coverage erase) >/dev/null 2>&1
+
+# Step 4: Main test suite (unit + SQLite integration), excluding PostgreSQL.
 # Runs in the working tree because some tests need untracked runtime artifacts
 # (e.g. models/productionmodel.pt). Gate tests that scan the source tree
 # enumerate git-tracked files (git ls-files), so untracked scratch files in the
-# working tree are never tested.
-echo "🚀 Step 4/4: Running all tests (unit + integration)..."
+# working tree are never tested. PostgreSQL-marked tests run separately in
+# Step 5, so the two suites never contend for a single database.
+echo "🚀 Step 4/6: Running main test suite (unit + integration, excluding PostgreSQL)..."
 (
     source venv/bin/activate 2>/dev/null || true &&
-    python -m pytest tests/ -q --tb=short
+    python -m pytest tests/ -q --tb=short --override-ini="addopts=" \
+        -p no:postgresql -m "not postgres and not docker and not local_scripts" \
+        --cov=src --cov-append --cov-report=
 ) 2>&1 | tee -a "$LOGFILE"
 TEST_EXIT_CODE=${PIPESTATUS[0]}
 
 if [ $TEST_EXIT_CODE -ne 0 ]; then
     echo ""
-    echo "❌ Unit tests failed! Push aborted."
+    echo "❌ Main test suite failed! Push aborted."
     echo "📝 Full log saved to: $LOGFILE"
     exit 1
 fi
+
+echo "✅ Step 4/6: Main test suite passed"
+echo ""
+
+# Step 5: PostgreSQL suite, run in succession against a docker PostgreSQL.
+# Mirrors CI's dedicated PostgreSQL job. Uses the docker-compose 'postgres'
+# service and a throwaway database, so it never touches a real dev database and
+# never runs at the same time as the main suite. If Docker is unavailable the
+# suite is skipped locally (CI still runs it).
+echo "🐘 Step 5/6: Running PostgreSQL suite (docker)..."
+
+DOCKER_COMPOSE=""
+if docker compose version >/dev/null 2>&1; then
+    DOCKER_COMPOSE="docker compose"
+elif command -v docker-compose >/dev/null 2>&1; then
+    DOCKER_COMPOSE="docker-compose"
+fi
+
+if [ -z "$DOCKER_COMPOSE" ] || ! docker info >/dev/null 2>&1; then
+    echo "⚠️  Docker not available; skipping PostgreSQL suite (CI will run it)." | tee -a "$LOGFILE"
+else
+    PG_TESTDB="mizzou_prepush"
+    export TEST_DATABASE_URL="postgresql://mizzou_user:mizzou_pass@127.0.0.1:5432/${PG_TESTDB}"
+    export DATABASE_URL="$TEST_DATABASE_URL"
+
+    $DOCKER_COMPOSE up -d postgres >>"$LOGFILE" 2>&1
+
+    PG_READY=""
+    for _ in $(seq 1 30); do
+        if $DOCKER_COMPOSE exec -T postgres pg_isready -U mizzou_user -d mizzou >/dev/null 2>&1; then
+            PG_READY=1
+            break
+        fi
+        sleep 1
+    done
+
+    if [ -z "$PG_READY" ]; then
+        echo "⚠️  PostgreSQL did not become ready; skipping PostgreSQL suite (CI will run it)." | tee -a "$LOGFILE"
+    else
+        # Fresh throwaway database, migrated to head, then run the suite.
+        $DOCKER_COMPOSE exec -T postgres dropdb -U mizzou_user --if-exists "$PG_TESTDB" >>"$LOGFILE" 2>&1
+        $DOCKER_COMPOSE exec -T postgres createdb -U mizzou_user "$PG_TESTDB" >>"$LOGFILE" 2>&1
+        (
+            source venv/bin/activate 2>/dev/null || true &&
+            alembic upgrade head &&
+            python -m pytest tests/ -q --tb=short --override-ini="addopts=" \
+                -p no:postgresql -m "postgres and not docker" \
+                --cov=src --cov-append --cov-report=
+        ) 2>&1 | tee -a "$LOGFILE"
+        PG_EXIT_CODE=${PIPESTATUS[0]}
+        $DOCKER_COMPOSE exec -T postgres dropdb -U mizzou_user --if-exists "$PG_TESTDB" >>"$LOGFILE" 2>&1
+
+        if [ $PG_EXIT_CODE -ne 0 ]; then
+            echo ""
+            echo "❌ PostgreSQL suite failed! Push aborted."
+            echo "📝 Full log saved to: $LOGFILE"
+            exit 1
+        fi
+    fi
+fi
+
+echo "✅ Step 5/6: PostgreSQL suite complete"
+echo ""
+
+# Step 6: Combined coverage gate. Steps 4 and 5 accumulated coverage via
+# --cov-append; enforce the 78% threshold on the COMBINED total here. If the
+# PostgreSQL suite was skipped (no Docker), this checks the main suite alone,
+# which matches CI's coverage job and still clears the threshold.
+echo "📊 Step 6/6: Checking combined coverage (fail-under 78%)..."
+(
+    source venv/bin/activate 2>/dev/null || true &&
+    python -m coverage report --fail-under=78
+) 2>&1 | tee -a "$LOGFILE"
+COV_EXIT_CODE=${PIPESTATUS[0]}
+
+if [ $COV_EXIT_CODE -ne 0 ]; then
+    echo ""
+    echo "❌ Combined coverage below 78%! Push aborted."
+    echo "📝 Full log saved to: $LOGFILE"
+    exit 1
+fi
+
+echo "✅ Step 6/6: Combined coverage gate passed"
 
 echo ""
 echo "✅ All pre-push checks passed! Proceeding with push..."
@@ -172,9 +265,13 @@ echo "The pre-push hook will now run:"
 echo "  1. Linting checks (ruff, black, isort) — clean checkout of committed code"
 echo "  2. Type checking (mypy) - matches CI mypy-strict job — clean checkout"
 echo "  3. Dockerfile dependency validation"
-echo "  4. All tests (unit + integration)"
+echo "  4. Main test suite (unit + integration, excluding PostgreSQL)"
+echo "  5. PostgreSQL suite against a docker PostgreSQL (skipped if Docker is down)"
+echo "  6. Combined coverage gate (>=78% across steps 4-5)"
 echo ""
 echo "Static-analysis steps run against a temporary git worktree of HEAD, so"
 echo "untracked scratch files in your working tree never affect the result."
+echo "The main and PostgreSQL suites run in succession (not one shared DB) and"
+echo "their coverage is accumulated, then gated on the combined total."
 echo ""
 echo "To reinstall hooks later: ./scripts/setup-hooks.sh"

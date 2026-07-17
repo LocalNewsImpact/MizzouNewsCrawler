@@ -19,7 +19,7 @@ POSTGRES_TEST_URL = os.getenv("TEST_DATABASE_URL")
 HAS_POSTGRES = POSTGRES_TEST_URL and "postgres" in POSTGRES_TEST_URL
 
 # Mark all tests in this module as integration tests
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.postgres]
 
 
 @pytest.fixture
