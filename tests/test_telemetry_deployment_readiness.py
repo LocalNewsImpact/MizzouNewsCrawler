@@ -114,6 +114,7 @@ class TestDeploymentReadiness:
             assert count >= 1
 
     @pytest.mark.integration
+    @pytest.mark.postgres
     @pytest.mark.skipif(
         not os.getenv("TEST_DATABASE_URL")
         or "postgres" not in os.getenv("TEST_DATABASE_URL", ""),
@@ -155,6 +156,7 @@ class TestDeploymentReadiness:
                 pass
 
     @pytest.mark.integration
+    @pytest.mark.postgres
     @pytest.mark.skipif(
         not os.getenv("TEST_DATABASE_URL")
         or "postgres" not in os.getenv("TEST_DATABASE_URL", ""),

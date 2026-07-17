@@ -232,6 +232,7 @@ class TestAlembicMigrations:
         missing_tables = all_expected_tables - tables
         assert not missing_tables, f"Missing tables: {missing_tables}"
 
+    @pytest.mark.postgres
     @pytest.mark.skipif(
         not os.getenv("TEST_DATABASE_URL")
         or "postgresql" not in os.getenv("TEST_DATABASE_URL", ""),
