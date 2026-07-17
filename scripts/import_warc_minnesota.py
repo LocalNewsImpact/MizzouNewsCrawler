@@ -15,11 +15,10 @@ import json
 import sys
 from pathlib import Path
 from datetime import datetime
-from typing import Optional, Dict, List, Tuple
+from typing import Optional
 import hashlib
 
 from warcio.archiveiterator import ArchiveIterator
-from sqlalchemy import text
 
 from src.models.database import DatabaseManager
 from src.models import CandidateLink, Article
@@ -64,11 +63,11 @@ class WARCImporter:
         self.batch_failures = 0
         self.batch_articles = 0
         
-        self.pending_commits: List[Tuple[CandidateLink, Article]] = []
+        self.pending_commits: list[tuple[CandidateLink, Article]] = []
         self.extractor = ContentExtractor()
         self.db = DatabaseManager()
         
-    def load_progress(self) -> Dict:
+    def load_progress(self) -> dict:
         """Load progress from JSON file for resumption.
         
         Returns:
