@@ -1,0 +1,76 @@
+name: Claude PR Review
+
+# Automated code review by Claude on every pull request to main.
+# Replaces the retired GitHub Copilot review.
+#
+# Prerequisites (one-time, repo admin — see PR description):
+#   1. Install the Claude GitHub App:  https://github.com/apps/claude
+#   2. Add repo secret ANTHROPIC_API_KEY (Settings -> Secrets and variables ->
+#      Actions).  Value is an Anthropic API key (sk-ant-...).
+#
+# Note: on pull_request events GitHub uses the workflow file from the BASE
+# branch (main), so this only takes effect once merged to main.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches:
+      - main
+
+# Avoid stacking reviews when a PR is updated rapidly: cancel an in-progress
+# review for the same PR when a new commit arrives.
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    # Skip draft PRs; they get reviewed once marked ready_for_review.
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Claude review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          track_progress: true
+          use_sticky_comment: true
+          prompt: |
+            Review this pull request for the MizzouNewsCrawler repository.
+
+            Repository: ${{ github.repository }}
+            PR #${{ github.event.pull_request.number }}
+
+            Prioritize correctness. In order of importance, look for:
+            1. Correctness bugs — wrong conditions, off-by-one, null/None
+               dereferences, missing awaits, swallowed errors, copy-paste
+               mistakes, behavior changes from deleted/replaced code, and broken
+               call sites for changed functions.
+            2. Security issues — especially credential handling, secrets in logs,
+               SQL injection, and unsafe subprocess/shell usage.
+            3. Performance — redundant I/O or DB queries, work added to hot paths,
+               and expensive operations without caching.
+            4. Reuse & simplification — new code that duplicates an existing
+               helper, or unnecessary complexity.
+
+            Give a concise summary comment, and post line-specific findings as
+            inline comments. Be specific: for each issue name a concrete failure
+            scenario. Do not flag pure style. If the diff looks clean, say so
+            briefly rather than inventing findings.
+
+            Post all feedback to GitHub:
+            - `gh pr comment` for the summary.
+            - `mcp__github_inline_comment__create_inline_comment` (with
+              `confirmed: true`) for line-specific issues.
+            Do not print review text to the run log — only post to GitHub.
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
