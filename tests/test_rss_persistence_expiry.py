@@ -15,6 +15,7 @@ from src.crawler.discovery import NewsDiscovery  # noqa: E402
 from src.models import Source  # noqa: E402
 from src.models.database import DatabaseManager  # noqa: E402
 from src.utils.discovery_outcomes import DiscoveryOutcome  # noqa: E402
+from tests.helpers.discovery_stubs import stub_nonrss_discovery  # noqa: E402
 
 
 def test_last_successful_and_rss_missing_expiry(tmp_path, monkeypatch):
@@ -32,6 +33,9 @@ def test_last_successful_and_rss_missing_expiry(tmp_path, monkeypatch):
     )
 
     discovery = NewsDiscovery(database_url=db_url)
+    # Keep the test hermetic: only RSS is scripted below; stub the other
+    # discovery methods so they don't make real network calls.
+    stub_nonrss_discovery(monkeypatch, discovery)
 
     # Insert Source row
     dbm = DatabaseManager(database_url=db_url)

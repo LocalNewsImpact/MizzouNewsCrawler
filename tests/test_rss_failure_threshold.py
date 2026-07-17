@@ -10,6 +10,7 @@ sys.path.insert(0, str(ROOT))
 from src.crawler.discovery import RSS_MISSING_THRESHOLD, NewsDiscovery  # noqa: E402
 from src.models import Source  # noqa: E402
 from src.models.database import DatabaseManager  # noqa: E402
+from tests.helpers.discovery_stubs import stub_nonrss_discovery  # noqa: E402
 from tests.helpers.source_state import read_source_state  # noqa: E402
 
 
@@ -31,6 +32,9 @@ def test_consecutive_non_network_failures(tmp_path, monkeypatch):
     dbm_init.close()
 
     discovery = NewsDiscovery(database_url=db_url)
+    # Keep the test hermetic: only RSS is scripted below; stub the other
+    # discovery methods so they don't make real network calls.
+    stub_nonrss_discovery(monkeypatch, discovery)
 
     # Prepare a pandas Series to pass into process_source
     src = pd.Series(
@@ -77,6 +81,9 @@ def test_network_error_resets_counter(tmp_path, monkeypatch):
     dbm_init.close()
 
     discovery = NewsDiscovery(database_url=db_url)
+    # Keep the test hermetic: only RSS is scripted below; stub the other
+    # discovery methods so they don't make real network calls.
+    stub_nonrss_discovery(monkeypatch, discovery)
 
     src = pd.Series(
         {
