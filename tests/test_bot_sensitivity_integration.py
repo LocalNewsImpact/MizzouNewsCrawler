@@ -155,8 +155,16 @@ class TestContentExtractorBotSensitivityIntegration:
             assert config["inter_request_min"] == min_delay
             assert config["inter_request_max"] == max_delay
 
-    def test_sensitivity_persists_across_requests(self, extractor_with_bot_sensitivity):
-        """Test that sensitivity is loaded for each request."""
+    @patch("src.crawler.time.sleep")
+    def test_sensitivity_persists_across_requests(
+        self, _mock_sleep, extractor_with_bot_sensitivity
+    ):
+        """Test that sensitivity is loaded for each request.
+
+        time.sleep is stubbed: the assertions are about config lookups, and
+        the second _apply_rate_limit call otherwise really sleeps the
+        configured inter-request delay (~12s of dead CI time).
+        """
         extractor, bot_manager = extractor_with_bot_sensitivity
 
         domain = "test-site.com"
@@ -185,17 +193,21 @@ class TestContentExtractorBotSensitivityIntegration:
         high_sensitivity_config = BOT_SENSITIVITY_CONFIG[10]
         bot_manager.get_sensitivity_config.return_value = high_sensitivity_config
 
-        # Record start time
+        # Last request 1s ago, so the minimum delay is still outstanding
         extractor.domain_request_times[domain] = time.time() - 1.0
 
-        # Apply rate limit - should enforce minimum delay
-        start = time.time()
-        extractor._apply_rate_limit(domain)
-        time.time() - start
+        # Apply rate limit with sleep stubbed: previously this test REALLY
+        # slept the sensitivity-10 delay (~45s of dead CI time) and then
+        # discarded the measurement. Asserting on the requested sleep is
+        # strictly stronger: it verifies the magnitude, instantly.
+        with patch("src.crawler.time.sleep") as mock_sleep:
+            extractor._apply_rate_limit(domain)
 
-        # For sensitivity 10, min delay is 45s, but we're testing the mechanism
-        # In practice, the delay would be enforced
         assert bot_manager.get_sensitivity_config.called
+        # Sensitivity 10 draws a delay from [45, 90]; 1s already elapsed, so
+        # the enforced sleep must be at least ~44s.
+        assert mock_sleep.called
+        assert mock_sleep.call_args[0][0] >= 40
 
     def test_rate_limit_config_includes_all_required_fields(self):
         """Test that sensitivity configs have all required fields."""
