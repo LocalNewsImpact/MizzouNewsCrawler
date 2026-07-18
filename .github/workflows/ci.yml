@@ -55,8 +55,10 @@ jobs:
           changed=$(git diff --name-only "$mb" "$head")
           echo "Changed files:"
           echo "$changed"
-          # Anything that is NOT a workflow file, docs/, or *.md counts as code.
-          code_files=$(echo "$changed" | grep -vE '^(\.github/workflows/|docs/)' | grep -vE '\.md$' || true)
+          # Anything that is NOT a workflow file, docs/, *.md, or the local
+          # git-hook installer counts as code. (setup-hooks.sh only defines the
+          # pre-push hook — it's never imported by src/ or tests/.)
+          code_files=$(echo "$changed" | grep -vE '^(\.github/workflows/|docs/|scripts/setup-hooks\.sh$)' | grep -vE '\.md$' || true)
           if [ -n "$code_files" ]; then
             echo "→ code changes present; running full suite."
             echo "code=true" >> "$GITHUB_OUTPUT"
