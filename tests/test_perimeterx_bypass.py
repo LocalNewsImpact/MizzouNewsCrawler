@@ -8,6 +8,13 @@ from src.crawler import ContentExtractor
 
 
 class TestPerimeterXBypass:
+    @pytest.fixture(autouse=True)
+    def _no_sleep(self, monkeypatch):
+        """No-op bypass waits: Mock drivers' state never changes with time,
+        so the real challenge waits (~8s on the long-press test) verify
+        nothing."""
+        monkeypatch.setattr("src.crawler.time.sleep", lambda *_a, **_k: None)
+
     def test_detect_captcha_or_challenge_perimeterx(self):
         """Test that PerimeterX specific indicators are detected."""
         extractor = ContentExtractor()

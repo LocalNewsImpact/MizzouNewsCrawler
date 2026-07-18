@@ -549,6 +549,15 @@ class TestJSRequiredBotProtectionTypes:
 class TestChallengeBypass:
     """Test the _try_bypass_challenge method for handling JS bot challenges."""
 
+    @pytest.fixture(autouse=True)
+    def _no_sleep(self, monkeypatch):
+        """No-op the bypass waits: these tests use Mock drivers whose state
+        never changes with time, so the real 5-10s challenge waits per test
+        (~50s across the class) verify nothing. Scoped to this class — the
+        real-browser (enable_selenium) classes in this file need real waits.
+        """
+        monkeypatch.setattr("src.crawler.time.sleep", lambda *_a, **_k: None)
+
     def test_bypass_auto_resolve_cloudflare(self):
         """Test that Cloudflare-style challenges that auto-resolve are detected."""
         extractor = ContentExtractor()
