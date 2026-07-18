@@ -4,13 +4,23 @@ name: Claude PR Review
 # and Claude reviews it. Because it only runs when explicitly invoked, it never
 # blocks unrelated PRs. Replaces the retired GitHub Copilot review.
 #
-# Prerequisites (one-time, repo admin — see PR description):
-#   1. Install the Claude GitHub App:  https://github.com/apps/claude
-#   2. Add repo secret ANTHROPIC_API_KEY (Settings -> Secrets and variables ->
-#      Actions). Value is an Anthropic API key (sk-ant-...).
+# Auth uses a Claude subscription (Max), NOT an API key — so review runs draw on
+# the subscription instead of separate Anthropic Console/API billing.
 #
-# Comment-triggered workflows run from the DEFAULT branch, so this takes effect
-# once merged to main (then works on any open PR, including older ones).
+# Prerequisites (one-time, repo admin):
+#   1. Install the Claude GitHub App: https://github.com/apps/claude
+#   2. Generate a subscription OAuth token locally: `claude setup-token`
+#      (requires a Pro/Max/Team plan; prints a ~1-year token), then add it as
+#      repo secret CLAUDE_CODE_OAUTH_TOKEN (Settings -> Secrets and variables
+#      -> Actions). Never commit the token; it stays a masked GitHub secret.
+#
+# Security: only trusted users (repo owner/member/collaborator) can trigger this
+# via the author_association guard below, so outside contributors can't spend the
+# subscription or reach the token. issue_comment runs in the base-repo context
+# (not the fork's), and the token is never exposed to PR code.
+#
+# Comment-triggered workflows run from the DEFAULT branch, so this works on any
+# open PR (including older ones) once on main.
 
 on:
   issue_comment:
@@ -29,11 +39,16 @@ concurrency:
 
 jobs:
   review:
-    # Only when a comment on a PR (not a plain issue) contains "@claude review".
+    # Only when a TRUSTED user comments "@claude review" on a PR (not a plain
+    # issue). The author_association guard blocks outside contributors from
+    # spending the subscription or triggering the workflow with our credentials.
     if: >-
       contains(github.event.comment.body, '@claude review')
       && (github.event.issue.pull_request != null
           || github.event_name == 'pull_request_review_comment')
+      && (github.event.comment.author_association == 'OWNER'
+          || github.event.comment.author_association == 'MEMBER'
+          || github.event.comment.author_association == 'COLLABORATOR')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -44,7 +59,7 @@ jobs:
       - name: Claude review
         uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           track_progress: true
           use_sticky_comment: true
           prompt: |
