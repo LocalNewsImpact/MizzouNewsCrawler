@@ -19,7 +19,14 @@ COPY requirements-dev.txt ./
 
 # Install test-only dependencies on top of production base
 # These are heavy packages only needed for tests (PyTorch, transformers, etc)
-RUN pip install --no-cache-dir torch>=2.1.0 transformers>=4.30.0 && \
+#
+# NOTE the quotes: the old unquoted `torch>=2.1.0` was shell REDIRECTION —
+# it installed unpinned latest torch (with 2.7GB of CUDA libs) and wrote a
+# stray file named '=2.1.0'. The CPU-only wheel index keeps CUDA out of an
+# image that runs tests on GPU-less CI runners; mirrors Dockerfile.ml-base
+# so CI type-checks/tests against the same torch build production uses.
+RUN pip install --no-cache-dir "torch>=2.1.0" --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir "transformers>=5.5.0" && \
     pip install --no-cache-dir -r requirements-dev.txt
 
 # Metadata
