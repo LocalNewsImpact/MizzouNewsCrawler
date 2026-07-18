@@ -106,33 +106,38 @@ def export_daily_analytics(request):
         append_summaries = []
 
         for target_day in dates_to_run:
-            # 3. Define per-day query
+            # 3. Define per-day query with BigQuery-based deduplication
+            # Only select articles NOT already in sheet_export_log
             # Note: extracted_at is stored as DATETIME in UTC. Cast to TIMESTAMP then convert to CT for date filtering.
             query = f"""
                 SELECT 
-                    IFNULL(title, '') as title,
-                    IFNULL(url, '') as url,
-                    IFNULL(author, '') as author,
-                    IFNULL(SUBSTR(text, 0, 50000), '') as text,
-                    FORMAT_DATETIME("%Y-%m-%d %H:%M:%S", publish_date) as publish_date,
-                    FORMAT_DATETIME("%Y-%m-%d %H:%M:%S", extracted_at) as extracted_at,
-                    IFNULL(status, '') as status,
-                    IFNULL(primary_label, '') as primary_label,
-                    IFNULL(alternate_label, '') as alternate_label
-                FROM `mizzou-news-crawler.mizzou_analytics.articles`
-                WHERE DATE(TIMESTAMP(extracted_at), "America/Chicago") = DATE('{target_day.isoformat()}')
-                  AND status NOT IN ('wire', 'obituary', 'opinion')
-                ORDER BY extracted_at DESC
+                    a.id as article_id,
+                    IFNULL(a.title, '') as title,
+                    IFNULL(a.url, '') as url,
+                    IFNULL(a.author, '') as author,
+                    IFNULL(SUBSTR(a.text, 0, 50000), '') as text,
+                    FORMAT_DATETIME("%Y-%m-%d %H:%M:%S", a.publish_date) as publish_date,
+                    FORMAT_DATETIME("%Y-%m-%d %H:%M:%S", a.extracted_at) as extracted_at,
+                    IFNULL(a.status, '') as status,
+                    IFNULL(a.primary_label, '') as primary_label,
+                    IFNULL(a.alternate_label, '') as alternate_label
+                FROM `mizzou-news-crawler.mizzou_analytics.articles` a
+                LEFT JOIN `mizzou-news-crawler.mizzou_analytics.sheet_export_log` log
+                    ON a.url = log.url
+                WHERE DATE(TIMESTAMP(a.extracted_at), "America/Chicago") = DATE('{target_day.isoformat()}')
+                  AND a.status NOT IN ('wire', 'obituary', 'opinion')
+                  AND log.url IS NULL  -- Not already exported
+                ORDER BY a.extracted_at DESC
                 LIMIT {limit}
             """
 
             print(f"Executing BigQuery export job for {target_day.isoformat()}...")
             query_job = bq_client.query(query)
             rows = list(query_job.result())
-            print(f"[{target_day.isoformat()}] Found {len(rows)} rows to export.")
+            print(f"[{target_day.isoformat()}] Found {len(rows)} new rows to export (after BigQuery deduplication).")
 
             if not rows:
-                append_summaries.append({"date": target_day.isoformat(), "rows": 0, "status": "no-data"})
+                append_summaries.append({"date": target_day.isoformat(), "rows": 0, "status": "no-new-data"})
                 continue
 
             if dry_run:
@@ -141,23 +146,28 @@ def export_daily_analytics(request):
                 continue
 
             # 4. Format Data for Sheets
-            # Determine next serial ID by getting actual row count from sheet metadata
-            # CRITICAL: Use metadata, not values().get(), to avoid filter/sort issues
+            # Determine next row by counting ACTUAL data rows in column A
+            # CRITICAL: Use values().get() which returns ALL data regardless of filters
+            # Grid metadata rowCount is allocated size, not actual data - don't use it
+            next_row = 2  # Default: after header row
             next_id = 1
             try:
-                # Get sheet metadata to find actual grid dimensions (ignores filters)
-                sheet_metadata = sheets_service.spreadsheets().get(spreadsheetId=SHEET_ID).execute()
-                for sheet in sheet_metadata.get('sheets', []):
-                    sheet_title_meta = sheet['properties']['title']
-                    if sheet_title_meta == target_sheet:
-                        grid_properties = sheet['properties'].get('gridProperties', {})
-                        actual_row_count = grid_properties.get('rowCount', 0)
-                        # Next ID should be at least the row count (accounts for header + data)
-                        next_id = max(1, actual_row_count)
-                        print(f"Using actual row count from metadata: {actual_row_count} (ignoring any active filters)")
-                        break
+                # Get all values in column A to count actual data rows
+                # This ignores any active filters and returns all data
+                col_a_result = sheets_service.spreadsheets().values().get(
+                    spreadsheetId=SHEET_ID,
+                    range=f"'{target_sheet}'!A:A",
+                    valueRenderOption="UNFORMATTED_VALUE"
+                ).execute()
+                col_a_values = col_a_result.get('values', [])
+                # Count non-empty rows (including header)
+                actual_data_rows = len([r for r in col_a_values if r and r[0] != ''])
+                next_row = actual_data_rows + 1  # Write after last data row
+                next_id = actual_data_rows  # Serial ID continues from last
+                print(f"Counted {actual_data_rows} actual data rows in column A (next_row={next_row}, next_id={next_id})")
             except Exception as e:
-                print(f"Warning: Could not determine next ID from sheet metadata: {e}")
+                print(f"Warning: Could not count data rows: {e}")
+                next_row = 2
                 next_id = 1
 
             # Convert Row objects to list of lists
@@ -185,17 +195,24 @@ def export_daily_analytics(request):
                     row.alternate_label
                 ])
 
-            # 5. Append to Sheets
+            # 5. Write to Sheets using UPDATE with explicit range (not append)
+            # This prevents filters from affecting where data is written
+            # Calculate end row and use explicit A<start>:K<end> range
+            start_row = next_row
+            end_row = start_row + len(values) - 1
+            explicit_range = f"'{target_sheet}'!A{start_row}:K{end_row}"
+            print(f"Writing {len(values)} rows to explicit range: {explicit_range}")
+            
             body = {'values': values}
-            result = sheets_service.spreadsheets().values().append(
+            result = sheets_service.spreadsheets().values().update(
                 spreadsheetId=SHEET_ID,
-                range=SHEET_RANGE,
+                range=explicit_range,
                 valueInputOption="USER_ENTERED",
                 body=body
             ).execute()
 
-            updated_cells = result.get('updates', {}).get('updatedCells')
-            updated_range = result.get('updates', {}).get('updatedRange')
+            updated_cells = result.get('updatedCells')
+            updated_range = result.get('updatedRange')
 
             # 6. Apply Formatting (Copy from Row 2) — best-effort
             if updated_range:
@@ -253,6 +270,26 @@ def export_daily_analytics(request):
                         print(f"Applied formatting to rows {start_row+1}-{end_row}")
                 except Exception as format_err:
                     print(f"Formatting warning: {format_err}")
+
+            # 7. Log exported URLs to BigQuery for deduplication
+            # This ensures subsequent runs (e.g., noon catch-up) don't re-export the same articles
+            if not dry_run and rows:
+                try:
+                    # Build INSERT VALUES for all exported articles
+                    log_values = ", ".join([
+                        f"('{row.article_id}', '{row.url.replace(chr(39), chr(39)+chr(39))}', CURRENT_TIMESTAMP())"
+                        for row in rows
+                    ])
+                    log_query = f"""
+                        INSERT INTO `mizzou-news-crawler.mizzou_analytics.sheet_export_log`
+                        (article_id, url, exported_at)
+                        VALUES {log_values}
+                    """
+                    bq_client.query(log_query).result()
+                    print(f"Logged {len(rows)} exported URLs to sheet_export_log")
+                except Exception as log_err:
+                    # Don't fail the export if logging fails - data is already in sheet
+                    print(f"Warning: Failed to log exports to BigQuery: {log_err}")
 
             total_rows += len(rows)
             append_summaries.append({

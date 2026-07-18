@@ -115,6 +115,60 @@ def disable_real_selenium(request, monkeypatch):
     monkeypatch.setattr(crawler_module, "SELENIUM_AVAILABLE", False)
 
 
+@pytest.fixture(autouse=True)
+def block_external_network(request, monkeypatch):
+    """Fail fast if a unit test makes a real outbound network connection.
+
+    Discovery/extraction code can accidentally reach the network (e.g.
+    newspaper4k fetching a source homepage during process_source), which is
+    slow and has hung CI. This guard blocks connections to non-loopback hosts
+    so such calls surface immediately with a clear message instead of stalling.
+
+    Loopback (localhost / 127.0.0.1 / ::1) stays allowed so tests can use a
+    local database or HTTP stub. Exempted entirely: tests that legitimately use
+    the network or a real remote service — integration, postgres, e2e,
+    enable_selenium, proxy — and any test marked @pytest.mark.allow_network.
+    """
+    exempt = (
+        "integration",
+        "postgres",
+        "e2e",
+        "enable_selenium",
+        "proxy",
+        "allow_network",
+    )
+    if any(marker in request.keywords for marker in exempt):
+        return
+
+    import socket
+
+    allowed_hosts = {"127.0.0.1", "::1", "localhost", "0.0.0.0", ""}
+    real_connect = socket.socket.connect
+    real_connect_ex = socket.socket.connect_ex
+
+    def _is_blocked(address):
+        # Non-tuple addresses (AF_UNIX paths) are local IPC — allow them.
+        if not isinstance(address, tuple) or not address:
+            return False
+        return address[0] not in allowed_hosts
+
+    def _guard(real_method):
+        def _inner(self, address, *args, **kwargs):
+            if _is_blocked(address):
+                raise RuntimeError(
+                    f"Blocked real network connection to {address!r} in a unit "
+                    "test. Mock the network call, or mark the test "
+                    "@pytest.mark.allow_network (or @pytest.mark.integration) "
+                    "if it genuinely needs the network."
+                )
+            return real_method(self, address, *args, **kwargs)
+
+        return _inner
+
+    monkeypatch.setattr(socket.socket, "connect", _guard(real_connect))
+    monkeypatch.setattr(socket.socket, "connect_ex", _guard(real_connect_ex))
+
+
 @pytest.fixture
 def clean_app_state():
     """Fixture to ensure FastAPI app.state is clean between tests.

@@ -586,8 +586,15 @@ class Dataset(Base):
         nullable=False,
         server_default=text("TRUE"),
     )
-    # Timestamp for dataset creation (present in older SQLite test schema)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    # Timestamp for dataset creation. server_default mirrors migration
+    # b2d9f4c7e1a3 so raw SQL INSERTs that omit created_at still succeed;
+    # ORM-created rows use the Python-side default.
+    created_at = Column(
+        DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
 
 
 class Source(Base):
@@ -661,6 +668,27 @@ class Source(Base):
         Boolean, default=True, nullable=False, server_default=text("TRUE")
     )
     section_last_updated = Column(DateTime, nullable=True)
+
+    # Authenticated extraction for subscriber/paywalled publishers.
+    # When requires_login is set, the extractor performs a browser login on the
+    # persistent Selenium driver before fetching articles so the session cookies
+    # carry through to the paywalled content.
+    requires_login = Column(
+        Boolean, default=False, nullable=False, server_default=text("FALSE")
+    )
+    # Login mechanism: 'auth0' (OAuth2/OIDC universal login), 'form' (plain
+    # username/password form POST), 'newzware' (Newzware SSO handoff) or
+    # 'simplecirc' (SimpleCirc subscriber form: email + billing ZIP, no password).
+    auth_type = Column(String(32), nullable=True)
+    # Name of the secret (GCP Secret Manager id, or env-override key) holding
+    # the subscriber credentials for this publisher. Convention:
+    # publisher-auth-<host_norm-with-dashes>, e.g. publisher-auth-spokesman-com.
+    # Payload is a JSON object of credential fields: username/password, or
+    # username/zip for SimpleCirc publishers.
+    auth_secret_name = Column(String(128), nullable=True)
+    # Non-secret login parameters (auth0 domain/client_id/redirect_uri/scope,
+    # login_url, CSS selectors, success_text). Credentials are NEVER stored here.
+    auth_config = Column(JSON, nullable=True)
 
     # Relationships
     broadcaster_callsigns = relationship(

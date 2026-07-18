@@ -17,6 +17,25 @@ def _import_fresh_config():
 def test_get_config_reflects_environment(monkeypatch):
     _mock_dotenv(monkeypatch)
 
+    # Clear optional LLM / vector-store env so the asserted defaults are not
+    # polluted by the developer's environment (e.g. a real ANTHROPIC_API_KEY).
+    for _var in (
+        "LLM_PROVIDER_SEQUENCE",
+        "LLM_REQUEST_TIMEOUT",
+        "LLM_MAX_RETRIES",
+        "LLM_DEFAULT_MAX_OUTPUT_TOKENS",
+        "LLM_DEFAULT_TEMPERATURE",
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "GOOGLE_API_KEY",
+        "VECTOR_STORE_PROVIDER",
+        "VECTOR_STORE_NAMESPACE",
+        "PINECONE_API_KEY",
+        "PINECONE_INDEX",
+        "WEAVIATE_URL",
+    ):
+        monkeypatch.delenv(_var, raising=False)
+
     monkeypatch.setenv("DATABASE_URL", "sqlite:///tmp.db")
     monkeypatch.setenv("LOG_LEVEL", "DEBUG")
     monkeypatch.setenv("TELEMETRY_URL", "https://telemetry.local")

@@ -114,7 +114,18 @@ def test_no_sqlite_specific_sql_in_telemetry():
 
 def test_no_sqlite_patterns_in_production_code():
     """Scan ALL production Python files for SQLite-specific patterns."""
+    import subprocess
     from pathlib import Path
+
+    def _git_tracked(pathspec):
+        """Only scan git-tracked files (what gets pushed), not untracked scratch."""
+        out = subprocess.run(
+            ["git", "ls-files", "-z", "--", pathspec],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        return [Path(p) for p in out.split("\0") if p]
 
     # Patterns that indicate SQLite-specific code
     problematic_patterns = {
@@ -126,7 +137,6 @@ def test_no_sqlite_patterns_in_production_code():
     }
 
     # Files to scan (production code only)
-    src_dir = Path("src")
     failures = []
 
     # Safe patterns that are properly gated by dialect checks
@@ -141,7 +151,7 @@ def test_no_sqlite_patterns_in_production_code():
         "# Convert SQLite-specific syntax",  # Translation code
     ]
 
-    for py_file in src_dir.rglob("*.py"):
+    for py_file in _git_tracked("src/*.py"):
         # Skip test files, web/ (intentionally SQLite), and __pycache__
         if any(skip in str(py_file) for skip in ["test_", "web/", "__pycache__"]):
             continue
