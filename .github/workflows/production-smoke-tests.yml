@@ -143,8 +143,15 @@ jobs:
           echo ""
           echo "Running test suite..."
 
-          # Build pytest command
-          PYTEST_CMD="pytest tests/e2e/test_production_smoke.py -v --tb=short --color=yes"
+          # The production image ships src/ but (correctly) not tests/, so
+          # copy the smoke test from this checkout into the pod. This also
+          # means each run tests the repo-current version of the test file.
+          kubectl cp tests/e2e/test_production_smoke.py \
+            "production/$POD_NAME:/tmp/test_production_smoke.py"
+
+          # Build pytest command. `cd /app && python -m pytest` puts /app on
+          # sys.path so the test's `from src.models...` imports resolve.
+          PYTEST_CMD="cd /app && python -m pytest /tmp/test_production_smoke.py -v --tb=short --color=yes -p no:cacheprovider"
 
           # Add test filter if provided
           if [ -n "${{ github.event.inputs.test_filter }}" ]; then
