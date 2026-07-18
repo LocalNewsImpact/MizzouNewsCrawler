@@ -22,6 +22,7 @@ from src.models.database import DatabaseManager
 from src.telemetry.store import TelemetryStore
 from src.utils.discovery_outcomes import DiscoveryOutcome
 from src.utils.telemetry import DiscoveryMethod, OperationTracker
+from tests.helpers.discovery_stubs import stub_nonrss_discovery_class
 
 # Check if PostgreSQL is available for testing
 POSTGRES_TEST_URL = os.getenv("TEST_DATABASE_URL")
@@ -30,6 +31,19 @@ HAS_POSTGRES = POSTGRES_TEST_URL and "postgres" in POSTGRES_TEST_URL
 # Mark as E2E integration tests requiring PostgreSQL
 # Note: Issue #71 resolved - discovery uses PostgreSQL DISTINCT ON syntax
 pytestmark = [pytest.mark.e2e, pytest.mark.postgres, pytest.mark.integration]
+
+
+@pytest.fixture(autouse=True)
+def _hermetic_discovery(monkeypatch):
+    """Fail the section-discovery homepage fetch fast and stub non-RSS methods.
+
+    Each test here scripts rss/newspaper4k/storysniffer per-scenario (those
+    per-test monkeypatches override these class-level stubs), but none of them
+    stubbed the homepage fetch that ``_discover_and_store_sections`` performs
+    on every ``process_source`` call — a ~30s connect timeout per test against
+    the fabricated hosts (~3.5 min of the PostgreSQL CI job).
+    """
+    stub_nonrss_discovery_class(monkeypatch)
 
 
 @dataclass

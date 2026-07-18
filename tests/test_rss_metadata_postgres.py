@@ -41,8 +41,21 @@ from src.crawler.discovery import (
     NewsDiscovery,
 )
 from src.models import Source
+from tests.helpers.discovery_stubs import stub_nonrss_discovery_class
 
 pytestmark = [pytest.mark.postgres, pytest.mark.integration]
+
+
+@pytest.fixture(autouse=True)
+def _hermetic_discovery(monkeypatch):
+    """Neutralize non-RSS discovery and the section-discovery homepage fetch.
+
+    These tests script RSS outcomes and assert DB state; the storysniffer /
+    proxy fallthrough and the per-``process_source`` homepage fetch add no
+    coverage — only ~30s of connect timeout per call against the fabricated
+    hosts (this file alone cost ~7.5 min of the PostgreSQL CI job).
+    """
+    stub_nonrss_discovery_class(monkeypatch)
 
 
 def _db_url_from_env(engine) -> str:

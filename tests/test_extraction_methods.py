@@ -6,6 +6,7 @@ and the intelligent field-level fallback system.
 """
 
 import copy
+import os
 import textwrap
 from datetime import datetime
 from unittest.mock import Mock, patch
@@ -15,6 +16,16 @@ import requests
 
 import src.crawler as crawler_module
 from src.crawler import ContentExtractor
+
+# Live-site diagnostics fetch real news websites (and launch real Selenium),
+# print observations, and swallow every failure — they cannot fail and assert
+# nothing, so they add no CI rigor, only 1-2 minutes of network time per run.
+# Run them on demand when debugging extraction against the live sites.
+live_site_diagnostic = pytest.mark.skipif(
+    not os.getenv("RUN_LIVE_SITE_DIAGNOSTICS"),
+    reason="live-site diagnostic (prints only, cannot fail); "
+    "set RUN_LIVE_SITE_DIAGNOSTICS=1 to run",
+)
 
 
 @pytest.fixture
@@ -918,6 +929,7 @@ class TestRealWorldExtraction:
             print("   ANALYSIS: Extraction successful or no metadata found")
 
     @pytest.mark.integration
+    @live_site_diagnostic
     def test_individual_method_performance(self, extractor):
         """Test each extraction method individually on a real URL."""
         test_url = (
@@ -969,6 +981,7 @@ class TestRealWorldExtraction:
         print(f"   {method_name}: {field_status}")
 
     @pytest.mark.integration
+    @live_site_diagnostic
     def test_fallback_trigger_conditions(self, extractor):
         """Test that fallback mechanisms are triggered appropriately."""
         # Use a URL that typically has partial data
@@ -1295,9 +1308,13 @@ class TestFallbackMechanism:
     @pytest.mark.integration
     def test_partial_extraction_with_beautifulsoup_fallback(self, extractor):
         """Test fallback to BeautifulSoup for missing fields."""
+        # Selenium must be stubbed too: the np+bs results leave 'metadata'
+        # missing, so the cascade otherwise launches a REAL Chrome for
+        # https://test.com (~30-60s and network-dependent).
         with (
             patch.object(extractor, "_extract_with_newspaper") as mock_np,
             patch.object(extractor, "_extract_with_beautifulsoup") as mock_bs,
+            patch.object(extractor, "_extract_with_selenium", return_value={}),
         ):
             # Newspaper returns partial results
             mock_np.return_value = {
