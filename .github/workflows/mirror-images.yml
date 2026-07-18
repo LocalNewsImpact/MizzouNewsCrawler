@@ -1,0 +1,68 @@
+name: Mirror CI Images to GHCR
+
+# CI jobs pull ci-base (3.4GB compressed) and crawler from Artifact Registry
+# on EVERY job — GitHub-hosted runners are ephemeral, so nothing is cached and
+# each full CI run cost ~$2.50-3.00 in AR internet egress (~$45/mo, the bulk
+# of the Artifact Registry line in billing). Pulls from ghcr.io to GitHub
+# runners are free and faster (same network). This workflow mirrors the two
+# CI-consumed images AR -> GHCR, comparing digests so it only copies when the
+# AR image actually changed.
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '17 5 * * *'  # daily: catches any ci-base/crawler rebuild
+  push:
+    branches: [main]
+    paths:  # the inputs whose change implies a ci-base/crawler rebuild
+      - 'Dockerfile.ci-base'
+      - 'Dockerfile.crawler'
+      - 'requirements*.txt'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false  # one image's failure shouldn't cancel the other
+      matrix:
+        image: [ci-base, crawler]
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure registries
+        run: |
+          gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Mirror if digest changed
+        run: |
+          AR="us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/${{ matrix.image }}:latest"
+          GHCR="ghcr.io/${{ github.repository_owner }}/mizzou-${{ matrix.image }}:latest"
+          GHCR=$(echo "$GHCR" | tr '[:upper:]' '[:lower:]')
+
+          ar_digest=$(docker manifest inspect "$AR" -v 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); d=d[0] if isinstance(d,list) else d; print(d['Descriptor']['digest'])")
+          ghcr_digest=$(docker manifest inspect "$GHCR" -v 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); d=d[0] if isinstance(d,list) else d; print(d['Descriptor']['digest'])" || echo "none")
+
+          echo "AR:   $ar_digest"
+          echo "GHCR: $ghcr_digest"
+          if [ "$ar_digest" == "$ghcr_digest" ]; then
+            echo "✅ GHCR already up to date — no copy needed."
+            exit 0
+          fi
+
+          echo "⬇️  Pulling from Artifact Registry (one pull instead of 8-per-CI-run)..."
+          docker pull "$AR"
+          docker tag "$AR" "$GHCR"
+          echo "⬆️  Pushing to GHCR..."
+          docker push "$GHCR"
+          echo "✅ Mirrored $AR -> $GHCR"
