@@ -27,6 +27,7 @@ jobs:
   mirror:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false  # one image's failure shouldn't cancel the other
       matrix:
         image: [ci-base, crawler]
     steps:
