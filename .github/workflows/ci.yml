@@ -107,8 +107,12 @@ jobs:
               python -m ruff check . &&
               python -m black --check src/ tests/ web/ &&
               python -m isort --check-only --profile black src/ tests/ web/ &&
-              python -m mypy src/ --ignore-missing-imports || true
+              (python -m mypy src/ --ignore-missing-imports || true)
             "
+            # NOTE: only mypy is advisory here (the strict gate is the separate
+            # mypy-strict job). Without the parentheses the trailing '|| true'
+            # rescued the WHOLE && chain, so ruff/black/isort could never fail
+            # this job — black had been printing failures into green runs.
 
       - name: Validate deployment configurations
         run: |
