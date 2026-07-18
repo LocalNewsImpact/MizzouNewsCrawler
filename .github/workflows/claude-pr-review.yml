@@ -1,37 +1,40 @@
 name: Claude PR Review
 
-# Automated code review by Claude on every pull request to main.
-# Replaces the retired GitHub Copilot review.
+# On-demand code review by Claude. Comment "@claude review" on a pull request
+# and Claude reviews it. Because it only runs when explicitly invoked, it never
+# blocks unrelated PRs. Replaces the retired GitHub Copilot review.
 #
 # Prerequisites (one-time, repo admin — see PR description):
 #   1. Install the Claude GitHub App:  https://github.com/apps/claude
 #   2. Add repo secret ANTHROPIC_API_KEY (Settings -> Secrets and variables ->
-#      Actions).  Value is an Anthropic API key (sk-ant-...).
+#      Actions). Value is an Anthropic API key (sk-ant-...).
 #
-# Note: on pull_request events GitHub uses the workflow file from the BASE
-# branch (main), so this only takes effect once merged to main.
+# Comment-triggered workflows run from the DEFAULT branch, so this takes effect
+# once merged to main (then works on any open PR, including older ones).
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
-    branches:
-      - main
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
 
-# Avoid stacking reviews when a PR is updated rapidly: cancel an in-progress
-# review for the same PR when a new commit arrives.
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
 concurrency:
-  group: claude-review-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  group: claude-review-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
 
 jobs:
   review:
-    # Skip draft PRs; they get reviewed once marked ready_for_review.
-    if: github.event.pull_request.draft == false
+    # Only when a comment on a PR (not a plain issue) contains "@claude review".
+    if: >-
+      contains(github.event.comment.body, '@claude review')
+      && (github.event.issue.pull_request != null
+          || github.event_name == 'pull_request_review_comment')
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -48,7 +51,7 @@ jobs:
             Review this pull request for the MizzouNewsCrawler repository.
 
             Repository: ${{ github.repository }}
-            PR #${{ github.event.pull_request.number }}
+            PR #${{ github.event.issue.number || github.event.pull_request.number }}
 
             Prioritize correctness. In order of importance, look for:
             1. Correctness bugs — wrong conditions, off-by-one, null/None
