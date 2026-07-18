@@ -22,10 +22,56 @@ on:
   workflow_dispatch: {}  # Allow manual runs on main if needed
 
 jobs:
+  # Detect whether this PR touches anything other than CI workflows and docs.
+  # The heavy jobs below gate on `code == 'true'`, so a workflow-only or
+  # docs-only PR skips them. A job skipped via `if:` reports success, so the
+  # required status checks are still satisfied. (A trigger-level `paths` filter
+  # would instead leave required checks pending forever and block the merge —
+  # hence per-job gating.)
+  changes:
+    name: Detect code changes
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.detect.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: detect
+        run: |
+          base="${{ github.event.pull_request.base.sha }}"
+          head="${{ github.event.pull_request.head.sha }}"
+          if [ -z "$base" ] || [ -z "$head" ]; then
+            echo "Non-PR event (or missing SHAs) — running full suite."
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          mb=$(git merge-base "$base" "$head" 2>/dev/null || echo "")
+          if [ -z "$mb" ]; then
+            echo "No merge-base found — running full suite to be safe."
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git diff --name-only "$mb" "$head")
+          echo "Changed files:"
+          echo "$changed"
+          # Anything that is NOT a workflow file, docs/, or *.md counts as code.
+          code_files=$(echo "$changed" | grep -vE '^(\.github/workflows/|docs/)' | grep -vE '\.md$' || true)
+          if [ -n "$code_files" ]; then
+            echo "→ code changes present; running full suite."
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "→ only workflow/docs changes; skipping heavy test jobs."
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
+
   lint:
     name: Lint & Format Check
     runs-on: ubuntu-latest
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    needs: [changes]
+    if: >-
+      needs.changes.outputs.code == 'true'
+      && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
 
     steps:
       - uses: actions/checkout@v4
@@ -83,8 +129,10 @@ jobs:
   mypy-strict:
     name: Mypy (strict)
     runs-on: ubuntu-latest
-    needs: [lint]
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    needs: [changes, lint]
+    if: >-
+      needs.changes.outputs.code == 'true'
+      && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     # Run on all PR checks (no longer need push condition since we removed push trigger)
 
     steps:
@@ -157,8 +205,10 @@ jobs:
   unit:
     name: Unit Tests (fast)
     runs-on: ubuntu-latest
-    needs: [lint]
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    needs: [changes, lint]
+    if: >-
+      needs.changes.outputs.code == 'true'
+      && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
 
     services:
       postgres:
@@ -230,8 +280,10 @@ jobs:
   argo-quick:
     name: Quick Workflow Template Checks
     runs-on: ubuntu-latest
-    needs: [lint]
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    needs: [changes, lint]
+    if: >-
+      needs.changes.outputs.code == 'true'
+      && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     # Run on PRs to main (removed push condition since we no longer trigger on push)
 
     services:
@@ -306,8 +358,10 @@ jobs:
   origin-proxy-only:
     name: Proxy stack tests (smoke)
     runs-on: ubuntu-latest
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
-    needs: [lint]  # Run early in parallel with unit tests
+    needs: [changes, lint]  # Run early in parallel with unit tests
+    if: >-
+      needs.changes.outputs.code == 'true'
+      && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     # Run on PRs to main (removed push condition since we no longer trigger on push)
 
     services:
@@ -376,8 +430,10 @@ jobs:
   selenium-headful:
     name: Selenium Headful Regression
     runs-on: ubuntu-latest
-    needs: [unit]
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    needs: [changes, unit]
+    if: >-
+      needs.changes.outputs.code == 'true'
+      && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
 
     steps:
       - uses: actions/checkout@v4
@@ -431,8 +487,10 @@ jobs:
   postgres-integration:
     name: Integration Tests (PostgreSQL)
     runs-on: ubuntu-latest
-    needs: [unit, selenium-headful]
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    needs: [changes, unit, selenium-headful]
+    if: >-
+      needs.changes.outputs.code == 'true'
+      && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     # Run on PRs to main (removed push condition since we no longer trigger on push)
 
     services:
@@ -528,8 +586,10 @@ jobs:
     name: Integration & Coverage
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    needs: [unit, selenium-headful]
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    needs: [changes, unit, selenium-headful]
+    if: >-
+      needs.changes.outputs.code == 'true'
+      && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     # Run on PRs to main (removed push condition since we no longer trigger on push)
     # Note: This job runs coverage on non-PostgreSQL tests
     # PostgreSQL-specific tests run in the postgres-integration job
