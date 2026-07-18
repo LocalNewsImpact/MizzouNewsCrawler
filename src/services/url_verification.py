@@ -23,6 +23,7 @@ import requests
 import urllib3
 from requests import Session
 from requests.exceptions import RequestException, Timeout
+from requests.structures import CaseInsensitiveDict
 
 # Suppress InsecureRequestWarning for proxies without SSL certs
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -232,12 +233,12 @@ class URLVerificationService:
 
         session_headers = getattr(self.http_session, "headers", None)
         if session_headers is None:
-            self.http_session.headers = dict(self.http_headers)
+            self.http_session.headers = CaseInsensitiveDict(self.http_headers)
             return
 
         if not hasattr(session_headers, "setdefault"):
             # Unexpected type; fall back to a fresh mapping.
-            self.http_session.headers = dict(self.http_headers)
+            self.http_session.headers = CaseInsensitiveDict(self.http_headers)
             return
 
         for key, value in self.http_headers.items():
@@ -414,7 +415,9 @@ class URLVerificationService:
         status_code: int | None = None
 
         # Save original headers so we can restore them after attempts
-        original_headers = dict(getattr(self.http_session, "headers", {}) or {})
+        original_headers = CaseInsensitiveDict(
+            getattr(self.http_session, "headers", {}) or {}
+        )
 
         for attempt in range(1, _GET_FALLBACK_ATTEMPTS + 1):
             try:

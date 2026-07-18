@@ -634,7 +634,9 @@ def test_prepare_http_session_initializes_missing_headers() -> None:
     service = url_verification.URLVerificationService(http_session=session)
 
     assert service.http_session.headers is session.headers
-    assert isinstance(session.headers, dict)
+    # requests types Session.headers as CaseInsensitiveDict; the service now
+    # installs exactly that (a dict is not case-insensitive for header keys).
+    assert isinstance(session.headers, requests.structures.CaseInsensitiveDict)
     for key, value in url_verification._DEFAULT_HTTP_HEADERS.items():
         assert session.headers[key] == value
 
@@ -645,7 +647,9 @@ def test_prepare_http_session_replaces_non_mapping_headers() -> None:
 
     service = url_verification.URLVerificationService(http_session=session)
 
-    assert isinstance(service.http_session.headers, dict)
+    assert isinstance(
+        service.http_session.headers, requests.structures.CaseInsensitiveDict
+    )
     for key in url_verification._DEFAULT_HTTP_HEADERS:
         assert key in service.http_session.headers
 
