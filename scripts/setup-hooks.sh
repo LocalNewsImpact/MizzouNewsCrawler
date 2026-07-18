@@ -23,13 +23,15 @@ cat > "$REPO_ROOT/.git/hooks/pre-push" << 'EOF'
 # fresh checkout of committed code only — the hook must test what is in git for
 # push to origin, not the developer's dirty working tree.
 
-# Skip CI for workflow-only changes (can't be tested locally anyway)
+# Skip CI for workflow-only / docs-only changes (nothing the test suite covers).
+# Mirrors the `changes` gate in .github/workflows/ci.yml so local and remote
+# agree on what counts as "code".
 CHANGED_FILES=$(git diff --name-only @{upstream}..HEAD 2>/dev/null || git diff --name-only HEAD~1..HEAD)
-NON_WORKFLOW_FILES=$(echo "$CHANGED_FILES" | grep -v '^\.github/workflows/' || true)
+CODE_FILES=$(echo "$CHANGED_FILES" | grep -vE '^(\.github/workflows/|docs/|scripts/setup-hooks\.sh$)' | grep -vE '\.md$' || true)
 
-if [ -z "$NON_WORKFLOW_FILES" ]; then
-    echo "⏭️  Skipping pre-push CI: Only GitHub Actions workflow files changed"
-    echo "   (Workflows can't be tested locally - will validate on GitHub)"
+if [ -z "$CODE_FILES" ]; then
+    echo "⏭️  Skipping pre-push CI: only workflow/docs changes (nothing the suite covers)"
+    echo "   (These can't be tested locally - CI will validate on GitHub)"
     exit 0
 fi
 

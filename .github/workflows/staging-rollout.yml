@@ -10,7 +10,7 @@ on:
         description: 'Artifact Registry repo (e.g., us-central1-docker.pkg.dev/<project>/mizzou-news-crawler)'
         required: true
       image-tag:
-        description: 'Image tag to push (defaults to ${{ github.sha }})'
+        description: 'Image tag to push (defaults to the commit SHA)'
         required: false
       staging-namespace:
         description: 'Kubernetes namespace for staging'
@@ -20,17 +20,43 @@ on:
         required: true
 
 jobs:
+  # Gate on the GCP_SA_KEY secret. This can't be done in a job-level `if:`
+  # (the `secrets` context is not allowed there — doing so is a validation error
+  # that makes the whole file a startup_failure on every push). Read it in a
+  # step's env instead and expose the result as an output the deploy job gates on.
+  check-credentials:
+    name: Check credentials configured
+    runs-on: ubuntu-latest
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    steps:
+      - id: check
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          if [ -n "$GCP_SA_KEY" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::GCP_SA_KEY secret not set — skipping staging rollout."
+          fi
+
   build-and-push:
     name: Build and push image to Artifact Registry (staging)
+    needs: check-credentials
     runs-on: ubuntu-latest
-    if: ${{ secrets.GCP_SA_KEY != '' }}
+    if: ${{ needs.check-credentials.outputs.configured == 'true' }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
         with:
-          service_account_key: ${{ secrets.GCP_SA_KEY }}
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
           project_id: ${{ inputs.gcp-project }}
 
       - name: Configure Docker for Artifact Registry

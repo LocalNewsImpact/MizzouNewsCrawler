@@ -101,49 +101,74 @@ jobs:
           fi
           echo ""
 
-          # Initialize all services as false
-          echo "processor=false" >> $GITHUB_OUTPUT
-          echo "api=false" >> $GITHUB_OUTPUT
-          echo "crawler=false" >> $GITHUB_OUTPUT
-          echo "base=false" >> $GITHUB_OUTPUT
-          echo "ml_base=false" >> $GITHUB_OUTPUT
-          echo "any_changed=false" >> $GITHUB_OUTPUT
+          # Analyze changes into shell flags. Emitted once at the end, after the
+          # dependency cascade below, so each output key is written a single time.
+          BASE=false
+          ML_BASE=false
+          PROCESSOR=false
+          API=false
+          CRAWLER=false
 
-          # Analyze changes and set flags with more precise detection
-          # Base image: only rebuild for OS/dependency changes
+          # Base image: only for OS/dependency changes
           if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.base|Dockerfile\.ci-base|requirements-base\.txt|requirements-dev\.txt'; then
-            echo "base=true" >> $GITHUB_OUTPUT
-            echo "✅ Base image needs rebuild (Dockerfile.base, requirements-base.txt)"
+            BASE=true
+            echo "✅ Base image changed (Dockerfile.base / requirements-base.txt)"
           fi
 
           if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.ml-base|requirements-ml\.txt'; then
-            echo "ml_base=true" >> $GITHUB_OUTPUT
-            echo "✅ ML base image needs rebuild (Dockerfile.ml-base, requirements-ml.txt)"
+            ML_BASE=true
+            echo "✅ ML base image changed (Dockerfile.ml-base / requirements-ml.txt)"
           fi
 
-          # Processor: rebuild for processor-specific changes, ML code, or migrations
+          # Processor: processor-specific changes, ML code, or migrations
           if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.processor|requirements-processor\.txt|src/(models|pipeline|utils|services|ml)/|pyproject\.toml|orchestration/|alembic/versions/'; then
-            echo "processor=true" >> $GITHUB_OUTPUT
-            echo "✅ Processor needs rebuild (processor-specific code or migrations)"
+            PROCESSOR=true
+            echo "✅ Processor changed (processor code or migrations)"
           fi
 
-          # API: rebuild for API-specific changes, shared models, or migrations
+          # API: API-specific changes, shared models, or migrations
           if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.api|requirements-api\.txt|src/(models|services)/|backend/|pyproject\.toml|alembic/versions/'; then
-            echo "api=true" >> $GITHUB_OUTPUT
-            echo "✅ API needs rebuild (API-specific code or shared models)"
+            API=true
+            echo "✅ API changed (API code or shared models)"
           fi
 
-          # Crawler: rebuild for crawler-specific changes
+          # Crawler: crawler-specific changes
           if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.crawler|requirements-crawler\.txt|src/(crawler|models|services|utils)/|pyproject\.toml'; then
-            echo "crawler=true" >> $GITHUB_OUTPUT
-            echo "✅ Crawler needs rebuild (crawler-specific code)"
+            CRAWLER=true
+            echo "✅ Crawler changed (crawler code)"
           fi
 
-          # Note: Migrator builds are handled separately and only when actual migration changes occur
+          # Cascade rebuilds down the image dependency graph so base/dependency/
+          # security updates actually reach the running services. Without this, a
+          # change to only requirements-base.txt rebuilds base:latest but leaves
+          # processor/api/crawler on the old base until their own code changes.
+          #   base    -> ml-base, processor, api, crawler  (all are FROM base,
+          #              directly or via ml-base)
+          #   ml-base -> processor                         (processor is FROM ml-base)
+          if [ "$BASE" = "true" ]; then
+            ML_BASE=true
+            PROCESSOR=true
+            API=true
+            CRAWLER=true
+            echo "↪️  Base changed — cascading rebuild to ml-base, processor, api, crawler"
+          fi
+          if [ "$ML_BASE" = "true" ]; then
+            PROCESSOR=true
+            echo "↪️  ML base changed — cascading rebuild to processor"
+          fi
+
+          # Emit final flags (once each)
+          echo "base=$BASE" >> $GITHUB_OUTPUT
+          echo "ml_base=$ML_BASE" >> $GITHUB_OUTPUT
+          echo "processor=$PROCESSOR" >> $GITHUB_OUTPUT
+          echo "api=$API" >> $GITHUB_OUTPUT
+          echo "crawler=$CRAWLER" >> $GITHUB_OUTPUT
 
           # Check if anything changed
           if [ -n "$CHANGED_FILES" ]; then
             echo "any_changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "any_changed=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Determine services to build
@@ -220,6 +245,27 @@ jobs:
           echo "✅ Base image build triggered (build ID: $BUILD_ID)"
           echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
 
+      - name: Wait for base build to complete
+        if: needs.detect-changes.outputs.base == 'true'
+        run: |
+          # Dependents (ml-base/api/crawler) build FROM base:latest, so the base
+          # image must finish pushing before they build — otherwise they'd pull
+          # the previous base. This job gates the downstream build jobs via
+          # `needs`, so blocking here enforces correct ordering. Only base/
+          # ml-base wait; processor/api/crawler still trigger back-to-back.
+          BID="${{ steps.trigger.outputs.build_id }}"
+          echo "⏳ Waiting for base Cloud Build $BID to complete..."
+          for _ in $(seq 1 120); do
+            STATUS=$(gcloud builds describe "$BID" --format="value(status)" 2>/dev/null || echo "")
+            case "$STATUS" in
+              SUCCESS) echo "✅ base build succeeded"; exit 0 ;;
+              FAILURE|INTERNAL_ERROR|TIMEOUT|CANCELLED|EXPIRED)
+                echo "❌ base build ended: $STATUS"; exit 1 ;;
+              *) echo "  base build status: ${STATUS:-pending} (waiting)"; sleep 30 ;;
+            esac
+          done
+          echo "❌ Timed out waiting for base build $BID"; exit 1
+
   build-ml-base:
     name: Build ML Base Image
     needs: [detect-changes, build-base]
@@ -262,6 +308,25 @@ jobs:
           fi
           echo "✅ ML base image build triggered (build ID: $BUILD_ID)"
           echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
+
+      - name: Wait for ml-base build to complete
+        if: needs.detect-changes.outputs.ml_base == 'true'
+        run: |
+          # Processor builds FROM ml-base:latest, so ml-base must finish pushing
+          # before the processor build starts (this job gates build-processor via
+          # `needs`).
+          BID="${{ steps.trigger.outputs.build_id }}"
+          echo "⏳ Waiting for ml-base Cloud Build $BID to complete..."
+          for _ in $(seq 1 120); do
+            STATUS=$(gcloud builds describe "$BID" --format="value(status)" 2>/dev/null || echo "")
+            case "$STATUS" in
+              SUCCESS) echo "✅ ml-base build succeeded"; exit 0 ;;
+              FAILURE|INTERNAL_ERROR|TIMEOUT|CANCELLED|EXPIRED)
+                echo "❌ ml-base build ended: $STATUS"; exit 1 ;;
+              *) echo "  ml-base build status: ${STATUS:-pending} (waiting)"; sleep 30 ;;
+            esac
+          done
+          echo "❌ Timed out waiting for ml-base build $BID"; exit 1
 
   build-processor:
     name: Build Processor

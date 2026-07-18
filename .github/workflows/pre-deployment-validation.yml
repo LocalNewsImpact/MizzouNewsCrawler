@@ -161,13 +161,14 @@ jobs:
           fi
           echo "✓ gcp/cloudbuild/cloudbuild-processor.yaml exists"
 
-          # Verify Skaffold rendering is enabled
-          if ! grep -q '\-\-skaffold\-file' gcp/cloudbuild/cloudbuild-processor.yaml; then
-            echo "❌ Cloud Build doesn't use Skaffold rendering!"
-            echo "   Add --skaffold-file=skaffold.yaml to release creation"
+          # Verify the processor Cloud Build deploys to production. Deployment is
+          # done directly with `kubectl set image` (Cloud Deploy release/Skaffold
+          # rendering was removed — it only fed the unused ci-cd-lab target).
+          if ! grep -q 'set image' gcp/cloudbuild/cloudbuild-processor.yaml; then
+            echo "❌ Cloud Build doesn't deploy to production (no 'kubectl set image')!"
             exit 1
           fi
-          echo "✓ Skaffold rendering enabled"
+          echo "✓ Production deploy (kubectl set image) present"
 
           echo ""
           echo "✅ Cloud Build configuration valid"
