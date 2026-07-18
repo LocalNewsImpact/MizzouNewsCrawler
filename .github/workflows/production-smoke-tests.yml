@@ -38,8 +38,8 @@ jobs:
 
       - name: Configure kubectl
         run: |
-          gcloud container clusters get-credentials mizzou-news-gke \
-            --region us-central1
+          gcloud container clusters get-credentials mizzou-cluster \
+            --zone us-central1-a
 
       - name: Wait for deployments to be ready
         run: |
@@ -47,7 +47,7 @@ jobs:
           echo ""
 
           TIMEOUT=600  # 10 minutes
-          SERVICES=(mizzou-api mizzou-processor mizzou-crawler)
+          SERVICES=(mizzou-api mizzou-processor work-queue)
 
           for service in "${SERVICES[@]}"; do
             echo "Checking $service deployment..."
@@ -149,46 +149,3 @@ jobs:
             echo "Check the logs above for details."
             exit 1
           fi
-
-      - name: Notify on failure
-        if: failure()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const issue_body = `## 🚨 Production Smoke Tests Failed
-
-            The E2E smoke tests failed after deployment to production.
-
-            **Workflow:** ${context.workflow}
-            **Run:** ${context.runId}
-            **Commit:** ${context.sha}
-
-            ### Action Required
-            - Check the [workflow run](${context.payload.repository.html_url}/actions/runs/${context.runId}) for details
-            - Verify production services are functioning correctly
-            - Consider rollback if critical functionality is broken
-
-            ### Quick Checks
-            \`\`\`bash
-            # Check recent extractions
-            kubectl exec -n production deployment/mizzou-processor -- python -c "
-            from src.models.database import DatabaseManager
-            from sqlalchemy import text
-            db = DatabaseManager()
-            with db.get_session() as session:
-                result = session.execute(text('SELECT COUNT(*) FROM articles WHERE extracted_at >= NOW() - INTERVAL \\'1 hour\\')).scalar()
-                print(f'Articles extracted in last hour: {result}')
-            "
-
-            # Check pod logs
-            kubectl logs -n production -l app=mizzou-processor --tail=100 | grep -i error
-            \`\`\`
-            `;
-
-            github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: `Production smoke tests failed - ${new Date().toISOString().split('T')[0]}`,
-              body: issue_body,
-              labels: ['bug', 'production', 'urgent']
-            });
