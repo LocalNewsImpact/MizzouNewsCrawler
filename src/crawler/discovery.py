@@ -3619,14 +3619,16 @@ class NewsDiscovery:
         )
 
         if self.telemetry and source_id and operation_id:
+            # Distinct name from the `status` HTTP-code int used earlier in
+            # this function — reusing it retypes the variable (mypy error).
             if len(discovered_articles) > 0:
-                status = DiscoveryMethodStatus.SUCCESS
+                method_status = DiscoveryMethodStatus.SUCCESS
             elif feeds_tried == 0:
-                status = DiscoveryMethodStatus.NO_FEED
+                method_status = DiscoveryMethodStatus.NO_FEED
             elif feeds_successful == 0:
-                status = DiscoveryMethodStatus.NO_FEED
+                method_status = DiscoveryMethodStatus.NO_FEED
             else:
-                status = DiscoveryMethodStatus.PARSE_ERROR
+                method_status = DiscoveryMethodStatus.PARSE_ERROR
 
             status_codes = []
             if feeds_tried > 0:
@@ -3640,7 +3642,7 @@ class NewsDiscovery:
                     source_id=source_id,
                     source_url=source_url,
                     discovery_method=DiscoveryMethod.RSS_FEED,
-                    status=status,
+                    status=method_status,
                     articles_found=len(discovered_articles),
                     response_time_ms=discovery_time * 1000,
                     status_codes=status_codes,

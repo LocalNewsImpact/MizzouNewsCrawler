@@ -16,6 +16,7 @@ from src.models.database import (  # noqa: E402
     read_candidate_links,
 )
 from src.utils.discovery_outcomes import DiscoveryOutcome  # noqa: E402
+from tests.helpers.discovery_stubs import stub_nonrss_discovery  # noqa: E402
 
 
 def _dummy_feed_return(source_url: str):
@@ -55,6 +56,10 @@ def test_fallback_flag_persisted(tmp_db_path, monkeypatch):
     # Create a normal NewsDiscovery instance and monkeypatch the
     # discover_with_rss_feeds method to return our fallback result.
     discovery = NewsDiscovery(database_url=tmp_db_path)
+    # Keep the other discovery methods (and the section-discovery homepage
+    # fetch) off the network — otherwise this test really fetches example.com
+    # on every process_source call (~15s of CI time).
+    stub_nonrss_discovery(monkeypatch, discovery)
 
     def dummy_rss_success(*args, **kwargs):
         return (

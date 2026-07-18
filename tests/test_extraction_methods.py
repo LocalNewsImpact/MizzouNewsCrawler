@@ -6,6 +6,7 @@ and the intelligent field-level fallback system.
 """
 
 import copy
+import os
 import textwrap
 from datetime import datetime
 from unittest.mock import Mock, patch
@@ -15,6 +16,15 @@ import requests
 
 import src.crawler as crawler_module
 from src.crawler import ContentExtractor
+
+# Live-site tests fetch real news websites (and launch real Selenium). Their
+# outcome depends on external sites being up and not blocking the runner, so
+# they add flake risk and 30-60s of network time each — not CI rigor. Run them
+# on demand when debugging extraction against the live sites.
+live_site_diagnostic = pytest.mark.skipif(
+    not os.getenv("RUN_LIVE_SITE_DIAGNOSTICS"),
+    reason="fetches live news websites; set RUN_LIVE_SITE_DIAGNOSTICS=1 to run",
+)
 
 
 @pytest.fixture
@@ -768,6 +778,9 @@ class TestRealWorldExtraction:
             "_extract_with_selenium",
             lambda url: None,
         )
+        # HTTP is fully mocked; the only wall-clock left is the extractor's
+        # inter-request rate-limit sleeps (~40s across the three URLs).
+        monkeypatch.setattr("src.crawler.time.sleep", lambda *_a, **_k: None)
 
         # Use mocked responses with realistic HTML that has missing fields
         # Based on actual HTML patterns from sites that had extraction issues
@@ -918,6 +931,7 @@ class TestRealWorldExtraction:
             print("   ANALYSIS: Extraction successful or no metadata found")
 
     @pytest.mark.integration
+    @live_site_diagnostic
     def test_individual_method_performance(self, extractor):
         """Test each extraction method individually on a real URL."""
         test_url = (
@@ -969,6 +983,7 @@ class TestRealWorldExtraction:
         print(f"   {method_name}: {field_status}")
 
     @pytest.mark.integration
+    @live_site_diagnostic
     def test_fallback_trigger_conditions(self, extractor):
         """Test that fallback mechanisms are triggered appropriately."""
         # Use a URL that typically has partial data
@@ -1295,9 +1310,13 @@ class TestFallbackMechanism:
     @pytest.mark.integration
     def test_partial_extraction_with_beautifulsoup_fallback(self, extractor):
         """Test fallback to BeautifulSoup for missing fields."""
+        # Selenium must be stubbed too: the np+bs results leave 'metadata'
+        # missing, so the cascade otherwise launches a REAL Chrome for
+        # https://test.com (~30-60s and network-dependent).
         with (
             patch.object(extractor, "_extract_with_newspaper") as mock_np,
             patch.object(extractor, "_extract_with_beautifulsoup") as mock_bs,
+            patch.object(extractor, "_extract_with_selenium", return_value={}),
         ):
             # Newspaper returns partial results
             mock_np.return_value = {
@@ -1550,6 +1569,7 @@ class TestRealWorldExtractionFailures:
         content_len = len(result["content"]) if result["content"] else 0
         print(f"Content length: {content_len}")
 
+    @live_site_diagnostic
     def test_multiple_failed_urls_batch(self, extractor):
         """Test extraction on multiple URLs that previously failed."""
         failed_urls = [

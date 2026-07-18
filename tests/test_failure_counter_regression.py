@@ -14,6 +14,18 @@ from sqlalchemy.orm import sessionmaker
 
 from src.crawler.discovery import NewsDiscovery
 from src.crawler.source_processing import SourceProcessor
+from tests.helpers.discovery_stubs import stub_nonrss_discovery_class
+
+
+@pytest.fixture(autouse=True)
+def _hermetic_discovery(monkeypatch):
+    """Stub non-RSS discovery and the section-discovery homepage fetch.
+
+    These tests patch ``_try_rss``/``_try_newspaper`` but the storysniffer
+    fallthrough and the per-``process()`` homepage fetch still hit the network
+    against fabricated hosts (~30s timeout each — ~60s of CI per run).
+    """
+    stub_nonrss_discovery_class(monkeypatch)
 
 
 @pytest.mark.integration
