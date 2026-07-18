@@ -39,11 +39,14 @@ concurrency:
 
 jobs:
   review:
-    # Only when a TRUSTED user comments "@claude review" on a PR (not a plain
-    # issue). The author_association guard blocks outside contributors from
-    # spending the subscription or triggering the workflow with our credentials.
+    # Only when a TRUSTED user asks Claude to review a PR (not a plain issue).
+    # Match any comment that mentions @claude AND "review" so natural phrasings
+    # all work ("@claude review", "@claude code review", "@claude please review").
+    # The author_association guard blocks outside contributors from spending the
+    # subscription or triggering the workflow with our credentials.
     if: >-
-      contains(github.event.comment.body, '@claude review')
+      contains(github.event.comment.body, '@claude')
+      && contains(github.event.comment.body, 'review')
       && (github.event.issue.pull_request != null
           || github.event_name == 'pull_request_review_comment')
       && (github.event.comment.author_association == 'OWNER'
