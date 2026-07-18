@@ -549,6 +549,10 @@ class ContentExtractor:
     # Domains for which the shared driver already holds an authenticated session.
     # Reset whenever the shared driver is recreated (see close_persistent_driver).
     _authenticated_domains: set = set()
+    # Domains whose login attempt already failed on this driver. Negatively
+    # cached so a broken login isn't retried (each attempt polls ~20-35s) on
+    # every subsequent article. Reset with the driver, like the set above.
+    _auth_failed_domains: set = set()
 
     def __init__(
         self,
@@ -1657,16 +1661,18 @@ class ContentExtractor:
             )
             return ("http", None)
 
-    def _get_domain_auth_config(self, domain: str) -> Optional[dict]:
-        """Return the authenticated-extraction config for a domain, or None.
+    def _get_domain_auth_config(self, host: str) -> Optional[dict]:
+        """Return the authenticated-extraction config for a host, or None.
 
-        Looks up the sources table for a publisher that requires login. Result
-        (including negative results) is cached in-memory per domain.
+        ``host`` is a normalized bare host (no "www."/port). Matches the sources
+        table on host or host_norm, with or without the www. prefix, for a
+        publisher that requires login. Result (including negative results) is
+        cached in-memory per host.
 
         Returns a dict with keys: auth_type, auth_secret_name, auth_config
-        when the domain requires login; otherwise None.
+        when the host requires login; otherwise None.
         """
-        cache_key = f"auth_config:{domain}"
+        cache_key = f"auth_config:{host}"
         cache = getattr(self, "_auth_config_cache", None)
         if cache is not None and cache_key in cache:
             return cache[cache_key]
@@ -1687,8 +1693,10 @@ class ContentExtractor:
                                auth_config
                         FROM sources
                         WHERE host = :host
+                           OR host = :www_host
+                           OR host_norm = :host
                         """),
-                    {"host": domain},
+                    {"host": host, "www_host": f"www.{host}"},
                 ).fetchone()
 
             if row and row[0]:
@@ -1704,7 +1712,7 @@ class ContentExtractor:
                     "auth_config": raw_config or {},
                 }
         except Exception as e:
-            logger.error(f"Failed to load auth config for {domain}: {e}", exc_info=True)
+            logger.error(f"Failed to load auth config for {host}: {e}", exc_info=True)
             result = None
 
         if not hasattr(self, "_auth_config_cache"):
@@ -1716,12 +1724,22 @@ class ContentExtractor:
         """Ensure the shared driver holds a session for a login-gated domain.
 
         No-op unless the domain's source record has requires_login set. Performs
-        the login at most once per driver lifetime per domain.
+        the login at most once per driver lifetime per domain, and does not retry
+        a domain whose login already failed on this driver.
         """
-        if domain in ContentExtractor._authenticated_domains:
+        # Normalize to a bare host (drop any userinfo/port and a leading "www.")
+        # so a publisher matches whether the article URL uses www. or not and
+        # whether the source stores host with or without the prefix.
+        host = domain.lower().split("@")[-1].split(":")[0]
+        if host.startswith("www."):
+            host = host[4:]
+        if (
+            host in ContentExtractor._authenticated_domains
+            or host in ContentExtractor._auth_failed_domains
+        ):
             return
 
-        auth = self._get_domain_auth_config(domain)
+        auth = self._get_domain_auth_config(host)
         if not auth:
             return
 
@@ -1737,15 +1755,16 @@ class ContentExtractor:
             # each mechanism validates the fields it actually needs.
             credentials = resolve_auth_credentials(secret_name)
             if not credentials.get("username") and not credentials.get("account_id"):
+                ContentExtractor._auth_failed_domains.add(host)
                 logger.warning(
                     "Skipping login for %s: credentials for secret '%s' "
                     "could not be resolved",
-                    domain,
+                    host,
                     secret_name,
                 )
                 return
 
-            logger.info("Authenticating to %s before extraction", domain)
+            logger.info("Authenticating to %s before extraction", host)
             ok = perform_login(
                 driver,
                 auth_type=auth.get("auth_type"),
@@ -1753,16 +1772,19 @@ class ContentExtractor:
                 credentials=credentials,
             )
             if ok:
-                ContentExtractor._authenticated_domains.add(domain)
-                logger.info("Authenticated session established for %s", domain)
+                ContentExtractor._authenticated_domains.add(host)
+                logger.info("Authenticated session established for %s", host)
             else:
+                ContentExtractor._auth_failed_domains.add(host)
                 logger.warning(
-                    "Login to %s did not confirm; continuing unauthenticated",
-                    domain,
+                    "Login to %s did not confirm; continuing unauthenticated "
+                    "(won't retry on this driver)",
+                    host,
                 )
         except Exception as e:
+            ContentExtractor._auth_failed_domains.add(host)
             logger.error(
-                "Authentication attempt for %s failed: %s", domain, e, exc_info=True
+                "Authentication attempt for %s failed: %s", host, e, exc_info=True
             )
 
     def _convert_to_amp_url(self, url: str) -> List[str]:
@@ -2148,8 +2170,10 @@ class ContentExtractor:
             finally:
                 ContentExtractor._shared_persistent_driver = None
                 ContentExtractor._shared_driver_reuse_count = 0
-                # New driver starts with no authenticated sessions.
+                # New driver starts with no authenticated sessions and a clean
+                # login-failure cache.
                 ContentExtractor._authenticated_domains = set()
+                ContentExtractor._auth_failed_domains = set()
 
     def _maybe_import_selenium_cookies(self, driver, domain: str) -> bool:
         """If a cookie file is present, import cookies into the Selenium session.
@@ -7095,29 +7119,33 @@ class ContentExtractor:
                 if len(text) > 100:  # Minimum content length
                     return text
 
-        # Meta description fallback — for paywalled/blocked sites where all body
-        # selectors fail or yield only nav/subscription text.  og:description and
-        # meta[name=description] typically contain a 150-200 char article lede
-        # written by the publisher, which is more useful than a full body dump
-        # of navigation + paywall prompts.
-        meta_attr_sets: List[Dict[str, Any]] = [
-            {"property": "og:description"},
-            {"name": "description"},
-            {"name": "twitter:description"},
-        ]
-        for meta_attrs in meta_attr_sets:
-            m = soup.find("meta", attrs=meta_attrs)
-            if m:
-                content = (m.get("content") or "").strip()
-                if len(content) >= 60:
-                    return content
+        # Compute the body-text fallback up front so we can decide between it
+        # and the meta-description lede below.
+        body = soup.find("body")
+        body_text = body.get_text(separator=" ", strip=True) if body else ""
+
+        # Meta description fallback — for paywalled/blocked sites where the body
+        # is only navigation + a subscription prompt. og:description /
+        # meta[name=description] usually carry a 150-200 char publisher lede that
+        # beats a junk body dump. Only prefer it when the body is too thin to be
+        # the real article, so a normal page whose specific content selectors
+        # merely missed still returns its full body text (not a truncated lede).
+        if len(body_text) < 500:
+            meta_attr_sets: List[Dict[str, Any]] = [
+                {"property": "og:description"},
+                {"name": "description"},
+                {"name": "twitter:description"},
+            ]
+            for meta_attrs in meta_attr_sets:
+                m = soup.find("meta", attrs=meta_attrs)
+                if m:
+                    content = (m.get("content") or "").strip()
+                    if len(content) >= 60:
+                        return content
 
         # Fallback to body
-        body = soup.find("body")
-        if body:
-            text = body.get_text(separator=" ", strip=True)
-            if len(text) > 100:
-                return text
+        if len(body_text) > 100:
+            return body_text
 
         return None
 

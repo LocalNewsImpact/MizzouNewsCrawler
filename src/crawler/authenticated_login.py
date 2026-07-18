@@ -324,11 +324,17 @@ def _login_auth0(driver, cfg: dict, username: str, password: str) -> bool:
     if not _fill_and_submit(driver, cfg, username, password):
         return False
 
-    # Success = Auth0 redirects back to the app callback (off the login domain,
-    # or carrying an authorization ?code=).
+    # Success = Auth0 redirects back to the app callback (off the login host,
+    # or carrying an authorization ?code=). Compare the URL's host rather than
+    # substring-testing the domain, so a callback URL that merely echoes the
+    # Auth0 domain in a query param (e.g. ?returnTo=https://tenant.auth0.com/…)
+    # isn't misread as success.
+    def _off_auth0_host(url: str) -> bool:
+        return urllib.parse.urlparse(url).netloc != domain
+
     def _redirected(d):
         cur = d.current_url
-        return (domain not in cur) or ("code=" in cur)
+        return _off_auth0_host(cur) or ("code=" in cur)
 
     try:
         WebDriverWait(driver, 25).until(_redirected)
@@ -336,7 +342,7 @@ def _login_auth0(driver, cfg: dict, username: str, password: str) -> bool:
         pass
     time.sleep(3)
     current = driver.current_url
-    return (domain not in current) or ("code=" in current)
+    return _off_auth0_host(current) or ("code=" in current)
 
 
 def _login_form(driver, cfg: dict, username: str, password: str) -> bool:
