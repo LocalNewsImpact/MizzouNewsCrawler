@@ -158,9 +158,13 @@ jobs:
             PYTEST_CMD="$PYTEST_CMD -k ${{ github.event.inputs.test_filter }}"
           fi
 
-          # Run tests with timeout
-          timeout 600 kubectl exec -n production "$POD_NAME" -- bash -c "$PYTEST_CMD"
+          # Run tests with timeout, teeing output so Report results can list
+          # exactly which tests failed.
+          set -o pipefail
+          timeout 600 kubectl exec -n production "$POD_NAME" -- bash -c "$PYTEST_CMD" \
+            | tee /tmp/smoke-output.log
           TEST_RESULT=$?
+          set +o pipefail
 
           if [ $TEST_RESULT -eq 124 ]; then
             echo "❌ Tests timed out after 10 minutes"
@@ -173,12 +177,35 @@ jobs:
       - name: Report results
         if: always()
         run: |
+          summary() { echo "$1" | tee -a "$GITHUB_STEP_SUMMARY"; }
+
           if [ "${{ steps.wait_ready.outputs.skip }}" == "true" ]; then
-            echo "⏸️  Production scaled to zero — smoke tests skipped (not a failure)."
-          elif [ "${{ steps.smoke_tests.outcome }}" == "success" ]; then
-            echo "✅ All smoke tests passed!"
+            summary "⏸️  Production scaled to zero — smoke tests skipped (not a failure)."
+            exit 0
+          fi
+
+          # Per-test tallies from the captured pytest output
+          if [ -f /tmp/smoke-output.log ]; then
+            TALLY=$(grep -E "^[0-9]+ (passed|failed)|passed|failed" /tmp/smoke-output.log | tail -1)
+            summary "## Production smoke tests"
+            summary ""
+            summary "**Result line:** \`${TALLY:-unavailable}\`"
+            FAILED_TESTS=$(grep -E "^FAILED " /tmp/smoke-output.log | sed 's/^FAILED /- /' || true)
+            if [ -n "$FAILED_TESTS" ]; then
+              summary ""
+              summary "### Failed tests"
+              summary "$FAILED_TESTS"
+              summary ""
+              summary "### Failure reasons"
+              grep -E "AssertionError|DatabaseError|Error:" /tmp/smoke-output.log \
+                | grep -vE "^\s*(E\s+\||raise )" | sort -u | head -25 \
+                | sed 's/^/- /' | tee -a "$GITHUB_STEP_SUMMARY" || true
+            fi
+          fi
+
+          if [ "${{ steps.smoke_tests.outcome }}" == "success" ]; then
+            summary "✅ All smoke tests passed!"
           else
-            echo "❌ Smoke tests failed!"
-            echo "Check the logs above for details."
+            summary "❌ Smoke tests failed — see the list above."
             exit 1
           fi
