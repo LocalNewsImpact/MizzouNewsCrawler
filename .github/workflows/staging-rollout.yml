@@ -58,6 +58,8 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ inputs.gcp-project }}
+          # kubectl against modern GKE needs the auth plugin (not bundled by default)
+          install_components: 'gke-gcloud-auth-plugin'
 
       - name: Configure Docker for Artifact Registry
         run: |

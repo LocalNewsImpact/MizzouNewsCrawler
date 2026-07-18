@@ -35,6 +35,10 @@ jobs:
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
+        with:
+          # kubectl against modern GKE needs the auth plugin (not bundled by default):
+          # "exec: executable gke-gcloud-auth-plugin not found"
+          install_components: 'gke-gcloud-auth-plugin'
 
       - name: Configure kubectl
         run: |
