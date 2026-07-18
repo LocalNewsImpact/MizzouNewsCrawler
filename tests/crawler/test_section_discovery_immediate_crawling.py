@@ -156,12 +156,42 @@ class TestNewspaper4kSectionCrawling:
             side_effect=lambda u: u.lower()
         )
 
-        # Mock HTTP request for homepage
-        with patch.object(discovery_instance, "session") as mock_session:
+        # The build subprocess sidesteps the build() mock entirely: newspaper
+        # build runs in a spawned child process, which re-imports the module
+        # and calls the REAL newspaper.build (fetching example.com — ~7s of
+        # CI time). Stub the Process: the worker's output file is then never
+        # written and the code falls back to urls=[], which is exactly what
+        # the mocked build produced for this test anyway.
+        class _FakeBuildProcess:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def start(self):
+                pass
+
+            def join(self, timeout=None):
+                pass
+
+            def is_alive(self):
+                return False
+
+            def terminate(self):
+                pass
+
+        # Mock HTTP request for homepage. The homepage fetch goes through
+        # _fetch_with_ssl_fallback (plain requests), NOT self.session — without
+        # patching it this test really fetched example.com (~15s of CI time).
+        with (
+            patch("multiprocessing.Process", _FakeBuildProcess),
+            patch.object(discovery_instance, "session") as mock_session,
+        ):
             mock_response = MagicMock()
             mock_response.status_code = 200
             mock_response.text = "<html><body>Homepage</body></html>"
             mock_session.get.return_value = mock_response
+            discovery_instance._fetch_with_ssl_fallback = Mock(
+                return_value=mock_response
+            )
 
             # Execute discovery (don't need results, just checking it doesn't early return)
             _ = discovery_instance.discover_with_newspaper4k(

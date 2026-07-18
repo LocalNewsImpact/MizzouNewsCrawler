@@ -80,6 +80,9 @@ def test_populate_inserts_gazetteer_rows(in_memory_db):
     with (
         patch("requests.get", return_value=mock_get),
         patch("requests.post", return_value=mock_post),
+        # HTTP is mocked, but the script's OSM politeness sleeps
+        # (1-2.5s between requests) still run — ~35s of dead time.
+        patch("scripts.populate_gazetteer.time.sleep", lambda *_a, **_k: None),
     ):
         import importlib
 

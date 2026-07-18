@@ -179,13 +179,18 @@ def test_form_login_success(monkeypatch):
     assert password.value == "pw"
 
 
-def test_form_login_no_fields_returns_false():
+def test_form_login_no_fields_returns_false(_no_sleep):
     login_url = "https://news.example.com/login"
     driver = FakeDriver({}, login_url=login_url, success_url="x")
     ok = al.perform_login(
         driver,
         auth_type="form",
-        auth_config={"login_url": login_url},
+        auth_config={
+            "login_url": login_url,
+            # The fields never appear (that's the point) — don't poll the
+            # default 20s field_timeout waiting for them.
+            "field_timeout": 0,
+        },
         username="user@example.com",
         password="pw",
     )

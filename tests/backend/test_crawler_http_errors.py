@@ -16,6 +16,13 @@ from src.crawler import ContentExtractor, NotFoundError, RateLimitError
 class TestCrawlerHTTPErrorHandling:
     """Test suite for HTTP error handling in ContentExtractor."""
 
+    @pytest.fixture(autouse=True)
+    def _no_sleep(self, monkeypatch):
+        """No-op inter-request rate-limit and backoff sleeps: HTTP is fully
+        mocked here and the assertions are about error classification, so the
+        real delays (~29s across the class) verify nothing."""
+        monkeypatch.setattr("src.crawler.time.sleep", lambda *_a, **_k: None)
+
     @pytest.fixture
     def extractor(self):
         """Create ContentExtractor instance for testing."""

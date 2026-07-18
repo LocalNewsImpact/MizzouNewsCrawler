@@ -656,6 +656,7 @@ class TestContentExtractorIntegration:
         # Explicitly close store connection to avoid leaks
         store.shutdown()
 
+    @patch("src.crawler.time.sleep", new=lambda *_a, **_k: None)
     @patch("src.crawler.requests.Session.get")
     def test_extractor_with_telemetry_success(self, mock_get, temp_db):
         """Test ContentExtractor with telemetry tracking for successful extraction."""
@@ -680,8 +681,13 @@ class TestContentExtractorIntegration:
             "test-op", "test-article", "https://test.com/article", "test.com"
         )
 
-        # Extract content with telemetry
-        result = extractor.extract_content("https://test.com/article", metrics=metrics)
+        # Extract content with telemetry. Selenium is stubbed: the sparse mock
+        # HTML leaves fields missing, and the cascade otherwise launches a
+        # REAL Chrome for test.com (~40s and network-dependent).
+        with patch.object(extractor, "_extract_with_selenium", return_value={}):
+            result = extractor.extract_content(
+                "https://test.com/article", metrics=metrics
+            )
 
         # Verify extraction succeeded
         assert result is not None
@@ -695,6 +701,7 @@ class TestContentExtractorIntegration:
         # At least one method succeeded
         assert any(metrics.method_success.values())
 
+    @patch("src.crawler.time.sleep", new=lambda *_a, **_k: None)
     @patch("src.crawler.requests.Session.get")
     def test_extractor_with_telemetry_http_error(self, mock_get, temp_db):
         """Test ContentExtractor with telemetry tracking for HTTP error."""
@@ -725,8 +732,13 @@ class TestContentExtractorIntegration:
                 "forbidden.com",
             )
 
-            # Extract content (should raise but still capture HTTP status)
-            with pytest.raises(RateLimitError):
+            # Extract content (should raise but still capture HTTP status).
+            # Selenium stubbed for the same reason as the success test: the
+            # cascade otherwise launches a real Chrome for forbidden.com.
+            with (
+                patch.object(extractor, "_extract_with_selenium", return_value={}),
+                pytest.raises(RateLimitError),
+            ):
                 extractor.extract_content(
                     "https://forbidden.com/article", metrics=metrics
                 )

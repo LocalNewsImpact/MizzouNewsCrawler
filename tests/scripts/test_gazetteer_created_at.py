@@ -101,6 +101,9 @@ def test_created_at_present_in_postgres_bulk_insert_branch(sqlite_engine):
             patch("requests.get", return_value=mock_get),
             patch("requests.post", return_value=mock_post),
             patch("src.models.database.DatabaseManager", FakeDBM),
+            # HTTP is mocked, but the script's OSM politeness sleeps
+            # (1-2.5s between requests) still run — ~38s of dead time.
+            patch("scripts.populate_gazetteer.time.sleep", lambda *_a, **_k: None),
         ):
             popmod.main(
                 database_url=str(sqlite_engine.url),

@@ -247,11 +247,14 @@ def _fill_and_submit(driver, cfg: dict, username: str, password: str) -> bool:
     submit_sel = cfg.get("submit_selector")
 
     # The form may be rendered by JS after load; poll for the email field.
+    # The timeout is config-overridable (tests use a tiny value so a login
+    # page with no fields fails fast instead of polling for 20s).
     email_el = None
-    deadline = time.time() + 20
-    while time.time() < deadline:
+    field_timeout = float(cfg.get("field_timeout", 20))
+    deadline = time.time() + field_timeout
+    while True:
         email_el, _ = _find_first(driver, [email_sel, *EMAIL_CANDIDATES])
-        if email_el:
+        if email_el or time.time() >= deadline:
             break
         time.sleep(1)
     if not email_el:
