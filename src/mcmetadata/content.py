@@ -185,12 +185,27 @@ markdown_img_path_pattern = re.compile(r"!\[[^\]]*\]\((.*?)\)")
 class TrafilaturaExtractor(AbstractExtractor):
 
     def extract(self, url: str, html_text: str, include_metadata: bool = False):
-        results = trafilatura.bare_extraction(
+        raw = trafilatura.bare_extraction(
             html_text,
             only_with_metadata=include_metadata,
             url=url,
             include_images=include_metadata,
         )
+        # trafilatura < 2 returns a dict; >= 2 returns a Document object
+        # ('Document' object is not subscriptable). Normalize to a dict so the
+        # rest of this extractor works under both. Guarded by
+        # tests/dependency_contracts/test_extraction_stack.py.
+        if raw is None:
+            raise ValueError("trafilatura.bare_extraction returned nothing")
+        if isinstance(raw, dict):
+            results = raw
+        elif hasattr(raw, "as_dict"):
+            results = raw.as_dict()
+        else:
+            results = {
+                key: getattr(raw, key, None)
+                for key in ("text", "title", "url", "date", "author")
+            }
         image_urls = []
         if include_metadata:
             # pull out the images embedded in the markdown
@@ -200,16 +215,19 @@ class TrafilaturaExtractor(AbstractExtractor):
             text = markdown_img_path_pattern.sub("", results["text"])
         else:
             text = results["text"]
+        publish_date_raw = results.get("date")
         self.content = {
             "url": url,
             "text": text,
-            "title": results["title"],
-            "canonical_url": results[
-                "url"
-            ],  # Warning: This will not work with Trafilatura v1.11.* and later
-            "potential_publish_date": dateparser.parse(results["date"]),
+            "title": results.get("title"),
+            "canonical_url": results.get("url"),
+            "potential_publish_date": (
+                dateparser.parse(publish_date_raw) if publish_date_raw else None
+            ),
             "top_image_url": image_urls[0] if len(image_urls) > 0 else None,
-            "authors": results["author"].split(",") if results["author"] else None,
+            "authors": (
+                results.get("author").split(",") if results.get("author") else None
+            ),
             "extraction_method": METHOD_TRAFILATURA,
         }
 
