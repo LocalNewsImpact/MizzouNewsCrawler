@@ -86,7 +86,10 @@ steps:
               pip freeze 2>/dev/null | grep -iE "^(trafilatura|transformers|torch|scikit-learn|scikit_learn|pandas|numpy|newspaper4k|spacy|nltk|selenium|undetected-chromedriver|fastapi|pydantic|storysniffer|htmldate|dateparser|readability-lxml|goose3|boilerpy3|feedparser|rapidfuzz|warcio|beautifulsoup4|lxml|tldextract)==" || true
               echo "──────────────────────────────────────────────"
               pip install --no-cache-dir -q pytest || pip install --no-cache-dir -q --user pytest
-              python -m pytest /contracts -q -o addopts="" -p no:cacheprovider
+              # -rs: print every skip WITH its reason (venue guards must be
+              # auditable — a skip should say "no Chrome in this image", not
+              # hide in a count)
+              python -m pytest /contracts -q -rs -o addopts="" -p no:cacheprovider
             '
         }
 
