@@ -82,7 +82,7 @@ jobs:
               Dockerfile.ci-base|requirements-dev.txt) add ci-base ;;
               Dockerfile.processor|requirements-processor.txt) add processor ;;
               Dockerfile.crawler|requirements-crawler.txt) add crawler ;;
-              Dockerfile.api|requirements-api.txt) add api ;;
+              Dockerfile.api|requirements-api.txt|backend/*) add api ;;
               Dockerfile.migrator|requirements-migrator.txt) add migrator ;;
             esac
           done <<< "$changed"
