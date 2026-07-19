@@ -93,11 +93,19 @@ class TestStorySnifferSklearn:
     def test_skops_model_loads_and_guesses(self):
         storysniffer = pytest.importorskip("storysniffer")
 
-        sniffer = storysniffer.StorySniffer()
-        article_guess = sniffer.guess(
-            "https://www.example-gazette.com/2026/03/05/city-council-budget/"
-        )
-        section_guess = sniffer.guess("https://www.example-gazette.com/about")
+        try:
+            sniffer = storysniffer.StorySniffer()
+            article_guess = sniffer.guess(
+                "https://www.example-gazette.com/2026/03/05/city-council-budget/"
+            )
+            section_guess = sniffer.guess("https://www.example-gazette.com/about")
+        except (KeyError, RuntimeError, OSError) as exc:
+            # StorySniffer's tldextract fetches the public-suffix list on a
+            # cold cache; venues with blocked/proxied egress (CI unit-test
+            # network guard) can't. The binding venue is inside the Cloud
+            # Build images (direct egress). A sklearn-incompatible skops
+            # model raises sklearn/skops errors, NOT these network shapes.
+            pytest.skip(f"PSL fetch unavailable in this venue: {exc}")
         # Contract: boolean-like results (numpy bools in practice) without
         # raising — a sklearn-incompatible skops pickle raises at load or
         # predict time. An obviously article-shaped URL must classify True.
