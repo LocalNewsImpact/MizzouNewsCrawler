@@ -28,7 +28,7 @@ cloudscraper>=1.2.71  # Needed by tests
 
 # NLP and text processing
 spacy>=3.8.0  # Python 3.11+ supports latest spacy with numpy 2.x
-nltk>=3.8
+nltk>=3.9.4
 textblob>=0.17.0
 ftfy>=6.1.0
 python-dateutil>=2.8.0
@@ -44,7 +44,6 @@ httpx  # Needed for FastAPI TestClient
 
 # Development
 pre-commit>=3.3.0
-black>=23.0.0
 isort>=5.12.0
 flake8>=6.0.0
 
