@@ -1009,8 +1009,11 @@ class TestContentValidationWithPersistentPatterns:
         # Verify remaining content is less than MIN_CONTENT_LENGTH (150)
         assert len(stripped_content.strip()) < 150
 
-        # Verify pattern lookup was called
-        mock_telemetry.get_persistent_patterns.assert_called_with("testboilerplate.com")
+        # Verify pattern lookup was called (no article_id -> source_id is None,
+        # so the reader falls back to domain-keyed patterns)
+        mock_telemetry.get_persistent_patterns.assert_called_with(
+            "testboilerplate.com", source_id=None
+        )
 
 
 @pytest.mark.postgres

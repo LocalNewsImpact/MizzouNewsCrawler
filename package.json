@@ -3,13 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "devDependencies": {
-    "markdownlint-cli2": "^0.12.0"
+    "markdownlint-cli2": "^0.23.1"
   },
   "scripts": {
     "lint:md": "markdownlint-cli2 --ignore '**/node_modules/**' '**/*.md'",
     "lint:md:fix": "markdownlint-cli2 --fix --ignore '**/node_modules/**' '**/*.md'"
   },
   "dependencies": {
-    "markdownlint-cli": "^0.45.0"
+    "markdownlint-cli": "^0.49.1"
   }
 }

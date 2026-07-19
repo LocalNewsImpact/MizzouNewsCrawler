@@ -27,7 +27,7 @@ jobs:
       services_to_build: ${{ steps.services.outputs.list }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0  # Full history to compare with previous commits
 
@@ -214,18 +214,18 @@ jobs:
         if: needs.detect-changes.outputs.base != 'true'
         run: 'echo "Info: Base image not requested; skipping Cloud Build trigger."'
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: needs.detect-changes.outputs.base == 'true'
 
       - name: Authenticate to Google Cloud
         if: needs.detect-changes.outputs.base == 'true'
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Set up Cloud SDK
         if: needs.detect-changes.outputs.base == 'true'
-        uses: google-github-actions/setup-gcloud@v1
+        uses: google-github-actions/setup-gcloud@v3
 
       - name: Trigger Cloud Build
         id: trigger
@@ -278,18 +278,18 @@ jobs:
         if: needs.detect-changes.outputs.ml_base != 'true'
         run: 'echo "Info: ML base image not requested; skipping Cloud Build trigger."'
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: needs.detect-changes.outputs.ml_base == 'true'
 
       - name: Authenticate to Google Cloud
         if: needs.detect-changes.outputs.ml_base == 'true'
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Set up Cloud SDK
         if: needs.detect-changes.outputs.ml_base == 'true'
-        uses: google-github-actions/setup-gcloud@v1
+        uses: google-github-actions/setup-gcloud@v3
 
       - name: Trigger Cloud Build
         id: trigger
@@ -340,18 +340,18 @@ jobs:
         if: needs.detect-changes.outputs.processor != 'true'
         run: 'echo "Info: Processor image not requested; skipping Cloud Build trigger."'
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: needs.detect-changes.outputs.processor == 'true'
 
       - name: Authenticate to Google Cloud
         if: needs.detect-changes.outputs.processor == 'true'
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Set up Cloud SDK
         if: needs.detect-changes.outputs.processor == 'true'
-        uses: google-github-actions/setup-gcloud@v1
+        uses: google-github-actions/setup-gcloud@v3
 
       - name: Trigger Cloud Build
         id: trigger
@@ -383,18 +383,18 @@ jobs:
         if: needs.detect-changes.outputs.api != 'true'
         run: 'echo "Info: API image not requested; skipping Cloud Build trigger."'
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: needs.detect-changes.outputs.api == 'true'
 
       - name: Authenticate to Google Cloud
         if: needs.detect-changes.outputs.api == 'true'
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Set up Cloud SDK
         if: needs.detect-changes.outputs.api == 'true'
-        uses: google-github-actions/setup-gcloud@v1
+        uses: google-github-actions/setup-gcloud@v3
 
       - name: Trigger Cloud Build
         id: trigger
@@ -426,18 +426,18 @@ jobs:
         if: needs.detect-changes.outputs.crawler != 'true'
         run: 'echo "Info: Crawler image not requested; skipping Cloud Build trigger."'
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: needs.detect-changes.outputs.crawler == 'true'
 
       - name: Authenticate to Google Cloud
         if: needs.detect-changes.outputs.crawler == 'true'
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Set up Cloud SDK
         if: needs.detect-changes.outputs.crawler == 'true'
-        uses: google-github-actions/setup-gcloud@v1
+        uses: google-github-actions/setup-gcloud@v3
 
       - name: Trigger Cloud Build
         id: trigger
@@ -464,15 +464,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1
+        uses: google-github-actions/setup-gcloud@v3
 
       - name: Wait for builds to complete
         env:
@@ -626,7 +626,7 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 

@@ -1047,13 +1047,21 @@ class BalancedBoundaryContentCleaner:
         }
 
     def _remove_persistent_patterns(
-        self, text: str, domain: str, article_id: str | None = None
+        self,
+        text: str,
+        domain: str,
+        article_id: str | None = None,
+        source_id: str | None = None,
     ) -> dict:
-        """Check text against persistent patterns for quick removal."""
+        """Check text against persistent patterns for quick removal.
+
+        Patterns are keyed by the stable source UUID; ``domain`` is passed only
+        as a fallback for legacy rows not yet stamped with a source_id.
+        """
         if not self.enable_telemetry:
             return {"cleaned_text": text, "removals": [], "wire_detected": None}
 
-        patterns = self.telemetry.get_persistent_patterns(domain)
+        patterns = self.telemetry.get_persistent_patterns(domain, source_id=source_id)
         if not patterns:
             return {"cleaned_text": text, "removals": [], "wire_detected": None}
 
@@ -1311,9 +1319,16 @@ class BalancedBoundaryContentCleaner:
         dry_run: bool = False,
     ) -> tuple[str, dict]:
         """Process a single article to remove boilerplate."""
+        # Resolve the stable source UUID so patterns are keyed by source, not
+        # by the drifting domain string (www/protocol/subdomain vary; a domain
+        # is not 1:1 with a source).
+        source_id = self._get_source_id_for_article(article_id) if article_id else None
+
         # Start telemetry session
         if self.enable_telemetry:
-            self.telemetry.start_cleaning_session(domain, article_count=1)
+            self.telemetry.start_cleaning_session(
+                domain, article_count=1, source_id=source_id
+            )
 
         original_text = text
 
@@ -1329,7 +1344,7 @@ class BalancedBoundaryContentCleaner:
 
         # Check persistent patterns for quick matching
         removed_by_persistent = self._remove_persistent_patterns(
-            text, domain, article_id
+            text, domain, article_id, source_id=source_id
         )
 
         removal_details: list[dict[str, Any]] = []
@@ -1946,6 +1961,34 @@ class BalancedBoundaryContentCleaner:
                     "detection_method": "regex_pattern",
                 }
 
+        return None
+
+    def _get_source_id_for_article(self, article_id: str) -> str | None:
+        """Resolve the stable source UUID an article belongs to.
+
+        Patterns are keyed by this UUID rather than the URL/domain string.
+        Returns None if the article isn't linked to a source (so the reader
+        falls back to legacy domain-keyed patterns).
+        """
+        try:
+            with self._session_scope() as (session, _should_commit):
+                result = safe_session_execute(
+                    session,
+                    sql_text("""
+                    SELECT cl.source_id
+                    FROM articles a
+                    JOIN candidate_links cl ON a.candidate_link_id = cl.id
+                    WHERE a.id = :article_id
+                    """),
+                    {"article_id": article_id},
+                )
+                row = result.fetchone()
+                if row and row[0]:
+                    return str(row[0])
+        except Exception as exc:  # noqa: BLE001 - resolver must never break cleaning
+            self.logger.debug(
+                "Could not resolve source_id for article %s: %s", article_id, exc
+            )
         return None
 
     def _get_article_source_context(
