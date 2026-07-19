@@ -101,7 +101,16 @@ steps:
 
         if want processor; then
           build processor --build-arg "ML_BASE_IMAGE=$$MLBASE_IMG"
-          smoke processor python -c "from src.ml.article_classifier import ArticleClassifier; print('processor OK')"
+          # Assert the trafilatura-based extractor is actually enabled — the
+          # processor image runs extraction, and a missing mcmetadata dep
+          # silently sets MCMETADATA_AVAILABLE=False (regression guard).
+          smoke processor python -c "
+        from src.ml.article_classifier import ArticleClassifier
+        from src.crawler import MCMETADATA_AVAILABLE
+        assert MCMETADATA_AVAILABLE, 'mcmetadata/trafilatura NOT available in processor image'
+        import trafilatura
+        print('processor OK — mcmetadata enabled, trafilatura', trafilatura.__version__)
+        "
         fi
 
         if want crawler; then
