@@ -186,6 +186,11 @@ simple_*.py
 find_*.py
 debug_*.py
 test_*.py
+# Legit CLI command source that the broad test_*.py pattern wrongly caught —
+# referenced by src/cli/cli_modular.py ("test-domain" command). Without this
+# it never got committed, so the command was dead in prod and its test failed
+# to import in CI.
+!src/cli/commands/test_domain.py
 !tests/
 !tests/**
 

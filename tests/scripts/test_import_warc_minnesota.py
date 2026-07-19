@@ -7,7 +7,14 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from scripts.import_warc_minnesota import WARCImporter
+# warcio is a processor-image dependency (requirements-processor.txt), absent
+# from the ci-base test image. Skip the whole module when it (and thus the
+# import script that needs it) can't be imported, so collection stays safe in
+# environments without it. This is a collection-time guard — a marker can't do
+# it, because pytest imports the module before markers are evaluated.
+pytest.importorskip("warcio")
+
+from scripts.import_warc_minnesota import WARCImporter  # noqa: E402
 
 
 class TestWARCImporter:
