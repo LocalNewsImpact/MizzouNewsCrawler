@@ -81,6 +81,10 @@ steps:
           docker run --rm \
             -v /workspace/tests/dependency_contracts:/contracts:ro \
             --entrypoint bash "$$img:pr-check" -c '
+              echo "── contract evidence: image='"$$img"':pr-check ──"
+              python -V
+              pip freeze 2>/dev/null | grep -iE "^(trafilatura|transformers|torch|scikit-learn|scikit_learn|pandas|numpy|newspaper4k|spacy|nltk|selenium|undetected-chromedriver|fastapi|pydantic|storysniffer|htmldate|dateparser|readability-lxml|goose3|boilerpy3|feedparser|rapidfuzz|warcio|beautifulsoup4|lxml|tldextract)==" || true
+              echo "──────────────────────────────────────────────"
               pip install --no-cache-dir -q pytest || pip install --no-cache-dir -q --user pytest
               python -m pytest /contracts -q -o addopts="" -p no:cacheprovider
             '
