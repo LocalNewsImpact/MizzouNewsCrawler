@@ -60,9 +60,13 @@ steps:
         }
 
         smoke() {
+          # --entrypoint override: some images (migrator) have entrypoints
+          # that validate runtime env vars before executing anything — the
+          # smoke must run the probe command directly.
           local img="$$1"; shift
+          local ep="$$1"; shift
           echo "🧪 Smoke: $$img"
-          docker run --rm "$$img:pr-check" "$$@"
+          docker run --rm --entrypoint "$$ep" "$$img:pr-check" "$$@"
         }
 
         # ---- canonical build order ----
