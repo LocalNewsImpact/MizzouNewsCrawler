@@ -24,10 +24,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -44,4 +44,4 @@ jobs:
           pip list --format=freeze > installed-dependencies.txt
 
       - name: Submit dependencies to GitHub
-        uses: advanced-security/component-detection-dependency-submission-action@v0.0.4
+        uses: advanced-security/component-detection-dependency-submission-action@v0.1.4

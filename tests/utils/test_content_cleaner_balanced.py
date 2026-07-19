@@ -46,7 +46,10 @@ class _StubTelemetry:
         self.log_summary["sessions"].append((domain, kwargs))
         return "session"
 
-    def get_persistent_patterns(self, domain):
+    def get_persistent_patterns(self, domain, source_id=None):
+        self.log_summary.setdefault("pattern_lookups", []).append(
+            {"domain": domain, "source_id": source_id}
+        )
         return self._patterns
 
     def log_wire_detection(self, **kwargs):
@@ -96,6 +99,32 @@ def test_process_single_article_removes_persistent_patterns():
     logged_segment = telemetry_stub.log_summary["segments"][0]
     assert logged_segment["segment_text"] == pattern_text
     assert logged_segment["was_removed"] is True
+
+
+def test_process_single_article_keys_patterns_by_source_uuid():
+    """The resolved source UUID (not the domain) is what's passed to the
+    pattern reader, so lookups align across www/protocol/subdomain drift."""
+    cleaner = BalancedBoundaryContentCleaner(db_path=":memory:")
+    telemetry_stub = _StubTelemetry(patterns=[])
+    cleaner.telemetry = telemetry_stub  # type: ignore[assignment]
+    # Article is linked to a stable source UUID; the URL host happens to be the
+    # bare form while patterns may have been learned under the www form.
+    cleaner._get_source_id_for_article = (  # type: ignore[assignment]
+        lambda article_id: "SRC-ABC"
+    )
+
+    cleaner.process_single_article(
+        "Some article body text.",
+        domain="example.com",
+        article_id="article-1",
+    )
+
+    lookups = telemetry_stub.log_summary.get("pattern_lookups", [])
+    assert lookups, "reader was never queried"
+    assert lookups[0]["source_id"] == "SRC-ABC"
+    # The session should also carry the source_id for the writer path.
+    session_domain, session_kwargs = telemetry_stub.log_summary["sessions"][0]
+    assert session_kwargs.get("source_id") == "SRC-ABC"
 
 
 def test_assess_locality_detects_city_and_county_signals():

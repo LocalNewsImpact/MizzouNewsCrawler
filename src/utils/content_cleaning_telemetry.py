@@ -68,9 +68,15 @@ class ContentCleaningTelemetry:
         article_count: int,
         min_occurrences: int = 3,
         min_boundary_score: float = 0.3,
+        source_id: str | None = None,
     ) -> str:
         """
         Start a new content cleaning session.
+
+        Args:
+            source_id: Stable source UUID this cleaning run belongs to. Patterns
+                are keyed by it (not the drifting domain string) so learning and
+                lookup align across www/protocol/subdomain variants.
 
         Returns:
             telemetry_id: Unique identifier for this cleaning session
@@ -84,6 +90,7 @@ class ContentCleaningTelemetry:
             "telemetry_id": telemetry_id,
             "session_id": self.session_id,
             "domain": domain,
+            "source_id": source_id,
             "article_count": article_count,
             "min_occurrences": min_occurrences,
             "min_boundary_score": min_boundary_score,
@@ -337,6 +344,7 @@ class ContentCleaningTelemetry:
         domain = session.get("domain")
         if not domain:
             return
+        source_id = session.get("source_id")
 
         self._ensure_persistent_patterns_table(conn)
 
@@ -355,18 +363,23 @@ class ContentCleaningTelemetry:
                 is_ml_eligible = segment.get("pattern_type") in persistent_pattern_types
                 text_hash = segment.get("segment_text_hash")
 
+                # Match a source-keyed row when we know the source, else the
+                # legacy domain-keyed row (transition: rows predate source_id).
                 cursor.execute(
                     """
                     SELECT id, occurrences_total, last_seen
                     FROM persistent_boilerplate_patterns
-                    WHERE domain = ? AND text_hash = ?
+                    WHERE text_hash = ?
+                      AND (source_id = ? OR (source_id IS NULL AND domain = ?))
                     """,
-                    (domain, text_hash),
+                    (text_hash, source_id, domain),
                 )
 
                 existing = cursor.fetchone()
 
                 if existing:
+                    # Stamp source_id onto a legacy (domain-only) row as it is
+                    # re-seen, so it becomes source-keyed without a backfill.
                     cursor.execute(
                         """
                         UPDATE persistent_boilerplate_patterns
@@ -374,6 +387,7 @@ class ContentCleaningTelemetry:
                             last_seen = ?,
                             confidence_score = MAX(confidence_score, ?),
                             is_ml_training_eligible = ?,
+                            source_id = COALESCE(source_id, ?),
                             updated_at = CURRENT_TIMESTAMP
                         WHERE id = ?
                         """,
@@ -382,6 +396,7 @@ class ContentCleaningTelemetry:
                             datetime.now(),
                             segment.get("boundary_score"),
                             is_ml_eligible,
+                            source_id,
                             existing[0],
                         ),
                     )
@@ -389,16 +404,17 @@ class ContentCleaningTelemetry:
                     cursor.execute(
                         """
                         INSERT INTO persistent_boilerplate_patterns (
-                            id, domain, pattern_type, text_content,
+                            id, domain, source_id, pattern_type, text_content,
                             text_hash, confidence_score,
                             occurrences_total, first_seen,
                             last_seen, removal_reason, is_active,
                             is_ml_training_eligible
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             str(uuid.uuid4()),
                             domain,
+                            source_id,
                             segment.get("pattern_type"),
                             segment.get("segment_text"),
                             text_hash,
@@ -425,6 +441,7 @@ class ContentCleaningTelemetry:
             CREATE TABLE IF NOT EXISTS persistent_boilerplate_patterns (
                 id TEXT PRIMARY KEY,
                 domain TEXT NOT NULL,
+                source_id TEXT,
                 pattern_type TEXT NOT NULL,
                 text_content TEXT NOT NULL,
                 text_hash TEXT NOT NULL,
@@ -447,6 +464,11 @@ class ContentCleaningTelemetry:
         """)
 
             cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_persistent_patterns_source
+            ON persistent_boilerplate_patterns(source_id, is_active)
+        """)
+
+            cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_persistent_patterns_hash
             ON persistent_boilerplate_patterns(domain, text_hash)
         """)
@@ -463,8 +485,16 @@ class ContentCleaningTelemetry:
         finally:
             cursor.close()
 
-    def get_persistent_patterns(self, domain: str) -> list[dict]:
-        """Get persistent boilerplate patterns for a domain."""
+    def get_persistent_patterns(
+        self, domain: str, source_id: str | None = None
+    ) -> list[dict]:
+        """Get persistent boilerplate patterns for a source (preferred) or domain.
+
+        Keys on the stable source UUID when provided; also returns legacy
+        domain-keyed rows not yet stamped with a source_id, so lookups keep
+        working during the transition. Passing only a domain preserves the old
+        behavior.
+        """
         try:
             store = self.store
         except RuntimeError:
@@ -482,10 +512,12 @@ class ContentCleaningTelemetry:
                                occurrences_total, removal_reason,
                                is_ml_training_eligible
                         FROM persistent_boilerplate_patterns
-                        WHERE domain = ? AND is_active IS TRUE
+                        WHERE is_active IS TRUE
+                          AND (source_id = ?
+                               OR (source_id IS NULL AND domain = ?))
                         ORDER BY confidence_score DESC, occurrences_total DESC
                         """,
-                        (domain,),
+                        (source_id, domain),
                     )
 
                     patterns = []
