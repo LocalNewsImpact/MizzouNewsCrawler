@@ -102,10 +102,13 @@ def rss_xml() -> str:
 
 def find_production_checkpoint() -> Path | None:
     """Locate the production classifier checkpoint if this venue has it."""
-    candidates = [
-        Path("/app/models/productionmodel.pt"),  # inside built images
-        Path(__file__).resolve().parents[2] / "models" / "productionmodel.pt",
-    ]
+    candidates = [Path("/app/models/productionmodel.pt")]  # inside built images
+    here = Path(__file__).resolve()
+    # Repo layout: tests/dependency_contracts/conftest.py -> parents[2] is the
+    # repo root. In-image the suite is mounted at /contracts, which has fewer
+    # parents — guard so the helper can't crash in that venue.
+    if len(here.parents) > 2:
+        candidates.append(here.parents[2] / "models" / "productionmodel.pt")
     env = os.environ.get("PRODUCTION_MODEL_PATH")
     if env:
         candidates.insert(0, Path(env))
@@ -113,6 +116,13 @@ def find_production_checkpoint() -> Path | None:
         if path.is_file():
             return path
     return None
+
+
+def pytest_configure(config):
+    """Register repo markers for standalone (in-image) runs of this dir."""
+    config.addinivalue_line(
+        "markers", "allow_network: test may make real network connections"
+    )
 
 
 def chrome_binary_present() -> bool:
