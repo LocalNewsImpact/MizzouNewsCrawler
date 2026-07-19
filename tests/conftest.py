@@ -777,3 +777,27 @@ def populate_wire_service_patterns():
                 WireService.service_name == service_name
             ).update({WireService.exclude_domains: domains})
         session.commit()
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_collection_modifyitems(config, items):
+    """Directory-level marker rules — the single source of truth that replaced
+    the hand-maintained --ignore lists in ci.yml (which had drifted from the
+    local pre-push hook: local ran a superset of CI, and files like
+    tests/test_gazetteer_integration.py were silently invisible to CI).
+
+    Every test under tests/docker/ is a docker test; everything under
+    tests/scripts/ is a local-script test unless it already carries an
+    infrastructure marker (postgres/integration). Marker-based selection in
+    ci.yml and the pre-push hook then produces IDENTICAL test sets.
+    """
+    import pathlib
+
+    for item in items:
+        rel = pathlib.Path(str(item.fspath)).as_posix()
+        if "/tests/docker/" in rel:
+            item.add_marker(pytest.mark.docker)
+        elif "/tests/scripts/" in rel:
+            existing = {m.name for m in item.iter_markers()}
+            if not ({"postgres", "integration"} & existing):
+                item.add_marker(pytest.mark.local_scripts)
