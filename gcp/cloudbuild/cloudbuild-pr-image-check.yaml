@@ -1,0 +1,126 @@
+# PR-time image build check.
+#
+# The regular CI jobs run tests INSIDE prebuilt images — a PR that edits a
+# Dockerfile or requirements file is never actually built by PR CI; the change
+# would first execute in the post-merge production build. This config closes
+# that gap: ci.yml's image-build-check job submits it with _IMAGES set to the
+# comma-separated list of affected images. Each is built from the PR source
+# with a throwaway local tag (NOTHING is pushed — no `images:` section) and
+# then smoke-tested inside the fresh build.
+#
+# Dependency-aware: images are built in canonical order (base -> ml-base ->
+# the rest), and when a parent was built in this same run its local pr-check
+# tag is used as the child's base — so a PR changing base + processor tests
+# the processor ON the new base.
+
+substitutions:
+  _IMAGES: ''  # e.g. "ml-base,ci-base" — set by ci.yml from the changes job
+  _REGISTRY: 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler'
+
+steps:
+  # Model file is a build input for ml-base (COPY models/productionmodel.pt)
+  - id: 'download-model'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        case ",${_IMAGES}," in
+          *,ml-base,*)
+            mkdir -p models
+            gsutil cp gs://mizzou-news-crawler-models/productionmodel.pt models/productionmodel.pt
+            ;;
+          *) echo "ml-base not in scope; skipping model download" ;;
+        esac
+
+  - id: 'build-and-smoke'
+    name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
+    waitFor: ['download-model']
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+
+        REG="${_REGISTRY}"
+        # parent images default to current :latest; overridden when the
+        # parent itself is rebuilt in this run
+        BASE_IMG="$$REG/base:latest"
+        MLBASE_IMG="$$REG/ml-base:latest"
+
+        want() { case ",${_IMAGES}," in *",$$1,"*) return 0;; *) return 1;; esac; }
+
+        build() {
+          local img="$$1"; shift
+          echo ""
+          echo "=========================================="
+          echo "🔨 Building $$img from PR source"
+          echo "=========================================="
+          docker build -f "Dockerfile.$$img" -t "$$img:pr-check" "$$@" .
+        }
+
+        smoke() {
+          local img="$$1"; shift
+          echo "🧪 Smoke: $$img"
+          docker run --rm "$$img:pr-check" "$$@"
+        }
+
+        # ---- canonical build order ----
+
+        if want base; then
+          build base
+          BASE_IMG="base:pr-check"
+          smoke base python -c "import spacy, nltk, sqlalchemy, requests; print('base OK')"
+        fi
+
+        if want ml-base; then
+          build ml-base --build-arg "BASE_IMAGE=$$BASE_IMG"
+          MLBASE_IMG="ml-base:pr-check"
+          smoke ml-base python -c "
+        import torch
+        assert '+cpu' in torch.__version__, f'CUDA torch crept back in: {torch.__version__}'
+        assert not torch.backends.cuda.is_built()
+        ckpt = torch.load('/app/models/productionmodel.pt', map_location='cpu', weights_only=False)
+        import transformers
+        print('ml-base OK:', torch.__version__, type(ckpt).__name__)
+        "
+        fi
+
+        if want ci-base; then
+          build ci-base --build-arg "BASE_IMAGE=$$BASE_IMG"
+          smoke ci-base bash -c "
+            python -m pytest --version && python -m ruff --version &&
+            python -m black --version && python -m mypy --version &&
+            python -c \"import torch; assert '+cpu' in torch.__version__; print('ci-base OK')\"
+          "
+        fi
+
+        if want processor; then
+          build processor --build-arg "ML_BASE_IMAGE=$$MLBASE_IMG"
+          smoke processor python -c "from src.ml.article_classifier import ArticleClassifier; print('processor OK')"
+        fi
+
+        if want crawler; then
+          build crawler --build-arg "BASE_IMAGE=$$BASE_IMG"
+          smoke crawler bash -c "python -c 'import selenium, undetected_chromedriver' && (chromium --version || google-chrome --version) && echo 'crawler OK'"
+        fi
+
+        if want api; then
+          build api --build-arg "BASE_IMAGE=$$BASE_IMG"
+          smoke api python -c "import fastapi, uvicorn; print('api OK')"
+        fi
+
+        if want migrator; then
+          build migrator
+          smoke migrator python -c "import alembic; print('migrator OK')"
+        fi
+
+        echo ""
+        echo "✅ All affected images (${_IMAGES}) build and pass smoke."
+
+timeout: 2700s
+options:
+  machineType: 'N1_HIGHCPU_8'
+  diskSizeGb: 100
+  logging: CLOUD_LOGGING_ONLY
+  substitutionOption: 'ALLOW_LOOSE'

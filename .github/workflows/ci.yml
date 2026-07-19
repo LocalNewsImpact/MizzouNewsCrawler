@@ -33,6 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       code: ${{ steps.detect.outputs.code }}
+      images: ${{ steps.detect.outputs.images }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,12 +45,14 @@ jobs:
           if [ -z "$base" ] || [ -z "$head" ]; then
             echo "Non-PR event (or missing SHAs) — running full suite."
             echo "code=true" >> "$GITHUB_OUTPUT"
+            echo "images=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           mb=$(git merge-base "$base" "$head" 2>/dev/null || echo "")
           if [ -z "$mb" ]; then
             echo "No merge-base found — running full suite to be safe."
             echo "code=true" >> "$GITHUB_OUTPUT"
+            echo "images=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           changed=$(git diff --name-only "$mb" "$head")
@@ -66,6 +69,56 @@ jobs:
             echo "→ only workflow/docs changes; skipping heavy test jobs."
             echo "code=false" >> "$GITHUB_OUTPUT"
           fi
+
+          # Which container images does this PR's diff affect? Dockerfiles are
+          # never built by the regular PR jobs (they run in PREBUILT images),
+          # so image changes get a dedicated build+smoke via image-build-check.
+          images=""
+          add() { case ",$images," in *",$1,"*) ;; *) images="${images:+$images,}$1";; esac; }
+          while IFS= read -r f; do
+            case "$f" in
+              Dockerfile.base|requirements-base.txt|requirements.txt) add base ;;
+              Dockerfile.ml-base|requirements-ml.txt) add ml-base ;;
+              Dockerfile.ci-base|requirements-dev.txt) add ci-base ;;
+              Dockerfile.processor|requirements-processor.txt) add processor ;;
+              Dockerfile.crawler|requirements-crawler.txt) add crawler ;;
+              Dockerfile.api|requirements-api.txt) add api ;;
+              Dockerfile.migrator|requirements-migrator.txt) add migrator ;;
+            esac
+          done <<< "$changed"
+          echo "→ images affected: ${images:-none}"
+          echo "images=$images" >> "$GITHUB_OUTPUT"
+
+  # PR CI runs tests INSIDE prebuilt images, so a PR that edits a Dockerfile
+  # or requirements file is never actually built here — the change would first
+  # execute in the post-merge production build. This job closes that gap:
+  # build the affected image(s) from the PR source in Cloud Build with a
+  # throwaway tag (nothing pushed) and smoke-test inside the fresh build.
+  image-build-check:
+    name: Image Build Check
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.images != ''
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build + smoke affected images from PR source
+        run: |
+          echo "Images affected by this PR: ${{ needs.changes.outputs.images }}"
+          gcloud builds submit \
+            --config gcp/cloudbuild/cloudbuild-pr-image-check.yaml \
+            --substitutions "_IMAGES=${{ needs.changes.outputs.images }}" \
+            --project mizzou-news-crawler \
+            .
 
   lint:
     name: Lint & Format Check
