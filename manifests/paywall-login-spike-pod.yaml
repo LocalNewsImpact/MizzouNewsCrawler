@@ -1,0 +1,77 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: paywall-login-spike
+  namespace: production
+  labels:
+    stage: extraction
+    purpose: paywall-login-spike
+spec:
+  serviceAccountName: argo-workflow
+  restartPolicy: Never
+  containers:
+    - name: crawler
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:dcc138e
+      imagePullPolicy: IfNotPresent
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          echo "paywall-login-spike pod ready; sleeping for debug run";
+          sleep 7200
+      env:
+        # ---- Residential proxy (identical wiring to extraction step) ----
+        - name: PROXY_PROVIDER
+          value: "squid"
+        - name: SQUID_PROXY_URL
+          valueFrom:
+            secretKeyRef:
+              name: squid-proxy-credentials
+              key: squid-proxy-url
+        - name: SELENIUM_PROXY
+          valueFrom:
+            secretKeyRef:
+              name: squid-proxy-credentials
+              key: selenium-proxy-url
+        - name: GOOGLE_CLOUD_PROJECT
+          value: "mizzou-news-crawler"
+        - name: NO_PROXY
+          value: "localhost,127.0.0.1,metadata.google.internal,huggingface.co,*.huggingface.co"
+        # ---- Selenium behaves exactly like production extraction ----
+        - name: SELENIUM_EXECUTION_MODE
+          value: "headful"
+        # ---- Paywall test credentials (created out-of-band by the user) ----
+        - name: PAYWALL_TEST_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: paywall-test-credentials
+              key: username
+        - name: PAYWALL_TEST_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: paywall-test-credentials
+              key: password
+        - name: PAYWALL_TEST_LOGIN_URL
+          valueFrom:
+            secretKeyRef:
+              name: paywall-test-credentials
+              key: login-url
+        - name: PAYWALL_TEST_ARTICLE_URL
+          valueFrom:
+            secretKeyRef:
+              name: paywall-test-credentials
+              key: article-url
+              optional: true
+        # Optional overrides (success marker / explicit selectors); safe defaults if unset
+        - name: PAYWALL_TEST_SUCCESS_TEXT
+          valueFrom:
+            secretKeyRef:
+              name: paywall-test-credentials
+              key: success-text
+              optional: true
+      resources:
+        requests:
+          cpu: 250m
+          memory: 1Gi
+        limits:
+          cpu: "1000m"
+          memory: 3Gi

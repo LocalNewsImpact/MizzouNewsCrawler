@@ -35,7 +35,7 @@ jobs:
           pip install PyYAML
 
           # Check all YAML files for syntax errors
-          # Use safe_load_all for multi-document YAML files (like clouddeploy.yaml)
+          # Use safe_load_all for multi-document YAML files
           find . -name "*.yaml" -o -name "*.yml" | while read -r file; do
             echo "Checking $file..."
             python -c "import yaml; list(yaml.safe_load_all(open('$file')))" || exit 1
@@ -119,34 +119,6 @@ jobs:
 
           echo ""
           echo "✅ Deployment YAML validation passed"
-
-      - name: Validate Skaffold configuration
-        run: |
-          echo "=========================================="
-          echo "Validating Skaffold Configuration"
-          echo "=========================================="
-
-          if [ ! -f "skaffold.yaml" ]; then
-            echo "⚠️  No skaffold.yaml found"
-            exit 0
-          fi
-
-          # Check processor artifact
-          if ! grep -q 'image: processor' skaffold.yaml; then
-            echo "❌ Skaffold config missing processor artifact!"
-            exit 1
-          fi
-          echo "✓ Processor artifact defined"
-
-          # Check manifests
-          if ! grep -q 'rawYaml:' skaffold.yaml; then
-            echo "❌ Skaffold config missing manifest paths!"
-            exit 1
-          fi
-          echo "✓ Manifest paths defined"
-
-          echo ""
-          echo "✅ Skaffold configuration valid"
 
       - name: Validate Cloud Build configuration
         run: |

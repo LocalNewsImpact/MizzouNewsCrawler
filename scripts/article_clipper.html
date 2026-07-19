@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Article Clipper Bookmarklet</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            background: #f5f5f5;
+            color: #333;
+        }
+        h1 {
+            color: #1a1a1a;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .bookmarklet-container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .bookmarklet-link {
+            display: inline-block;
+            padding: 16px 32px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            font-size: 18px;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: grab;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .bookmarklet-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+        }
+        .bookmarklet-link:active {
+            cursor: grabbing;
+        }
+        .drag-hint {
+            margin-top: 15px;
+            color: #888;
+            font-size: 14px;
+        }
+        .instructions {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        .instructions h2 {
+            margin-top: 0;
+            color: #1a1a1a;
+        }
+        .instructions ol {
+            padding-left: 20px;
+        }
+        .instructions li {
+            margin-bottom: 12px;
+            line-height: 1.6;
+        }
+        .output-format {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .output-format h2 {
+            margin-top: 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+        }
+        code {
+            background: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .note {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>📰 Article Clipper</h1>
+    <p class="subtitle">Extract article data for Google Sheets with one click</p>
+    
+    <div class="bookmarklet-container">
+        <a class="bookmarklet-link" href="javascript:(function(){function e(){return window.location.href}function t(){var e=document.querySelector('meta[property=&quot;og:title&quot;]');if(e&amp;&amp;e.content)return e.content.trim();for(var t=document.querySelectorAll('script[type=&quot;application/ld+json&quot;]'),n=0;n&lt;t.length;n++)try{var r=JSON.parse(t[n].textContent),o=Array.isArray(r)?r:[r];for(var i of o)if(i&amp;&amp;i.headline)return i.headline.trim()}catch(e){}var a=document.querySelector(&quot;article h1, .article h1, main h1, h1&quot;);if(a)return a.textContent.trim();var c=document.querySelector(&quot;title&quot;);return c?c.textContent.trim().replace(/\s*[\|\-\u2013\u2014]\s*[^|\-\u2013\u2014]+$/,&quot;&quot;).trim():&quot;&quot;}function n(){for(var e=document.querySelectorAll('script[type=&quot;application/ld+json&quot;]'),t=0;t&lt;e.length;t++)try{var n=JSON.parse(e[t].textContent),o=Array.isArray(n)?n:[n];for(var i of o)if(i){var a=i.datePublished||i.dateCreated||i.publishedDate;if(a){var c=&quot;object&quot;==typeof a?a[&quot;@value&quot;]||a.value||String(a):String(a),l=new Date(c);if(!isNaN(l))return r(l)}}}catch(e){}for(var s=[&quot;article:published_time&quot;,&quot;pubdate&quot;,&quot;publishdate&quot;,&quot;date&quot;,&quot;datePublished&quot;,&quot;publish_date&quot;,&quot;article:published&quot;,&quot;DC.date.issued&quot;,&quot;sailthru.date&quot;],u=0;u&lt;s.length;u++){var d=document.querySelector('meta[property=&quot;'+s[u]+'&quot;],meta[name=&quot;'+s[u]+'&quot;],meta[itemprop=&quot;'+s[u]+'&quot;]');if(d&amp;&amp;d.content){var f=new Date(d.content);if(!isNaN(f))return r(f)}}for(var p=document.querySelectorAll(&quot;time[datetime]&quot;),m=0;m&lt;p.length;m++){var g=new Date(p[m].getAttribute(&quot;datetime&quot;));if(!isNaN(g))return r(g)}return&quot;&quot;}function r(e){return e.getFullYear()+&quot;-&quot;+String(e.getMonth()+1).padStart(2,&quot;0&quot;)+&quot;-&quot;+String(e.getDate()).padStart(2,&quot;0&quot;)}function o(){for(var e=document.querySelectorAll('script[type=&quot;application/ld+json&quot;]'),t=0;t&lt;e.length;t++)try{var n=JSON.parse(e[t].textContent),r=Array.isArray(n)?n:[n];for(var o of r)if(o&amp;&amp;o.author){var a=o.author;if(Array.isArray(a)){var c=a.map(e=>&quot;string&quot;==typeof e?e:e.name||&quot;&quot;).filter(Boolean);if(c.length)return c.join(&quot;, &quot;)}else if(&quot;object&quot;==typeof a&amp;&amp;a.name)return a.name.trim();else if(&quot;string&quot;==typeof a)return a.trim()}}catch(e){}for(var l=['meta[name=&quot;author&quot;]','meta[property=&quot;article:author&quot;]','meta[name=&quot;byl&quot;]','meta[name=&quot;sailthru.author&quot;]'],s=0;s&lt;l.length;s++){var u=document.querySelector(l[s]);if(u&amp;&amp;u.content)return i(u.content)}for(var d=['[rel=&quot;author&quot;]',&quot;.byline&quot;,&quot;.author&quot;,&quot;.article-author&quot;,&quot;[itemprop=author]&quot;,&quot;.byline__name&quot;],f=0;f&lt;d.length;f++){var p=document.querySelector(d[f]);if(p){var m=p.textContent.trim();if(m&amp;&amp;m.length&lt;200)return i(m)}}return&quot;&quot;}function i(e){return e.replace(/^(By|Written by|Author:?)\s*/i,&quot;&quot;).replace(/\s+/g,&quot; &quot;).trim()}function a(){var e=document.body.cloneNode(!0);[&quot;script&quot;,&quot;style&quot;,&quot;nav&quot;,&quot;header&quot;,&quot;footer&quot;,&quot;aside&quot;,&quot;.sidebar&quot;,&quot;.comments&quot;,&quot;.related-articles&quot;,&quot;.advertisement&quot;,&quot;.ad&quot;].forEach(t=>e.querySelectorAll(t).forEach(e=>e.remove()));for(var t=[&quot;article .article-body&quot;,&quot;article .story-body&quot;,&quot;[itemprop=articleBody]&quot;,&quot;.article-content&quot;,&quot;.story-content&quot;,&quot;article&quot;,'[role=&quot;main&quot;]',&quot;main&quot;],n=0;n&lt;t.length;n++){var r=e.querySelector(t[n]);if(r){var o=c(r.textContent);if(o.length>200)return o.substring(0,5e3)}}return c(e.textContent).substring(0,5e3)}function c(e){return e.replace(/[\t\n\r]+/g,&quot; &quot;).replace(/\s+/g,&quot; &quot;).trim()}function l(e,t){var n=document.createElement(&quot;div&quot;);n.id=&quot;acn&quot;,n.textContent=e,n.style.cssText=&quot;position:fixed;top:20px;right:20px;padding:12px 24px;background:&quot;+(&quot;success&quot;===t?&quot;#4CAF50&quot;:&quot;#f44336&quot;)+&quot;;color:#fff;font:500 14px system-ui;border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,.3);z-index:999999&quot;,document.body.appendChild(n),setTimeout(()=>n.remove(),3e3)}try{var s={url:e(),title:t(),publishDate:n(),author:o(),content:a()},u=[s.url,s.title,s.publishDate,s.author,s.content.replace(/\t/g,&quot; &quot;).replace(/\n/g,&quot; &quot;)].join(&quot;\t&quot;);navigator.clipboard?navigator.clipboard.writeText(u).then(()=>l(&quot;\u2713 Copied!&quot;,&quot;success&quot;)).catch(()=>l(&quot;\u2717 Copy failed&quot;,&quot;error&quot;)):l(&quot;\u2717 Clipboard unavailable&quot;,&quot;error&quot;),console.log(&quot;Extracted:&quot;,s)}catch(e){l(&quot;\u2717 &quot;+e.message,&quot;error&quot;)}})();">📋 Article Clipper</a>
+        <p class="drag-hint">⬆️ Drag this button to your bookmarks bar</p>
+    </div>
+    
+    <div class="instructions">
+        <h2>How to Install</h2>
+        <ol>
+            <li><strong>Show your bookmarks bar</strong> (Chrome: <code>Cmd+Shift+B</code> / <code>Ctrl+Shift+B</code>)</li>
+            <li><strong>Drag the purple button above</strong> directly to your bookmarks bar</li>
+            <li><strong>Done!</strong> The bookmarklet is ready to use</li>
+        </ol>
+        
+        <h2>How to Use</h2>
+        <ol>
+            <li>Navigate to any news article</li>
+            <li>Click the "Article Clipper" bookmark</li>
+            <li>A green notification confirms the data is copied</li>
+            <li>Switch to Google Sheets and press <code>Cmd+V</code> / <code>Ctrl+V</code></li>
+            <li>Data appears in 5 columns automatically</li>
+        </ol>
+    </div>
+    
+    <div class="output-format">
+        <h2>Output Format</h2>
+        <p>Data is copied as tab-separated values for direct paste into Google Sheets:</p>
+        <table>
+            <tr>
+                <th>Column A</th>
+                <th>Column B</th>
+                <th>Column C</th>
+                <th>Column D</th>
+                <th>Column E</th>
+            </tr>
+            <tr>
+                <td>URL</td>
+                <td>Headline</td>
+                <td>Date (YYYY-MM-DD)</td>
+                <td>Author/Byline</td>
+                <td>Article Text</td>
+            </tr>
+        </table>
+        
+        <div class="note">
+            <strong>Note:</strong> Article text is limited to 5,000 characters. The extraction uses the same logic as the MizzouNewsCrawler pipeline (JSON-LD, OpenGraph, meta tags, CSS selectors).
+        </div>
+    </div>
+</body>
+</html>
