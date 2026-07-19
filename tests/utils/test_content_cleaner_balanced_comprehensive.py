@@ -29,7 +29,7 @@ class _StubTelemetry:
         self.log_summary["sessions"].append((domain, kwargs))
         return "session"
 
-    def get_persistent_patterns(self, domain):
+    def get_persistent_patterns(self, domain, source_id=None):
         return self._patterns
 
     def log_wire_detection(self, **kwargs):

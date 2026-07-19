@@ -44,7 +44,7 @@ def test_subscription_snippet_marked_high_confidence():
 def test_subscription_persistent_pattern_is_removed():
     cleaner = _build_cleaner_with_stubbed_telemetry()
 
-    cleaner.telemetry.get_persistent_patterns = lambda domain: [
+    cleaner.telemetry.get_persistent_patterns = lambda domain, source_id=None: [
         {
             "pattern_type": "subscription",
             "text_content": SUBSCRIPTION_SNIPPET,
