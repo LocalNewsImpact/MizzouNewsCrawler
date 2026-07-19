@@ -5,21 +5,23 @@ Compares a ground-truth "cleaned" corpus (e.g. a manually-cleaned CIEP export)
 against what an extractor actually produced, so extractor changes can be
 measured against real records instead of assumptions.
 
-Two comparison sources (``--source``):
+Comparison source (``--source``):
 
-* ``bq-content`` / ``bq-text`` (default): join the corpus to
+* ``bq-content`` (default) / ``bq-text``: join the corpus to
   ``mizzou_analytics.articles`` on URL and compare the ground-truth text to the
   stored ``content`` (raw extractor output) or ``text`` (auto-cleaned) column.
-  Fast, no network beyond one BigQuery scan. Use this to characterize the
-  CURRENT production extractor.
+  Fast, one BigQuery scan.
 
-* ``reextract:<method>`` (e.g. ``reextract:trafilatura``,
-  ``reextract:newspaper``): re-fetch each URL live and run that extractor now,
-  comparing its output to the ground truth. Use this to A/B a candidate
-  extractor (e.g. after enabling trafilatura) on the SAME articles WITHOUT
-  waiting for a re-crawl. Caveat: live pages drift from when they were first
-  captured, so treat absolute numbers as directional; the per-host overshoot
-  pattern is the durable signal.
+  This is the ONLY sound comparison source, because the stored columns are the
+  product of the REAL extraction path — fetched through the production Squid
+  proxy with the pipeline's fingerprinting / UA rotation / Selenium fallback.
+
+  Do NOT add a "re-fetch the URL locally and run extractor X" mode: a naive
+  local request bypasses the proxy and bot handling, so on bot-protected sites
+  it returns challenge/blocked pages, not articles — producing garbage
+  comparisons. To A/B a CANDIDATE extractor (e.g. trafilatura), deploy it,
+  let the Argo pipeline re-crawl through the proxy so its output lands in
+  ``articles``, then re-run this script with ``--source bq-content``.
 
 Metrics reported (aggregate + per-host + worst cases):
   - match rate (corpus URLs found in the source)
@@ -47,7 +49,7 @@ from __future__ import annotations
 import argparse
 import re
 from collections import Counter
-from typing import Callable, Optional
+from typing import Optional
 
 # ftfy repairs export mojibake (â€™ -> ') so length/similarity aren't skewed by
 # encoding artifacts rather than real extraction differences.
@@ -133,50 +135,6 @@ def fetch_bq(urls: list[str], column: str, project: str) -> dict[str, str]:
         for row in job:
             if row["url"] not in out and row["val"]:
                 out[row["url"]] = row["val"]
-    return out
-
-
-def _reextractor(method: str) -> Callable[[str, str], str]:
-    """Return fn(url, html) -> extracted text for a live-reextraction method."""
-    if method == "trafilatura":
-        import trafilatura
-
-        def fn(url: str, html: str) -> str:
-            return trafilatura.extract(html, url=url) or ""
-
-    elif method == "newspaper":
-        from newspaper import Article  # type: ignore
-
-        def fn(url: str, html: str) -> str:
-            a = Article(url)
-            a.set_html(html)
-            a.parse()
-            return a.text or ""
-
-    elif method == "mcmetadata":
-        import mcmetadata
-
-        def fn(url: str, html: str) -> str:
-            return (mcmetadata.extract(url, html) or {}).get("text", "") or ""
-
-    else:
-        raise SystemExit(f"unknown reextract method: {method}")
-    return fn
-
-
-def fetch_reextract(urls: list[str], method: str) -> dict[str, str]:
-    import requests
-
-    extract = _reextractor(method)
-    out: dict[str, str] = {}
-    headers = {"User-Agent": "Mozilla/5.0 (extraction-quality-report)"}
-    for url in urls:
-        try:
-            resp = requests.get(url, headers=headers, timeout=20)
-            if resp.status_code == 200:
-                out[url] = extract(url, resp.text)
-        except Exception:
-            continue  # a fetch failure just means no comparison for that URL
     return out
 
 
@@ -290,7 +248,9 @@ def main() -> None:
     ap.add_argument(
         "--source",
         default="bq-content",
-        help="bq-content | bq-text | reextract:trafilatura | reextract:newspaper | reextract:mcmetadata",
+        choices=["bq-content", "bq-text"],
+        help="which stored extractor column to compare (both reflect the real "
+        "proxied pipeline; see module docstring on A/B-ing a candidate)",
     )
     ap.add_argument("--sample", type=int, default=300, help="0 = all corpus URLs")
     ap.add_argument("--project", default="mizzou-news-crawler")
@@ -308,13 +268,8 @@ def main() -> None:
         urls = urls[: args.sample]
         clean = {u: clean[u] for u in urls}
 
-    if args.source in ("bq-content", "bq-text"):
-        column = "content" if args.source == "bq-content" else "text"
-        extracted = fetch_bq(urls, column, args.project)
-    elif args.source.startswith("reextract:"):
-        extracted = fetch_reextract(urls, args.source.split(":", 1)[1])
-    else:
-        raise SystemExit(f"unknown --source {args.source!r}")
+    column = "content" if args.source == "bq-content" else "text"
+    extracted = fetch_bq(urls, column, args.project)
 
     result = compare(clean, extracted, args.overshoot, args.undershoot)
     report = render(result, args.source, args.worst)
