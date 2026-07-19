@@ -23,6 +23,20 @@ cat > "$REPO_ROOT/.git/hooks/pre-push" << 'EOF'
 # fresh checkout of committed code only — the hook must test what is in git for
 # push to origin, not the developer's dirty working tree.
 
+# Branch DELETIONS have nothing to test — pre-push receives refspecs on
+# stdin as "<local_ref> <local_sha> <remote_ref> <remote_sha>"; a deletion's
+# local_sha is all zeros. Without this, deleting a remote branch ran the
+# full CI suite (discovered 2026-07-19).
+ZERO=0000000000000000000000000000000000000000
+ANY_NON_DELETE=false
+while read -r local_ref local_sha remote_ref remote_sha; do
+    [ "$local_sha" != "$ZERO" ] && ANY_NON_DELETE=true
+done
+if [ "$ANY_NON_DELETE" = "false" ]; then
+    echo "⏭️  Skipping pre-push CI: branch deletion(s) only"
+    exit 0
+fi
+
 # Skip CI for workflow-only / docs-only changes (nothing the test suite covers).
 # Mirrors the `changes` gate in .github/workflows/ci.yml so local and remote
 # agree on what counts as "code".

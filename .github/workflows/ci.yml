@@ -631,7 +631,7 @@ jobs:
             -e DATABASE_USER="$DATABASE_USER" \
             -e DATABASE_PASSWORD="$DATABASE_PASSWORD" \
             ghcr.io/localnewsimpact/mizzou-ci-base:latest \
-            /bin/bash -c "git config --global --add safe.directory /workspace && pytest -v -m integration --ignore=tests/docker --ignore=tests/scripts --ignore=tests/backfill/test_backfill_article_entities.py --ignore=tests/cli/commands/test_test_domain_command.py --ignore=tests/cli/test_manual_enqueue.py --ignore=tests/test_actual_telemetry.py --ignore=tests/test_chrome_bin_default.py --ignore=tests/test_gazetteer_telemetry.py --ignore=tests/test_geocode_cache.py --ignore=tests/test_launch_dataset_job.py --ignore=tests/test_gazetteer_integration.py --ignore=tests/test_smoke_test_migrations.py --ignore=tests/test_migrator_image.py --ignore=tests/test_sync_decodo_credentials.py --ignore=tests/utils/test_run_scrapfly_tests_pod.py --ignore=tests/utils/test_script_import_safety.py --tb=short --no-cov"
+            /bin/bash -c "git config --global --add safe.directory /workspace && pytest -v -m 'integration and not docker and not local_scripts' --tb=short --no-cov"
 
   integration:
     name: Integration & Coverage
@@ -670,7 +670,7 @@ jobs:
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
             ghcr.io/localnewsimpact/mizzou-ci-base:latest \
-            /bin/bash -c "git config --global --add safe.directory /workspace && pytest -m 'not postgres and not docker and not local_scripts' --ignore=tests/docker --ignore=tests/scripts --ignore=tests/backfill/test_backfill_article_entities.py --ignore=tests/cli/commands/test_test_domain_command.py --ignore=tests/cli/test_manual_enqueue.py --ignore=tests/test_actual_telemetry.py --ignore=tests/test_chrome_bin_default.py --ignore=tests/test_gazetteer_telemetry.py --ignore=tests/test_geocode_cache.py --ignore=tests/test_launch_dataset_job.py --ignore=tests/test_gazetteer_integration.py --ignore=tests/test_smoke_test_migrations.py --ignore=tests/test_migrator_image.py --ignore=tests/test_sync_decodo_credentials.py --ignore=tests/utils/test_run_scrapfly_tests_pod.py --ignore=tests/utils/test_script_import_safety.py --cov=src --cov-report=xml --cov-report=html --cov-report=term-missing --cov-fail-under=78"
+            /bin/bash -c "git config --global --add safe.directory /workspace && pytest -m 'not postgres and not docker and not local_scripts' --cov=src --cov-report=xml --cov-report=html --cov-report=term-missing --cov-fail-under=78"
 
       - name: Generate coverage summary
         if: success()
