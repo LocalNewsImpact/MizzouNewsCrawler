@@ -73,7 +73,7 @@ fi
 echo "🔍 Step 1/4: Running linting checks (ruff, black, isort)..."
 (
     cd "$WORKTREE" || exit 1
-    source "$REPO_ROOT/venv/bin/activate" 2>/dev/null || true
+    source "$REPO_ROOT/.venv/bin/activate" 2>/dev/null || true
     echo "  → Running ruff..." &&
     python -m ruff check . &&
     echo "  → Running black..." &&
@@ -100,7 +100,7 @@ echo ""
 echo "🔍 Step 2/4: Running mypy type checking..."
 (
     cd "$WORKTREE" || exit 1
-    source "$REPO_ROOT/venv/bin/activate" 2>/dev/null || true
+    source "$REPO_ROOT/.venv/bin/activate" 2>/dev/null || true
     python -m mypy src/ --ignore-missing-imports
 ) 2>&1 | tee -a "$LOGFILE"
 MYPY_EXIT_CODE=${PIPESTATUS[0]}
@@ -146,7 +146,7 @@ echo ""
 # neither suite alone can reach the threshold. Erase stale data first so the
 # run starts clean. addopts is overridden per phase so its single
 # --cov-fail-under=78 doesn't fire mid-succession; the combined check is Step 6.
-(source venv/bin/activate 2>/dev/null || true; python -m coverage erase) >/dev/null 2>&1
+(source .venv/bin/activate 2>/dev/null || true; python -m coverage erase) >/dev/null 2>&1
 
 # Step 4: Main test suite (unit + SQLite integration), excluding PostgreSQL.
 # Runs in the working tree because some tests need untracked runtime artifacts
@@ -156,7 +156,7 @@ echo ""
 # Step 5, so the two suites never contend for a single database.
 echo "🚀 Step 4/6: Running main test suite (unit + integration, excluding PostgreSQL)..."
 (
-    source venv/bin/activate 2>/dev/null || true &&
+    source .venv/bin/activate 2>/dev/null || true &&
     python -m pytest tests/ -q --tb=short --override-ini="addopts=" \
         -p no:postgresql -m "not postgres and not docker and not local_scripts" \
         --cov=src --cov-append --cov-report=
@@ -212,7 +212,7 @@ else
         $DOCKER_COMPOSE exec -T postgres dropdb -U mizzou_user --if-exists "$PG_TESTDB" >>"$LOGFILE" 2>&1
         $DOCKER_COMPOSE exec -T postgres createdb -U mizzou_user "$PG_TESTDB" >>"$LOGFILE" 2>&1
         (
-            source venv/bin/activate 2>/dev/null || true &&
+            source .venv/bin/activate 2>/dev/null || true &&
             alembic upgrade head &&
             python -m pytest tests/ -q --tb=short --override-ini="addopts=" \
                 -p no:postgresql -m "postgres and not docker" \
@@ -239,7 +239,7 @@ echo ""
 # which matches CI's coverage job and still clears the threshold.
 echo "📊 Step 6/6: Checking combined coverage (fail-under 78%)..."
 (
-    source venv/bin/activate 2>/dev/null || true &&
+    source .venv/bin/activate 2>/dev/null || true &&
     python -m coverage report --fail-under=78
 ) 2>&1 | tee -a "$LOGFILE"
 COV_EXIT_CODE=${PIPESTATUS[0]}
