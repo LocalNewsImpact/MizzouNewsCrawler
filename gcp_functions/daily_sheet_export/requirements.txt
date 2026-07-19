@@ -1,9 +1,9 @@
 functions-framework==3.10.2
-google-cloud-bigquery>=3.13.0
-google-auth>=2.22.0
-google-api-python-client>=2.97.0
+google-cloud-bigquery>=3.42.2
+google-auth>=2.56.0
+google-api-python-client>=2.198.0
 
 # Transitive security pins (Dependabot high)
-cryptography>=48.0.1
-pyasn1>=0.6.3
-gunicorn>=22.0.0  # request-smuggling fixes; functions-framework>=3.10 allows it
+cryptography>=49.0.0
+pyasn1>=0.6.4
+gunicorn>=26.0.0  # request-smuggling fixes; functions-framework>=3.10 allows it
