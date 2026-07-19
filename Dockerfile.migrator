@@ -48,3 +48,4 @@ LABEL usage="docker run --rm -e USE_CLOUD_SQL_CONNECTOR=true -e CLOUD_SQL_INSTAN
 # Set entrypoint to migration script
 ENTRYPOINT ["/entrypoint.sh"]
 # It's small, fast to build, and includes safety checks
+# image-build-check live-fire test 20260719T004151Z — safe to close unmerged
