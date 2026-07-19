@@ -15,7 +15,7 @@ updates:
   - package-ecosystem: pip
     directory: "/"            # requirements.txt + requirements-*.txt (base/api/crawler/processor/ml/migrator/dev)
     schedule:
-      interval: weekly
+      interval: monthly
     open-pull-requests-limit: 10
     groups:
       python-deps:
@@ -24,7 +24,7 @@ updates:
   - package-ecosystem: pip
     directory: "/backend"
     schedule:
-      interval: weekly
+      interval: monthly
     groups:
       backend-deps:
         patterns: ["*"]
@@ -32,7 +32,7 @@ updates:
   - package-ecosystem: pip
     directory: "/gcp/functions/daily-report"
     schedule:
-      interval: weekly
+      interval: monthly
     groups:
       daily-report-deps:
         patterns: ["*"]
@@ -40,7 +40,7 @@ updates:
   - package-ecosystem: pip
     directory: "/gcp/functions/weekly-health-check"
     schedule:
-      interval: weekly
+      interval: monthly
     groups:
       weekly-health-check-deps:
         patterns: ["*"]
@@ -48,7 +48,7 @@ updates:
   - package-ecosystem: pip
     directory: "/gcp_functions/daily_sheet_export"
     schedule:
-      interval: weekly
+      interval: monthly
     groups:
       daily-sheet-export-deps:
         patterns: ["*"]
@@ -56,7 +56,7 @@ updates:
   - package-ecosystem: pip
     directory: "/gcp_functions/weekly_source_health_check"
     schedule:
-      interval: weekly
+      interval: monthly
     groups:
       source-health-check-deps:
         patterns: ["*"]
@@ -65,7 +65,7 @@ updates:
   - package-ecosystem: gomod
     directory: "/"
     schedule:
-      interval: weekly
+      interval: monthly
     groups:
       go-deps:
         patterns: ["*"]
@@ -73,7 +73,7 @@ updates:
   - package-ecosystem: gomod
     directory: "/utls"
     schedule:
-      interval: weekly
+      interval: monthly
     groups:
       utls-deps:
         patterns: ["*"]
@@ -81,7 +81,7 @@ updates:
   - package-ecosystem: gomod
     directory: "/third_party/utls"
     schedule:
-      interval: weekly
+      interval: monthly
     groups:
       third-party-utls-deps:
         patterns: ["*"]
@@ -90,7 +90,7 @@ updates:
   - package-ecosystem: npm
     directory: "/"
     schedule:
-      interval: weekly
+      interval: monthly
     groups:
       npm-root-deps:
         patterns: ["*"]
@@ -98,7 +98,7 @@ updates:
   - package-ecosystem: npm
     directory: "/web/frontend"
     schedule:
-      interval: weekly
+      interval: monthly
     groups:
       frontend-deps:
         patterns: ["*"]
@@ -107,7 +107,7 @@ updates:
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
-      interval: weekly
+      interval: monthly
     groups:
       actions-deps:
         patterns: ["*"]
