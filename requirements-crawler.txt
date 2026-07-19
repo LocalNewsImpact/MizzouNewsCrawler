@@ -3,40 +3,40 @@
 # that handles discovery, extraction, and verification
 
 # FastAPI for work queue service
-fastapi>=0.110.0
-uvicorn[standard]>=0.23.0
+fastapi>=0.139.2
+uvicorn[standard]>=0.51.0
 
 # Web scraping and browser automation
-selenium>=4.10.0
-undetected-chromedriver>=3.5.0  # Advanced anti-detection
+selenium>=4.46.0
+undetected-chromedriver>=3.5.5  # Advanced anti-detection
 selenium-stealth>=1.0.6  # Browser fingerprint masking
-brotli>=1.1.0  # Support Brotli compression for HTTP responses
+brotli>=1.2.0  # Support Brotli compression for HTTP responses
 
 # Article extraction
-newspaper4k>=0.9.4.1  # Use newspaper4k (modern fork)
+newspaper4k>=0.9.6  # Use newspaper4k (modern fork)
 # mcmetadata package vendored in src/mcmetadata
-dateparser>=1.2.0
-htmldate>=1.5.0
-trafilatura>=1.6.3
-boilerpy3>=1.0.6
-goose3>=3.1.12
-readability-lxml>=0.8.1
+dateparser>=1.4.1
+htmldate>=1.10.0
+trafilatura>=2.1.0
+boilerpy3>=1.0.7
+goose3>=3.1.21
+readability-lxml>=0.8.4.1
 py3langid>=0.3.0
-tldextract>=5.1.0
-url-normalize>=1.4.3
-furl>=2.1.3
-feedparser>=6.0.10
+tldextract>=5.3.1
+url-normalize>=3.0.0
+furl>=2.1.4
+feedparser>=6.0.12
 
 # MediaCloud integration for headline duplication checks
-mediacloud>=3.3.0
+mediacloud>=5.1.0
 
 # Article classification
-scikit-learn>=1.7.2,<1.8  # Compatible with StorySniffer 1.0.9+ skops models (model trained with 1.7.2)
+scikit-learn>=1.9.0,<1.10  # Compatible with StorySniffer 1.0.9+ skops models (model trained with 1.7.2)
 storysniffer>=1.0.9  # News article classification (skops-based models)
 
 # Anti-bot bypass
 cloudscraper>=1.2.71  # Bypass Cloudflare protection
-tls-client>=0.13.0  # Optional: emulate Chrome TLS/HTTP2 fingerprints when available
+tls-client>=1.0.1  # Optional: emulate Chrome TLS/HTTP2 fingerprints when available
 
 # Secret management for secure credential retrieval
-google-cloud-secret-manager>=2.16.0
+google-cloud-secret-manager>=2.30.0
