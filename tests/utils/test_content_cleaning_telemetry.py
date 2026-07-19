@@ -788,3 +788,126 @@ class TestTelemetryPersistence:
 
         telemetry.flush()
         telemetry.shutdown(wait=True)
+
+
+class TestPersistentPatternsSourceIdKeying:
+    """Patterns are keyed by the stable source UUID, not the URL/domain string.
+
+    Regression coverage for the bug where patterns learned under one domain
+    form (e.g. ``www.example.com``) were never found at clean time because the
+    lookup used a different form (``example.com``), and where two sources
+    sharing a domain collided into one bucket.
+    """
+
+    def _log_removed_nav(self, telemetry, text="Navigation footer boilerplate"):
+        telemetry.log_segment_detection(
+            segment_text=text,
+            boundary_score=0.8,
+            occurrences=3,
+            pattern_type="navigation",
+            position_consistency=0.9,
+            segment_length=len(text),
+            article_ids=["1", "2", "3"],
+            was_removed=True,
+            removal_reason="nav_footer",
+        )
+
+    def test_pattern_persisted_with_source_id(self, telemetry_store):
+        store, conn = telemetry_store
+        telemetry = ContentCleaningTelemetry(enable_telemetry=True, store=store)
+
+        telemetry.start_cleaning_session(
+            domain="www.example.com", article_count=3, source_id="SRC-1"
+        )
+        self._log_removed_nav(telemetry)
+        telemetry.finalize_cleaning_session(
+            rough_candidates_found=1,
+            segments_detected=1,
+            total_removable_chars=30,
+            removal_percentage=0.1,
+        )
+        store.flush()
+
+        cursor = conn.cursor()
+        cursor.execute("SELECT source_id, domain FROM persistent_boilerplate_patterns")
+        source_id, domain = cursor.fetchone()
+        assert source_id == "SRC-1"
+        assert domain == "www.example.com"
+
+    def test_lookup_by_source_id_survives_domain_drift(self, telemetry_store):
+        """The core fix: a pattern learned under www.example.com is found when
+        the article's URL host is the bare example.com, because both resolve to
+        the same source UUID."""
+        store, conn = telemetry_store
+        telemetry = ContentCleaningTelemetry(enable_telemetry=True, store=store)
+
+        telemetry.start_cleaning_session(
+            domain="www.example.com", article_count=3, source_id="SRC-1"
+        )
+        self._log_removed_nav(telemetry)
+        telemetry.finalize_cleaning_session(
+            rough_candidates_found=1,
+            segments_detected=1,
+            total_removable_chars=30,
+            removal_percentage=0.1,
+        )
+        store.flush()
+
+        # Look up with a DIFFERENT domain string but the same source UUID.
+        patterns = telemetry.get_persistent_patterns(
+            domain="example.com", source_id="SRC-1"
+        )
+        assert len(patterns) == 1
+        assert patterns[0]["pattern_type"] == "navigation"
+
+        # Domain-only lookup under the bare form finds nothing (proves the old
+        # domain-string keying was the failure mode).
+        assert telemetry.get_persistent_patterns(domain="example.com") == []
+
+    def test_legacy_null_source_rows_found_via_domain_fallback(self, telemetry_store):
+        store, conn = telemetry_store
+        telemetry = ContentCleaningTelemetry(enable_telemetry=True, store=store)
+        telemetry._ensure_persistent_patterns_table(conn)
+        # A legacy row predating source_id (source_id NULL), keyed by domain.
+        conn.execute("""
+            INSERT INTO persistent_boilerplate_patterns (
+                id, domain, source_id, pattern_type, text_content,
+                text_hash, confidence_score, occurrences_total,
+                is_active, is_ml_training_eligible
+            ) VALUES ('leg-1', 'legacy.com', NULL, 'footer',
+                      'Legacy footer boilerplate text here', 'h1', 0.9, 5,
+                      1, 1)
+            """)
+        conn.commit()
+
+        # Found via the domain fallback even though a source_id is supplied.
+        patterns = telemetry.get_persistent_patterns(
+            domain="legacy.com", source_id="SRC-UNRELATED"
+        )
+        assert len(patterns) == 1
+        assert patterns[0]["pattern_type"] == "footer"
+
+    def test_source_keyed_row_not_returned_for_other_source_and_domain(
+        self, telemetry_store
+    ):
+        store, conn = telemetry_store
+        telemetry = ContentCleaningTelemetry(enable_telemetry=True, store=store)
+
+        telemetry.start_cleaning_session(
+            domain="www.example.com", article_count=3, source_id="SRC-1"
+        )
+        self._log_removed_nav(telemetry)
+        telemetry.finalize_cleaning_session(
+            rough_candidates_found=1,
+            segments_detected=1,
+            total_removable_chars=30,
+            removal_percentage=0.1,
+        )
+        store.flush()
+
+        # A different source on a different domain must not pick up SRC-1's
+        # pattern (no cross-source collision).
+        assert (
+            telemetry.get_persistent_patterns(domain="other.com", source_id="SRC-2")
+            == []
+        )
