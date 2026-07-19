@@ -1,15 +1,15 @@
-google-cloud-storage==2.10.0
-google-cloud-secret-manager==2.16.0
-sqlalchemy==2.0.23
+google-cloud-storage==3.13.0
+google-cloud-secret-manager==2.30.0
+sqlalchemy==2.0.51
 pg8000==1.31.5
-cloud-sql-python-connector==1.20.0
+cloud-sql-python-connector==1.20.4
 python-dotenv==1.2.2
 
 # Gmail API dependencies for delegated send
-google-api-python-client==2.129.0
-google-auth-httplib2==0.2.0
-psycopg2-binary==2.9.9
+google-api-python-client==2.198.0
+google-auth-httplib2==0.4.0
+psycopg2-binary==2.9.12
 
 # Transitive floor: the pinned google-* libs resolve an older protobuf;
 # 5.29.6 fixes a JSON recursion-depth bypass (Dependabot #175)
-protobuf>=5.29.6
+protobuf>=7.35.1
