@@ -57,6 +57,13 @@ LOG_DIR="logs/pre-push"
 mkdir -p "$LOG_DIR"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 LOGFILE="$LOG_DIR/pre-push-${TIMESTAMP}.log"
+# Stable path for live tailing (VS Code task "Local CI: watch live")
+ln -sf "pre-push-${TIMESTAMP}.log" "$LOG_DIR/latest.log"
+# macOS notification helper — ambient progress visibility without a terminal
+notify() {
+    command -v osascript >/dev/null 2>&1 &&         osascript -e "display notification \"$2\" with title \"local CI: $1\"" 2>/dev/null || true
+}
+notify "started" "pre-push checks running — tail logs/pre-push/latest.log"
 
 # Rotate logs - keep only the 3 most recent
 ls -t "$LOG_DIR"/pre-push-*.log 2>/dev/null | tail -n +4 | xargs rm -f 2>/dev/null
@@ -101,6 +108,7 @@ if [ $LINT_EXIT_CODE -ne 0 ]; then
     cleanup_worktree
     echo ""
     echo "❌ Linting/formatting checks failed! Push aborted."
+    notify "FAILED" "Linting/formatting checks failed"
     echo "💡 Tip: Run 'make format' to auto-fix formatting issues"
     echo "📝 Full log saved to: $LOGFILE"
     exit 1
@@ -123,6 +131,7 @@ if [ $MYPY_EXIT_CODE -ne 0 ]; then
     cleanup_worktree
     echo ""
     echo "❌ Type checking failed! Push aborted."
+    notify "FAILED" "Type checking failed"
     echo "💡 Tip: Run 'make type-check' to see all type errors"
     echo "📝 Full log saved to: $LOGFILE"
     exit 1
@@ -145,6 +154,7 @@ if [ -f "./scripts/validate-dockerfile-deps.sh" ]; then
     if [ $DOCKER_VALIDATE_EXIT_CODE -ne 0 ]; then
         echo ""
         echo "❌ Dockerfile validation failed! Push aborted."
+    notify "FAILED" "Dockerfile validation failed"
         echo "📝 Full log saved to: $LOGFILE"
         exit 1
     fi
@@ -180,6 +190,7 @@ TEST_EXIT_CODE=${PIPESTATUS[0]}
 if [ $TEST_EXIT_CODE -ne 0 ]; then
     echo ""
     echo "❌ Main test suite failed! Push aborted."
+    notify "FAILED" "Main test suite failed"
     echo "📝 Full log saved to: $LOGFILE"
     exit 1
 fi
@@ -238,6 +249,7 @@ else
         if [ $PG_EXIT_CODE -ne 0 ]; then
             echo ""
             echo "❌ PostgreSQL suite failed! Push aborted."
+    notify "FAILED" "PostgreSQL suite failed"
             echo "📝 Full log saved to: $LOGFILE"
             exit 1
         fi
@@ -261,6 +273,7 @@ COV_EXIT_CODE=${PIPESTATUS[0]}
 if [ $COV_EXIT_CODE -ne 0 ]; then
     echo ""
     echo "❌ Combined coverage below 78%! Push aborted."
+    notify "FAILED" "Combined coverage below 78%"
     echo "📝 Full log saved to: $LOGFILE"
     exit 1
 fi
@@ -268,6 +281,7 @@ fi
 echo "✅ Step 6/6: Combined coverage gate passed"
 
 echo ""
+notify "passed" "all checks green — pushing"
 echo "✅ All pre-push checks passed! Proceeding with push..."
 echo "📝 Full log saved to: $LOGFILE"
 exit 0
