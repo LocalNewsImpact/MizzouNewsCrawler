@@ -557,7 +557,7 @@ class TestErrorRecoveryAndResilience:
                 SELECT
                     COUNT(*) as articles_without_entities_when_classified
                 FROM articles a
-                WHERE a.status IN ('classified', 'analyzed')
+                WHERE a.status = 'labeled'
                 AND a.extracted_at >= NOW() - INTERVAL '6 hours'
                 AND NOT EXISTS (
                     SELECT 1 FROM article_entities ae
@@ -593,7 +593,7 @@ class TestErrorRecoveryAndResilience:
                 FROM articles a
                 WHERE (
                     (a.status = 'extracted' AND a.primary_label IS NOT NULL) OR
-                    (a.status = 'classified' AND a.primary_label IS NULL)
+                    (a.status = 'labeled' AND a.primary_label IS NULL)
                 )
             """)).scalar()
 
@@ -620,7 +620,7 @@ class TestErrorRecoveryAndResilience:
                 FROM candidate_links cl
                 LEFT JOIN articles a ON cl.id = a.candidate_link_id
                 WHERE cl.status = 'article'
-                AND cl.last_verified_at >= NOW() - INTERVAL '7 days'
+                AND cl.processed_at >= NOW() - INTERVAL '7 days'
                 AND NOT EXISTS (
                     SELECT 1 FROM articles a2
                     WHERE a2.candidate_link_id = cl.id
@@ -651,7 +651,7 @@ class TestErrorRecoveryAndResilience:
                 FROM candidate_links cl
                 LEFT JOIN articles a ON cl.id = a.candidate_link_id
                 WHERE cl.status = 'article'
-                AND cl.last_verified_at >= NOW() - INTERVAL '7 days'
+                AND cl.processed_at >= NOW() - INTERVAL '7 days'
             """)).fetchone()
 
             if multi_attempt and multi_attempt[0] > 100:
@@ -684,7 +684,7 @@ class TestDataPipelineConsistency:
                 SELECT COUNT(*) as count
                 FROM candidate_links
                 WHERE status = 'article'
-                AND status_updated_at >= NOW() - INTERVAL '24 hours'
+                AND processed_at >= NOW() - INTERVAL '24 hours'
             """)).scalar()
 
             # Should have URLs transitioning through verification
@@ -710,7 +710,7 @@ class TestDataPipelineConsistency:
             bad_timestamps = session.execute(text("""
                 SELECT COUNT(*)
                 FROM candidate_links
-                WHERE status_updated_at < created_at
+                WHERE processed_at < created_at
                 AND created_at >= NOW() - INTERVAL '7 days'
             """)).scalar()
 
@@ -760,7 +760,7 @@ class TestDataPipelineConsistency:
                 SELECT COUNT(*)
                 FROM articles a
                 JOIN candidate_links cl ON a.candidate_link_id = cl.id
-                WHERE a.extracted_at < cl.status_updated_at
+                WHERE a.extracted_at < cl.processed_at
                 AND a.extracted_at >= NOW() - INTERVAL '7 days'
             """)).scalar()
 
@@ -806,7 +806,7 @@ class TestDataPipelineConsistency:
             cleaned_without_content = session.execute(text("""
                 SELECT COUNT(*)
                 FROM articles
-                WHERE status IN ('cleaned', 'classified')
+                WHERE status IN ('cleaned', 'labeled')
                 AND (content IS NULL OR LENGTH(TRIM(content)) < 50)
                 AND extracted_at >= NOW() - INTERVAL '24 hours'
             """)).scalar()
@@ -831,8 +831,8 @@ class TestDataPipelineConsistency:
             classified = session.execute(text("""
                 SELECT COUNT(*)
                 FROM articles
-                WHERE status IN ('classified', 'local', 'wire',
-                                'opinion', 'obituary')
+                WHERE status IN ('labeled', 'wire', 'opinion',
+                                'obituary', 'weather')
                 AND extracted_at >= NOW() - INTERVAL '24 hours'
             """)).scalar()
 
@@ -843,8 +843,7 @@ class TestDataPipelineConsistency:
             no_labels = session.execute(text("""
                 SELECT COUNT(*)
                 FROM articles
-                WHERE status IN ('classified', 'local', 'wire',
-                                'opinion', 'obituary')
+                WHERE status = 'labeled'
                 AND primary_label IS NULL
                 AND extracted_at >= NOW() - INTERVAL '24 hours'
             """)).scalar()
@@ -859,7 +858,7 @@ class TestDataPipelineConsistency:
                 SELECT COUNT(*)
                 FROM articles a
                 WHERE a.status IN
-                    ('classified', 'local', 'wire', 'opinion', 'obituary')
+                    ('labeled', 'wire', 'opinion', 'obituary', 'weather')
                 AND EXISTS (
                     SELECT 1 FROM article_labels al
                     WHERE al.article_id = a.id
@@ -948,8 +947,7 @@ class TestDataPipelineConsistency:
                 WHERE (
                     (a.status = 'extracted' AND a.primary_label IS NOT NULL)
                     OR
-                    (a.status IN ('cleaned', 'local', 'wire',
-                    'opinion', 'obituary') AND a.primary_label IS NULL)
+                    (a.status = 'labeled' AND a.primary_label IS NULL)
                 )
                 AND a.extracted_at >= NOW() - INTERVAL '24 hours'
             """)).scalar()
@@ -964,8 +962,8 @@ class TestDataPipelineConsistency:
                 SELECT a.id, COUNT(ae.id) as entity_count
                 FROM articles a
                 LEFT JOIN article_entities ae ON a.id = ae.article_id
-                WHERE a.status IN ('classified', 'local', 'wire',
-                                   'opinion', 'obituary')
+                WHERE a.status IN ('labeled', 'wire', 'opinion',
+                                   'obituary', 'weather')
                 AND a.extracted_at >= NOW() - INTERVAL '24 hours'
                 GROUP BY a.id
                 HAVING COUNT(ae.id) = 0
@@ -985,8 +983,8 @@ class TestDataPipelineConsistency:
             bad_content = session.execute(text("""
                 SELECT COUNT(*)
                 FROM articles
-                WHERE status IN ('classified', 'local', 'wire',
-                                'opinion', 'obituary')
+                WHERE status IN ('labeled', 'wire', 'opinion',
+                                'obituary', 'weather')
                 AND (content IS NULL OR LENGTH(TRIM(content)) < 100)
                 AND extracted_at >= NOW() - INTERVAL '24 hours'
             """)).scalar()
@@ -1015,7 +1013,7 @@ class TestDataPipelineConsistency:
                         cl.id,
                         cl.created_at,
                         cl.discovered_at,
-                        cl.status_updated_at as verified_at,
+                        cl.processed_at as verified_at,
                         COALESCE(a.extracted_at, NOW()) as extracted_at
                     FROM candidate_links cl
                     LEFT JOIN articles a ON cl.id = a.candidate_link_id
@@ -1038,7 +1036,7 @@ class TestDataPipelineConsistency:
                 FROM candidate_links
                 WHERE status = 'article'
                 AND EXTRACT(EPOCH FROM
-                    (status_updated_at - discovered_at)) > 86400
+                    (processed_at - discovered_at)) > 86400
                 AND discovered_at >= NOW() - INTERVAL '7 days'
             """)).scalar()
 
@@ -1054,8 +1052,8 @@ class TestDataPipelineConsistency:
                 FROM candidate_links cl
                 JOIN articles a ON cl.id = a.candidate_link_id
                 WHERE EXTRACT(EPOCH FROM
-                    (a.extracted_at - cl.status_updated_at)) > 3600
-                AND cl.status_updated_at >= NOW() - INTERVAL '7 days'
+                    (a.extracted_at - cl.processed_at)) > 3600
+                AND cl.processed_at >= NOW() - INTERVAL '7 days'
             """)).scalar()
 
             if slow_extraction > 50:
@@ -1075,9 +1073,9 @@ class TestContentCleaningPipeline:
 
         Validates:
         1. Extracted articles are processed for cleaning
-        2. cleaned_content field is populated after extraction
+        2. cleaned text (articles.text) is populated after extraction
         3. Status transition happens within reasonable time
-        4. Timestamps progress: extracted_at < cleaned_at
+        4. Cleaned text present for post-cleaning statuses
         """
         with production_db.get_session() as session:
             # Check articles with cleaned content from last 24 hours
@@ -1085,19 +1083,18 @@ class TestContentCleaningPipeline:
                 SELECT
                     COUNT(*) as total_extracted,
                     COUNT(CASE
-                        WHEN cleaned_content IS NOT NULL
-                        AND LENGTH(TRIM(cleaned_content)) > 100
+                        WHEN text IS NOT NULL
+                        AND LENGTH(TRIM(text)) > 100
                         THEN 1
                     END) as with_cleaned_content,
-                    AVG(CASE
-                        WHEN cleaned_content IS NOT NULL
-                        THEN EXTRACT(EPOCH FROM (cleaned_at - extracted_at))
-                        ELSE NULL
-                    END) as avg_cleaning_latency_seconds
+                    -- NOTE: cleaning happens inline during extraction; the
+                    -- schema records no separate cleaned-at timestamp, so
+                    -- cleaning latency is not measurable here.
+                    NULL as avg_cleaning_latency_seconds
                 FROM articles
                 WHERE extracted_at >= NOW() - INTERVAL '24 hours'
-                AND status IN ('cleaned', 'classified', 'local', 'wire',
-                               'opinion', 'obituary')
+                AND status IN ('cleaned', 'labeled', 'wire',
+                               'opinion', 'obituary', 'weather')
             """)).fetchone()
 
             total_extracted, cleaned_count, avg_latency = result
@@ -1106,7 +1103,7 @@ class TestContentCleaningPipeline:
             assert total_extracted > 0, "No extracted articles found in last 24 hours"
             assert (
                 cleaned_count > 0
-            ), "No articles have cleaned_content - cleaning may have failed"
+            ), "No articles have cleaned text - cleaning may have failed"
 
             # Cleaning latency should be reasonable (<5 minutes typically)
             if avg_latency:
@@ -1123,7 +1120,7 @@ class TestContentCleaningPipeline:
         1. Cleaned content is shorter than original (boilerplate removed)
         2. Cleaned content still has substantial text (>100 chars)
         3. Content length ratio is reasonable (not removing too much)
-        4. No NULL cleaned_content for classified articles
+        4. No NULL cleaned text for labeled articles
         """
         with production_db.get_session() as session:
             # Check content reduction statistics
@@ -1131,30 +1128,30 @@ class TestContentCleaningPipeline:
                 SELECT
                     COUNT(*) as cleaned_articles,
                     AVG(LENGTH(COALESCE(content, ''))) as avg_original_length,
-                    AVG(LENGTH(COALESCE(cleaned_content, ''))) as avg_cleaned_length,
+                    AVG(LENGTH(COALESCE(text, ''))) as avg_cleaned_length,
                     MIN(CASE
-                        WHEN LENGTH(COALESCE(cleaned_content, '')) > 0
-                        THEN LENGTH(cleaned_content) /
+                        WHEN LENGTH(COALESCE(text, '')) > 0
+                        THEN LENGTH(text) /
                              GREATEST(LENGTH(content), 1)
                         ELSE NULL
                     END) as min_retention_ratio,
                     MAX(CASE
-                        WHEN LENGTH(COALESCE(cleaned_content, '')) > 0
-                        THEN LENGTH(cleaned_content) /
+                        WHEN LENGTH(COALESCE(text, '')) > 0
+                        THEN LENGTH(text) /
                              GREATEST(LENGTH(content), 1)
                         ELSE NULL
                     END) as max_retention_ratio
                 FROM articles
-                WHERE status IN ('cleaned', 'classified', 'local', 'wire',
-                                 'opinion', 'obituary')
+                WHERE status IN ('cleaned', 'labeled', 'wire',
+                                 'opinion', 'obituary', 'weather')
                 AND extracted_at >= NOW() - INTERVAL '24 hours'
-                AND cleaned_content IS NOT NULL
+                AND text IS NOT NULL
             """)).fetchone()
 
             cleaned_count, avg_orig, avg_clean, min_ratio, max_ratio = result
 
             # Should have cleaned articles
-            assert cleaned_count > 0, "No articles with cleaned_content found"
+            assert cleaned_count > 0, "No articles with cleaned text found"
 
             # Cleaned content should be shorter than original
             if avg_clean and avg_orig:
@@ -1208,8 +1205,8 @@ class TestContentCleaningPipeline:
                         THEN 1
                     END) as authors_with_wire_service_text
                 FROM articles
-                WHERE status IN ('cleaned', 'classified', 'local', 'wire',
-                                 'opinion', 'obituary')
+                WHERE status IN ('cleaned', 'labeled', 'wire',
+                                 'opinion', 'obituary', 'weather')
                 AND extracted_at >= NOW() - INTERVAL '24 hours'
             """)).fetchone()
 
@@ -1311,12 +1308,12 @@ class TestContentCleaningPipeline:
                     COUNT(DISTINCT cl.id) as section_url_articles,
                     COUNT(CASE
                         WHEN a.id IS NOT NULL
-                        AND a.cleaned_content IS NOT NULL
+                        AND a.text IS NOT NULL
                         THEN 1
                     END) as with_cleaned_content,
                     COUNT(CASE
-                        WHEN a.status IN ('cleaned', 'classified',
-                                         'local', 'wire', 'opinion', 'obituary')
+                        WHEN a.status IN ('cleaned', 'labeled',
+                                         'wire', 'opinion', 'obituary', 'weather')
                         THEN 1
                     END) as properly_processed
                 FROM candidate_links cl
@@ -1674,8 +1671,8 @@ class TestMLPipeline:
                 LEFT JOIN article_entities ae ON a.id = ae.article_id
                 LEFT JOIN article_labels al ON a.id = al.article_id
                 WHERE a.extracted_at >= NOW() - INTERVAL '7 days'
-                AND a.status IN ('cleaned', 'classified', 'local', 'wire',
-                                 'opinion', 'obituary')
+                AND a.status IN ('cleaned', 'labeled', 'wire',
+                                 'opinion', 'obituary', 'weather')
             """)).fetchone()
 
             (
@@ -1757,7 +1754,7 @@ class TestPerformance:
             result = session.execute(text("""
                 SELECT COUNT(*)
                 FROM candidate_links
-                WHERE status_updated_at >= NOW() - INTERVAL '1 hour'
+                WHERE processed_at >= NOW() - INTERVAL '1 hour'
                 AND status IN ('article', 'non-article')
             """)).scalar()
 
