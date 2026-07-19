@@ -114,12 +114,57 @@ jobs:
       - name: Build + smoke affected images from PR source
         run: |
           echo "Images affected by this PR: ${{ needs.changes.outputs.images }}"
+          set +e
           gcloud builds submit \
             --config gcp/cloudbuild/cloudbuild-pr-image-check.yaml \
             --substitutions "^~^_IMAGES=${{ needs.changes.outputs.images }}" \
             --project mizzou-news-crawler \
             --gcs-source-staging-dir gs://mizzou-news-crawler-pr-staging/source \
-            .
+            . 2>&1 | tee submit.log
+          status=${PIPESTATUS[0]}
+          set -e
+          # The build logs to Cloud Logging only, so gcloud can't stream them
+          # here — without this fetch a failure shows nothing but "status 1".
+          build_id=$(grep -oE 'builds/[a-f0-9-]{36}' submit.log | head -1 | cut -d/ -f2)
+          if [ -n "$build_id" ]; then
+            gcloud builds log "$build_id" --project mizzou-news-crawler 2>/dev/null \
+              | sed 's/^Step #[0-9]* - "build-and-smoke": //' > build.log
+            echo ""
+            echo "════════ Cloud Build log (build $build_id) ════════"
+            cat build.log
+
+            # Per-PR visibility: markdown summary on the job page with each
+            # image's build/smoke/contract outcome, plus ::error:: annotations
+            # so contract failures surface directly on the PR.
+            {
+              echo "## Image Build Check — build \`$build_id\`"
+              echo ""
+              if [ "$status" -eq 0 ]; then
+                echo "**✅ SUCCESS** — all affected images built, smoked, and passed dependency contracts."
+              else
+                echo "**❌ FAILURE** — see annotations and log below."
+              fi
+              echo ""
+              echo "| Image | Stage reached | Contracts verdict |"
+              echo "|---|---|---|"
+              awk '
+                /^🔨 Building /       {img=$3; built[img]="built"; stage[img]="build"}
+                /^🧪 Smoke: /         {stage[$3]="smoke"}
+                /^📜 Dependency contracts: / {cur=$4; stage[cur]="contracts"}
+                /(passed|failed|no tests ran)/ && cur {verdict[cur]=$0; cur=""}
+                END {
+                  for (i in built)
+                    printf("| %s | %s | %s |\n", i, stage[i], (i in verdict ? verdict[i] : "—"))
+                }' build.log
+              echo ""
+              echo "Full log: [Cloud Build console](https://console.cloud.google.com/cloud-build/builds/$build_id?project=mizzou-news-crawler)"
+            } >> "$GITHUB_STEP_SUMMARY"
+
+            grep -E "^FAILED |ERROR:" build.log | head -10 | while IFS= read -r line; do
+              echo "::error title=Image Build Check::$line"
+            done
+          fi
+          exit "$status"
 
   lint:
     name: Lint & Format Check
