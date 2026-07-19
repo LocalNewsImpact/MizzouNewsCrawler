@@ -1,0 +1,454 @@
+---
+# Proxy Health Monitor CronJob
+# Uses existing GCP Secret Manager secrets:
+# - gmail-credentials (SMTP credentials)
+# - health-check-recipient-email (alert recipient)
+# - squid-proxy-credentials (proxy URL from K8s secret)
+#
+# This monitor tests proxy connectivity from ALL GKE nodes by running
+# as a DaemonSet-style check that reports the source IP, ensuring
+# we detect when Cloud NAT IP changes break proxy ACLs.
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: proxy-health-monitor
+  namespace: production
+  labels:
+    app: proxy-health-monitor
+    component: monitoring
+spec:
+  # Run every hour at minute 0
+  schedule: "0 * * * *"
+  # Keep last 3 successful and 3 failed job histories
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  # Don't allow concurrent runs
+  concurrencyPolicy: Forbid
+  # Start job if missed (e.g., cluster was down)
+  startingDeadlineSeconds: 300
+  jobTemplate:
+    spec:
+      # Auto-cleanup completed jobs after 1 hour
+      ttlSecondsAfterFinished: 3600
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app: proxy-health-monitor
+        spec:
+          restartPolicy: Never
+          serviceAccountName: mizzou-app
+          containers:
+            - name: proxy-health-check
+              image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:latest
+              imagePullPolicy: Always
+              command:
+                - python
+                - -c
+                - |
+                  import os
+                  import sys
+                  import json
+                  import socket
+                  import smtplib
+                  import requests
+                  from email.mime.text import MIMEText
+                  from email.mime.multipart import MIMEMultipart
+                  from datetime import datetime, timezone
+                  from urllib.parse import urlparse
+                  from google.cloud import secretmanager
+
+                  PROJECT_ID = "mizzou-news-crawler"
+                  PROXY_URL = os.getenv("SQUID_PROXY_URL")
+                  NODE_NAME = os.getenv("NODE_NAME", "unknown")
+                  POD_NAME = os.getenv("POD_NAME", "unknown")
+                  TEST_URLS = [
+                      "https://httpbin.org/ip",
+                      "https://www.google.com",
+                      "https://www.ky3.com",
+                  ]
+                  CONNECT_TIMEOUT = 15
+                  REQUEST_TIMEOUT = 30
+
+                  def get_secret(secret_id):
+                      """Fetch secret from GCP Secret Manager."""
+                      try:
+                          client = secretmanager.SecretManagerServiceClient()
+                          name = f"projects/{PROJECT_ID}/secrets/{secret_id}/versions/latest"
+                          response = client.access_secret_version(request={"name": name})
+                          return response.payload.data.decode("UTF-8")
+                      except Exception as e:
+                          print(f"Failed to get secret {secret_id}: {e}")
+                          return None
+
+                  def get_egress_ip():
+                      """Get this pod's Cloud NAT egress IP (what Squid sees as source)."""
+                      try:
+                          r = requests.get("https://httpbin.org/ip", timeout=REQUEST_TIMEOUT)
+                          if r.status_code == 200:
+                              return r.json().get("origin", "unknown")
+                      except Exception as e:
+                          print(f"Failed to get egress IP: {e}")
+                      return "unknown"
+
+                  def check_tcp(proxy_url):
+                      parsed = urlparse(proxy_url)
+                      host, port = parsed.hostname, parsed.port or 3128
+                      try:
+                          sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                          sock.settimeout(CONNECT_TIMEOUT)
+                          result = sock.connect_ex((host, port))
+                          sock.close()
+                          return result == 0, f"TCP {host}:{port} {'OK' if result == 0 else f'FAILED ({result})'}"
+                      except Exception as e:
+                          return False, f"TCP error: {e}"
+
+                  def check_http(proxy_url, test_url):
+                      """Test HTTP through proxy - detects ACL blocks (403 Forbidden)."""
+                      proxies = {"http": proxy_url, "https": proxy_url}
+                      try:
+                          r = requests.get(test_url, proxies=proxies, timeout=REQUEST_TIMEOUT, verify=True)
+                          if r.status_code == 200:
+                              return True, f"HTTP {test_url} -> {r.status_code}"
+                          elif r.status_code == 403:
+                              return False, f"HTTP {test_url} -> 403 FORBIDDEN (ACL DENIED - check Squid config)"
+                          else:
+                              return False, f"HTTP {test_url} -> {r.status_code}"
+                      except requests.exceptions.ProxyError as e:
+                          error_str = str(e)
+                          if "403" in error_str or "Forbidden" in error_str:
+                              return False, f"HTTP {test_url} FAILED: PROXY ACL DENIED (403 Forbidden)"
+                          return False, f"HTTP {test_url} FAILED: ProxyError - {e}"
+                      except Exception as e:
+                          return False, f"HTTP {test_url} FAILED: {e}"
+
+                  def send_alert(subject, body):
+                      # Get credentials from Secret Manager
+                      to_email = get_secret("health-check-recipient-email")
+                      gmail_creds = get_secret("gmail-credentials")
+                      
+                      if not gmail_creds or not to_email:
+                          print("WARNING: Email credentials not available")
+                          return False
+                      
+                      try:
+                          creds = json.loads(gmail_creds)
+                          smtp_user = creds.get("email") or creds.get("user") or creds.get("username")
+                          smtp_password = creds.get("password") or creds.get("app_password")
+                      except json.JSONDecodeError:
+                          # Maybe it's just the password
+                          smtp_user = to_email
+                          smtp_password = gmail_creds
+                      
+                      if not smtp_user or not smtp_password:
+                          print("WARNING: Could not parse gmail credentials")
+                          return False
+                      
+                      try:
+                          msg = MIMEMultipart()
+                          msg["From"] = smtp_user
+                          msg["To"] = to_email.strip()
+                          msg["Subject"] = subject
+                          msg.attach(MIMEText(body, "plain"))
+                          
+                          with smtplib.SMTP("smtp.gmail.com", 587) as server:
+                              server.starttls()
+                              server.login(smtp_user, smtp_password)
+                              server.send_message(msg)
+                          print(f"Alert sent to {to_email}")
+                          return True
+                      except Exception as e:
+                          print(f"Email send failed: {e}")
+                          return False
+
+                  # Main check
+                  print(f"=== Proxy Health Check - {datetime.now(timezone.utc).isoformat()} ===")
+                  print(f"Node: {NODE_NAME}")
+                  print(f"Pod: {POD_NAME}")
+                  print(f"Proxy: {PROXY_URL}")
+                  
+                  # CRITICAL: Get egress IP FIRST - this is what Squid sees
+                  egress_ip = get_egress_ip()
+                  print(f"Egress IP (Cloud NAT): {egress_ip}")
+                  print("-" * 50)
+                  
+                  results = []
+                  all_ok = True
+                  acl_denied = False
+
+                  # TCP check
+                  ok, msg = check_tcp(PROXY_URL)
+                  results.append(f"[{'pass' if ok else 'FAIL'}] {msg}")
+                  if not ok:
+                      all_ok = False
+
+                  # HTTP checks (only if TCP passed)
+                  if ok:
+                      for url in TEST_URLS:
+                          http_ok, http_msg = check_http(PROXY_URL, url)
+                          results.append(f"[{'pass' if http_ok else 'FAIL'}] {http_msg}")
+                          if not http_ok:
+                              all_ok = False
+                              if "ACL" in http_msg or "403" in http_msg or "Forbidden" in http_msg:
+                                  acl_denied = True
+
+                  # Print results
+                  for r in results:
+                      print(r)
+                  print(f"\nStatus: {'HEALTHY' if all_ok else 'UNHEALTHY'}")
+
+                  # Send alert if unhealthy
+                  if not all_ok:
+                      if acl_denied:
+                          subject = f"ALERT: Squid Proxy ACL DENIED - IP {egress_ip} not whitelisted"
+                          body = f"""PROXY HEALTH CHECK FAILED - ACL DENIED
+
+                  Time: {datetime.now(timezone.utc).isoformat()}
+                  Node: {NODE_NAME}
+                  Pod: {POD_NAME}
+                  
+                  *** EGRESS IP: {egress_ip} ***
+                  *** THIS IP NEEDS TO BE ADDED TO SQUID ACL ***
+                  
+                  Proxy: {PROXY_URL}
+
+                  Results:
+                  {chr(10).join(results)}
+
+                  ACTION REQUIRED:
+                  1. Add this IP range to Squid ACL:
+                     acl gke_external_ip src {egress_ip}/32
+                     (or use /16 for the subnet: {'.'.join(egress_ip.split('.')[:2])}.0.0/16)
+                  
+                  2. Reload Squid: squid -k reconfigure
+                  
+                  3. Reset cooldowns: kubectl rollout restart deployment/work-queue -n production
+
+                  This is an automated alert from the MizzouNewsCrawler monitoring system.
+                  """
+                      else:
+                          subject = "ALERT: Squid Proxy Down - MizzouNewsCrawler"
+                          body = f"""PROXY HEALTH CHECK FAILED
+
+                  Time: {datetime.now(timezone.utc).isoformat()}
+                  Node: {NODE_NAME}
+                  Pod: {POD_NAME}
+                  Egress IP: {egress_ip}
+                  Proxy: {PROXY_URL}
+
+                  Results:
+                  {chr(10).join(results)}
+
+                  ACTION REQUIRED:
+                  - Check proxy server (eero.online)
+                  - Verify network connectivity
+                  - Extraction pipeline is likely stalled
+                  - Run: kubectl rollout restart deployment/work-queue -n production
+
+                  This is an automated alert from the MizzouNewsCrawler monitoring system.
+                  """
+                      send_alert(subject, body)
+                      sys.exit(1)
+
+                  print("All checks passed!")
+                  sys.exit(0)
+              env:
+                - name: SQUID_PROXY_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: squid-proxy-credentials
+                      key: squid-proxy-url
+                - name: NODE_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: spec.nodeName
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "128Mi"
+                limits:
+                  cpu: "200m"
+                  memory: "256Mi"
+---
+# Multi-Node Proxy Health Monitor DaemonSet
+# Runs on EVERY node to catch per-node Cloud NAT IP issues
+# Reports every 6 hours (aligned with Argo pipeline schedule)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: proxy-health-all-nodes
+  namespace: production
+  labels:
+    app: proxy-health-all-nodes
+    component: monitoring
+spec:
+  schedule: "30 */6 * * *"  # Every 6 hours at :30 (before pipelines start)
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 3600
+      backoffLimit: 0
+      # Run parallel pods on all nodes
+      parallelism: 10
+      completions: 10
+      completionMode: Indexed
+      template:
+        metadata:
+          labels:
+            app: proxy-health-all-nodes
+        spec:
+          restartPolicy: Never
+          serviceAccountName: mizzou-app
+          # Spread across all nodes
+          affinity:
+            podAntiAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app: proxy-health-all-nodes
+                  topologyKey: kubernetes.io/hostname
+          containers:
+            - name: proxy-check
+              image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:latest
+              imagePullPolicy: Always
+              command:
+                - python
+                - -c
+                - |
+                  import os
+                  import sys
+                  import json
+                  import smtplib
+                  import requests
+                  from email.mime.text import MIMEText
+                  from email.mime.multipart import MIMEMultipart
+                  from datetime import datetime, timezone
+                  from google.cloud import secretmanager
+
+                  PROJECT_ID = "mizzou-news-crawler"
+                  PROXY_URL = os.getenv("SQUID_PROXY_URL")
+                  NODE_NAME = os.getenv("NODE_NAME", "unknown")
+                  JOB_INDEX = os.getenv("JOB_COMPLETION_INDEX", "0")
+
+                  def get_secret(secret_id):
+                      try:
+                          client = secretmanager.SecretManagerServiceClient()
+                          name = f"projects/{PROJECT_ID}/secrets/{secret_id}/versions/latest"
+                          response = client.access_secret_version(request={"name": name})
+                          return response.payload.data.decode("UTF-8")
+                      except Exception as e:
+                          print(f"Failed to get secret {secret_id}: {e}")
+                          return None
+
+                  def get_egress_ip():
+                      try:
+                          r = requests.get("https://httpbin.org/ip", timeout=30)
+                          if r.status_code == 200:
+                              return r.json().get("origin", "unknown")
+                      except Exception as e:
+                          print(f"Failed to get egress IP: {e}")
+                      return "unknown"
+
+                  def test_proxy(proxy_url):
+                      proxies = {"http": proxy_url, "https": proxy_url}
+                      try:
+                          r = requests.get("https://httpbin.org/ip", proxies=proxies, timeout=30)
+                          if r.status_code == 200:
+                              return True, r.json().get("origin", "unknown"), None
+                          return False, None, f"HTTP {r.status_code}"
+                      except requests.exceptions.ProxyError as e:
+                          error_str = str(e)
+                          if "403" in error_str or "Forbidden" in error_str:
+                              return False, None, "ACL_DENIED"
+                          return False, None, f"ProxyError: {e}"
+                      except Exception as e:
+                          return False, None, str(e)
+
+                  def send_alert(subject, body):
+                      to_email = get_secret("health-check-recipient-email")
+                      gmail_creds = get_secret("gmail-credentials")
+                      if not gmail_creds or not to_email:
+                          print("WARNING: Email credentials not available")
+                          return False
+                      try:
+                          creds = json.loads(gmail_creds)
+                          smtp_user = creds.get("email") or creds.get("user") or creds.get("username")
+                          smtp_password = creds.get("password") or creds.get("app_password")
+                      except json.JSONDecodeError:
+                          smtp_user = to_email
+                          smtp_password = gmail_creds
+                      try:
+                          msg = MIMEMultipart()
+                          msg["From"] = smtp_user
+                          msg["To"] = to_email.strip()
+                          msg["Subject"] = subject
+                          msg.attach(MIMEText(body, "plain"))
+                          with smtplib.SMTP("smtp.gmail.com", 587) as server:
+                              server.starttls()
+                              server.login(smtp_user, smtp_password)
+                              server.send_message(msg)
+                          return True
+                      except Exception as e:
+                          print(f"Email failed: {e}")
+                          return False
+
+                  # Main
+                  print(f"=== Multi-Node Proxy Check [{JOB_INDEX}] - {datetime.now(timezone.utc).isoformat()} ===")
+                  print(f"Node: {NODE_NAME}")
+
+                  egress_ip = get_egress_ip()
+                  print(f"Egress IP: {egress_ip}")
+
+                  ok, proxy_ip, error = test_proxy(PROXY_URL)
+                  if ok:
+                      print(f"[PASS] Proxy working - exit IP: {proxy_ip}")
+                      sys.exit(0)
+                  else:
+                      print(f"[FAIL] Proxy error: {error}")
+                      if error == "ACL_DENIED":
+                          subject = f"ALERT: Proxy ACL DENIED on {NODE_NAME} - Add IP {egress_ip}"
+                          body = f"""PROXY ACL DENIED - MULTI-NODE CHECK
+
+                  Time: {datetime.now(timezone.utc).isoformat()}
+                  Node: {NODE_NAME}
+                  Job Index: {JOB_INDEX}
+                  
+                  *** EGRESS IP BLOCKED: {egress_ip} ***
+                  
+                  Add to Squid ACL:
+                      acl gke_external_ip src {egress_ip}/32
+                  
+                  Or add the /16 range:
+                      acl gke_external_ip src {'.'.join(egress_ip.split('.')[:2])}.0.0/16
+                  
+                  Then: squid -k reconfigure
+
+                  This node's extraction jobs will FAIL until fixed.
+                  """
+                          send_alert(subject, body)
+                      sys.exit(1)
+              env:
+                - name: SQUID_PROXY_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: squid-proxy-credentials
+                      key: squid-proxy-url
+                - name: NODE_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: spec.nodeName
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "128Mi"
+                limits:
+                  cpu: "200m"
+                  memory: "256Mi"

@@ -26,6 +26,25 @@ spec:
   workflowSpec:
     entrypoint: dataset-pipeline-wrapper
     serviceAccountName: argo-workflow
+    # ---- spot scheduling (cost) ----
+    # Batch pods PREFER the spot pool (~70% cheaper node-hours); the toleration
+    # matches spot-pool's taint. Affinity is preferred-not-required, so a spot
+    # capacity stockout falls back to the on-demand pool (wave runs at normal
+    # cost) instead of stalling.
+    tolerations:
+      - key: cloud.google.com/gke-spot
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+    affinity:
+      nodeAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+                - key: cloud.google.com/gke-spot
+                  operator: In
+                  values: ["true"]
 
     templates:
     # Wrapper that calls the reusable template
