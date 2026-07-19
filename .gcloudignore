@@ -25,8 +25,13 @@ logs/
 !lookups/
 !lookups/**
 
-# Exclude test and development files
-tests/
+# Exclude test and development files — but the dependency contracts MUST
+# upload: cloudbuild-pr-image-check.yaml mounts tests/dependency_contracts
+# into each freshly built image and runs it there (the whole point of the
+# in-image gate). gitignore semantics: a fully excluded parent dir can't be
+# re-included, so exclude tests/* and negate the contracts subdir.
+tests/*
+!tests/dependency_contracts/
 artifacts/
 reports/
 docs/
