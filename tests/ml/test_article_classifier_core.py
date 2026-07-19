@@ -88,10 +88,11 @@ def test_article_classifier_falls_back_to_pretrained_dir(
             captured["model_name"] = name
             return DummyModel()
 
-    def fake_pipeline(task, *, model, tokenizer, return_all_scores, device):
+    def fake_pipeline(task, *, model, tokenizer, top_k, device):
         captured["pipeline_device"] = device
         assert task == "text-classification"
-        assert return_all_scores is True
+        # transformers v5 removed return_all_scores; top_k=None returns all labels
+        assert top_k is None
         assert model is not None
         assert tokenizer is not None
 
@@ -122,6 +123,36 @@ def test_article_classifier_falls_back_to_pretrained_dir(
     preds = classifier.predict_batch(["a", "b"], top_k=1)
     assert len(preds) == 2
     assert preds[0][0].label == "label"
+
+
+def test_predict_batch_handles_single_dict_output(tmp_path, monkeypatch):
+    """Regression: transformers v5 removed ``return_all_scores``.
+
+    When a pipeline yields one bare dict per text (the ``top_k=1`` shape)
+    instead of ``List[List[dict]]``, ``predict_batch`` must not crash with
+    ``'str' object has no attribute 'get'`` (iterating a dict yields its
+    string keys). This reproduced the production classifier outage where
+    every batch logged ``labeled=0 errors=N``.
+    """
+
+    def fake_load_pt(_path, _device):
+        def runner(texts, truncation=True):
+            # top_k=1 / legacy default: one dict per text, NOT wrapped in a list
+            return [_make_prediction_dict("politics", 0.9) for _ in texts]
+
+        return runner, "id", "ver"
+
+    monkeypatch.setattr(article_classifier, "_load_pt_classifier", fake_load_pt)
+
+    checkpoint = tmp_path / "checkpoint.pt"
+    checkpoint.write_text("data")
+    classifier = article_classifier.ArticleClassifier(checkpoint)
+
+    preds = classifier.predict_batch(["a", "b"], top_k=2)
+
+    assert len(preds) == 2
+    assert preds[0][0].label == "politics"
+    assert preds[0][0].score == pytest.approx(0.9)
 
 
 def test_predict_batch_validates_input(tmp_path, monkeypatch):
@@ -203,10 +234,11 @@ def test_load_pt_classifier_normalizes_state_dict(tmp_path, monkeypatch):
 
     pipeline_calls: dict[str, object] = {}
 
-    def fake_pipeline(task, *, model, tokenizer, return_all_scores, device):
+    def fake_pipeline(task, *, model, tokenizer, top_k, device):
         pipeline_calls["task"] = task
         pipeline_calls["tokenizer"] = tokenizer
         pipeline_calls["device"] = device
+        assert top_k is None
 
         def runner(texts, truncation=True):
             return [[_make_prediction_dict("label", 0.8)]] * len(texts)
