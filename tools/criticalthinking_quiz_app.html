@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Critical Thinking Test - Interactive Quiz</title>
+  <style>
+    :root {
+      --ctq-text: #1f2937;
+      --ctq-muted: #6b7280;
+      --ctq-accent: #111827;
+      --ctq-good: #14532d;
+      --ctq-bad: #7f1d1d;
+      --ctq-border: #e5e7eb;
+      --ctq-bg: #ffffff;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: "Georgia", "Times New Roman", serif;
+      background: var(--ctq-bg);
+      color: var(--ctq-text);
+    }
+    #ctq-app.ctq-wrap {
+      max-width: 760px;
+      margin: 0 auto;
+      line-height: 1.6;
+      font-size: 20px !important;
+    }
+    #ctq-app .ctq-card {
+      border: 1px solid var(--ctq-border);
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 12px;
+      background: #fff;
+    }
+    #ctq-app h1,
+    #ctq-app h2,
+    #ctq-app h3 {
+      margin: 0 0 10px;
+      color: var(--ctq-accent);
+    }
+    #ctq-app h1 {
+      font-size: 1.6em !important;
+      font-weight: 700;
+      line-height: 1.2;
+      letter-spacing: -0.01em;
+    }
+    #ctq-app h2 {
+      font-size: 0.78em !important;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--ctq-muted);
+    }
+    #ctq-app .ctq-muted {
+      color: var(--ctq-muted);
+      margin: 0;
+      font-size: 0.9em !important;
+      line-height: 1.5;
+    }
+    #ctq-app .ctq-statement {
+      margin-top: 4px;
+      padding: 12px 14px;
+      border-left: 3px solid #d1d5db;
+      background: #fafafa;
+      font-size: 1em !important;
+      font-weight: 400;
+      line-height: 1.55;
+    }
+    #ctq-app .ctq-instruction {
+      margin: 14px 0 12px;
+      font-size: 0.85em !important;
+      line-height: 1.45;
+      color: var(--ctq-muted);
+    }
+    #ctq-app .ctq-question {
+      margin-top: 14px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+    }
+    #ctq-app .ctq-q-title {
+      font-weight: 700;
+      margin-bottom: 10px;
+      font-size: 1em !important;
+      line-height: 1.4;
+    }
+    #ctq-app .ctq-choices {
+      display: grid;
+      gap: 10px;
+      margin: 8px 0 12px;
+    }
+    #ctq-app .ctq-option {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      min-height: 42px;
+      padding: 10px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.92em !important;
+      background: #fff;
+      margin: 0;
+    }
+    #ctq-app .ctq-option:hover {
+      background: #f8fafc;
+      border-color: #cbd5e1;
+    }
+    #ctq-app .ctq-option input[type="radio"] {
+      -webkit-appearance: radio !important;
+      appearance: radio !important;
+      accent-color: #111827;
+      width: 16px !important;
+      height: 16px !important;
+      min-width: 16px;
+      margin: 0 !important;
+      padding: 0 !important;
+      border: 0 !important;
+      box-shadow: none !important;
+      display: inline-block !important;
+      vertical-align: middle;
+      opacity: 1 !important;
+      position: static !important;
+      transform: none !important;
+    }
+    #ctq-app .ctq-option span {
+      display: inline-block;
+      white-space: nowrap;
+      word-break: normal;
+      overflow-wrap: normal;
+      line-height: 1.2;
+      font-weight: 400;
+      letter-spacing: 0;
+      text-transform: none;
+      color: var(--ctq-muted);
+    }
+    #ctq-app .ctq-check {
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      color: #111827;
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-family: inherit;
+      font-size: 0.9em !important;
+      cursor: pointer;
+    }
+    #ctq-app .ctq-check:hover {
+      background: #f8fafc;
+    }
+    #ctq-app .ctq-check:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    #ctq-app .ctq-feedback {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 6px;
+      display: none;
+      font-size: 0.9em !important;
+      line-height: 1.55;
+    }
+    #ctq-app .ctq-feedback.good {
+      display: block;
+      background: #f0fdf4;
+      color: var(--ctq-good);
+      border: 1px solid #bbf7d0;
+    }
+    #ctq-app .ctq-feedback.bad {
+      display: block;
+      background: #fef2f2;
+      color: var(--ctq-bad);
+      border: 1px solid #fecaca;
+    }
+    #ctq-app .ctq-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    #ctq-app .ctq-score {
+      font-size: 1.1em !important;
+      font-weight: 700;
+      color: #111827;
+    }
+    #ctq-app .ctq-hidden {
+      display: none;
+    }
+    #ctq-app .ctq-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+    #ctq-app .ctq-next {
+      border: 1px solid #111827;
+      background: #111827;
+      color: #fff;
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-family: inherit;
+      font-size: 0.9em !important;
+      cursor: pointer;
+    }
+    #ctq-app .ctq-next:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    @media (max-width: 640px) {
+      #ctq-app {
+        max-width: 100%;
+        padding: 0;
+        font-size: 18px !important;
+      }
+      #ctq-app .ctq-card {
+        padding: 12px;
+        margin-bottom: 10px;
+      }
+      #ctq-app h1 {
+        font-size: 1.5em !important;
+      }
+      #ctq-app h2 {
+        font-size: 0.78em !important;
+      }
+      #ctq-app .ctq-q-title {
+        font-size: 1em !important;
+      }
+      #ctq-app .ctq-muted {
+        font-size: 0.9em !important;
+      }
+      #ctq-app .ctq-statement {
+        font-size: 1em !important;
+        padding: 11px 12px;
+      }
+      #ctq-app .ctq-instruction {
+        font-size: 0.85em !important;
+      }
+      #ctq-app .ctq-option {
+        min-height: 40px;
+        padding: 9px 10px;
+        font-size: 1em !important;
+      }
+      #ctq-app .ctq-check,
+      #ctq-app .ctq-next {
+        width: 100%;
+        justify-content: center;
+        text-align: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="ctq-app" class="ctq-wrap">
+    <div class="ctq-card">
+      <h1>Critical Thinking Test</h1>
+      <p class="ctq-muted">Answer each item. You will get immediate feedback with rationale after each answer. After all 12 items, your overall score appears.</p>
+    </div>
+
+    <div id="quiz"></div>
+
+    <div class="ctq-card ctq-footer" id="summaryBox">
+      <div><strong>Progress:</strong> <span id="progress">0 / 12 answered</span></div>
+      <div class="ctq-score ctq-hidden" id="finalScore"></div>
+    </div>
+  </div>
+
+  <script>
+    const tests = [
+      {
+        id: "test1",
+        title: "TEST 1: QUESTIONING ASSUMPTIONS",
+        instruction: "Evaluate each option as an assumption made in the statement. Choose YES or NO.",
+        statement: "To increase the success of a new local election newsletter, a newsroom decided to prioritize its development for high-income subscribers who have previously clicked on political stories.",
+        items: [
+          {
+            id: 1,
+            text: "Clicking on a political story is a reliable indicator of a reader's interest in and willingness to support a specialized election newsletter.",
+            choices: ["YES", "NO"],
+            answer: "YES",
+            rationale: "The newsroom chose this group for the newsletter, taking for granted that past clicks equal future support."
+          },
+          {
+            id: 2,
+            text: "High-income readers are the only segment of the community that requires detailed information about local elections.",
+            choices: ["YES", "NO"],
+            answer: "NO",
+            rationale: "The newsroom chose to prioritize this group, which does not necessarily mean they assume others have no need."
+          },
+          {
+            id: 3,
+            text: "A digital email newsletter is the most effective format to deliver election information to this specific target audience.",
+            choices: ["YES", "NO"],
+            answer: "YES",
+            rationale: "By choosing this format, they take for granted it is the correct way to reach the target group."
+          }
+        ]
+      },
+      {
+        id: "test2",
+        title: "TEST 2: DEDUCTION",
+        instruction: "Does the conclusion necessarily follow from the provided premises? Choose TRUE or FALSE.",
+        statement: "Product managers are responsible for coordinating across teams and setting goals for specific products, but they have no formal authority (the power to hire, fire, or command) over the people in other departments they work with.",
+        items: [
+          {
+            id: 4,
+            text: "A product manager cannot compel a software developer to complete a feature through a direct supervisor-style command.",
+            choices: ["TRUE", "FALSE"],
+            answer: "TRUE",
+            rationale: "This follows the premise that they have no formal authority (power to command) over others."
+          },
+          {
+            id: 5,
+            text: "Because they lack formal authority, product managers must rely on collaboration and servant leadership to align different teams toward a goal.",
+            choices: ["TRUE", "FALSE"],
+            answer: "TRUE",
+            rationale: "If they have responsibility but no power to command, they must logically use influence and collaboration."
+          },
+          {
+            id: 6,
+            text: "Every strategic decision made in a newsroom must be initiated and approved by a product manager.",
+            choices: ["TRUE", "FALSE"],
+            answer: "FALSE",
+            rationale: "The premise says they manage specific products; it does not follow that they control all decisions."
+          }
+        ]
+      },
+      {
+        id: "test3",
+        title: "TEST 3: INTERPRETATION",
+        instruction: "Does the conclusion follow beyond a reasonable doubt from the statement? Choose YES or NO.",
+        statement: "The BBC World Service found many update stories had relatively few page views. When they shifted to fewer updates and more perspective or inspiration stories, they saw overall increases in page views and engagement despite publishing fewer articles.",
+        items: [
+          {
+            id: 7,
+            text: "For the BBC's audience, providing context and perspective serves a more valued information need than simply providing constant news updates.",
+            choices: ["YES", "NO"],
+            answer: "YES",
+            rationale: "Increased engagement despite fewer articles strongly supports that perspective is more valued."
+          },
+          {
+            id: 8,
+            text: "The BBC's digital audience prefers long-form investigative journalism over short-form breaking news in every possible context.",
+            choices: ["YES", "NO"],
+            answer: "NO",
+            rationale: "The shift worked in this case, but every possible context is a generalization not warranted by the text."
+          },
+          {
+            id: 9,
+            text: "Sustainable growth in digital journalism can sometimes be achieved by reducing the quantity of content if the remaining content better aligns with identified user needs.",
+            choices: ["YES", "NO"],
+            answer: "YES",
+            rationale: "The BBC case is a direct example of achieving an overall increase while producing less."
+          }
+        ]
+      },
+      {
+        id: "test4",
+        title: "TEST 4: DRAWING INFERENCE",
+        instruction: "Judge each inference from the facts. Choose one of: T, PT, ID, PF, F.",
+        statement: "After losing their local paper in Caroline County, residents reported they had to follow 20 different Facebook pages to find local information that had previously been consolidated in one newspaper edition.",
+        items: [
+          {
+            id: 10,
+            text: "One value a local newspaper provides is acting as a central aggregator that reduces the effort required for a community to stay informed.",
+            choices: ["T", "PT", "ID", "PF", "F"],
+            answer: "T",
+            rationale: "The facts explicitly contrast 20 sources versus 1, which directly supports this inference."
+          },
+          {
+            id: 11,
+            text: "Most residents of Caroline County now find Facebook more reliable for local news than the former newspaper.",
+            choices: ["T", "PT", "ID", "PF", "F"],
+            answer: "PF",
+            rationale: "The facts say it is harder to find information on Facebook, making this more likely false than true."
+          },
+          {
+            id: 12,
+            text: "The closure of a local newspaper increases the amount of time an average citizen must spend searching for critical community information.",
+            choices: ["T", "PT", "ID", "PF", "F"],
+            answer: "PT",
+            rationale: "It is likely that checking 20 pages takes more time than reading one consolidated edition."
+          }
+        ]
+      }
+    ];
+
+    const questions = tests.flatMap(test =>
+      test.items.map(item => ({
+        ...item,
+        testTitle: test.title,
+        instruction: test.instruction,
+        statement: test.statement
+      }))
+    );
+    const total = questions.length;
+    const answered = new Set();
+    let correct = 0;
+    let currentIndex = 0;
+
+    function updateProgress() {
+      document.getElementById("progress").textContent = `${answered.size} / ${total} answered`;
+      const finalScore = document.getElementById("finalScore");
+      if (answered.size === total) {
+        const pct = Math.round((correct / total) * 100);
+        finalScore.textContent = `Final Score: ${correct}/${total} (${pct}%)`;
+        finalScore.classList.remove("ctq-hidden");
+      }
+    }
+
+    function handleAnswer(item, picked, feedbackEl, radios, checkBtn) {
+      if (answered.has(item.id)) return;
+      answered.add(item.id);
+
+      const ok = picked === item.answer;
+      if (ok) correct += 1;
+
+      radios.forEach(r => { r.disabled = true; });
+      checkBtn.disabled = true;
+
+      feedbackEl.className = "ctq-feedback " + (ok ? "good" : "bad");
+      feedbackEl.innerHTML = [
+        `<div><strong>${ok ? "Correct" : "Incorrect"}</strong></div>`,
+        `<div>Your answer: ${picked}</div>`,
+        `<div>Correct answer: ${item.answer}</div>`,
+        `<div><strong>Context:</strong> ${item.rationale}</div>`
+      ].join("");
+
+      updateProgress();
+    }
+
+    function render() {
+      const quiz = document.getElementById("quiz");
+
+      function renderQuestion() {
+        const qItem = questions[currentIndex];
+        if (!qItem) return;
+
+        quiz.innerHTML = "";
+
+        const section = document.createElement("div");
+        section.className = "ctq-card";
+
+        const title = document.createElement("h2");
+        title.textContent = qItem.testTitle;
+
+        const instruction = document.createElement("p");
+        instruction.className = "ctq-instruction";
+        instruction.textContent = qItem.instruction;
+
+        const statement = document.createElement("div");
+        statement.className = "ctq-statement";
+        statement.innerHTML = `<strong>Statement:</strong> ${qItem.statement}`;
+
+        section.appendChild(title);
+        section.appendChild(statement);
+
+        const q = document.createElement("div");
+        q.className = "ctq-question";
+
+        const qTitle = document.createElement("div");
+        qTitle.className = "ctq-q-title";
+        qTitle.textContent = `${qItem.id}. ${qItem.text}`;
+
+        const choices = document.createElement("div");
+        choices.className = "ctq-choices";
+
+        const feedback = document.createElement("div");
+        feedback.className = "ctq-feedback";
+
+        const groupName = `q-${qItem.id}`;
+        const radios = qItem.choices.map(choice => {
+          const label = document.createElement("label");
+          label.className = "ctq-option";
+
+          const radio = document.createElement("input");
+          radio.type = "radio";
+          radio.name = groupName;
+          radio.value = choice;
+
+          const span = document.createElement("span");
+          span.textContent = choice;
+
+          label.appendChild(radio);
+          label.appendChild(span);
+          choices.appendChild(label);
+          return radio;
+        });
+
+        const actions = document.createElement("div");
+        actions.className = "ctq-actions";
+
+        const checkBtn = document.createElement("button");
+        checkBtn.type = "button";
+        checkBtn.className = "ctq-check";
+        checkBtn.textContent = "Check answer";
+        checkBtn.disabled = true;
+
+        const nextBtn = document.createElement("button");
+        nextBtn.type = "button";
+        nextBtn.className = "ctq-next ctq-hidden";
+        nextBtn.textContent = currentIndex < total - 1 ? "Next question" : "Finish";
+
+        radios.forEach(radio => {
+          radio.addEventListener("change", () => {
+            if (!answered.has(qItem.id)) {
+              checkBtn.disabled = false;
+            }
+          });
+        });
+
+        checkBtn.addEventListener("click", () => {
+          const selected = radios.find(r => r.checked);
+          if (!selected) return;
+          handleAnswer(qItem, selected.value, feedback, radios, checkBtn);
+          nextBtn.classList.remove("ctq-hidden");
+        });
+
+        nextBtn.addEventListener("click", () => {
+          if (currentIndex < total - 1) {
+            currentIndex += 1;
+            renderQuestion();
+          }
+        });
+
+        actions.appendChild(checkBtn);
+        actions.appendChild(nextBtn);
+
+        q.appendChild(instruction);
+        q.appendChild(qTitle);
+        q.appendChild(choices);
+        q.appendChild(actions);
+        q.appendChild(feedback);
+        section.appendChild(q);
+
+        quiz.appendChild(section);
+      }
+
+      updateProgress();
+      renderQuestion();
+    }
+
+    render();
+  </script>
+</body>
+</html>
