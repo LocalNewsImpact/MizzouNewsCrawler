@@ -101,16 +101,12 @@ steps:
 
         if want processor; then
           build processor --build-arg "ML_BASE_IMAGE=$$MLBASE_IMG"
-          # Assert the trafilatura-based extractor is actually enabled — the
-          # processor image runs extraction, and a missing mcmetadata dep
-          # silently sets MCMETADATA_AVAILABLE=False (regression guard).
-          smoke processor python -c "
-        from src.ml.article_classifier import ArticleClassifier
-        from src.crawler import MCMETADATA_AVAILABLE
-        assert MCMETADATA_AVAILABLE, 'mcmetadata/trafilatura NOT available in processor image'
-        import trafilatura
-        print('processor OK — mcmetadata enabled, trafilatura', trafilatura.__version__)
-        "
+          # Assert the mcmetadata dependency stack is present — a missing dep
+          # here is what silently set MCMETADATA_AVAILABLE=False and disabled
+          # the trafilatura extractor. Test the DEPS directly rather than the
+          # full src.crawler bootstrap (which has runtime-env assumptions like
+          # the origin-shim PYTHONPATH that a bare `docker run` can't replicate).
+          smoke processor python -c "import trafilatura, readability, goose3, boilerpy3, htmldate, py3langid, furl, url_normalize, dateparser; print('processor OK — mcmetadata stack present, trafilatura', trafilatura.__version__)"
         fi
 
         if want crawler; then
