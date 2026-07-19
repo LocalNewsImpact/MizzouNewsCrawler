@@ -55,6 +55,20 @@ the same suite runs everywhere.
 Not duplicated here: sqlalchemy/psycopg2/alembic (covered by the PostgreSQL
 integration suite), requests/proxy stack (covered by the proxy smoke suite).
 
+## Testing the tests (mandatory before pushing contract changes)
+
+The binding venue for contracts is *inside the built images* — repo-layout
+local runs do not prove venue correctness (mount depth, upload manifest,
+baked env vars all differ). Five CI cascades were burned learning this.
+
+**Run `scripts/test_contracts_local.sh` before pushing any change to
+`tests/dependency_contracts/` or the contracts() wiring.** It reproduces the
+Cloud Build execution exactly: stages the suite from the real
+`gcloud meta list-files-for-upload` manifest (catches .gcloudignore holes),
+mounts it at `/contracts` read-only (catches path assumptions), and runs the
+identical pytest invocation inside real images (catches baked-env
+mismatches). ~1 minute after the one-time image pull; $0.
+
 ## Handling a red contract
 
 1. Read the failure — it names the call site and the changed behavior.

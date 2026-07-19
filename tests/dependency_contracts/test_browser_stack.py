@@ -32,8 +32,13 @@ class TestSeleniumSurface:
         assert "--no-sandbox" in opts.arguments
 
     def test_undetected_chromedriver_real_boot(self):
-        """Boot real Chrome via undetected_chromedriver as extraction does,
-        load a data: URL, read page_source. Crawler-image venue only."""
+        """Boot real Chrome via undetected_chromedriver EXACTLY as extraction
+        does (src/crawler/__init__.py:4778-4799): the baked, version-matched
+        driver from CHROMEDRIVER_PATH and browser from CHROME_BIN. A bare
+        uc.Chrome() would download the latest chromedriver and fail on any
+        Chrome-version mismatch prod never sees. Crawler-image venue only."""
+        import os
+
         if not chrome_binary_present():
             pytest.skip("no Chrome binary in this venue")
         uc = pytest.importorskip("undetected_chromedriver")
@@ -42,7 +47,16 @@ class TestSeleniumSurface:
         opts.add_argument("--headless=new")
         opts.add_argument("--no-sandbox")
         opts.add_argument("--disable-dev-shm-usage")
-        driver = uc.Chrome(options=opts)
+
+        uc_kwargs = {}
+        driver_path = os.getenv("CHROMEDRIVER_PATH")
+        chrome_bin = os.getenv("CHROME_BIN") or os.getenv("GOOGLE_CHROME_BIN")
+        if driver_path:
+            uc_kwargs["driver_executable_path"] = str(driver_path)
+        if chrome_bin:
+            uc_kwargs["browser_executable_path"] = str(chrome_bin)
+
+        driver = uc.Chrome(options=opts, **uc_kwargs)
         try:
             driver.get("data:text/html,<html><body><h1>contract</h1></body></html>")
             assert "contract" in driver.page_source
