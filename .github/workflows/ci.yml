@@ -118,6 +118,7 @@ jobs:
             --config gcp/cloudbuild/cloudbuild-pr-image-check.yaml \
             --substitutions "_IMAGES=${{ needs.changes.outputs.images }}" \
             --project mizzou-news-crawler \
+            --gcs-source-staging-dir gs://mizzou-news-crawler-pr-staging/source \
             .
 
   lint:
