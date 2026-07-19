@@ -115,7 +115,7 @@ class ArticleClassifier:
                         "text-classification",
                         model=model,
                         tokenizer=tokenizer,
-                        return_all_scores=True,
+                        top_k=None,  # return all label scores per text (List[List[dict]]); transformers v5 removed return_all_scores
                         device=self.device,
                     )
                     self.model_identifier = candidate
@@ -183,8 +183,11 @@ class ArticleClassifier:
 
         predictions: list[list[Prediction]] = []
         for output in raw_outputs:
+            # top_k=None yields List[dict] per text; guard against a bare dict
+            # (top_k=1 shape) so a pipeline-default change can't crash the batch.
+            scores = output if isinstance(output, list) else [output]
             sorted_scores = sorted(
-                output,
+                scores,
                 key=lambda item: item.get("score", 0),
                 reverse=True,
             )
@@ -301,7 +304,7 @@ def _load_pt_classifier(
         "text-classification",
         model=model,
         tokenizer=tokenizer,
-        return_all_scores=True,
+        top_k=None,  # return all label scores per text (List[List[dict]]); transformers v5 removed return_all_scores
         device=device,
     )
 
