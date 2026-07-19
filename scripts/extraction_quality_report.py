@@ -107,7 +107,7 @@ def load_corpus(path: str, url_col: str, text_col: str) -> dict[str, str]:
         if col not in df.columns:
             raise SystemExit(f"column {col!r} not in corpus; have {list(df.columns)}")
     out: dict[str, str] = {}
-    for url, text in zip(df[url_col], df[text_col]):
+    for url, text in zip(df[url_col], df[text_col], strict=False):
         if url.startswith("http") and text and url not in out:
             out[url] = text
     return out
