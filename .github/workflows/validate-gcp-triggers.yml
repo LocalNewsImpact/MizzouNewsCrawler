@@ -15,7 +15,15 @@ jobs:
   validate-triggers:
     name: Validate GCP Cloud Build Triggers
     runs-on: ubuntu-latest
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    # Validates that prod GCP Cloud Build triggers EXIST — unrelated to the code
+    # under review, and requires prod GCP access via GCP_SA_KEY. Dependabot runs
+    # in an isolated secrets context without that secret, so this job can never
+    # authenticate there; skip it for Dependabot (the dependency change itself is
+    # still built + smoke-tested by the Image Build Check job, which authenticates
+    # via the Dependabot secret store).
+    if: >-
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+      && github.actor != 'dependabot[bot]'
 
     steps:
       - name: Checkout
