@@ -16,7 +16,6 @@ env/
 ENV/
 
 # Exclude data and logs
-data/
 logs/
 *.log
 *.db
@@ -36,6 +35,13 @@ artifacts/
 reports/
 docs/
 telemetry_demo/
+
+# Root-only data dir. An unanchored "data/" also stripped src/mcmetadata/data/
+# from the PR image-check upload, so pr-check images failed at mcmetadata
+# import (FileNotFoundError: domain-skip-list.txt) while prod trigger builds
+# (which don't use .gcloudignore) worked — a PR-check-only false negative.
+/data/
+!src/mcmetadata/data/
 
 # Exclude node modules and frontend
 node_modules/
