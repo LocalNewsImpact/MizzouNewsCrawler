@@ -14,7 +14,14 @@ COPY requirements-ml.txt ./
 
 # Install ML packages (this is the slow part)
 # Use --no-cache-dir to reduce image size
-RUN pip install --no-cache-dir -r requirements-ml.txt
+#
+# torch comes from the CPU-only wheel index FIRST: the default PyPI wheel
+# bundles ~2.7GB of NVIDIA CUDA libraries that can never run on our
+# GPU-less GKE nodes (the classifier runs device=-1/CPU). Installing the
+# +cpu build first satisfies requirements-ml.txt's torch floor, so the
+# CUDA build is never pulled. Saves ~4GB per image (ml-base, processor).
+RUN pip install --no-cache-dir "torch>=2.1.0" --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir -r requirements-ml.txt
 
 # Pre-download commonly used models to speed up first run
 # This is optional but helpful for faster cold starts
