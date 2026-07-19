@@ -29,6 +29,24 @@ spec:
         dataset: DATASET_SLUG
         type: extraction
     spec:
+      # ---- spot scheduling (cost) ----
+      # Batch pods PREFER the spot pool (~70% cheaper node-hours); the
+      # toleration matches spot-pool's taint. Affinity is preferred-not-
+      # required: a spot stockout falls back to on-demand instead of stalling.
+      tolerations:
+        - key: cloud.google.com/gke-spot
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: cloud.google.com/gke-spot
+                    operator: In
+                    values: ["true"]
       containers:
       - command:
         - python

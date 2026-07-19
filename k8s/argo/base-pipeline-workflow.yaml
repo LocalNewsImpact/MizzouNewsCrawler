@@ -6,6 +6,25 @@ metadata:
 spec:
   serviceAccountName: argo-workflow
   entrypoint: pipeline
+  # ---- spot scheduling (cost) ----
+  # Batch pods PREFER the spot pool (~70% cheaper node-hours); the toleration
+  # matches spot-pool's taint. Affinity is preferred-not-required, so a spot
+  # capacity stockout falls back to the on-demand pool (wave runs at normal
+  # cost) instead of stalling.
+  tolerations:
+    - key: cloud.google.com/gke-spot
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: cloud.google.com/gke-spot
+                operator: In
+                values: ["true"]
   ttlStrategy:
     secondsAfterSuccess: 43200  # 12 hours to keep logs accessible
     secondsAfterFailure: 43200  # 12 hours ensures failed runs are cleaned up too
