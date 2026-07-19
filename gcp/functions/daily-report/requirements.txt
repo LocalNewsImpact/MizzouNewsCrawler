@@ -1,7 +1,7 @@
-google-cloud-bigquery>=3.0.0
-google-api-python-client>=2.0.0
-google-auth>=2.0.0
+google-cloud-bigquery>=3.42.2
+google-api-python-client>=2.198.0
+google-auth>=2.56.0
 
 # Transitive security pins (Dependabot high)
-cryptography>=48.0.1
-pyasn1>=0.6.3
+cryptography>=49.0.0
+pyasn1>=0.6.4
