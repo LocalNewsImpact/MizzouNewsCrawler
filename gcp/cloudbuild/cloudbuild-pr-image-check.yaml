@@ -126,18 +126,24 @@ steps:
 
         if want processor; then
           build processor --build-arg "ML_BASE_IMAGE=$$MLBASE_IMG"
-          # Assert the mcmetadata dependency stack is present — a missing dep
-          # here is what silently set MCMETADATA_AVAILABLE=False and disabled
-          # the trafilatura extractor. Test the DEPS directly rather than the
-          # full src.crawler bootstrap (which has runtime-env assumptions like
-          # the origin-shim PYTHONPATH that a bare `docker run` can't replicate).
-          smoke processor python -c "import trafilatura, readability, goose3, boilerpy3, htmldate, py3langid, furl, url_normalize, dateparser; print('processor OK — mcmetadata stack present, trafilatura', trafilatura.__version__)"
+          # Assert what this image actually runs: entity extraction, wire
+          # detection and WARC import. The mcmetadata stack assertion moved to
+          # the crawler smoke below — extraction runs there, not here, and
+          # asserting it on the processor kept a browser/extraction stack alive
+          # in an image that never invokes it.
+          smoke processor python -c "import rapidfuzz, mediacloud, warcio; print('processor OK — entity/wire/WARC deps present')"
           contracts processor
         fi
 
         if want crawler; then
           build crawler --build-arg "BASE_IMAGE=$$BASE_IMG"
-          smoke crawler bash -c "python -c 'import selenium, undetected_chromedriver' && (chromium --version || google-chrome --version) && echo 'crawler OK'"
+          # The mcmetadata dependency stack is asserted HERE because extraction
+          # runs on this image. A missing dep is what silently set
+          # MCMETADATA_AVAILABLE=False and disabled the trafilatura extractor.
+          # Test the DEPS directly rather than the full src.crawler bootstrap
+          # (which has runtime-env assumptions like the origin-shim PYTHONPATH
+          # that a bare `docker run` can't replicate).
+          smoke crawler bash -c "python -c 'import selenium, undetected_chromedriver' && python -c 'import trafilatura, readability, goose3, boilerpy3, htmldate, py3langid, furl, url_normalize, dateparser; print(\"mcmetadata stack present, trafilatura\", trafilatura.__version__)' && (chromium --version || google-chrome --version) && echo 'crawler OK'"
           contracts crawler
         fi
 
