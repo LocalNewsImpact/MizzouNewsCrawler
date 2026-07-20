@@ -381,12 +381,24 @@ class TestEntityExtractionCommand:
         # source_id comes from candidate_links join
         assert "cl.source_id" in query_str or "source_id" in query_str
 
-        # Should filter for articles with content but no entities
+        # Should filter for articles with content but no entities yet.
+        # Pending work is matched on recorded state rather than an anti-join
+        # against article_entities: that anti-join cost O(corpus) to find a
+        # handful of rows and grew as the pipeline got further ahead, until it
+        # exceeded the role's statement_timeout and failed every cycle.
         assert "content is not null" in query_str
         assert "text is not null" in query_str
-        assert "not exists" in query_str
-        assert "article_entities" in query_str
+        assert "entities_extracted_at is null" in query_str
+        assert "not exists" not in query_str, (
+            "the anti-join against article_entities must not come back — it is "
+            "what made this query scale with the corpus instead of the backlog"
+        )
 
         # Should exclude error articles
         assert "status" in query_str
         assert "error" in query_str
+
+        # Ordering is load-bearing, not cosmetic: articles are processed
+        # source-by-source so each publisher's own gazetteer is loaded once
+        # rather than swapped per article.
+        assert "order by cl.source_id" in query_str

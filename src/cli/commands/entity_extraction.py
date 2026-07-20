@@ -93,7 +93,19 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
             # - save_article_entities(autocommit=False) used per article
             # - Batch commit after each source releases locks together
             # - Other workers skip locked articles, grab different ones
-            # - EXISTS check prevents re-processing on subsequent runs
+            # - entities_extracted_at prevents re-processing on subsequent runs
+            #
+            # That column replaced `NOT EXISTS (SELECT 1 FROM article_entities
+            # ...)`. The anti-join had to consider the whole corpus to find the
+            # few articles still pending — 150k articles against 2.7M entity
+            # rows to locate ~80 — so it grew more expensive the more work was
+            # already done, and eventually exceeded the 120s statement_timeout
+            # set on the role, failing every cycle. Matching on recorded state
+            # makes the lookup proportional to work outstanding instead, via a
+            # partial index that shrinks as the queue drains.
+            #
+            # ORDER BY is unchanged on purpose: articles are processed
+            # source-by-source so each publisher's gazetteer is loaded once.
             query = sql_text(
                 """
                 SELECT a.id, a.text, a.text_hash, cl.source_id, cl.dataset_id, cl.source
@@ -101,9 +113,7 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
                 JOIN candidate_links cl ON a.candidate_link_id = cl.id
                 WHERE a.content IS NOT NULL
                 AND a.text IS NOT NULL
-                AND NOT EXISTS (
-                    SELECT 1 FROM article_entities ae WHERE ae.article_id = a.id
-                )
+                AND a.entities_extracted_at IS NULL
                 AND a.status NOT IN ('error', 'paywall', 'wire')
                 """
                 + ("AND cl.source = :source" if source else "")

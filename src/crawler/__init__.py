@@ -4258,17 +4258,23 @@ class ContentExtractor:
                 return {}
 
             # Extract content after ensuring page is loaded
-            html = driver.page_source
-
-            self._update_wire_hints_from_html(html, url)
-            self._record_raw_html(html, "selenium")
-
-            # Stop page load immediately after getting HTML to prevent
-            # waiting for slow ads/trackers (fixes 147s timeout issue)
+            # Stop the page load BEFORE reading page_source. Reading it while
+            # the document is still fetching ads and trackers blocks until the
+            # load settles — measured at ~208s on newstribune, versus 0.1s when
+            # the stop runs first (nav itself is ~2s).
+            #
+            # The stop used to run immediately after this read, with a comment
+            # noting it "fixes 147s timeout issue" — the right instinct applied
+            # one line too late, since page_source is what blocks.
             try:
                 driver.execute_script("window.stop();")
             except Exception:
                 pass  # Ignore if page already finished loading
+
+            html = driver.page_source
+
+            self._update_wire_hints_from_html(html, url)
+            self._record_raw_html(html, "selenium")
 
             soup = BeautifulSoup(html, "html.parser")
 
@@ -5790,6 +5796,31 @@ class ContentExtractor:
             logger.error(f"Error in challenge bypass attempt: {e}")
             return False
 
+    # A page carrying this much prose is showing an article, not a challenge.
+    # Interstitials ("Just a moment...", "Attention Required") are near-empty by
+    # design, so the threshold separates them without naming any of them.
+    ARTICLE_CONTENT_MIN_CHARS = 1200
+    ARTICLE_CONTENT_MIN_PARAGRAPHS = 5
+
+    def _page_has_article_content(self, driver) -> bool:
+        """Whether the rendered page still carries a story.
+
+        Used to tell a blocking wall from a widget that merely sits on the page:
+        a wall replaces the article, a sign-in or subscription prompt does not.
+        Deliberately structural — no vendor or publisher names — so it keeps
+        working as publishers change providers.
+        """
+        try:
+            paragraphs = driver.find_elements(By.CSS_SELECTOR, "article p, main p, p")
+            if len(paragraphs) < self.ARTICLE_CONTENT_MIN_PARAGRAPHS:
+                return False
+            chars = sum(len((p.text or "").strip()) for p in paragraphs[:40])
+            return chars >= self.ARTICLE_CONTENT_MIN_CHARS
+        except Exception:
+            # Never let this probe decide by accident — if we cannot tell, fall
+            # through to the existing detection rather than assuming safety.
+            return False
+
     def _detect_captcha_or_challenge(self, driver) -> bool:
         """Detect if page contains CAPTCHA or other bot challenges.
 
@@ -5837,9 +5868,40 @@ class ContentExtractor:
                 "iframe[src*='captcha']",  # Generic captcha iframe
             ]
 
+            # A bot wall REPLACES the article; a sign-in or subscription widget
+            # sits beside it. So the question isn't which vendor drew the
+            # widget, it's whether the page still carries the story — which is
+            # site-agnostic and doesn't rot as publishers change vendors.
+            #
+            # newstribune is the case that exposed the gap: it embeds reCAPTCHA
+            # in a subscriber sign-in widget and carries only one subscription
+            # keyword, so the >=2 keyword rule above missed it. Every article
+            # then paid ~86s failing to "bypass" a login form before extracting
+            # the article anyway — telemetry showed 11/11 selenium "success"
+            # alongside "Could not bypass".
+            has_article_content = self._page_has_article_content(driver)
+
+            # Only the soft, embeddable widgets get this exemption. Cloudflare
+            # and PerimeterX challenges below are genuine walls and still block
+            # even when markup happens to linger behind them.
+            soft_captcha_selectors = (
+                "iframe[src*='recaptcha']",
+                "iframe[src*='hcaptcha']",
+                "[class*='g-recaptcha']",
+                "[class*='h-captcha']",
+                "iframe[src*='captcha']",
+            )
+
             for selector in captcha_selectors:
                 try:
                     if driver.find_elements(By.CSS_SELECTOR, selector):
+                        if has_article_content and selector in soft_captcha_selectors:
+                            logger.info(
+                                "Detected %s but the page still carries article "
+                                "content (not blocking) — extracting normally",
+                                selector,
+                            )
+                            return False
                         # If this is a subscription modal with a CAPTCHA, it's NOT blocking
                         if has_subscription_keywords and "recaptcha" in selector:
                             logger.info(

@@ -22,6 +22,7 @@ from sqlalchemy import (
     insert,
     select,
     text,
+    update,
 )
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker
@@ -1163,6 +1164,16 @@ def save_article_entities(
         )
         session.add(sentinel)
         records.append(sentinel)
+
+    # Stamp the article as processed so finding work is an index lookup on the
+    # pending set rather than an anti-join against every row of
+    # article_entities. Written in the same transaction as the entities, so the
+    # two cannot disagree.
+    session.execute(
+        update(Article)
+        .where(Article.id == article_id)
+        .values(entities_extracted_at=datetime.utcnow())
+    )
 
     if autocommit:
         _commit_with_retry(session)
