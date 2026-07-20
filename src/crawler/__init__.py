@@ -2807,28 +2807,48 @@ class ContentExtractor:
         self._apply_cms_metadata_fallback(result)
         missing_fields = self._get_missing_fields(result)
 
-        # For domains marked as 'unblock', use Squid proxy instead of Selenium
-        if extraction_method == "unblock" and missing_fields:
+        # tls_client is a capture rung between a plain HTTP client and a full
+        # browser: the same Squid egress, but a Chrome-like TLS/JA3 fingerprint.
+        # It used to run only for domains pre-flagged "unblock", so every other
+        # host escalated from a sub-second HTTP capture straight to a Selenium
+        # render measured in minutes — skipping the cheap disguise that most
+        # often explains the refusal.
+        #
+        # The flagged case keeps its original semantics, including treating a
+        # proxy challenge as terminal. As a general rung it is advisory: a
+        # refusal just means this rung failed, and Selenium still gets its turn.
+        domain_requires_unblock = extraction_method == "unblock"
+        try_tls_capture = bool(missing_fields) and (
+            domain_requires_unblock or self._tls_capture_fallback_enabled()
+        )
+
+        if try_tls_capture:
             # If Selenium was attempted as the primary method and failed, the default
             # policy skips HTTP unblock fallback because it won't emulate site JS.
             # For diagnostics or incident mitigation, this can be overridden via
             # self._allow_unblock_after_selenium_fail or env ALLOW_UNBLOCK_AFTER_SELENIUM_FAIL.
-            if selenium_attempted_primary and not getattr(
+            skip_after_selenium_failure = selenium_attempted_primary and not getattr(
                 self, "_allow_unblock_after_selenium_fail", False
-            ):
-                msg = (
-                    f"Selenium-first attempt failed for {domain}; "
-                    "skipping unblock HTTP fetch (won't emulate browser JS)."
+            )
+        else:
+            skip_after_selenium_failure = False
+
+        if try_tls_capture and skip_after_selenium_failure:
+            msg = (
+                f"Selenium-first attempt failed for {domain}; "
+                "skipping unblock HTTP fetch (won't emulate browser JS)."
+            )
+            logger.warning(msg)
+            if metrics:
+                metrics.end_method(
+                    "unblock_proxy", False, "selenium_failed_no_fallback", {}
                 )
-                logger.warning(msg)
-                if metrics:
-                    metrics.end_method(
-                        "unblock_proxy", False, "selenium_failed_no_fallback", {}
-                    )
+            if domain_requires_unblock:
                 raise ProxyChallengeError(
                     f"Proxy challenge/block detected for {url}: selenium_failed_no_fallback"
                 )
 
+        if try_tls_capture and not skip_after_selenium_failure:
             try:
                 logger.info(
                     f"Attempting unblock proxy extraction for {url} "
@@ -2857,12 +2877,21 @@ class ContentExtractor:
                         )
 
             except ProxyChallengeError as e:
-                # Proxy challenge detected - do NOT fall back to Selenium
-                # Re-raise to mark article for retry
                 logger.warning(f"❌ Proxy challenge for {url}: {e}")
                 if metrics:
                     metrics.end_method("unblock_proxy", False, str(e), {})
-                raise  # Re-raise ProxyChallengeError to prevent Selenium fallback
+                if domain_requires_unblock:
+                    # Flagged domains treat a challenge as terminal and mark the
+                    # article for retry — Selenium won't help where the site has
+                    # already refused this route.
+                    raise
+                # As a general rung this is advisory: the disguise was refused,
+                # which says nothing about whether a real browser would be. Fall
+                # through so Selenium still gets its turn, exactly as before this
+                # rung existed for unflagged domains.
+                logger.info(
+                    "tls_client capture refused for %s; continuing to Selenium", url
+                )
 
             except Exception as e:
                 logger.error(f"❌ Unblock proxy extraction failed for {url}: {e}")
@@ -6069,6 +6098,15 @@ class ContentExtractor:
     def _capture_reuse_enabled(self) -> bool:
         """Whether parsers may reuse a capture instead of fetching their own."""
         return os.getenv("EXTRACTION_REUSE_CAPTURE", "true").lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        )
+
+    def _tls_capture_fallback_enabled(self) -> bool:
+        """Whether the tls_client capture rung runs for unflagged domains too."""
+        return os.getenv("TLS_CAPTURE_FALLBACK", "true").lower() in (
             "1",
             "true",
             "yes",
