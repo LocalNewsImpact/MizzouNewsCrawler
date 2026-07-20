@@ -5,6 +5,7 @@ substitutions:
 
 steps:
   - name: 'gcr.io/cloud-builders/docker'
+    id: 'build'
     args:
       - 'build'
       - '--build-arg'
@@ -18,9 +19,28 @@ steps:
       - '-t'
       - '${_REGISTRY}/crawler:v${_RELEASE_VERSION}'
       - '.'
+
+  # This image is built FROM base:latest. If a base rebuild was still in flight
+  # when that pull happened, the image is silently built on the PREVIOUS base
+  # and ships without dependencies that were just added to requirements-base.txt
+  # — the build still succeeds and the gap only appears at runtime. Fail here,
+  # before anything is deployed, rather than in production.
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'verify-dependencies'
+    entrypoint: 'bash'
+    waitFor: ['build']
+    args:
+      - '-c'
+      - |
+        docker run --rm -v /workspace:/repo:ro \
+          '${_REGISTRY}/crawler:${SHORT_SHA}' \
+          python /repo/scripts/verify_image_dependencies.py \
+            /repo/requirements-base.txt /repo/requirements-crawler.txt
+
   # Get GKE credentials for kubectl commands
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'get-gke-credentials'
+    waitFor: ['verify-dependencies']
     args:
       - 'container'
       - 'clusters'

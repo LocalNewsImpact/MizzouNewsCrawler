@@ -28,6 +28,21 @@ steps:
       - '${_REGISTRY}/api'
     waitFor: ['build-api']
 
+  # Built FROM base:latest — if a base rebuild was in flight when that pull
+  # happened, this image is silently on the previous base and ships without
+  # dependencies just added to requirements-base.txt. Fail before deploying.
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'verify-dependencies'
+    entrypoint: 'bash'
+    waitFor: ['build-api']
+    args:
+      - '-c'
+      - |
+        docker run --rm -v /workspace:/repo:ro \
+          '${_REGISTRY}/api:${SHORT_SHA}' \
+          python /repo/scripts/verify_image_dependencies.py \
+            /repo/requirements-base.txt /repo/requirements-api.txt
+
   # Force pod update by setting image directly
   # This is the fix - Cloud Deploy doesn't update hardcoded tags in YAML
   # kubectl set image modifies deployment spec -> triggers NEW ReplicaSet -> rolling update

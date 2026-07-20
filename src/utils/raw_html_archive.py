@@ -80,8 +80,13 @@ def _get_client():
             _client = storage.Client()
         except Exception as exc:
             _client_failed = True
-            logger.info(
-                "Raw HTML archiving disabled (no GCS client: %s: %s)",
+            # WARNING, not INFO: archiving is on by default, so failing to
+            # start is a feature silently not running. This logged at INFO
+            # when a stale-base image shipped without google-cloud-storage,
+            # and the archive no-opped in production unnoticed.
+            logger.warning(
+                "Raw HTML archiving ENABLED but unavailable — no articles will "
+                "be archived (%s: %s)",
                 type(exc).__name__,
                 exc,
             )
