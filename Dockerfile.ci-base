@@ -14,8 +14,15 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy test-only requirements
-COPY requirements-dev.txt ./
+# Copy test-only requirements plus every service's, so tests exercise the real
+# dependency set rather than a subset. Previously this image installed only
+# requirements-dev.txt, which omits trafilatura — so the vendored src/mcmetadata
+# could not import, MCMETADATA_AVAILABLE was False, and CI silently ran every
+# extraction test through the newspaper4k/BeautifulSoup fallbacks instead of the
+# primary extractor. Tests passed locally (dev venv has everything) and behaved
+# differently in CI.
+COPY requirements-dev.txt requirements-crawler.txt requirements-processor.txt \
+     requirements-api.txt ./
 
 # Install test-only dependencies on top of production base
 # These are heavy packages only needed for tests (PyTorch, transformers, etc)
@@ -27,7 +34,10 @@ COPY requirements-dev.txt ./
 # so CI type-checks/tests against the same torch build production uses.
 RUN pip install --no-cache-dir "torch>=2.1.0" --index-url https://download.pytorch.org/whl/cpu && \
     pip install --no-cache-dir "transformers>=5.5.0" && \
-    pip install --no-cache-dir -r requirements-dev.txt
+    pip install --no-cache-dir -r requirements-dev.txt && \
+    pip install --no-cache-dir -r requirements-crawler.txt \
+                                -r requirements-processor.txt \
+                                -r requirements-api.txt
 
 # Metadata
 LABEL maintainer="MizzouNewsCrawler"
