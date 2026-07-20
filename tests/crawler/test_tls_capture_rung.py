@@ -78,7 +78,11 @@ def harness(monkeypatch):
     ex.use_mcmetadata = True
     ex.mcmetadata_include_other_metadata = False
 
-    # Non-network collaborators.
+    # Non-network collaborators. _mcmetadata_enabled consults a module-level
+    # availability flag, so leaving it real makes these tests depend on whether
+    # mcmetadata imported in the running environment — it did locally and did
+    # not in CI, which silently changed which rungs ran.
+    ex._mcmetadata_enabled = lambda: True
     ex._get_domain_amp_support = lambda d: False
     ex._should_prioritize_selenium = lambda m: False
     ex._check_rate_limit = lambda d: False
