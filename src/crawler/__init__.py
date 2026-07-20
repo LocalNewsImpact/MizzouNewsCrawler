@@ -4340,20 +4340,55 @@ class ContentExtractor:
                 metadata["selenium_reason"] = reason
 
             if selenium_result and selenium_result.get("content"):
-                preferred_fields = list(
-                    dict.fromkeys(
-                        (fields_needed or [])
-                        + ["title", "author", "content", "metadata"]
-                    )
+                # Selenium used to overwrite title/content/metadata every time it
+                # ran, whatever it was called for. So an escalation over a single
+                # missing field — usually the byline — also threw away body text
+                # that mcmetadata/trafilatura had already extracted well and
+                # replaced it with Selenium's generic soup extraction. That is a
+                # fallback, not an upgrade, and it also made telemetry attribute
+                # to Selenium fields it had merely clobbered.
+                #
+                # Overwriting is right in one case: bot protection means the
+                # earlier fields probably came off a challenge or consent page
+                # rather than the article, so they are not worth keeping.
+                http_attempt_suspect = bool(
+                    self._last_bot_protection_detection
+                    or result.get("_bot_protection_detected")
                 )
+
+                if http_attempt_suspect:
+                    fields_to_copy = list(
+                        dict.fromkeys(
+                            (fields_needed or [])
+                            + ["title", "author", "content", "metadata"]
+                        )
+                    )
+                else:
+                    fields_to_copy = list(fields_needed or [])
+
                 self._merge_extraction_results(
                     result,
                     selenium_result,
                     "selenium",
-                    fields_to_copy=preferred_fields,
+                    fields_to_copy=fields_to_copy,
                     metrics=metrics,
-                    allow_overwrite=True,
+                    allow_overwrite=http_attempt_suspect,
                 )
+
+                # Keep Selenium's diagnostics either way — they explain why the
+                # browser ran — without replacing metadata gathered earlier.
+                target_meta = result.setdefault("metadata", {})
+                source_meta = selenium_result.get("metadata") or {}
+                for key in (
+                    "selenium_reason",
+                    "page_source_length",
+                    "stealth_method",
+                    "stealth_mode",
+                    "driver_reused",
+                    "fingerprint_profile",
+                ):
+                    if key in source_meta:
+                        target_meta.setdefault(key, source_meta[key])
                 logger.info("✅ Selenium extraction succeeded for %s", url)
                 if dom in self._selenium_failure_counts:
                     del self._selenium_failure_counts[dom]
