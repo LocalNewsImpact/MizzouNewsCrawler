@@ -384,6 +384,134 @@ def test_process_batch_success_path(monkeypatch):
     assert domains_for_cleaning["example.com"]
     assert session.commit_calls >= 1
     assert telemetry_calls
+    # An extractor that can't supply HTML must still produce a valid insert.
+    assert session.insert_calls[0]["raw_gcs_path"] is None
+
+
+def test_capture_raw_html_tolerates_extractors_without_support():
+    """Archiving is best-effort; a stand-in extractor must not break extraction."""
+
+    from unittest.mock import MagicMock
+
+    class NoSupport:
+        pass
+
+    class Broken:
+        def get_last_raw_html(self):
+            raise RuntimeError("driver gone")
+
+    class WrongShape:
+        def get_last_raw_html(self):
+            return "not a tuple"
+
+    assert extraction._capture_raw_html(NoSupport()) == (None, None)
+    assert extraction._capture_raw_html(Broken()) == (None, None)
+    assert extraction._capture_raw_html(WrongShape()) == (None, None)
+    # A MagicMock auto-returns a Mock for any attribute; it must not reach
+    # the caller as something to unpack.
+    assert extraction._capture_raw_html(MagicMock()) == (None, None)
+    # A non-string method label is dropped rather than propagated.
+    real = MagicMock()
+    real.get_last_raw_html.return_value = ("<html/>", None)
+    assert extraction._capture_raw_html(real) == ("<html/>", None)
+
+
+def test_process_batch_archives_raw_html(monkeypatch):
+    """The archived object's URI is persisted on the article row."""
+    rows = [
+        ("cand-1", "https://example.com/a", "Example", "article", "Example Canonical")
+    ]
+    session = _FakeSession(rows)
+
+    archived = []
+
+    def fake_archive(url, html, article_id, method=None):
+        archived.append((url, html, method))
+        return f"gs://test-bucket/2026/07/20/example.com/{article_id}.html.gz"
+
+    class FakeExtractor:
+        def __init__(self):
+            self.rate_limited = set()
+
+        def _check_rate_limit(self, domain):
+            return False
+
+        def extract_content(self, *_a, **_kw):
+            return {
+                "title": "Title",
+                "content": "Body text",
+                "author": "Alice",
+                "metadata": {"extraction_methods": {"title": "newspaper4k"}},
+            }
+
+        def get_last_raw_html(self):
+            return "<html>page</html>", "selenium"
+
+        def get_driver_stats(self):
+            return {
+                "has_persistent_driver": False,
+                "driver_reuse_count": 0,
+                "driver_creation_count": 0,
+            }
+
+    class FakeByline:
+        def clean_byline(self, *_a, **_kw):
+            return {"authors": ["Alice"], "wire_services": []}
+
+    class FakeMetrics:
+        def __init__(self, *_a, **_kw):
+            self.error_message = None
+            self.error_type = None
+
+        def set_content_type_detection(self, *_a, **_kw):
+            return None
+
+        def finalize(self, *_a, **_kw):
+            return None
+
+    monkeypatch.setattr(extraction, "DatabaseManager", lambda: _FakeDBManager(session))
+    monkeypatch.setattr(extraction, "BylineCleaner", FakeByline)
+    monkeypatch.setattr(extraction, "ContentExtractor", FakeExtractor)
+    monkeypatch.setattr(extraction, "ExtractionMetrics", FakeMetrics)
+    monkeypatch.setattr(extraction, "archive_html", fake_archive)
+    monkeypatch.setattr(extraction, "calculate_content_hash", lambda *_a, **_kw: "hash")
+    monkeypatch.setattr(
+        extraction,
+        "_get_content_type_detector",
+        lambda: type("D", (), {"detect": lambda *_a, **_kw: None})(),
+    )
+    monkeypatch.setattr(
+        extraction,
+        "ComprehensiveExtractionTelemetry",
+        type("T", (), {"record_extraction": lambda *_a, **_kw: None}),
+    )
+
+    content_cleaner = type(
+        "C",
+        (),
+        {
+            "process_single_article": lambda *a, **k: (
+                "Cleaned content about local news. " * 10,
+                {},
+            )
+        },
+    )()
+
+    extraction._process_batch(
+        Namespace(limit=1, source=None),
+        FakeExtractor(),
+        FakeByline(),
+        content_cleaner,
+        type("T", (), {"record_extraction": lambda *_a, **_kw: None})(),
+        1,
+        1,
+        {},
+        defaultdict(list),
+    )
+
+    assert archived and archived[0][1] == "<html>page</html>"
+    assert archived[0][2] == "selenium"
+    assert session.insert_calls[0]["raw_gcs_path"].startswith("gs://test-bucket/")
 
 
 def test_process_batch_rate_limited(monkeypatch):

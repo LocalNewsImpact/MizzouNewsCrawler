@@ -45,6 +45,7 @@ from src.utils.comprehensive_telemetry import (
 )
 from src.utils.content_cleaner_balanced import BalancedBoundaryContentCleaner
 from src.utils.content_type_detector import ContentTypeDetector
+from src.utils.raw_html_archive import archive_html
 
 # Domains known to return 403 for paywalled content (not bot blocking)
 # These should be marked as 403/failed but NOT trigger a domain-wide pause
@@ -379,14 +380,39 @@ def _get_content_type_detector() -> ContentTypeDetector:
     return _CONTENT_TYPE_DETECTOR
 
 
+def _capture_raw_html(extractor: Any) -> tuple[str | bytes | None, str | None]:
+    """Return ``(html, method)`` for archiving, or ``(None, None)``.
+
+    Not every object passed in here is a full ContentExtractor — tests and
+    alternate paths supply lighter stand-ins. Archiving is best-effort, so a
+    stand-in that can't provide HTML must cost us nothing. ContentExtractor
+    always decodes to ``str``; ``bytes`` is tolerated for stand-ins that don't,
+    since ``archive_html`` encodes either.
+    """
+    getter = getattr(extractor, "get_last_raw_html", None)
+    if not callable(getter):
+        return None, None
+    try:
+        html, method = getter()
+    except Exception:
+        # Includes stand-ins whose attribute access auto-returns something
+        # unpackable-looking; unpacking here keeps that out of the caller.
+        logger.debug("Extractor could not provide raw HTML", exc_info=True)
+        return None, None
+
+    if not isinstance(html, (str, bytes)):
+        return None, None
+    return html, method if isinstance(method, str) else None
+
+
 ARTICLE_INSERT_SQL = text(
     "INSERT INTO articles (id, candidate_link_id, url, title, author, "
     "publish_date, content, text, status, metadata, wire, wire_check_status, "
     "wire_check_attempted_at, wire_check_error, wire_check_metadata, extracted_at, "
-    "created_at, text_hash) VALUES (:id, :candidate_link_id, :url, :title, "
+    "created_at, text_hash, raw_gcs_path) VALUES (:id, :candidate_link_id, :url, :title, "
     ":author, :publish_date, :content, :text, :status, :metadata, :wire, "
     ":wire_check_status, :wire_check_attempted_at, :wire_check_error, :wire_check_metadata, "
-    ":extracted_at, :created_at, :text_hash) "
+    ":extracted_at, :created_at, :text_hash, :raw_gcs_path) "
     # Avoid specifying a conflict target here (ON CONFLICT (url) ...) if the
     # corresponding unique constraint may not exist in some deployments. Using
     # a plain DO NOTHING will avoid raising InvalidColumnReference while still
@@ -1087,6 +1113,9 @@ def handle_extract_url_command(args) -> int:
         # Prefer canonical URL if available (preserves wire path indicators)
         article_url = _get_canonical_url(url, metadata_value)
 
+        raw_html, raw_html_method = _capture_raw_html(extractor)
+        raw_gcs_path = archive_html(article_url, raw_html, article_id, raw_html_method)
+
         try:
             safe_session_execute(
                 session,
@@ -1110,6 +1139,7 @@ def handle_extract_url_command(args) -> int:
                     "extracted_at": now.isoformat(),
                     "created_at": now.isoformat(),
                     "text_hash": text_hash,
+                    "raw_gcs_path": raw_gcs_path,
                 },
             )
 
@@ -1735,6 +1765,14 @@ def _process_batch(
                     # Prefer canonical URL if available (preserves wire path indicators)
                     article_url = _get_canonical_url(url, content.get("metadata", {}))
 
+                    # Archive the page we just parsed so a candidate extractor
+                    # can be replayed against identical bytes. Only articles we
+                    # actually persist are stored; failures return None.
+                    raw_html, raw_html_method = _capture_raw_html(extractor)
+                    raw_gcs_path = archive_html(
+                        article_url, raw_html, article_id, raw_html_method
+                    )
+
                     if dump_sql_flag:
                         try:
                             logger.info(
@@ -1781,6 +1819,7 @@ def _process_batch(
                             "extracted_at": now.isoformat(),
                             "created_at": now.isoformat(),
                             "text_hash": text_hash,
+                            "raw_gcs_path": raw_gcs_path,
                         },
                     )
                     safe_session_execute(

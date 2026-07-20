@@ -614,6 +614,12 @@ class ContentExtractor:
         # Track the most recent bot-protection detection to inform fallbacks
         self._last_bot_protection_detection: Optional[Dict[str, Any]] | None = None
 
+        # HTML fetched during the current extraction, keyed by the method that
+        # fetched it, so the archived copy can be the one that won the content
+        self._raw_html_by_method: Dict[str, str] = {}
+        self._latest_raw_html: str | None = None
+        self._latest_raw_html_method: str | None = None
+
         # Cache for wire author patterns from DB (5 min TTL)
         self._wire_author_patterns_cache: list[tuple[str, str, bool]] = []
         self._wire_author_patterns_timestamp: float = 0.0
@@ -2487,6 +2493,9 @@ class ContentExtractor:
         self._latest_wire_hints = None
         self._latest_cms_metadata = None
         self._last_bot_protection_detection = None
+        self._raw_html_by_method = {}
+        self._latest_raw_html = None
+        self._latest_raw_html_method = None
 
         # Initialize result structure
         result: Dict[str, Any] = {
@@ -2966,6 +2975,9 @@ class ContentExtractor:
         # the core content
         primary_method = self._determine_primary_extraction_method(result)
 
+        # Keep the response fetched by that same method for the raw archive
+        self._select_raw_html_for_archive(primary_method)
+
         # Clean up the metadata to remove internal tracking
         result_copy = result.copy()
         result_copy["metadata"]["extraction_methods"] = result["extraction_methods"]
@@ -3271,6 +3283,7 @@ class ContentExtractor:
         # mcmetadata now handles wire detection via structured_data module
         # but we still call our additional detection for Hearst and other patterns
         self._update_wire_hints_from_html(raw_html_snapshot, url)
+        self._record_raw_html(raw_html_snapshot, "mcmetadata")
 
         # Merge wire signals from mcmetadata if present
         mc_wire_signals = mc_result.get("wire_signals")
@@ -3830,6 +3843,7 @@ class ContentExtractor:
             publish_date = article.publish_date.isoformat()
 
         self._update_wire_hints_from_html(getattr(article, "html", None), url)
+        self._record_raw_html(getattr(article, "html", None), "newspaper4k")
 
         return {
             "url": url,
@@ -3951,6 +3965,7 @@ class ContentExtractor:
                 return {}
 
         self._update_wire_hints_from_html(page_html, url)
+        self._record_raw_html(page_html, "beautifulsoup")
 
         raw = self.extract_article_data(page_html, url)
 
@@ -4079,6 +4094,7 @@ class ContentExtractor:
                     )
                 status_code = getattr(response, "status_code", None)
                 html_len = len(html)
+                self._record_raw_html(html, "unblock_proxy")
 
                 logger.info(
                     f"Squid proxy returned {html_len} bytes for {url} (status: {status_code})"
@@ -4210,6 +4226,7 @@ class ContentExtractor:
             html = driver.page_source
 
             self._update_wire_hints_from_html(html, url)
+            self._record_raw_html(html, "selenium")
 
             # Stop page load immediately after getting HTML to prevent
             # waiting for slow ads/trackers (fixes 147s timeout issue)
@@ -6021,6 +6038,55 @@ class ContentExtractor:
                         return author
 
         return None
+
+    def _record_raw_html(self, html_text: str | bytes | None, method: str) -> None:
+        """Remember the HTML a fetch method retrieved, for later archival.
+
+        Methods run in succession until one satisfies the missing fields, so
+        several may fetch the page before the chain ends. Recording per method
+        lets ``_select_raw_html_for_archive`` keep the response belonging to
+        whichever method actually supplied the content.
+        """
+        if not html_text:
+            return
+
+        if isinstance(html_text, bytes):
+            try:
+                html_str = html_text.decode("utf-8", errors="ignore")
+            except Exception:
+                return
+        else:
+            html_str = html_text
+
+        self._raw_html_by_method[method] = html_str
+
+    def _select_raw_html_for_archive(self, primary_method: str | None) -> None:
+        """Pick which fetched response to archive for this extraction.
+
+        Methods run in succession until the article is satisfied, so the copy
+        worth keeping is the one fetched by the method that actually produced
+        it — the same ``primary_method`` recorded as ``metadata.extraction_method``,
+        so an archived page and the row describing it always agree.
+
+        Some methods parse HTML a previous one fetched rather than fetching
+        their own; when the winner has no response of its own we fall back to
+        the last one fetched, which is the page it worked from.
+        """
+        if not self._raw_html_by_method:
+            self._latest_raw_html = None
+            self._latest_raw_html_method = None
+            return
+
+        winner = primary_method
+        if winner not in self._raw_html_by_method:
+            winner = next(reversed(self._raw_html_by_method))
+
+        self._latest_raw_html = self._raw_html_by_method[winner]
+        self._latest_raw_html_method = winner
+
+    def get_last_raw_html(self) -> tuple[str | None, str | None]:
+        """Return ``(html, method)`` for the most recent extraction."""
+        return self._latest_raw_html, self._latest_raw_html_method
 
     def _update_wire_hints_from_html(
         self, html_text: str | bytes | None, article_url: str | None = None
