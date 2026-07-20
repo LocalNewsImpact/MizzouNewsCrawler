@@ -391,6 +391,8 @@ def test_process_batch_success_path(monkeypatch):
 def test_capture_raw_html_tolerates_extractors_without_support():
     """Archiving is best-effort; a stand-in extractor must not break extraction."""
 
+    from unittest.mock import MagicMock
+
     class NoSupport:
         pass
 
@@ -398,8 +400,20 @@ def test_capture_raw_html_tolerates_extractors_without_support():
         def get_last_raw_html(self):
             raise RuntimeError("driver gone")
 
+    class WrongShape:
+        def get_last_raw_html(self):
+            return "not a tuple"
+
     assert extraction._capture_raw_html(NoSupport()) == (None, None)
     assert extraction._capture_raw_html(Broken()) == (None, None)
+    assert extraction._capture_raw_html(WrongShape()) == (None, None)
+    # A MagicMock auto-returns a Mock for any attribute; it must not reach
+    # the caller as something to unpack.
+    assert extraction._capture_raw_html(MagicMock()) == (None, None)
+    # A non-string method label is dropped rather than propagated.
+    real = MagicMock()
+    real.get_last_raw_html.return_value = ("<html/>", None)
+    assert extraction._capture_raw_html(real) == ("<html/>", None)
 
 
 def test_process_batch_archives_raw_html(monkeypatch):

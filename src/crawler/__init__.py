@@ -614,7 +614,9 @@ class ContentExtractor:
         # Track the most recent bot-protection detection to inform fallbacks
         self._last_bot_protection_detection: Optional[Dict[str, Any]] | None = None
 
-        # Raw HTML of the current extraction, kept for archival to GCS
+        # HTML fetched during the current extraction, keyed by the method that
+        # fetched it, so the archived copy can be the one that won the content
+        self._raw_html_by_method: Dict[str, str] = {}
         self._latest_raw_html: str | None = None
         self._latest_raw_html_method: str | None = None
 
@@ -2491,6 +2493,7 @@ class ContentExtractor:
         self._latest_wire_hints = None
         self._latest_cms_metadata = None
         self._last_bot_protection_detection = None
+        self._raw_html_by_method = {}
         self._latest_raw_html = None
         self._latest_raw_html_method = None
 
@@ -2971,6 +2974,9 @@ class ContentExtractor:
         # Determine the primary extraction method based on which extracted
         # the core content
         primary_method = self._determine_primary_extraction_method(result)
+
+        # Keep the response fetched by that same method for the raw archive
+        self._select_raw_html_for_archive(primary_method)
 
         # Clean up the metadata to remove internal tracking
         result_copy = result.copy()
@@ -4088,7 +4094,7 @@ class ContentExtractor:
                     )
                 status_code = getattr(response, "status_code", None)
                 html_len = len(html)
-                self._record_raw_html(html, "squid_proxy")
+                self._record_raw_html(html, "unblock_proxy")
 
                 logger.info(
                     f"Squid proxy returned {html_len} bytes for {url} (status: {status_code})"
@@ -6033,15 +6039,13 @@ class ContentExtractor:
 
         return None
 
-    def _record_raw_html(
-        self, html_text: str | bytes | None, method: str | None = None
-    ) -> None:
-        """Remember this attempt's HTML so the caller can archive it.
+    def _record_raw_html(self, html_text: str | bytes | None, method: str) -> None:
+        """Remember the HTML a fetch method retrieved, for later archival.
 
-        An extraction may fetch the page several times as it falls back
-        between methods. We keep the largest response: bot challenges,
-        consent walls and error stubs are all far smaller than the article
-        page we actually want to replay against later.
+        Methods run in succession until one satisfies the missing fields, so
+        several may fetch the page before the chain ends. Recording per method
+        lets ``_select_raw_html_for_archive`` keep the response belonging to
+        whichever method actually supplied the content.
         """
         if not html_text:
             return
@@ -6054,14 +6058,34 @@ class ContentExtractor:
         else:
             html_str = html_text
 
-        if self._latest_raw_html and len(self._latest_raw_html) >= len(html_str):
+        self._raw_html_by_method[method] = html_str
+
+    def _select_raw_html_for_archive(self, primary_method: str | None) -> None:
+        """Pick which fetched response to archive for this extraction.
+
+        Methods run in succession until the article is satisfied, so the copy
+        worth keeping is the one fetched by the method that actually produced
+        it — the same ``primary_method`` recorded as ``metadata.extraction_method``,
+        so an archived page and the row describing it always agree.
+
+        Some methods parse HTML a previous one fetched rather than fetching
+        their own; when the winner has no response of its own we fall back to
+        the last one fetched, which is the page it worked from.
+        """
+        if not self._raw_html_by_method:
+            self._latest_raw_html = None
+            self._latest_raw_html_method = None
             return
 
-        self._latest_raw_html = html_str
-        self._latest_raw_html_method = method
+        winner = primary_method
+        if winner not in self._raw_html_by_method:
+            winner = next(reversed(self._raw_html_by_method))
+
+        self._latest_raw_html = self._raw_html_by_method[winner]
+        self._latest_raw_html_method = winner
 
     def get_last_raw_html(self) -> tuple[str | None, str | None]:
-        """Return ``(html, method)`` captured by the most recent extraction."""
+        """Return ``(html, method)`` for the most recent extraction."""
         return self._latest_raw_html, self._latest_raw_html_method
 
     def _update_wire_hints_from_html(

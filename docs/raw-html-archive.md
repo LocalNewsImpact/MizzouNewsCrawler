@@ -71,11 +71,32 @@ can't supply HTML) returns `None`, the article is written with a NULL
 
 ## Which HTML gets stored
 
-An extraction may fetch a page several times as it falls back between methods
-(mcmetadata → newspaper4k → beautifulsoup → selenium → squid proxy). The
-largest response wins: challenge pages, consent walls and error stubs are all
-far smaller than the article page worth replaying. The winning method is
-recorded in the object's `extraction_method` metadata.
+One object per article: the response fetched by the method that actually
+produced it — the same `primary_method` written to `metadata.extraction_method`
+— so the archived page and the row describing it always agree. Methods that
+parse HTML someone else fetched contribute no response of their own; when the
+winner is one of those, the last response fetched is stored, since that is the
+page it worked from.
+
+The intended pipeline shape is **capture once, parse many**: fetch the page a
+single time, then run parsers against that capture. Today the fallback chain
+does not fully honor that — `beautifulsoup`, `selenium` and `unblock_proxy`
+each fetch their own copy, so one extraction can produce several captures of
+the same URL. See "Known gap" below.
+
+## Known gap: the chain re-fetches
+
+`src/crawler/__init__.py` guards the BeautifulSoup fallback on
+`html_for_methods` but then passes `html` — the untouched `extract_content`
+parameter, which is `None` for every production call — so BeautifulSoup
+re-fetches even when a capture (e.g. AMP) is already in hand. No method feeds
+its fetched HTML back into `html_for_methods` either, so nothing downstream can
+reuse an earlier capture.
+
+The cost is extra requests per article, more bot-protection exposure, and
+parsers that may not even be looking at the same bytes. Fixing it would make
+"capture once, parse many" true, and would make this archive exactly one object
+per article by construction rather than by selection.
 
 ## Reading it back
 

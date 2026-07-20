@@ -391,10 +391,16 @@ def _capture_raw_html(extractor: Any) -> tuple[str | None, str | None]:
     if not callable(getter):
         return None, None
     try:
-        return getter()
+        html, method = getter()
     except Exception:
+        # Includes stand-ins whose attribute access auto-returns something
+        # unpackable-looking; unpacking here keeps that out of the caller.
         logger.debug("Extractor could not provide raw HTML", exc_info=True)
         return None, None
+
+    if not isinstance(html, (str, bytes)):
+        return None, None
+    return html, method if isinstance(method, str) else None
 
 
 ARTICLE_INSERT_SQL = text(
