@@ -2,10 +2,9 @@
 # These packages are only needed for the background processor service
 # Note: Heavy ML dependencies (torch, transformers, etc.) are in requirements-ml.txt
 # and installed in the ml-base image to speed up processor builds
-
-# Processor-specific utilities only
-# (Currently all heavy dependencies are in ml-base, so this file is minimal)
-# Add lightweight processor-specific packages here as needed
+#
+# Scope rule: anything more than one image needs belongs in requirements-base.txt;
+# anything only this image needs belongs here.
 
 # Fast fuzzy string matching for entity extraction
 rapidfuzz>=3.14.5  # 50-100x faster than difflib for gazetteer matching
@@ -13,32 +12,32 @@ rapidfuzz>=3.14.5  # 50-100x faster than difflib for gazetteer matching
 # WARC file parsing for Minnesota dataset import
 warcio>=1.8.1  # Parse WARC archives for historical data ingestion
 
-# Browser automation used for last-resort extraction in processor
-selenium>=4.46.0
-undetected-chromedriver>=3.5.5
-selenium-stealth>=1.0.6
-
-# MediaCloud headline detection stack
+# MediaCloud headline detection — used by src/services/wire_detection/, which
+# this image does run. Not part of the extraction stack removed below.
 mediacloud>=5.1.0
-# mcmetadata (vendored in src/mcmetadata) runtime deps — the processor image
-# runs extraction, so it needs the full stack or MCMETADATA_AVAILABLE=False and
-# the trafilatura-based extractor (cascade step 1, on by default) silently
-# disables. Floors mirror requirements-crawler.txt. (newspaper4k/tldextract/
-# lxml/bs4/regex already present in this image.)
-dateparser>=1.4.1
-htmldate>=1.10.0
-trafilatura>=2.1.0
-boilerpy3>=1.0.7
-goose3>=3.1.21
-readability-lxml>=0.8.4.1
-py3langid>=0.3.0
-url-normalize>=3.0.0
-furl>=2.1.4
-newspaper4k>=0.9.6
 
 # Data export and analytics
 google-cloud-bigquery[pandas]>=3.42.2  # BigQuery export for analytics pipeline
-cloud-sql-python-connector[pg8000]>=1.20.4  # Cloud SQL connector for database access
 
-# Secret management for secure credential retrieval
-google-cloud-secret-manager>=2.30.0
+# Removed 2026-07-20 — the browser automation and mcmetadata extraction stacks:
+#   selenium, undetected-chromedriver, selenium-stealth, trafilatura, goose3,
+#   readability-lxml, boilerpy3, htmldate, py3langid, url-normalize, furl,
+#   dateparser, newspaper4k
+#
+# They supported a "last-resort extraction in processor" path gated behind
+# ENABLE_EXTRACTION, which is false in production. Confirmed against the running
+# system: discovery/verification/extraction steps in the Argo pipeline all use
+# the crawler image, while this image runs continuous_processor, clean,
+# entity-extraction and ML analysis. Nothing outside src/crawler/ and
+# src/mcmetadata/ imports any of them.
+#
+# The previous comment here warned that dropping them makes MCMETADATA_AVAILABLE
+# False and silently disables the trafilatura extractor. That is true and is why
+# this needed checking rather than assuming — but it only matters where
+# extraction actually runs, which is the crawler image, whose requirements are
+# untouched. If extraction is ever re-enabled on the processor, this stack has
+# to come back, and the failure would be silent.
+#
+# cloud-sql-python-connector dropped as a duplicate of requirements-base.txt;
+# google-cloud-secret-manager moved to base, since api, crawler and processor
+# all need it.

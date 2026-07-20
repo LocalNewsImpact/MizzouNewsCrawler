@@ -58,3 +58,6 @@ structlog>=26.1.0  # Structured logging
 google-cloud-logging>=3.16.1  # Cloud Logging integration
 google-cloud-monitoring>=2.31.0  # Cloud Monitoring metrics
 google-cloud-storage>=3.13.0  # Raw HTML archive (extractor A/B replay)
+# Needed by api, crawler and processor, so it belongs here rather than being
+# repeated in each service's requirements.
+google-cloud-secret-manager>=2.30.0  # Secret retrieval
