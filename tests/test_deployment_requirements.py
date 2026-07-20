@@ -308,13 +308,13 @@ class TestRequirementsConsistency:
             services_with_secret_manager = set(
                 google_cloud_packages["google-cloud-secret-manager"].keys()
             )
-            # At minimum, crawler, processor, and api should have it
-            assert (
-                "crawler" in services_with_secret_manager
-            ), "Crawler must have google-cloud-secret-manager for proxy"
-            assert (
-                "processor" in services_with_secret_manager
-            ), "Processor must have google-cloud-secret-manager for proxy"
-            assert (
-                "api" in services_with_secret_manager
-            ), "API must have google-cloud-secret-manager for proxy"
+            # crawler, processor and api all need it — but every image builds
+            # FROM base, so listing it once in requirements-base.txt satisfies
+            # all three and is where a dependency shared by more than one image
+            # belongs. Only demand a per-service entry when base lacks it.
+            if "base" not in services_with_secret_manager:
+                for service_name in ("crawler", "processor", "api"):
+                    assert service_name in services_with_secret_manager, (
+                        f"{service_name} must have google-cloud-secret-manager "
+                        "for proxy (not inherited from base)"
+                    )
