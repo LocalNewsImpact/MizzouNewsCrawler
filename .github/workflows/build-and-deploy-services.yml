@@ -13,6 +13,19 @@ on:
         default: 'auto'
         type: string
 
+# Dependent images build FROM the base image, so only ONE run of this workflow
+# may be in flight at a time. Without this, a second run's crawler/api build
+# pulls `base:latest` while the first run is still rebuilding it, silently
+# producing an image on the previous base — the build still reports SUCCESS.
+#
+# That is not hypothetical: on 2026-07-20 two merges a minute apart raced, and
+# the crawler image shipped without a dependency that had just been added to
+# requirements-base.txt. `cancel-in-progress: false` matters — a queued run
+# must wait, never replace, or we lose the build for that commit.
+concurrency:
+  group: build-and-deploy-services
+  cancel-in-progress: false
+
 jobs:
   detect-changes:
     name: Detect Changed Services
