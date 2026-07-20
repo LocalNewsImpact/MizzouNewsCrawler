@@ -2622,6 +2622,7 @@ class ContentExtractor:
                 if metrics:
                     metrics.start_method("mcmetadata")
 
+                html_for_methods = self._capture_for_parsing(html_for_methods)
                 mcmetadata_result = self._extract_with_mcmetadata(
                     url,
                     html_for_methods,
@@ -2662,6 +2663,7 @@ class ContentExtractor:
                 if metrics:
                     metrics.start_method("newspaper4k")
 
+                html_for_methods = self._capture_for_parsing(html_for_methods)
                 newspaper_result = self._extract_with_newspaper(url, html_for_methods)
 
                 if newspaper_result:
@@ -2757,7 +2759,11 @@ class ContentExtractor:
                 if metrics:
                     metrics.start_method("beautifulsoup")
 
-                bs_result = self._extract_with_beautifulsoup(url, html)
+                # Was passing `html` — the untouched extract_content parameter,
+                # None for every production call — so this re-fetched even
+                # though the guard above had just confirmed a capture exists.
+                html_for_methods = self._capture_for_parsing(html_for_methods)
+                bs_result = self._extract_with_beautifulsoup(url, html_for_methods)
 
                 if bs_result:
                     # Only copy missing fields
@@ -6059,6 +6065,49 @@ class ContentExtractor:
             html_str = html_text
 
         self._raw_html_by_method[method] = html_str
+
+    def _capture_reuse_enabled(self) -> bool:
+        """Whether parsers may reuse a capture instead of fetching their own."""
+        return os.getenv("EXTRACTION_REUSE_CAPTURE", "true").lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        )
+
+    def _capture_for_parsing(self, current: str | None) -> str | None:
+        """Return the page capture the next parser should work from.
+
+        The chain is meant to fetch once and parse many times — every parser
+        here accepts HTML and skips its own fetch when given it — but nothing
+        used to hand a capture forward, so each fallback re-fetched the same
+        URL. That costs requests, exposes us to bot protection repeatedly, and
+        lets parsers disagree because they read different bytes.
+
+        A Selenium capture wins over an HTTP one: it is the same page after
+        JavaScript, which is strictly more of the article.
+
+        Reuse is skipped while bot protection is flagged. The capture in hand
+        may be a challenge page rather than the article, and letting the next
+        method fetch for itself is exactly the escape hatch that recovers from
+        that.
+        """
+        if not self._capture_reuse_enabled():
+            return current
+
+        if self._last_bot_protection_detection:
+            return current
+
+        selenium_capture = self._raw_html_by_method.get("selenium")
+        if selenium_capture:
+            return selenium_capture
+
+        if current:
+            return current
+
+        if not self._raw_html_by_method:
+            return None
+        return self._raw_html_by_method[next(reversed(self._raw_html_by_method))]
 
     def _select_raw_html_for_archive(self, primary_method: str | None) -> None:
         """Pick which fetched response to archive for this extraction.
