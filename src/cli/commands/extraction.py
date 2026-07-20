@@ -380,12 +380,14 @@ def _get_content_type_detector() -> ContentTypeDetector:
     return _CONTENT_TYPE_DETECTOR
 
 
-def _capture_raw_html(extractor: Any) -> tuple[str | None, str | None]:
+def _capture_raw_html(extractor: Any) -> tuple[str | bytes | None, str | None]:
     """Return ``(html, method)`` for archiving, or ``(None, None)``.
 
     Not every object passed in here is a full ContentExtractor — tests and
     alternate paths supply lighter stand-ins. Archiving is best-effort, so a
-    stand-in that can't provide HTML must cost us nothing.
+    stand-in that can't provide HTML must cost us nothing. ContentExtractor
+    always decodes to ``str``; ``bytes`` is tolerated for stand-ins that don't,
+    since ``archive_html`` encodes either.
     """
     getter = getattr(extractor, "get_last_raw_html", None)
     if not callable(getter):
