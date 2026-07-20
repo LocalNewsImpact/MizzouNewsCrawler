@@ -167,7 +167,13 @@ class Article(Base):
     )
 
     # Storage references
-    raw_gcs_path = Column(String)  # Future: GCS path for raw HTML
+    raw_gcs_path = Column(String)  # GCS path for raw HTML (see raw_html_archive)
+
+    # Set when entity extraction completes for this article. Recorded state
+    # rather than derived: finding pending work used to be an anti-join against
+    # every row of article_entities (2.7M+), which cost O(corpus) to locate a
+    # handful of rows and eventually exceeded the role's statement_timeout.
+    entities_extracted_at = Column(DateTime, index=True)
 
     # Processing metadata
     extracted_at: Mapped[datetime] = mapped_column(
