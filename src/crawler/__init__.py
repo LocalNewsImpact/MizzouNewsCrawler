@@ -614,6 +614,10 @@ class ContentExtractor:
         # Track the most recent bot-protection detection to inform fallbacks
         self._last_bot_protection_detection: Optional[Dict[str, Any]] | None = None
 
+        # Raw HTML of the current extraction, kept for archival to GCS
+        self._latest_raw_html: str | None = None
+        self._latest_raw_html_method: str | None = None
+
         # Cache for wire author patterns from DB (5 min TTL)
         self._wire_author_patterns_cache: list[tuple[str, str, bool]] = []
         self._wire_author_patterns_timestamp: float = 0.0
@@ -2487,6 +2491,8 @@ class ContentExtractor:
         self._latest_wire_hints = None
         self._latest_cms_metadata = None
         self._last_bot_protection_detection = None
+        self._latest_raw_html = None
+        self._latest_raw_html_method = None
 
         # Initialize result structure
         result: Dict[str, Any] = {
@@ -3271,6 +3277,7 @@ class ContentExtractor:
         # mcmetadata now handles wire detection via structured_data module
         # but we still call our additional detection for Hearst and other patterns
         self._update_wire_hints_from_html(raw_html_snapshot, url)
+        self._record_raw_html(raw_html_snapshot, "mcmetadata")
 
         # Merge wire signals from mcmetadata if present
         mc_wire_signals = mc_result.get("wire_signals")
@@ -3830,6 +3837,7 @@ class ContentExtractor:
             publish_date = article.publish_date.isoformat()
 
         self._update_wire_hints_from_html(getattr(article, "html", None), url)
+        self._record_raw_html(getattr(article, "html", None), "newspaper4k")
 
         return {
             "url": url,
@@ -3951,6 +3959,7 @@ class ContentExtractor:
                 return {}
 
         self._update_wire_hints_from_html(page_html, url)
+        self._record_raw_html(page_html, "beautifulsoup")
 
         raw = self.extract_article_data(page_html, url)
 
@@ -4079,6 +4088,7 @@ class ContentExtractor:
                     )
                 status_code = getattr(response, "status_code", None)
                 html_len = len(html)
+                self._record_raw_html(html, "squid_proxy")
 
                 logger.info(
                     f"Squid proxy returned {html_len} bytes for {url} (status: {status_code})"
@@ -4210,6 +4220,7 @@ class ContentExtractor:
             html = driver.page_source
 
             self._update_wire_hints_from_html(html, url)
+            self._record_raw_html(html, "selenium")
 
             # Stop page load immediately after getting HTML to prevent
             # waiting for slow ads/trackers (fixes 147s timeout issue)
@@ -6021,6 +6032,37 @@ class ContentExtractor:
                         return author
 
         return None
+
+    def _record_raw_html(
+        self, html_text: str | bytes | None, method: str | None = None
+    ) -> None:
+        """Remember this attempt's HTML so the caller can archive it.
+
+        An extraction may fetch the page several times as it falls back
+        between methods. We keep the largest response: bot challenges,
+        consent walls and error stubs are all far smaller than the article
+        page we actually want to replay against later.
+        """
+        if not html_text:
+            return
+
+        if isinstance(html_text, bytes):
+            try:
+                html_str = html_text.decode("utf-8", errors="ignore")
+            except Exception:
+                return
+        else:
+            html_str = html_text
+
+        if self._latest_raw_html and len(self._latest_raw_html) >= len(html_str):
+            return
+
+        self._latest_raw_html = html_str
+        self._latest_raw_html_method = method
+
+    def get_last_raw_html(self) -> tuple[str | None, str | None]:
+        """Return ``(html, method)`` captured by the most recent extraction."""
+        return self._latest_raw_html, self._latest_raw_html_method
 
     def _update_wire_hints_from_html(
         self, html_text: str | bytes | None, article_url: str | None = None
