@@ -683,8 +683,9 @@ class Source(Base):
         Boolean, default=False, nullable=False, server_default=text("FALSE")
     )
     # Login mechanism: 'auth0' (OAuth2/OIDC universal login), 'form' (plain
-    # username/password form POST), 'newzware' (Newzware SSO handoff) or
-    # 'simplecirc' (SimpleCirc subscriber form: email + billing ZIP, no password).
+    # username/password form POST), 'newzware' (Newzware SSO handoff),
+    # 'simplecirc' (SimpleCirc subscriber form: email + billing ZIP, no password)
+    # or 'etype' (eType Services metered paywall, reCAPTCHA-locked submit).
     auth_type = Column(String(32), nullable=True)
     # Name of the secret (GCP Secret Manager id, or env-override key) holding
     # the subscriber credentials for this publisher. Convention:

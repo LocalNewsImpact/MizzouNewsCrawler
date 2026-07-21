@@ -838,3 +838,222 @@ def test_newzware_login_success_without_success_marker():
         password="pw",
     )
     assert ok is True
+
+
+# ---------------------------------------------------------------------------
+# _login_etype: eType Services metered paywall
+# ---------------------------------------------------------------------------
+ETYPE_LOGIN_URL = "https://www.pendoreillerivervalley.com/account/etype-login"
+
+
+def _etype_driver(*, on_submit, page_source=""):
+    """Fake eType login page.
+
+    The real page's login field is a bare ``type="text"`` input named
+    ``etype_login[login]``, so the generic EMAIL_CANDIDATES cannot match it —
+    the fake deliberately exposes nothing under those selectors.
+    """
+    login_field = FakeElement(attrs={"type": "text"})
+    password = FakeElement(attrs={"type": "password"})
+    # The reCAPTCHA-locked submit button. Clicking it in a headless pod can hang
+    # forever, so the mechanism must never touch it.
+    submit = FakeElement(tag="button")
+
+    def _locked_click():
+        raise AssertionError("etype login must not click the reCAPTCHA-locked button")
+
+    submit.click = _locked_click  # type: ignore[method-assign]
+
+    driver = FakeDriver(
+        {
+            al.ETYPE_LOGIN_SELECTOR: [login_field],
+            al.ETYPE_PASSWORD_SELECTOR: [password],
+            'button[type="submit"]': [submit],
+        },
+        login_url=ETYPE_LOGIN_URL,
+        success_url=None,
+    )
+    driver.current_url = ETYPE_LOGIN_URL
+    driver.page_source = page_source
+
+    def _execute_script(_script, *args):
+        on_submit(driver)
+        return True
+
+    driver.execute_script = _execute_script  # type: ignore[attr-defined]
+    return driver, login_field, password
+
+
+def test_etype_login_success_submits_form_directly():
+    def _logged_in(driver):
+        # A successful login redirects off the login page to the site root.
+        driver.current_url = "https://www.pendoreillerivervalley.com/"
+        driver.page_source = "<html>Log out</html>"
+
+    driver, login_field, password = _etype_driver(on_submit=_logged_in)
+
+    ok = al.perform_login(
+        driver,
+        auth_type="etype",
+        auth_config={"login_url": ETYPE_LOGIN_URL},
+        username="subscriber@example.edu",
+        password="pw",
+    )
+    assert ok is True
+    assert login_field.value == "subscriber@example.edu"
+    assert password.value == "pw"
+
+
+def test_etype_login_submits_the_form_element_not_the_button():
+    # Regression guard: the submit button is held by a reCAPTCHA v3 buttonLock,
+    # so the mechanism must submit the form element by name instead.
+    calls = []
+
+    def _logged_in(driver):
+        driver.current_url = "https://www.pendoreillerivervalley.com/"
+
+    driver, _login, _password = _etype_driver(on_submit=_logged_in)
+    inner = driver.execute_script
+
+    def _record(script, *args):
+        calls.append((script, args))
+        return inner(script, *args)
+
+    driver.execute_script = _record  # type: ignore[attr-defined]
+
+    assert (
+        al.perform_login(
+            driver,
+            auth_type="etype",
+            auth_config={"login_url": ETYPE_LOGIN_URL},
+            username="u",
+            password="pw",
+        )
+        is True
+    )
+    assert len(calls) == 1
+    script, args = calls[0]
+    assert "document.forms" in script and ".submit()" in script
+    assert args == (al.ETYPE_FORM_NAME,)
+
+
+def test_etype_login_rejected_credentials_returns_false():
+    def _rejected(driver):
+        # eType re-renders the login page with one generic message.
+        driver.page_source = (
+            "<html>Incorrect login details or subscription has expired.</html>"
+        )
+
+    driver, _login, _password = _etype_driver(on_submit=_rejected)
+
+    assert (
+        al.perform_login(
+            driver,
+            auth_type="etype",
+            auth_config={"login_url": ETYPE_LOGIN_URL},
+            username="theminer",
+            password="pw",
+        )
+        is False
+    )
+
+
+def test_etype_login_still_on_login_page_is_failure():
+    # No failure text, but the URL never left the login path.
+    driver, _login, _password = _etype_driver(on_submit=lambda d: None)
+
+    assert (
+        al.perform_login(
+            driver,
+            auth_type="etype",
+            auth_config={"login_url": ETYPE_LOGIN_URL},
+            username="u",
+            password="pw",
+        )
+        is False
+    )
+
+
+def test_etype_login_ignores_query_string_when_comparing_paths():
+    # The publisher links to the login page with ?app_redirect=<article>; the
+    # success test must compare paths, not whole URLs.
+    def _logged_in(driver):
+        driver.current_url = (
+            "https://www.pendoreillerivervalley.com/article/5813,ballot-fight"
+        )
+
+    driver, _login, _password = _etype_driver(on_submit=_logged_in)
+    url = ETYPE_LOGIN_URL + "?app_redirect=https%3A%2F%2Fexample.com%2Farticle%2F1"
+
+    assert (
+        al.perform_login(
+            driver,
+            auth_type="etype",
+            auth_config={"login_url": url},
+            username="u",
+            password="pw",
+        )
+        is True
+    )
+
+
+def test_etype_login_missing_form_returns_false():
+    driver, _login, _password = _etype_driver(on_submit=lambda d: None)
+    driver.execute_script = lambda *_a, **_k: False  # type: ignore[attr-defined]
+
+    assert (
+        al.perform_login(
+            driver,
+            auth_type="etype",
+            auth_config={"login_url": ETYPE_LOGIN_URL},
+            username="u",
+            password="pw",
+        )
+        is False
+    )
+
+
+def test_etype_login_honors_success_text():
+    def _logged_in(driver):
+        driver.current_url = "https://www.pendoreillerivervalley.com/"
+        driver.page_source = "<html>nothing useful here</html>"
+
+    driver, _login, _password = _etype_driver(on_submit=_logged_in)
+
+    assert (
+        al.perform_login(
+            driver,
+            auth_type="etype",
+            auth_config={"login_url": ETYPE_LOGIN_URL, "success_text": "Log out"},
+            username="u",
+            password="pw",
+        )
+        is False
+    )
+
+
+def test_etype_login_login_field_not_found_returns_false():
+    driver = FakeDriver({}, login_url=ETYPE_LOGIN_URL, success_url=None)
+    driver.current_url = ETYPE_LOGIN_URL
+
+    assert (
+        al.perform_login(
+            driver,
+            auth_type="etype",
+            auth_config={"login_url": ETYPE_LOGIN_URL, "form_timeout": 0.01},
+            username="u",
+            password="pw",
+        )
+        is False
+    )
+
+
+def test_etype_login_requires_login_url():
+    driver = FakeDriver({}, login_url=ETYPE_LOGIN_URL, success_url=None)
+
+    assert (
+        al.perform_login(
+            driver, auth_type="etype", auth_config={}, username="u", password="pw"
+        )
+        is False
+    )
