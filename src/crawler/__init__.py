@@ -12,6 +12,7 @@ import sys
 import threading
 import time
 import uuid
+from contextlib import contextmanager
 from copy import deepcopy
 from datetime import datetime
 from html import unescape
@@ -4271,7 +4272,8 @@ class ContentExtractor:
             except Exception:
                 pass  # Ignore if page already finished loading
 
-            html = driver.page_source
+            with self._phase("extract_page_source"):
+                html = driver.page_source
 
             self._update_wire_hints_from_html(html, url)
             self._record_raw_html(html, "selenium")
@@ -5227,6 +5229,19 @@ class ContentExtractor:
         # command executor timeout set above depending on headless/headful mode
         return driver
 
+    @contextmanager
+    def _phase(self, label: str):
+        """Log how long a Selenium phase took, so a real pipeline run tells us
+        where the per-article seconds actually go (page_source vs find_elements
+        vs scroll vs the load itself). Greppable as 'SELENIUM_PHASE'. Cheap
+        enough to leave on; remove once the driver timing is understood.
+        """
+        started = time.time()
+        try:
+            yield
+        finally:
+            logger.info("SELENIUM_PHASE %s %.2fs", label, time.time() - started)
+
     def _navigate_with_human_behavior(self, driver, url: str) -> bool:
         """Navigate to URL with minimal delays for faster content extraction."""
         try:
@@ -5269,13 +5284,35 @@ class ContentExtractor:
                         logger.debug("Cookie import step failed: %s", e_c)
 
                     with lock:
-                        driver.get(url)
+                        with self._phase("driver_get"):
+                            driver.get(url)
 
                     # Wait for basic page load; allow more time on later attempts
                     wait_time = 5 if attempt == 1 else (10 if attempt == 2 else 15)
-                    WebDriverWait(driver, wait_time).until(
-                        EC.presence_of_element_located((By.TAG_NAME, "body"))
-                    )
+                    with self._phase("wait_for_body"):
+                        WebDriverWait(driver, wait_time).until(
+                            EC.presence_of_element_located((By.TAG_NAME, "body"))
+                        )
+
+                    # Stop the load the instant <body> exists — page_load_strategy
+                    # is 'eager' so the DOM is ready here while ads, trackers and
+                    # auth/captcha iframes keep fetching through the proxy. Every
+                    # DOM read after this (the captcha/subscription detectors, the
+                    # human-scroll, then extraction) blocks until the load quiets
+                    # down otherwise. This restores 47b5ad61's intent ("147s ->
+                    # ~5-15s"): stop BEFORE anything reads the page. #388 stopped
+                    # too late — the detectors run first and had already blocked.
+                    #
+                    # With the load halted here, every driver.page_source read
+                    # downstream returns instantly AND reflects the live DOM, so
+                    # a mutation (closing a modal, passing a challenge, scrolling
+                    # in lazy content) is picked up by the next read with no stale
+                    # cache to invalidate.
+                    try:
+                        with self._phase("window_stop"):
+                            driver.execute_script("window.stop();")
+                    except Exception:
+                        pass
 
                     success = True
                     logger.info("Selenium navigation succeeded on attempt %d", attempt)
@@ -5524,14 +5561,15 @@ class ContentExtractor:
                     scroll_positions.append(current_pos)
 
                 # Limit scrolling to avoid timeout - faster scrolling
-                for pos in scroll_positions[:3]:  # Reduced from 5 positions
-                    driver.execute_script(f"window.scrollTo(0, {pos});")
-                    # Quick pause between scrolls
-                    time.sleep(0.2)  # Reduced from 0.8-2.0 seconds
+                with self._phase("human_scroll"):
+                    for pos in scroll_positions[:3]:  # Reduced from 5 positions
+                        driver.execute_script(f"window.scrollTo(0, {pos});")
+                        # Quick pause between scrolls
+                        time.sleep(0.2)  # Reduced from 0.8-2.0 seconds
 
-                # Scroll back to top (common human behavior)
-                driver.execute_script("window.scrollTo(0, 0);")
-                time.sleep(0.2)  # Reduced from 0.5-1.0 seconds
+                    # Scroll back to top (common human behavior)
+                    driver.execute_script("window.scrollTo(0, 0);")
+                    time.sleep(0.2)  # Reduced from 0.5-1.0 seconds
 
             # Simulate mouse movement (if ActionChains available)
             if hasattr(driver, "execute_script"):
@@ -5612,7 +5650,8 @@ class ContentExtractor:
         These should be tracked separately as they may block for days/months.
         """
         try:
-            page_source = driver.page_source.lower()
+            with self._phase("subwall_page_source"):
+                page_source = driver.page_source.lower()
 
             # Common subscription wall indicators
             subscription_keywords = [
@@ -5871,7 +5910,8 @@ class ContentExtractor:
         NOT subscription modals or promotional CAPTCHAs.
         """
         try:
-            page_source = driver.page_source.lower()
+            with self._phase("captcha_page_source"):
+                page_source = driver.page_source.lower()
 
             # 1. Check for subscription/paywall modals (these are NOT blockers)
             # If reCAPTCHA is inside a subscription modal, content is still accessible
@@ -5922,7 +5962,8 @@ class ContentExtractor:
             # then paid ~86s failing to "bypass" a login form before extracting
             # the article anyway — telemetry showed 11/11 selenium "success"
             # alongside "Could not bypass".
-            has_article_content = self._page_has_article_content(driver)
+            with self._phase("page_has_article_content"):
+                has_article_content = self._page_has_article_content(driver)
 
             # Only the soft, embeddable widgets get this exemption. Cloudflare
             # and PerimeterX challenges below are genuine walls and still block
