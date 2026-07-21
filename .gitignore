@@ -227,3 +227,6 @@ inspect_clienthello/
 utls/
 downloaded_screenshots/
 scripts/analyze_canonical_urls.py
+
+# Playwright MCP session artifacts (page snapshots / console logs)
+.playwright-mcp/
