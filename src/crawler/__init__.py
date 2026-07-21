@@ -283,6 +283,22 @@ _GRAY_DATALAYER_RE = re.compile(
 )
 
 
+def _mask_proxy_url(url: str | None) -> str:
+    """Hide the password in a proxy URL before it reaches a log.
+
+    Proxy URLs became credentialed when Squid moved from IP allowlisting to
+    basic auth (the allowlist broke on every GKE autoscale, since each node has
+    its own ephemeral egress IP). Several call sites log the URL at INFO, which
+    would otherwise write the proxy password into production logs on every
+    Selenium escalation.
+
+    ``http://user:secret@host:3128`` -> ``http://user:***@host:3128``
+    """
+    if not url:
+        return ""
+    return re.sub(r"://([^:/@]+):([^@]*)@", r"://\1:***@", url)
+
+
 def _ensure_attrs_dict(attrs: object) -> dict:
     """Coerce BeautifulSoup `attrs` argument into a dict suitable for
     `soup.find(selector, attrs=...)`.
@@ -841,7 +857,9 @@ class ContentExtractor:
         squid_proxy_url = os.getenv(
             "SQUID_PROXY_URL", "http://t9880447.eero.online:3128"
         )
-        logger.info(f"All proxy traffic routing through Squid: {squid_proxy_url}")
+        logger.info(
+            f"All proxy traffic routing through Squid: {_mask_proxy_url(squid_proxy_url)}"
+        )
 
         # Set initial user agent
         self.current_user_agent = user_agent or random.choice(self.user_agent_pool)
@@ -964,7 +982,9 @@ class ContentExtractor:
         )
         squid_proxies = {"http": squid_proxy_url, "https": squid_proxy_url}
         self.session.proxies.update(squid_proxies)
-        logger.info(f"🔀 Squid proxy ENFORCED for ALL connections: {squid_proxy_url}")
+        logger.info(
+            f"🔀 Squid proxy ENFORCED for ALL connections: {_mask_proxy_url(squid_proxy_url)}"
+        )
 
         logger.debug(
             f"Updated session headers with UA: {self.current_user_agent[:50]}..."
@@ -4056,7 +4076,9 @@ class ContentExtractor:
                 "SQUID_PROXY_URL", "http://t9880447.eero.online:3128"
             )
 
-            logger.info(f"Using Squid proxy for unblock extraction: {squid_proxy_url}")
+            logger.info(
+                f"Using Squid proxy for unblock extraction: {_mask_proxy_url(squid_proxy_url)}"
+            )
 
             # Use Squid proxy directly (no authentication needed for this Squid setup)
             proxy_url = squid_proxy_url
@@ -4078,7 +4100,9 @@ class ContentExtractor:
                 "Cache-Control": "max-age=0",
             }
 
-            logger.info(f"Fetching {url} via Squid proxy at {squid_proxy_url}")
+            logger.info(
+                f"Fetching {url} via Squid proxy at {_mask_proxy_url(squid_proxy_url)}"
+            )
 
             # Simple request through Squid proxy
             try:
@@ -4789,7 +4813,9 @@ class ContentExtractor:
             "SELENIUM_PROXY",
             os.getenv("SQUID_PROXY_URL", "http://t9880447.eero.online:3128"),
         )
-        logger.info(f"🔀 Selenium proxy URL from env: {selenium_proxy}")
+        logger.info(
+            f"🔀 Selenium proxy URL from env: {_mask_proxy_url(selenium_proxy)}"
+        )
         proxy_extension_path = None
 
         # Parse proxy URL: https://user:pass@host:port or http://host:port
@@ -5125,7 +5151,9 @@ class ContentExtractor:
             os.getenv("SQUID_PROXY_URL", "http://t9880447.eero.online:3128"),
         )
         chrome_options.add_argument(f"--proxy-server={selenium_proxy}")
-        logger.debug(f"Squid proxy ENFORCED for stealth driver: {selenium_proxy}")
+        logger.debug(
+            f"Squid proxy ENFORCED for stealth driver: {_mask_proxy_url(selenium_proxy)}"
+        )
 
         # Exclude automation switches
         chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
