@@ -118,9 +118,18 @@ def main() -> int:
         stamped = conn.execute(BACKFILL_SQL).rowcount
         print(f"backfilled entities_extracted_at on {stamped:,} articles")
 
-    # CONCURRENTLY cannot run inside a transaction block.
+    # CONCURRENTLY cannot run inside a transaction block, and getting there
+    # takes both of the steps below. A bare COMMIT does not do it: the
+    # connection begins a transaction implicitly, so the COMMIT only ends the
+    # block that the next statement reopens. AUTOCOMMIT alone does not do it
+    # either, because DatabaseManager hands out a process-wide singleton engine
+    # whose pool has just served the backfill above — a connection checked back
+    # out of that pool still arrives inside a transaction, and the statement
+    # fails with 25001 exactly as before. Disposing the pool first forces a new
+    # connection, which is the only state AUTOCOMMIT reliably applies to.
+    engine.dispose()
     with engine.connect() as conn:
-        conn.execute(text("COMMIT"))
+        conn = conn.execution_options(isolation_level="AUTOCOMMIT")
         conn.execute(text("SET statement_timeout='600s'"))
         conn.execute(CREATE_INDEX_SQL)
         print("partial index ensured (idx_articles_pending_entities)")

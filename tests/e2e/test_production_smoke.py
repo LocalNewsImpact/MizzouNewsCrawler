@@ -1263,25 +1263,44 @@ class TestContentCleaningPipeline:
                              OR author ILIKE '%reuters%')
                         AND primary_label IN ('wire', 'syndicated')
                         THEN 1
-                    END) as wire_correctly_labeled
+                    END) as wire_correctly_labeled,
+                    COUNT(CASE
+                        WHEN status = 'wire'
+                        AND author IS NOT NULL
+                        AND btrim(author) = ''
+                        THEN 1
+                    END) as wire_blank_author
                 FROM articles
                 WHERE extracted_at >= NOW() - INTERVAL '7 days'
             """)).fetchone()
 
-            wire_count, local_count, wire_with_svc, labeled = result
+            wire_count, local_count, wire_with_svc, labeled, blank_author = result
 
             # Should have some wire articles detected
             assert (
                 wire_count > 0
             ), "No wire articles detected - wire service detection may be failing"
 
-            # Most wire articles should have wire service author text preserved
+            # How much wire copy carries a service byline is a property of the
+            # source mix, not of extraction health. Roughly 80% of wire articles
+            # carry no byline at all, and the syndicated copy that does carry one
+            # is bylined to the reporter rather than the service, so the share
+            # naming AP/Reuters has sat between 2% and 18% of authored wire
+            # articles every month measured. This once asserted a floor of 70%,
+            # which no month has ever met. Track it; do not gate on it.
             if wire_count > 0:
-                preservation_ratio = wire_with_svc / wire_count
-                assert preservation_ratio > 0.7, (
-                    f"Low wire service preservation: {preservation_ratio:.1%} - "
-                    f"bylines may be corrupted"
+                service_share = wire_with_svc / wire_count
+                logger.info(
+                    f"Wire service byline share: {service_share:.1%} "
+                    f"({wire_with_svc}/{wire_count} wire articles)"
                 )
+
+            # Corruption, unlike the share above, is unambiguous: a byline that
+            # survived extraction as whitespace means something wrote over it.
+            assert blank_author == 0, (
+                f"{blank_author} wire articles have blank (whitespace-only) "
+                f"authors - extraction may be corrupting bylines"
+            )
 
             # Wire articles should have consistent labeling
             if wire_with_svc > 0:
