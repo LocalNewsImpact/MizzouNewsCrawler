@@ -57,6 +57,20 @@ Configure the Port Townsend Leader (SimpleCirc)::
 Note that SimpleCirc publishers have no password: the secret payload is
 ``{"username": "<subscriber email>", "zip": "<billing ZIP on the account>"}``.
 
+Configure the Newport Miner (eType metered paywall)::
+
+    python scripts/configure_publisher_auth.py \
+        --host www.pendoreillerivervalley.com \
+        --dataset WSU Washington State \
+        --auth-type etype \
+        --secret-name publisher-auth-pendoreillerivervalley-com \
+        --config '{"login_url":
+                     "https://www.pendoreillerivervalley.com/account/etype-login"}'
+
+eType publishers have a *second*, unrelated site login at ``/account/login``;
+subscriber credentials belong to ``/account/etype-login`` and are rejected by
+the other one.
+
 Disable authenticated extraction for a publisher::
 
     python scripts/configure_publisher_auth.py --host www.spokesman.com --disable
@@ -103,7 +117,7 @@ def _parse_args(argv=None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--auth-type",
-        choices=["auth0", "form", "newzware", "simplecirc"],
+        choices=["auth0", "form", "newzware", "simplecirc", "etype"],
         help="Login mechanism (required unless --disable)",
     )
     parser.add_argument(

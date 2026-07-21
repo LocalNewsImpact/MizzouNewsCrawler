@@ -5,7 +5,7 @@ session cookies carry through to subsequent (paywalled) article fetches. Whether
 any individual story is paywalled is decided dynamically by the publisher; this
 module simply establishes an authenticated session for the domain.
 
-Four login mechanisms are supported:
+Five login mechanisms are supported:
 
 * ``auth0`` – Auth0 Universal Login (OAuth2 / OIDC with PKCE). The form only
   renders when reached via ``/authorize`` with a fresh, valid
@@ -19,6 +19,9 @@ Four login mechanisms are supported:
 * ``simplecirc`` – the SimpleCirc subscriber form, which has no password: the
   subscriber authenticates with their email (or account number) plus the
   billing ZIP code on the account.
+* ``etype`` – the eType Services metered paywall, whose login form is guarded
+  by an invisible reCAPTCHA v3 that locks the submit button until Google's
+  script resolves. The form is submitted directly to sidestep that lock.
 
 The password-based mechanisms handle "identifier-first" flows where the password
 field only appears after the email is submitted.
@@ -589,6 +592,114 @@ def _login_simplecirc(driver, cfg: dict, creds: dict) -> bool:
     return True
 
 
+# The eType login form. Selectors are keyed off the Symfony form name rather
+# than the generic candidate lists, because the login field is a bare
+# ``type="text"`` input named ``etype_login[login]`` — it carries neither
+# "email" nor "user" in its name or id, so EMAIL_CANDIDATES cannot find it.
+ETYPE_FORM_NAME = "etype_login"
+ETYPE_LOGIN_SELECTOR = 'form[name="etype_login"] input[name="etype_login[login]"]'
+ETYPE_PASSWORD_SELECTOR = 'form[name="etype_login"] input[name="etype_login[password]"]'
+# eType returns one generic message for a bad password, an unknown account and
+# a lapsed subscription alike.
+ETYPE_FAILURE_TEXT = "Incorrect login details or subscription has expired"
+
+
+def _login_etype(driver, cfg: dict, username: str, password: str) -> bool:
+    """Log in through an eType Services paywall (e.g. the Newport Miner).
+
+    eType meters access with an ``_etype_fv`` cookie carrying ``{count, total}``
+    — a small daily allowance of full articles, after which the publisher serves
+    a truncated stub. An authenticated session is not metered at all, so the
+    cookie is never set once this succeeds.
+
+    The form cannot be driven by clicking its submit button. The page loads
+    reCAPTCHA v3 (``<body data-rc="...">``) and holds a ``buttonLock`` on the
+    submit handler until Google's script resolves a token into the hidden
+    ``etype_login[recaptcha_response]`` field. In a headless pod that script is
+    slow, proxied, or scored as automation, so the click can hang indefinitely.
+    The server does not actually verify the token, so we fill the fields and
+    call ``HTMLFormElement.submit()``, which bypasses the onsubmit handler (and
+    therefore the lock) entirely.
+    """
+    login_url = cfg.get("login_url")
+    if not login_url:
+        logger.warning("etype login requires login_url in auth_config")
+        return False
+
+    login_sel = cfg.get("email_selector") or ETYPE_LOGIN_SELECTOR
+    pass_sel = cfg.get("password_selector") or ETYPE_PASSWORD_SELECTOR
+    form_timeout = float(cfg.get("form_timeout", 20))
+    failure_text = cfg.get("failure_text", ETYPE_FAILURE_TEXT)
+
+    try:
+        driver.set_page_load_timeout(45)
+    except Exception:
+        pass
+    try:
+        driver.get(login_url)
+    except Exception as exc:
+        logger.warning("etype login: navigation to login URL failed: %s", exc)
+
+    login_el = None
+
+    def _form_present(d):
+        nonlocal login_el
+        login_el, _ = _find_first(d, [login_sel])
+        return login_el is not None
+
+    if not _wait_for(driver, _form_present, form_timeout):
+        logger.warning("etype login: login field not found")
+        return False
+
+    pass_el, _ = _find_first(driver, [pass_sel])
+    if not pass_el:
+        logger.warning("etype login: password field not found")
+        return False
+
+    login_el.clear()
+    login_el.send_keys(username)
+    pass_el.clear()
+    pass_el.send_keys(password)
+
+    # Submit the form element itself, not the button — see the docstring.
+    form_name = cfg.get("form_name") or ETYPE_FORM_NAME
+    try:
+        submitted = driver.execute_script(
+            "var f = document.forms[arguments[0]];"
+            "if (!f) { return false; } f.submit(); return true;",
+            form_name,
+        )
+    except Exception as exc:
+        logger.warning("etype login: direct form submit failed: %s", exc)
+        return False
+    if submitted is False:
+        logger.warning("etype login: form '%s' not present on the page", form_name)
+        return False
+
+    time.sleep(3)
+
+    if failure_text and failure_text.lower() in _page_source(driver).lower():
+        logger.warning("etype login: credentials were rejected")
+        return False
+
+    # A rejected login re-renders the login form at the same path; a successful
+    # one redirects to the site root (or to ``app_redirect`` when the login URL
+    # carries one).
+    login_path = urllib.parse.urlparse(login_url).path.rstrip("/")
+    current_path = urllib.parse.urlparse(driver.current_url).path.rstrip("/")
+    if current_path == login_path:
+        logger.warning("etype login: still on the login page after submit")
+        return False
+
+    success_text = (cfg.get("success_text") or "").strip()
+    if success_text and success_text.lower() not in _page_source(driver).lower():
+        logger.warning(
+            "etype login: success marker '%s' not found after submit", success_text
+        )
+        return False
+    return True
+
+
 def perform_login(
     driver,
     *,
@@ -600,11 +711,12 @@ def perform_login(
 ) -> bool:
     """Log into a publisher on ``driver``. Returns True on success.
 
-    ``auth_type`` selects the mechanism ('auth0', 'form', 'newzware' or
-    'simplecirc'). ``auth_config`` carries the non-secret parameters
+    ``auth_type`` selects the mechanism ('auth0', 'form', 'newzware',
+    'simplecirc' or 'etype'). ``auth_config`` carries the non-secret parameters
     (domain/client_id/redirect_uri/scope for auth0; login_url/selectors/
     success_text for form; login_url/return_host/success_text for newzware;
-    login_url/selectors for simplecirc).
+    login_url/selectors for simplecirc; login_url/selectors/failure_text for
+    etype).
 
     Credentials may be passed either as ``username``/``password`` or as a
     ``credentials`` dict (see :func:`resolve_auth_credentials`). The dict form is
@@ -633,6 +745,8 @@ def perform_login(
             return _login_auth0(driver, cfg, user, pw)
         if mechanism == "newzware":
             return _login_newzware(driver, cfg, user, pw)
+        if mechanism == "etype":
+            return _login_etype(driver, cfg, user, pw)
         return _login_form(driver, cfg, user, pw)
     except Exception as exc:
         logger.error("Authenticated login raised: %s", exc, exc_info=True)
