@@ -5893,10 +5893,28 @@ class ContentExtractor:
         working as publishers change providers.
         """
         try:
-            paragraphs = driver.find_elements(By.CSS_SELECTOR, "article p, main p, p")
+            # DIAGNOSTIC (instrument/selenium-driver-responsiveness): decide the
+            # architecture question — is the cost the .text/find_elements
+            # round-trips (which we remove by parsing captured HTML instead), or
+            # is the browser globally unresponsive (a trivial execute_script also
+            # blocks)? driver_ping is a no-DOM round-trip; compare it to
+            # pha_find_elements and pha_text_loop. Remove once answered.
+            try:
+                with self._phase("driver_ping"):
+                    driver.execute_script("return 1")
+            except Exception:
+                pass
+
+            with self._phase("pha_find_elements"):
+                paragraphs = driver.find_elements(
+                    By.CSS_SELECTOR, "article p, main p, p"
+                )
             if len(paragraphs) < self.ARTICLE_CONTENT_MIN_PARAGRAPHS:
                 return False
-            chars = sum(len((p.text or "").strip()) for p in paragraphs[:40])
+            n = min(len(paragraphs), 40)
+            with self._phase("pha_text_loop"):
+                chars = sum(len((p.text or "").strip()) for p in paragraphs[:40])
+            logger.info("SELENIUM_PHASE pha_text_elements %d", n)
             return chars >= self.ARTICLE_CONTENT_MIN_CHARS
         except Exception:
             # Never let this probe decide by accident — if we cannot tell, fall
