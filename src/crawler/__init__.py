@@ -5885,41 +5885,92 @@ class ContentExtractor:
     ARTICLE_CONTENT_MIN_PARAGRAPHS = 5
 
     def _page_has_article_content(self, driver) -> bool:
-        """Whether the rendered page still carries a story.
+        """Whether the captured page still carries a story.
 
         Used to tell a blocking wall from a widget that merely sits on the page:
         a wall replaces the article, a sign-in or subscription prompt does not.
         Deliberately structural — no vendor or publisher names — so it keeps
         working as publishers change providers.
+
+        Parses the page's HTML *snapshot* — one ``page_source`` round-trip, then
+        BeautifulSoup in-process — instead of reading each ``<p>.text`` live. The
+        live read issued one WebDriver round-trip per element and each forced a
+        layout reflow; instrumentation measured it at up to 124s on heavy pages
+        versus ~0.2s for a snapshot parse, with ``driver_ping`` (a no-DOM
+        round-trip) staying sub-2s the whole time — i.e. the cost was the
+        per-element ``.text`` round-trips, not an unresponsive browser.
+
+        Note the semantic shift: ``get_text()`` on the snapshot is ``textContent``
+        (raw DOM text), not the rendered/visible text ``.text`` returned. For
+        "is there article-length text here" that is fine, but be aware a paywall
+        that CSS-hides an article still present in the DOM would now read as
+        content-bearing; server-truncated paywalls (body absent from the DOM)
+        still read as empty. Set ``SELENIUM_TEXT_DECOMPOSE=1`` to emit the extra
+        probes that decompose round-trip chattiness from forced reflow.
         """
         try:
-            # DIAGNOSTIC (instrument/selenium-driver-responsiveness): decide the
-            # architecture question — is the cost the .text/find_elements
-            # round-trips (which we remove by parsing captured HTML instead), or
-            # is the browser globally unresponsive (a trivial execute_script also
-            # blocks)? driver_ping is a no-DOM round-trip; compare it to
-            # pha_find_elements and pha_text_loop. Remove once answered.
-            try:
-                with self._phase("driver_ping"):
-                    driver.execute_script("return 1")
-            except Exception:
-                pass
-
-            with self._phase("pha_find_elements"):
-                paragraphs = driver.find_elements(
-                    By.CSS_SELECTOR, "article p, main p, p"
-                )
-            if len(paragraphs) < self.ARTICLE_CONTENT_MIN_PARAGRAPHS:
-                return False
-            n = min(len(paragraphs), 40)
-            with self._phase("pha_text_loop"):
-                chars = sum(len((p.text or "").strip()) for p in paragraphs[:40])
+            with self._phase("pha_page_source"):
+                html = driver.page_source or ""
+            with self._phase("pha_bs_parse"):
+                soup = BeautifulSoup(html, "html.parser")
+                # script/style/noscript never carry article prose and would
+                # inflate the textContent char count.
+                for junk in soup(["script", "style", "noscript"]):
+                    junk.decompose()
+                paragraphs = soup.select("article p, main p, p")
+                if len(paragraphs) < self.ARTICLE_CONTENT_MIN_PARAGRAPHS:
+                    return False
+                n = min(len(paragraphs), 40)
+                chars = sum(len(p.get_text(strip=True)) for p in paragraphs[:n])
             logger.info("SELENIUM_PHASE pha_text_elements %d", n)
+
+            if os.getenv("SELENIUM_TEXT_DECOMPOSE") == "1":
+                self._decompose_text_cost(driver)
+
             return chars >= self.ARTICLE_CONTENT_MIN_CHARS
         except Exception:
             # Never let this probe decide by accident — if we cannot tell, fall
             # through to the existing detection rather than assuming safety.
             return False
+
+    def _decompose_text_cost(self, driver) -> None:
+        """Diagnostic (gated by SELENIUM_TEXT_DECOMPOSE=1): isolate *why* the old
+        live ``.text`` loop was slow — round-trip chattiness vs forced reflow.
+
+        Times, on the SAME page: a no-DOM round-trip (``driver_ping``), a single
+        in-page ``textContent`` read (one round-trip, no reflow), and a single
+        in-page ``innerText`` read (one round-trip, forces reflow). Read against
+        the old per-element ``.text`` loop (~124s = 40 round-trips of rendered
+        text):
+
+        - textContent fast AND innerText fast → cost was the 40 round-trips.
+        - textContent fast BUT innerText slow → forced reflow per rendered read
+          dominates; a static snapshot (textContent) is what avoids it.
+        - both slow → main-thread/layout contention even for a single in-page
+          read — a deeper problem than the round-trip count.
+
+        Never runs in production; best-effort, failures swallowed.
+        """
+        sel = "article p, main p, p"
+        js = (
+            "return Array.from(document.querySelectorAll(arguments[0]))"
+            ".slice(0,40).map(e=>e[arguments[1]]||'').join('')"
+        )
+        try:
+            with self._phase("driver_ping"):
+                driver.execute_script("return 1")
+        except Exception:
+            pass
+        try:
+            with self._phase("pha_execjs_textcontent"):
+                driver.execute_script(js, sel, "textContent")
+        except Exception:
+            pass
+        try:
+            with self._phase("pha_execjs_innertext"):
+                driver.execute_script(js, sel, "innerText")
+        except Exception:
+            pass
 
     def _detect_captcha_or_challenge(self, driver) -> bool:
         """Detect if page contains CAPTCHA or other bot challenges.
