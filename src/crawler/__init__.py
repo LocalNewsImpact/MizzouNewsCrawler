@@ -4374,20 +4374,63 @@ class ContentExtractor:
                 metadata = selenium_result.setdefault("metadata", {})
                 metadata["selenium_reason"] = reason
 
-            if selenium_result and selenium_result.get("content"):
-                preferred_fields = list(
-                    dict.fromkeys(
-                        (fields_needed or [])
-                        + ["title", "author", "content", "metadata"]
-                    )
+            # Selenium is a CAPTURE mechanism, not an extractor: it renders
+            # HTML that the real parsers can read. Until now only its own
+            # generic soup extraction read that render, so after paying for a
+            # browser we took the weaker parser on the better capture —
+            # trafilatura never saw the rendered page on this path at all.
+            #
+            # So parse the capture properly first. Whatever trafilatura leaves
+            # missing, Selenium's own result fills below.
+            capture = self._raw_html_by_method.get("selenium")
+            if capture and self._mcmetadata_enabled():
+                # Fields carried over from a bot-blocked HTTP attempt are
+                # probably challenge-page text, so let a real parse of the
+                # rendered page replace them. Otherwise only fill gaps.
+                http_attempt_suspect = bool(
+                    self._last_bot_protection_detection
+                    or result.get("_bot_protection_detected")
                 )
+                try:
+                    capture_result = self._extract_with_mcmetadata(url, capture)
+                    if capture_result:
+                        self._merge_extraction_results(
+                            result,
+                            capture_result,
+                            "mcmetadata",
+                            metrics=metrics,
+                            allow_overwrite=http_attempt_suspect,
+                        )
+                        logger.info(
+                            "Parsed the Selenium capture with mcmetadata for %s", url
+                        )
+                except Exception as exc:  # pragma: no cover - parser variety
+                    logger.info(
+                        "mcmetadata could not parse the Selenium capture for %s: %s",
+                        url,
+                        exc,
+                    )
+
+            if selenium_result and selenium_result.get("content"):
+                # Selenium's own soup extraction is the LAST resort, so it
+                # fills only what is still missing after the capture was
+                # parsed properly above.
+                #
+                # This used to merge with allow_overwrite=True across
+                # title/author/content/metadata regardless of what Selenium had
+                # been called for, so an escalation over a missing byline threw
+                # away body text a better parser had produced — and would now
+                # immediately undo the trafilatura parse of its own capture.
+                # It also made telemetry credit Selenium for fields it had
+                # merely overwritten.
+                still_missing = self._get_missing_fields(result)
                 self._merge_extraction_results(
                     result,
                     selenium_result,
                     "selenium",
-                    fields_to_copy=preferred_fields,
+                    fields_to_copy=still_missing,
                     metrics=metrics,
-                    allow_overwrite=True,
+                    allow_overwrite=False,
                 )
                 logger.info("✅ Selenium extraction succeeded for %s", url)
                 if dom in self._selenium_failure_counts:
