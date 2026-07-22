@@ -1,3 +1,24 @@
+# Debug pod for validating a publisher's authenticated-extraction config.
+#
+# Wired identically to a production extraction step (same image, residential
+# proxy, headful Selenium) so a result here means the real crawler will behave
+# the same way.
+#
+#   kubectl apply -f manifests/paywall-login-spike-pod.yaml
+#   kubectl cp scripts/spike_paywall_login.py \
+#       production/paywall-login-spike:/app/spike_paywall_login.py
+#   kubectl exec -n production paywall-login-spike -- env \
+#       PAYWALL_TEST_HOST=www.yakimaherald.com python /app/spike_paywall_login.py
+#   kubectl delete pod -n production paywall-login-spike
+#
+# PAYWALL_TEST_HOST loads the source's real auth_config from the database and
+# resolves its credentials from Secret Manager, so nothing needs to be passed
+# in by hand — hence the database wiring below and no credential secret. To
+# explore a site that is not configured yet, pass PAYWALL_TEST_LOGIN_URL /
+# _USERNAME / _PASSWORD (and any _SELECTOR overrides) on the exec instead.
+#
+# NOTE: keep `image` on a recent crawler tag. An old tag will not contain newer
+# login mechanisms and will silently fall back to the generic form path.
 apiVersion: v1
 kind: Pod
 metadata:
@@ -11,7 +32,7 @@ spec:
   restartPolicy: Never
   containers:
     - name: crawler
-      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:dcc138e
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:ec46f55
       imagePullPolicy: IfNotPresent
       command: ["/bin/bash", "-c"]
       args:
@@ -39,35 +60,34 @@ spec:
         # ---- Selenium behaves exactly like production extraction ----
         - name: SELENIUM_EXECUTION_MODE
           value: "headful"
-        # ---- Paywall test credentials (created out-of-band by the user) ----
-        - name: PAYWALL_TEST_USERNAME
+        # ---- Database, so PAYWALL_TEST_HOST can read sources.auth_config ----
+        - name: DATABASE_ENGINE
+          value: "postgresql+psycopg2"
+        - name: DATABASE_HOST
+          value: "127.0.0.1"
+        - name: DATABASE_PORT
+          value: "5432"
+        - name: DATABASE_USER
           valueFrom:
             secretKeyRef:
-              name: paywall-test-credentials
+              name: cloudsql-db-credentials
               key: username
-        - name: PAYWALL_TEST_PASSWORD
+        - name: DATABASE_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: paywall-test-credentials
+              name: cloudsql-db-credentials
               key: password
-        - name: PAYWALL_TEST_LOGIN_URL
+        - name: DATABASE_NAME
           valueFrom:
             secretKeyRef:
-              name: paywall-test-credentials
-              key: login-url
-        - name: PAYWALL_TEST_ARTICLE_URL
-          valueFrom:
-            secretKeyRef:
-              name: paywall-test-credentials
-              key: article-url
-              optional: true
-        # Optional overrides (success marker / explicit selectors); safe defaults if unset
-        - name: PAYWALL_TEST_SUCCESS_TEXT
-          valueFrom:
-            secretKeyRef:
-              name: paywall-test-credentials
-              key: success-text
-              optional: true
+              name: cloudsql-db-credentials
+              key: database
+        - name: DATABASE_URL
+          value: "$(DATABASE_ENGINE)://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)"
+        - name: USE_CLOUD_SQL_CONNECTOR
+          value: "true"
+        - name: CLOUD_SQL_INSTANCE
+          value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
       resources:
         requests:
           cpu: 250m

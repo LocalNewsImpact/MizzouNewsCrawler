@@ -157,6 +157,57 @@ def _mask(secret: str) -> str:
     return secret[0] + "*" * (len(secret) - 2) + secret[-1]
 
 
+def _describe(el) -> str:
+    """Short human label for an element, for telling Sign In from Search."""
+    try:
+        parts = [
+            (el.text or "").strip(),
+            el.get_attribute("value") or "",
+            el.get_attribute("aria-label") or "",
+            el.get_attribute("name") or "",
+            el.get_attribute("class") or "",
+        ]
+        return " ".join(p for p in parts if p)[:90] or "(no label)"
+    except Exception:
+        return "(unreadable)"
+
+
+def _looks_like_search(label: str) -> bool:
+    return "search" in label.lower() and not any(
+        w in label.lower() for w in ("log in", "login", "sign in", "signin")
+    )
+
+
+def _logged_in_markers(driver) -> list[str]:
+    """Generic evidence of an authenticated session, independent of success_text.
+
+    Publishers almost universally swap a login affordance for a logout one. This
+    is the signal that distinguishes a real login from merely having navigated
+    somewhere, which URL comparison alone cannot do.
+    """
+    found = []
+    for sel in (
+        'a[href*="logout" i]',
+        'a[href*="signout" i]',
+        "a[data-mg2-action='logout']",
+        'a[href*="/users/logout"]',
+    ):
+        try:
+            if driver.find_elements(By.CSS_SELECTOR, sel):
+                found.append(sel)
+        except Exception:
+            continue
+    try:
+        body = (driver.find_element(By.TAG_NAME, "body").text or "").lower()
+        for phrase in ("log out", "logout", "sign out", "my account"):
+            if phrase in body:
+                found.append(f"text:{phrase!r}")
+                break
+    except Exception:
+        pass
+    return found
+
+
 def _find_first(driver, selectors):
     """Return the first visible element matching any of the given selectors."""
     explicit = [s for s in selectors if s]
@@ -262,10 +313,6 @@ def main() -> int:
     login_url = _opt("PAYWALL_TEST_LOGIN_URL", "login_url")
     username = os.getenv("PAYWALL_TEST_USERNAME") or creds.get("username")
     password = os.getenv("PAYWALL_TEST_PASSWORD") or creds.get("password")
-    if not login_url:
-        sys.exit(
-            "ERROR: no login_url (set PAYWALL_TEST_LOGIN_URL or PAYWALL_TEST_HOST)"
-        )
     if not (username and password):
         sys.exit("ERROR: no credentials (set PAYWALL_TEST_USERNAME/PASSWORD or _HOST)")
     article_url = os.getenv("PAYWALL_TEST_ARTICLE_URL")  # optional, informational
@@ -277,14 +324,24 @@ def main() -> int:
     success_text = (_opt("PAYWALL_TEST_SUCCESS_TEXT", "success_text", "") or "").strip()
 
     # Auth0 mode: build our own /authorize request so Universal Login renders.
-    auth0_domain = os.getenv("PAYWALL_TEST_AUTH0_DOMAIN")
-    auth0_redirect = os.getenv("PAYWALL_TEST_AUTH0_REDIRECT_URI", "")
+    # These come from auth_config too in host mode, so an auth0 publisher can be
+    # validated with nothing but PAYWALL_TEST_HOST.
+    auth0_domain = _opt("PAYWALL_TEST_AUTH0_DOMAIN", "auth0_domain")
+    auth0_redirect = _opt("PAYWALL_TEST_AUTH0_REDIRECT_URI", "redirect_uri", "")
     if auth0_domain:
         login_url, _verifier = _build_auth0_authorize_url(
             auth0_domain,
-            os.getenv("PAYWALL_TEST_AUTH0_CLIENT_ID", ""),
+            _opt("PAYWALL_TEST_AUTH0_CLIENT_ID", "client_id", ""),
             auth0_redirect,
-            os.getenv("PAYWALL_TEST_AUTH0_SCOPE", "openid profile email"),
+            _opt("PAYWALL_TEST_AUTH0_SCOPE", "scope", "openid profile email"),
+        )
+
+    # Checked only now: an auth0 publisher legitimately has no login_url in its
+    # auth_config — the /authorize URL above is synthesized instead.
+    if not login_url:
+        sys.exit(
+            "ERROR: no login_url (set PAYWALL_TEST_LOGIN_URL, or PAYWALL_TEST_HOST "
+            "for a source whose auth_config carries login_url/auth0_domain)"
         )
 
     print("=" * 72)
@@ -412,7 +469,19 @@ def main() -> int:
             driver, [submit_sel, *SUBMIT_CANDIDATES]
         )
         if submit_el:
-            print(f"  submit selector  : {used_submit_sel}")
+            # Print what we are about to click. The generic candidates match the
+            # FIRST visible submit on the page, which on BLOX/TownNews sites is
+            # often the site search box rather than the login button — clicking
+            # it navigates to /search/ and every URL-based success signal then
+            # reports a login that never happened.
+            label = _describe(submit_el)
+            print(f"  submit selector  : {used_submit_sel}  -> {label}")
+            if _looks_like_search(label) and not submit_sel:
+                print(
+                    "  WARNING: that submit control looks like a search box, not "
+                    "a login button. Set PAYWALL_TEST_TRIGGER_SELECTOR/"
+                    "PAYWALL_TEST_SUBMIT_SELECTOR explicitly."
+                )
             submit_el.click()
         else:
             print("  No submit button found; sending RETURN on password field.")
@@ -438,8 +507,16 @@ def main() -> int:
         cookies_after = {c.get("name") for c in cookies}
         new_cookies = cookies_after - cookies_before
         current_url = driver.current_url
-        left_login_page = current_url != login_url
+
+        # Compare PATHS, not whole URLs: WordPress bounces a failed login back to
+        # wp-login.php?wpe-login=true, which differs only by a query string and
+        # would otherwise be read as "navigated away" — i.e. as success.
+        def _path(u: str) -> str:
+            return urllib.parse.urlparse(u).path.rstrip("/")
+
+        left_login_page = _path(current_url) != _path(login_url)
         login_form_gone = not _find_first(driver, [email_sel, *EMAIL_CANDIDATES])[0]
+        markers = _logged_in_markers(driver)
         auth0_redirected = bool(
             auth0_domain
             and ((auth0_domain not in current_url) or ("code=" in current_url))
@@ -456,6 +533,7 @@ def main() -> int:
         print(f"  login form gone     : {login_form_gone}")
         if trigger_sel:
             print(f"  login trigger gone  : {trigger_gone}")
+        print(f"  logged-in markers   : {markers or 'NONE'}")
         if auth0_domain:
             print(f"  auth0 redirected out: {auth0_redirected}")
         success_text_present = None
@@ -473,16 +551,20 @@ def main() -> int:
             bool(success_text_present),
             auth0_redirected,
             bool(trigger_gone),
+            bool(markers),
         ]
-        login_ok = auth0_redirected or (
-            bool(new_cookies)
-            and (
-                left_login_page
-                or login_form_gone
-                or bool(success_text_present)
-                or bool(trigger_gone)
-            )
+        # A verdict needs POSITIVE evidence of a session, not merely evidence of
+        # having moved. Navigation on its own is too weak: clicking the site
+        # search box also navigates, and also sets cookies. So require one of —
+        # auth0's callback, a logged-in marker, the vendor's login trigger being
+        # swapped out, or an explicitly configured success_text.
+        strong = (
+            auth0_redirected
+            or bool(markers)
+            or bool(trigger_gone)
+            or bool(success_text_present)
         )
+        login_ok = auth0_redirected or (bool(new_cookies) and strong)
 
         print("[5/5] Optional: fetching one article post-login (informational)...")
         if article_url:
@@ -510,6 +592,7 @@ def main() -> int:
         print(f"  login form gone     : {login_form_gone}")
         if trigger_sel:
             print(f"  login trigger gone  : {trigger_gone}")
+        print(f"  logged-in markers   : {markers or 'NONE'}")
         if auth0_domain:
             print(f"  auth0 redirected out: {auth0_redirected}")
         if success_text:
@@ -521,11 +604,17 @@ def main() -> int:
                 "session. Authenticated extraction is feasible for this site."
             )
             return 0
+        # A bare "not confirmed" is not actionable: a rejected credential, a bot
+        # wall and a wrong form all look identical from the signal table. Show
+        # what the page actually said so the three can be told apart.
+        _dump_failure_reason(driver)
         print(
             "\n  VERDICT: LOGIN NOT CONFIRMED. Form was found and submitted but "
             "no authenticated session was detected. Check credentials, the "
             "login URL, success_text, or whether the site uses SSO/2FA/a JS "
-            "challenge on the login endpoint."
+            "challenge on the login endpoint. If 'navigated off login' is True "
+            "but there are no logged-in markers, the submitted form was probably "
+            "not the login form (site search is the usual culprit)."
         )
         return 1
     finally:
@@ -534,6 +623,63 @@ def main() -> int:
                 driver.quit()
             except Exception:
                 pass
+
+
+def _dump_failure_reason(driver) -> None:
+    """Print whatever the page says, so a failure can be classified.
+
+    A rejected credential, a bot wall and a wrong-form submission all produce an
+    identical signal table; only the page text distinguishes them.
+    """
+    try:
+        body = driver.find_element(By.TAG_NAME, "body").text or ""
+    except Exception:
+        print("  (could not read page body)")
+        return
+
+    lowered = body.lower()
+    creds = [
+        p
+        for p in (
+            "invalid password",
+            "invalid login",
+            "incorrect",
+            "does not exist",
+            "not recognized",
+            "no account",
+            "unknown username",
+            "wrong password",
+            "subscription has expired",
+        )
+        if p in lowered
+    ]
+    wall = [
+        p
+        for p in (
+            "are you a human",
+            "access denied",
+            "unusual traffic",
+            "verify you are",
+            "cloudflare",
+            "captcha",
+            "blocked",
+            "rate limit",
+        )
+        if p in lowered
+    ]
+    if creds:
+        print(f"  page reports a CREDENTIAL problem: {creds}")
+    if wall:
+        print(f"  page looks like a BOT WALL / challenge: {wall}")
+    if not creds and not wall:
+        print("  no credential-error or bot-wall wording found on the page.")
+    for line in (ln.strip() for ln in body.splitlines()):
+        if line and any(
+            w in line.lower() for w in ("invalid", "incorrect", "error", "sorry")
+        ):
+            print(f"  page message: {line[:160]!r}")
+            break
+    print(f"  --- body (first 300 chars) ---\n  {body[:300]!r}")
 
 
 def _has_session_cookie(driver) -> bool:
