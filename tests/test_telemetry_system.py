@@ -517,10 +517,15 @@ class TestComprehensiveExtractionTelemetry:
         }
         metrics.end_method("newspaper4k", True, None, extracted_fields)
 
-        # Finalize the metrics with final result
+        # Finalize the metrics with final result. The body is real prose because
+        # success is now decided by what the text is; a placeholder like
+        # "Article content" is not an article and would record as a failure.
         final_result = {
             "title": "Test Article",
-            "content": "Article content",
+            "content": (
+                "The council approved the budget on Tuesday after a long debate, "
+                "and the mayor said the work would begin in the spring."
+            ),
             "author": "John Doe",
         }
         metrics.finalize(final_result)
@@ -987,7 +992,13 @@ class TestTelemetrySystemEndToEnd:
                 metrics.start_method("newspaper4k")
                 extracted_fields = {
                     "title": f"Article {i} Title",
-                    "content": f"Article {i} content...",
+                    # Real prose: the good-site branch is meant to record a
+                    # success, and success is decided by what the body is.
+                    "content": (
+                        f"Story {i}. The council approved the budget on Tuesday "
+                        "after a long debate, and the mayor said the work would "
+                        "begin in the spring."
+                    ),
                     "author": "Test Author",
                     "metadata": {"http_status": 200},
                 }
@@ -1013,6 +1024,11 @@ class TestTelemetrySystemEndToEnd:
                 )
 
             metrics.end_time = datetime.utcnow() + timedelta(seconds=2)
+            # Finalize before recording, as every production call site does
+            # (src/cli/commands/extraction.py finalizes immediately before each
+            # record_extraction, with {} on the error paths). Without this the
+            # verdict is never computed and success would come from nowhere.
+            metrics.finalize(extracted_fields if "good-site" in host else {})
             telemetry.record_extraction(metrics)
 
         # Verify results using API-style queries with PostgreSQL
