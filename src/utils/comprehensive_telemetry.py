@@ -7,6 +7,7 @@ methods, publishers, and error conditions to optimize extraction strategies.
 
 import json
 import logging
+import re
 import time
 from collections import defaultdict
 from collections.abc import Sequence
@@ -20,11 +21,204 @@ from src.telemetry.store import TelemetryStore, get_store
 logger = logging.getLogger(__name__)
 
 
+# An article is defined by what its text IS, not by how much of it there is.
+# Judging raw length answers the wrong question: 2,000 characters of navigation,
+# advertising and "subscribe to continue" passes any byte count while containing
+# no story, and a genuinely short local item fails one. So qualify in two steps —
+# discard the boilerplate, then ask whether prose survived.
+#
+# The vocabulary below is the language of walls and furniture, not of reporting.
+# It is deliberately phrase-level: bare words like "subscribe" appear inside real
+# articles ("subscribers to the service said..."), whole prompts do not.
+#
+# DERIVED, NOT GUESSED. Produced by diffing 15,656 hand-cleaned articles against
+# the same records as extracted (BigQuery mizzou_analytics.articles), keeping
+# only segments the cleaner removed on FOUR OR MORE distinct hosts — the test of
+# whether a phrase is site furniture or one publisher's prose. An earlier
+# hand-written list scored 2% recall against labelled data; these phrases are
+# what the corpus actually contains.
+#
+# Datelines ("KANSAS CITY, Mo.") and photo credits survive that diff too, but
+# they are article content being MOVED to another field rather than discarded,
+# so they are deliberately excluded here.
+_BOILERPLATE_MARKERS = (
+    # paywall / registration walls
+    "javascript is required for you to be able to read premium content",
+    "please enable it in your browser settings",
+    "login to continue reading",
+    "sign up for complimentary access",
+    "please log in to continue",
+    "need an account?",
+    "this item is available in full to subscribers",
+    "non-subscribers",
+    "click here to see your options for becoming a subscriber",
+    "otherwise, click here to view your options for subscribing",
+    "print and web subscribers",
+    "subscribe now!",
+    # consent / advertising furniture
+    "we use cookies to help our site function properly",
+    "featured local savings",
+    # comment-policy block (ships as many short lines, hence the fragments)
+    "please avoid obscene, vulgar, lewd",
+    "racist or sexually-oriented language",
+    "threats of harming another",
+    "person will not be tolerated",
+    "don't knowingly lie about anyone",
+    "no racism, sexism or any sort of -ism",
+    "that is degrading to another person",
+    "use the 'report' link on",
+    "each comment to let us know of abusive posts",
+    "we'd love to hear eyewitness",
+    "accounts, the history behind an article",
+    # recirculation
+    "previous post",
+    "next post",
+)
+
+# Minimum WORDS of surviving prose. Words, not characters, because the question
+# is whether someone wrote something. ~60 words is roughly the 400 characters the
+# Selenium guard uses, but measured on what is left after the walls come down
+# rather than on whatever bytes arrived.
+MIN_ARTICLE_WORDS = 60  # retained for callers; not used by looks_like_article
+
+# Function words. Their density is what separates written English from a scraped
+# control: prose is roughly a third function words, while a country dropdown, a
+# nav menu or a tag cloud is almost none.
+_FUNCTION_WORDS = frozenset(
+    "the a an and or but of to in on for with is are was were said he she it "
+    "that this from at by as has have had not".split()
+)
+
+# Below this density the text is a list, a form or a menu rather than writing.
+#
+# Derived from 1,036 labelled production extractions (2026-07-22 sample, ~40
+# Missouri publishers), not chosen by taste. Median function-word density was
+# 0.137 for bodies flagged as boilerplate/paywall and 0.286 for the rest — a 2x
+# separation. Measured operating points, after excluding empty bodies:
+#
+#     density < 0.12  ->  38% of flagged bodies caught,  2.5% collateral
+#     density < 0.16  ->  64% caught,                    4.9% collateral
+#     density < 0.20  ->  66% caught,                   10.8% collateral
+#
+# The known false positive is agate — sports scores, election returns, real
+# estate transfers — legitimate local copy carrying almost no function words.
+MIN_PROSE_DENSITY = 0.14
+
+# Share of words starting with a capital. Function-word density alone is fooled
+# by the single most common non-article in the corpus: the country dropdown
+# scraped from a registration form ("United States of America", "Commonwealth of
+# the ...", 5,308 chars, byte-identical across four hosts) scores 0.21 because
+# country names are full of "of" and "the". What gives it away is that nearly
+# every word is a proper noun.
+#
+# Measured on the labelled sample: median capitalisation was 0.664 for flagged
+# bodies against 0.217 for the rest — a cleaner 3x separation than density's 2x.
+# Together, `density < 0.14 or capitalisation > 0.60` catches 67% of flagged
+# bodies at 4.9% collateral, against 39% for density alone.
+MAX_CAPITALIZATION = 0.60
+
+# Words that belong to the plumbing of a website rather than to a story. Unlike
+# the phrase list above these are single words, so they are counted as a RATE
+# rather than matched: a story may mention a subscriber once, a registration
+# form says "account", "password" and "e-mail" every other line.
+_UTILITY_WORDS = re.compile(
+    r"\b(subscribe|subscriber|account|password|login|log in|sign up|e-?mail|"
+    r"cookies|advertisement|newsletter|click here|browser)\b",
+    re.IGNORECASE,
+)
+
+# Utility words per 100 words, above which the text is site plumbing.
+#
+# The sharpest of the three signals on the labelled sample: median rate 4.13 for
+# flagged bodies against 0.00 for the rest — most real articles contain none of
+# these words at all. Adding it took recall from 39% to 85%.
+MAX_UTILITY_WORD_RATE = 3.0
+
 # Proxy status codes for telemetry database (integer field)
 PROXY_STATUS_DISABLED = 0
 PROXY_STATUS_SUCCESS = 1
 PROXY_STATUS_FAILED = 2
 PROXY_STATUS_BYPASSED = 3
+
+
+def strip_boilerplate(body: str) -> str:
+    """Drop the segments of a body that are walls or furniture, not reporting.
+
+    Splits on line and sentence boundaries and discards any segment carrying a
+    boilerplate phrase. Segment-level rather than whole-body, so one "subscribe
+    today" line at the foot of a real story removes that line and keeps the
+    story — the reason a whole-body keyword test cannot be used for this.
+    """
+    if not body:
+        return ""
+    segments = re.split(r"[\n\r]+|(?<=[.!?])\s+", body)
+    kept = [
+        seg
+        for seg in segments
+        if seg.strip() and not any(m in seg.lower() for m in _BOILERPLATE_MARKERS)
+    ]
+    return " ".join(seg.strip() for seg in kept).strip()
+
+
+def prose_density(text: str) -> float:
+    """Share of words that are function words — how much this reads as writing.
+
+    Prose is roughly a third function words. A country dropdown, a nav menu or a
+    tag cloud is close to none, which is what makes this separate written English
+    from a scraped form control without knowing any site's markup.
+    """
+    words = re.findall(r"[a-zA-Z']+", text.lower())
+    if not words:
+        return 0.0
+    return sum(1 for w in words if w in _FUNCTION_WORDS) / len(words)
+
+
+def capitalization_ratio(text: str) -> float:
+    """Share of words beginning with a capital.
+
+    Reporting is mostly lowercase; a scraped list of proper nouns — countries,
+    place names, section menus — is mostly not. This is what catches the bodies
+    that slip past prose_density because their proper nouns happen to contain
+    function words.
+    """
+    words = re.findall(r"[A-Za-z][A-Za-z']*", text)
+    if not words:
+        return 0.0
+    return sum(1 for w in words if w[0].isupper()) / len(words)
+
+
+def utility_word_rate(text: str) -> float:
+    """Website-plumbing words per 100 words.
+
+    Shape signals miss text that reads like writing but is about the site rather
+    than the world — registration prompts, newsletter pitches, cookie notices.
+    Vocabulary catches those: most real articles use none of these words at all.
+    """
+    words = re.findall(r"[a-zA-Z']+", text)
+    if not words:
+        return 0.0
+    return 100 * len(_UTILITY_WORDS.findall(text)) / len(words)
+
+
+def looks_like_article(body: str | None) -> bool:
+    """Whether a body is a story rather than a wall, a form or a menu.
+
+    Content-first by design. A paywall prompt fails however many characters it
+    runs to, because what is measured is the writing that survives the strip —
+    not the byte count of whatever the page happened to return.
+    """
+    if not body or not body.strip():
+        return False
+    # No word-count floor. It was measured against the labelled sample and is
+    # actively harmful here: a >=60-word floor caught 2% of flagged bodies while
+    # failing 13.7% of good ones, because local news genuinely runs short. The
+    # two shape signals do the work; length does not.
+    stripped = strip_boilerplate(body)
+    if prose_density(stripped) < MIN_PROSE_DENSITY:
+        return False  # a list or a menu, not writing
+    if capitalization_ratio(stripped) > MAX_CAPITALIZATION:
+        return False  # a run of proper nouns: a dropdown, a section index
+    return utility_word_rate(stripped) <= MAX_UTILITY_WORD_RATE
 
 
 def proxy_status_to_int(status: str | None) -> int | None:
@@ -111,6 +305,14 @@ class ExtractionMetrics:
         self.methods_attempted.append(method_name)
         self.method_timings[method_name] = time.time()
 
+    def was_attempted(self, method_name: str) -> bool:
+        """Whether a method ran at all, regardless of which one won.
+
+        The honest answer to "did we pay for Selenium on this article?".
+        `successful_method` cannot answer it — see end_method.
+        """
+        return method_name in self.methods_attempted
+
     def end_method(
         self,
         method_name: str,
@@ -127,6 +329,13 @@ class ExtractionMetrics:
         if error:
             self.method_errors[method_name] = error
 
+        # NOTE: this is the FIRST method to return a result, not "the methods
+        # that ran". It is not a usage counter and must not be read as one.
+        # Selenium is usually invoked to backfill a field after an HTTP parser
+        # already won the content, so it leaves `successful_method` untouched —
+        # counting `successful_method = 'selenium'` understates how often
+        # Selenium actually ran by roughly 10x. Use `methods_attempted` (also
+        # persisted) or `was_attempted()` for that question.
         if success and not self.successful_method:
             self.successful_method = method_name
 
@@ -300,13 +509,17 @@ class ExtractionMetrics:
             if extraction_methods:
                 self.final_field_attribution = extraction_methods
 
-            self.content_length = len(final_result.get("content") or "")
-            has_title = bool(final_result.get("title"))
-            has_content = bool(final_result.get("content"))
-            # Match ContentExtractor logic: success if title OR meaningful content
-            # Allows articles with missing author/date to be successful
-            content_long_enough = has_content and self.content_length > 100
-            self.is_success = has_title or content_long_enough
+            body = final_result.get("content") or ""
+            self.content_length = len(body)
+            # An extraction succeeded when it came back with a story. Missing
+            # author or date does not make it a failure; a missing BODY does.
+            #
+            # This used to read `has_title or content_length > 100`, which let
+            # two kinds of non-article through: rows carrying a headline and no
+            # body at all, and paywall teasers a sentence or two long. Neither a
+            # raw character count nor a title fixes that, because a wall can be
+            # arbitrarily wordy — so qualify on what survives the boilerplate.
+            self.is_success = looks_like_article(body)
 
 
 class ComprehensiveExtractionTelemetry:
@@ -363,12 +576,13 @@ class ComprehensiveExtractionTelemetry:
 
         def _do_insert(conn) -> None:
             """Perform the core INSERT for extraction telemetry."""
+            # Record the finalized verdict as-is. This used to promote a failure
+            # back to a success whenever any method reported success, which
+            # silently overrode finalize() and is how extractions that persisted
+            # no article at all still landed in the table as successes. A parser
+            # returning cleanly is not the same as an article being captured;
+            # only finalize() has seen the body.
             is_success = bool(metrics.is_success)
-            if not is_success:
-                if metrics.successful_method:
-                    is_success = True
-                else:
-                    is_success = any(metrics.method_success.values())
 
             conn.execute(
                 """

@@ -4129,20 +4129,39 @@ class ContentExtractor:
                     session = tls_client.Session(
                         client_identifier="chrome_143", random_tls_extension_order=False
                     )
+                    # tls_client is NOT requests-compatible: its execute_request
+                    # signature is (..., insecure_skip_verify, timeout_seconds,
+                    # proxy). Calling it with requests' names — proxies=/timeout=/
+                    # verify= — raises TypeError on the first one, so this rung
+                    # never actually ran and every request quietly fell through
+                    # to plain `requests`, losing the Chrome TLS fingerprint that
+                    # is the whole point of the rung.
                     tls_resp = session.get(
                         url,
                         headers=headers,
-                        proxies={"http": proxy_url, "https": proxy_url},
-                        timeout=30,
-                        verify=False,
+                        proxy=proxy_url,
+                        timeout_seconds=30,
+                        insecure_skip_verify=True,
                     )
                     response = tls_resp
-                except (
-                    Exception
-                ) as exc:  # pragma: no cover - optional dependency/fallback
+                except ImportError as exc:
+                    # Genuinely optional: not installed in this image.
                     logger.info(
-                        "tls_client not available or failed: %s; falling back to requests",
+                        "tls_client not installed (%s); falling back to requests",
                         exc,
+                    )
+                except Exception as exc:  # pragma: no cover - defensive fallback
+                    # Installed but the call failed. Louder than ImportError on
+                    # purpose: the fallback still returns a page, so this degrades
+                    # silently and the capture rung disappears without anything
+                    # failing. That is exactly how the signature drift above went
+                    # unnoticed for 28 occurrences in a single sweep.
+                    logger.warning(
+                        "tls_client request failed (%s: %s); falling back to requests "
+                        "— the Chrome TLS fingerprint is NOT in effect for %s",
+                        type(exc).__name__,
+                        exc,
+                        url,
                     )
 
                 if response is None:
