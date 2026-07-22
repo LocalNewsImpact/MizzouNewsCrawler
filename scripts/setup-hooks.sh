@@ -201,10 +201,18 @@ echo ""
 # Step 5: PostgreSQL suite, run in succession against a docker PostgreSQL.
 # Mirrors CI's dedicated PostgreSQL job. Uses the docker-compose 'postgres'
 # service and a throwaway database, so it never touches a real dev database and
-# never runs at the same time as the main suite. If Docker is unavailable the
-# suite is skipped locally (CI still runs it).
+# never runs at the same time as the main suite. The local gate is meant to
+# MIRROR remote CI, so Docker being unavailable is a HARD FAILURE (the push is
+# blocked), not a silent skip — otherwise a Postgres-only regression sails past
+# the local gate and only surfaces in remote CI. Set SKIP_PG=1 to deliberately
+# opt out for the rare case where you knowingly want to defer to CI.
 echo "🐘 Step 5/6: Running PostgreSQL suite (docker)..."
 
+if [ "${SKIP_PG:-}" = "1" ]; then
+    echo "⚠️  SKIP_PG=1 set; deliberately skipping PostgreSQL suite (CI will run it)." | tee -a "$LOGFILE"
+    echo "✅ Step 5/6: PostgreSQL suite skipped (SKIP_PG=1)"
+    echo ""
+else
 DOCKER_COMPOSE=""
 if docker compose version >/dev/null 2>&1; then
     DOCKER_COMPOSE="docker compose"
@@ -213,7 +221,15 @@ elif command -v docker-compose >/dev/null 2>&1; then
 fi
 
 if [ -z "$DOCKER_COMPOSE" ] || ! docker info >/dev/null 2>&1; then
-    echo "⚠️  Docker not available; skipping PostgreSQL suite (CI will run it)." | tee -a "$LOGFILE"
+    echo ""
+    echo "❌ Docker is not available — the PostgreSQL suite cannot run, so this"
+    echo "   push would NOT mirror remote CI. Push aborted."
+    echo "   → Start Docker Desktop and re-push, or run with SKIP_PG=1 to"
+    echo "     deliberately defer the Postgres suite to CI (not recommended)."
+    echo "❌ Docker not available; PostgreSQL suite could not run. Push aborted." >> "$LOGFILE"
+    notify "FAILED" "Docker unavailable; PostgreSQL suite could not run"
+    echo "📝 Full log saved to: $LOGFILE"
+    exit 1
 else
     PG_TESTDB="mizzou_prepush"
     export TEST_DATABASE_URL="postgresql://mizzou_user:mizzou_pass@127.0.0.1:5432/${PG_TESTDB}"
@@ -231,7 +247,14 @@ else
     done
 
     if [ -z "$PG_READY" ]; then
-        echo "⚠️  PostgreSQL did not become ready; skipping PostgreSQL suite (CI will run it)." | tee -a "$LOGFILE"
+        echo ""
+        echo "❌ PostgreSQL container did not become ready in time; the suite could"
+        echo "   not run, so this push would NOT mirror remote CI. Push aborted."
+        echo "   → Check 'docker compose logs postgres', then re-push."
+        echo "❌ PostgreSQL did not become ready; suite could not run. Push aborted." >> "$LOGFILE"
+        notify "FAILED" "PostgreSQL did not become ready; suite could not run"
+        echo "📝 Full log saved to: $LOGFILE"
+        exit 1
     else
         # Fresh throwaway database, migrated to head, then run the suite.
         $DOCKER_COMPOSE exec -T postgres dropdb -U mizzou_user --if-exists "$PG_TESTDB" >>"$LOGFILE" 2>&1
@@ -258,6 +281,7 @@ fi
 
 echo "✅ Step 5/6: PostgreSQL suite complete"
 echo ""
+fi  # end SKIP_PG guard
 
 # Step 6: Combined coverage gate. Steps 4 and 5 accumulated coverage via
 # --cov-append; enforce the 78% threshold on the COMBINED total here. If the

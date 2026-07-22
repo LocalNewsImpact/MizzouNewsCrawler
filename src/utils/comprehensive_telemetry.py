@@ -20,6 +20,10 @@ from src.telemetry.store import TelemetryStore, get_store
 logger = logging.getLogger(__name__)
 
 
+# The definition of an article lives in one place so the content cleaner and
+# telemetry cannot drift apart.
+from src.utils.boilerplate import looks_like_article  # noqa: E402
+
 # Proxy status codes for telemetry database (integer field)
 PROXY_STATUS_DISABLED = 0
 PROXY_STATUS_SUCCESS = 1
@@ -111,6 +115,14 @@ class ExtractionMetrics:
         self.methods_attempted.append(method_name)
         self.method_timings[method_name] = time.time()
 
+    def was_attempted(self, method_name: str) -> bool:
+        """Whether a method ran at all, regardless of which one won.
+
+        The honest answer to "did we pay for Selenium on this article?".
+        `successful_method` cannot answer it — see end_method.
+        """
+        return method_name in self.methods_attempted
+
     def end_method(
         self,
         method_name: str,
@@ -127,6 +139,13 @@ class ExtractionMetrics:
         if error:
             self.method_errors[method_name] = error
 
+        # NOTE: this is the FIRST method to return a result, not "the methods
+        # that ran". It is not a usage counter and must not be read as one.
+        # Selenium is usually invoked to backfill a field after an HTTP parser
+        # already won the content, so it leaves `successful_method` untouched —
+        # counting `successful_method = 'selenium'` understates how often
+        # Selenium actually ran by roughly 10x. Use `methods_attempted` (also
+        # persisted) or `was_attempted()` for that question.
         if success and not self.successful_method:
             self.successful_method = method_name
 
@@ -300,13 +319,17 @@ class ExtractionMetrics:
             if extraction_methods:
                 self.final_field_attribution = extraction_methods
 
-            self.content_length = len(final_result.get("content") or "")
-            has_title = bool(final_result.get("title"))
-            has_content = bool(final_result.get("content"))
-            # Match ContentExtractor logic: success if title OR meaningful content
-            # Allows articles with missing author/date to be successful
-            content_long_enough = has_content and self.content_length > 100
-            self.is_success = has_title or content_long_enough
+            body = final_result.get("content") or ""
+            self.content_length = len(body)
+            # An extraction succeeded when it came back with a story. Missing
+            # author or date does not make it a failure; a missing BODY does.
+            #
+            # This used to read `has_title or content_length > 100`, which let
+            # two kinds of non-article through: rows carrying a headline and no
+            # body at all, and paywall teasers a sentence or two long. Neither a
+            # raw character count nor a title fixes that, because a wall can be
+            # arbitrarily wordy — so qualify on what survives the boilerplate.
+            self.is_success = looks_like_article(body)
 
 
 class ComprehensiveExtractionTelemetry:
@@ -363,12 +386,13 @@ class ComprehensiveExtractionTelemetry:
 
         def _do_insert(conn) -> None:
             """Perform the core INSERT for extraction telemetry."""
+            # Record the finalized verdict as-is. This used to promote a failure
+            # back to a success whenever any method reported success, which
+            # silently overrode finalize() and is how extractions that persisted
+            # no article at all still landed in the table as successes. A parser
+            # returning cleanly is not the same as an article being captured;
+            # only finalize() has seen the body.
             is_success = bool(metrics.is_success)
-            if not is_success:
-                if metrics.successful_method:
-                    is_success = True
-                else:
-                    is_success = any(metrics.method_success.values())
 
             conn.execute(
                 """

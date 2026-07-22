@@ -11,6 +11,8 @@ from typing import Any
 from sqlalchemy import text as sql_text
 
 from src.models.database import DatabaseManager, safe_session_execute
+from src.utils.boilerplate import is_boilerplate_segment as bp_is_boilerplate_segment
+from src.utils.boilerplate import segments as bp_segments
 
 from .byline_cleaner import BylineCleaner
 from .content_cleaning_telemetry import ContentCleaningTelemetry
@@ -1254,6 +1256,47 @@ class BalancedBoundaryContentCleaner:
         removed_text = "\n".join(removed_segments)
         return {"cleaned_text": cleaned_text, "removed_text": removed_text}
 
+    def _remove_known_boilerplate(self, text: str) -> dict[str, Any]:
+        """Remove furniture that is boilerplate on ANY publisher.
+
+        This exists because the learned path structurally cannot reach it.
+        `_remove_persistent_patterns` only fires once a phrase has recurred at
+        least `min_occurrences` times *within a single source*, and
+        `analyze_domain` gives up entirely on sources with fewer than that many
+        articles. Cross-publisher walls never satisfy that: "Login to continue
+        reading" appears on 16 different hosts, a handful of times each, so it
+        looks like ordinary prose to every source in isolation.
+
+        The consequence was measurable. Across 96,766 stored articles, 11,684
+        (12.1%) still contained one of these phrases in their body, and
+        `content` was byte-identical to `text` for 96,169 of 96,170 records —
+        the cleaning stage was changing essentially nothing.
+
+        The vocabulary is derived from 15,656 hand-cleaned articles diffed
+        against their extracted originals; see src/utils/boilerplate.py.
+        """
+        kept: list[str] = []
+        removed_segments: list[str] = []
+        for segment in bp_segments(text):
+            if bp_is_boilerplate_segment(segment):
+                removed_segments.append(segment)
+            else:
+                kept.append(segment)
+
+        if not removed_segments:
+            return {
+                "cleaned_text": text,
+                "removed_segments": [],
+                "chars_removed": 0,
+            }
+
+        cleaned = " ".join(kept).strip()
+        return {
+            "cleaned_text": cleaned,
+            "removed_segments": removed_segments,
+            "chars_removed": len(text) - len(cleaned),
+        }
+
     def _remove_video_player_ui(self, text: str) -> dict[str, Any]:
         """Remove video player UI garbage text from various CMS platforms.
 
@@ -1478,6 +1521,39 @@ class BalancedBoundaryContentCleaner:
 
         if removed_by_persistent["cleaned_text"] != text:
             text = removed_by_persistent["cleaned_text"]
+
+        # Now sweep up furniture that is boilerplate on ANY publisher, which the
+        # learned pass above structurally cannot reach.
+        #
+        # Order matters, and not in the obvious direction. Running this FIRST
+        # looks tidier and breaks the learned pass: this rebuilds the body from
+        # its segments, and the persistent patterns are stored as exact strings
+        # matched against the text as it was captured. Editing the text before
+        # they run makes them miss, so removing some boilerplate early leaves
+        # more behind than doing nothing. Precise per-source matches go first,
+        # against untouched text; the general vocabulary mops up what is left.
+        known_removal = self._remove_known_boilerplate(text)
+        if known_removal["chars_removed"] > 0:
+            text = known_removal["cleaned_text"]
+            for segment in known_removal["removed_segments"]:
+                removal_details.append(
+                    {
+                        "pattern_type": "known_boilerplate",
+                        "pattern_name": "cross_publisher_boilerplate",
+                        "confidence_score": 1.0,
+                        "removed_text": segment,
+                        "removal_reason": (
+                            "Phrase removed by human cleaners on 4+ distinct "
+                            "publishers; site furniture, not reporting"
+                        ),
+                    }
+                )
+            self.logger.debug(
+                "Removed %d chars of known boilerplate from article %s (%d segments)",
+                known_removal["chars_removed"],
+                article_id,
+                len(known_removal["removed_segments"]),
+            )
 
         share_removal = self._remove_social_share_header(text)
         share_header_removed = bool(share_removal["removed_text"])
