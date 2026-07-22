@@ -691,11 +691,30 @@ spec:
                   return result or 0
 
           def calculate_worker_count(backlog):
-              # Scale workers proportionally: 2 workers per 100 articles
-              # n=100 → 2 workers, n=500 → 10 workers
+              # Scale workers proportionally, capped at 2 (was 10).
+              #
+              # Measured 2026-07-22 after the selenium escalation guard (#398):
+              # 95 articles/hr/worker, settled rate with the opening burst excluded.
+              # Real demand is 1,004 articles/day sustained (42/hr) and ~2,900/day at
+              # peak (121/hr), and the cron runs every 6 hours, so each run must clear
+              # a quarter of the daily load inside its window:
+              #
+              #   workers  capacity   vs sustained  vs peak   peak run in 6h window
+              #     1       95/hr        2.3x        0.8x     7.6 h  <- overruns
+              #     2      190/hr        4.5x        1.6x     3.8 h
+              #     4      380/hr        9.0x        3.1x     1.9 h  <- 9x demand
+              #
+              # One worker cannot clear a peak day inside the window and would cause
+              # overlapping runs; four is nine times sustained demand. Two clears peak
+              # with 1.6x headroom.
+              #
+              # 10 existed to mask slow extraction. The guard removed the cause: it
+              # stopped launching a browser to chase bylines over bodies already
+              # captured, which was ~92% of selenium invocations and ~67% of worker
+              # capacity, for one useful author in 6,366 tries.
               if backlog < 50:
                   return 1
-              workers = min(10, max(2, (backlog // 100) * 2))
+              workers = min(2, max(2, (backlog // 100) * 2))
               return workers
 
           backlog = get_extraction_backlog()
