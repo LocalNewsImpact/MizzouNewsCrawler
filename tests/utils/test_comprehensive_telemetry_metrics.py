@@ -56,9 +56,12 @@ def test_extraction_metrics_tracks_methods(monkeypatch):
     assert metrics.http_error_type == "4xx_client_error"
     assert metrics.alternative_extractions["fallback"]["title"]["values_differ"] is True
     assert metrics.final_field_attribution["title"] == "primary"
-    assert metrics.is_success is True
     assert metrics.content_length == len("Body")
     assert metrics.field_extraction["primary"]["metadata"] is True
+    # A four-character body is not an article. This previously read True only
+    # because a title was present; success no longer follows from a headline.
+    # Method tracking and attribution above are what this test is really for.
+    assert metrics.is_success is False
 
 
 def test_set_driver_metrics_sanitizes_payload():

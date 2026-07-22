@@ -131,18 +131,37 @@ class TestExtractionMetrics:
         assert field_stats["metadata"] is False
 
     def test_finalize_marks_success_from_content_only(self):
-        """Finalize should mark success when content is substantial."""
+        """Finalize marks success on a body alone, with no title.
+
+        Updated when success stopped being a character count. The body here is
+        real prose rather than the previous `"lorem ipsum " * 20`, which passed
+        only because it cleared 100 characters — placeholder text contains no
+        function words and is not an article by the current definition.
+        """
         metrics = ExtractionMetrics("op-final", "art-final", "https://test", "test")
         metrics.start_time = datetime.utcnow()
         metrics.end_time = metrics.start_time
 
-        long_content = "lorem ipsum " * 20  # > 100 characters
-        metrics.finalize({"title": "", "content": long_content})
+        body = (
+            "The council approved the budget on Tuesday after a long debate, and "
+            "the mayor said the work would begin in the spring."
+        )
+        metrics.finalize({"title": "", "content": body})
 
         assert metrics.is_success is True
-        assert metrics.content_length == len(long_content)
+        assert metrics.content_length == len(body)
         assert metrics.extracted_fields["content"] is True
         assert metrics.extracted_fields["title"] is False
+
+    def test_finalize_rejects_a_body_that_is_not_writing(self):
+        """A character count is not the test; what the text is, is."""
+        metrics = ExtractionMetrics("op-final2", "art-final2", "https://test", "test")
+        metrics.start_time = datetime.utcnow()
+        metrics.end_time = metrics.start_time
+
+        metrics.finalize({"title": "A headline", "content": "lorem ipsum " * 20})
+
+        assert metrics.is_success is False
 
     def test_proxy_and_driver_metrics_sanitization(self):
         """Proxy + driver metrics should normalize inputs safely."""
