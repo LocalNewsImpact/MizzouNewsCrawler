@@ -1757,7 +1757,30 @@ def _process_batch(
                             raise
                         continue  # Skip to next article
 
-                    text_hash = calculate_content_hash(content_text)
+                    # Keep BOTH sides of the clean. The cleaner already ran above,
+                    # but only to sniff for paywall patterns — its output was
+                    # discarded and the raw capture was written to `content` AND
+                    # `text`. That is why the two columns were byte-identical for
+                    # 96,169 of 96,170 stored articles, why 12.1% of them still
+                    # carried boilerplate, and why the smoke test's "content
+                    # reduction" metric could only ever read 0%.
+                    #
+                    # `content` = raw capture, `text` = cleaned body. That is the
+                    # pair every consumer already assumes: content_cleaner reads
+                    # a.content as its input, entity extraction reads a.text as
+                    # the cleaned result.
+                    #
+                    # Fall back to the raw text if cleaning returned nothing, so a
+                    # cleaner failure degrades to today's behaviour rather than
+                    # storing an empty body. Paywall rows reach here with a short
+                    # stripped_content by design — that IS the finding, and the
+                    # raw prose is still preserved in `content`.
+                    cleaned_text = stripped_content or content_text
+
+                    # Hash the cleaned side: text_hash describes `text`, and entity
+                    # extraction records it as article_entities.article_text_hash to
+                    # mark which version of the text its entities came from.
+                    text_hash = calculate_content_hash(cleaned_text)
 
                     metrics.set_content_type_detection(detection_payload)
                     _attach_driver_metrics(metrics, extractor, domain)
@@ -1817,7 +1840,7 @@ def _process_batch(
                             "author": cleaned_author,
                             "publish_date": content.get("publish_date"),
                             "content": content_text,
-                            "text": content_text,  # Same as content
+                            "text": cleaned_text,  # cleaned; raw stays in content
                             "status": article_status,
                             "metadata": json.dumps(content.get("metadata", {})),
                             "wire": wire_service_info,
