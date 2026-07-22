@@ -114,6 +114,48 @@ class TestHtmlEntitiesAreUnescapedBeforeDecoding:
         assert "U=Ej" not in out and "U8Ej" not in out
 
 
+class TestParagraphsWithAttributes:
+    """`<p class="p1">` encodes to `kA 4=2DDlQA`Qm`, not to a bare `kAm`.
+
+    Two separate faults conspired here. The pattern required a literal `kAm`,
+    and the function guarded on one too — so an article whose paragraphs all
+    carry a class attribute has no bare `kAm` anywhere and returned None before
+    the regex ran at all.
+
+    This is the dominant form in the researcher file: affected rows carry 24-27
+    `k^Am` closers and zero `kAm` openers. Fixing both took the still-ciphered
+    count from 122 to 2 across 151 affected rows.
+    """
+
+    def _encode(self, body: str, attrs: str = ' class="p1"') -> str:
+        return _rot47(f"<p{attrs}>{body}</p>")
+
+    def test_paragraph_with_a_class_attribute_decodes(self):
+        out = decode_rot47_segments(self._encode("The council met on Tuesday."))
+        assert "The council met on Tuesday." in out
+
+    def test_bare_paragraph_still_decodes(self):
+        out = decode_rot47_segments(self._encode("The council met.", attrs=""))
+        assert "The council met." in out
+
+    def test_many_attributed_paragraphs_all_decode(self):
+        body = "".join(self._encode(f"Paragraph number {i}.") for i in range(6))
+        out = decode_rot47_segments(body)
+        for i in range(6):
+            assert f"Paragraph number {i}." in out
+
+    def test_no_bare_open_marker_is_required(self):
+        """The guard must admit text carrying only `k^Am` closers."""
+        body = self._encode("Only closing markers survive cleaning here.")
+        assert "kAm" not in body  # the whole point
+        assert "k^Am" in body
+        assert "Only closing markers survive" in decode_rot47_segments(body)
+
+    def test_markup_does_not_survive_into_the_output(self):
+        out = decode_rot47_segments(self._encode("Plain prose."))
+        assert "<p" not in out and "</p>" not in out and "class=" not in out
+
+
 class TestRepairOfAlreadyStoredDamage:
     """Rows decoded before the unescape fix carry the damage baked in.
 

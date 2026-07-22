@@ -9,10 +9,26 @@ from collections.abc import Iterable
 _ROT47_MARKERS = set("@?:;[]=^$\\|")
 _TOKEN_RE = re.compile(r"\S+")
 
+# Markup revealed by decoding. The encoding hides real tags, so the decoded
+# text carries them back: <p class="p1">, <hr />, and friends. A literal
+# </?p> misses every attributed form and leaves it in the article body.
+_DECODED_TAG_RE = re.compile(r"</?(?:p|hr|br|em|strong|span)\b[^>]*>", re.I)
+
 # Lee Enterprises ROT47 paragraph markers
 # kAm = <p>, k^Am = </p>, k9C ^m = <hr >
+#
+# The opening tag frequently carries attributes, which encode into the run
+# between `kA` and the closing `m`:
+#
+#     kA 4=2DDlQAcQm   ->   <p class="p4">
+#
+# Requiring a bare `kAm` therefore matched nothing on those articles. In the
+# March researcher file the attribute form is the DOMINANT one — affected rows
+# carry 24-27 `k^Am` closers and zero bare `kAm` openers, so the decoder passed
+# straight over them. `[^m]` is safe as the attribute body because `m` is the
+# encoding of `>`, which cannot appear unescaped inside a tag.
 _ROT47_PARAGRAPH_PATTERN = re.compile(
-    r"kAm.*?k\^Am",
+    r"kA[^m]{0,120}m.*?k\^Am",
     re.DOTALL,
 )
 
@@ -124,7 +140,7 @@ def _decode_segment(segment: str) -> str | None:
         return None
     if letters / len(decoded) < 0.4:
         return None
-    cleaned = re.sub(r"</?p>", " ", decoded)
+    cleaned = _DECODED_TAG_RE.sub(" ", decoded)
     return cleaned
 
 
@@ -138,8 +154,13 @@ def _decode_rot47_by_markers(text: str) -> str | None:
 
     This is more reliable than token-based detection since short words
     like "of", "33," don't break the pattern matching.
+
+    The guard admits `k^Am` on its own. Articles whose paragraphs all open with
+    attributes carry no bare `kAm` anywhere, so guarding on it alone returned
+    None before the pattern ever ran — the regex finds 24 paragraphs in such an
+    article and decodes the first cleanly, but the function never reached it.
     """
-    if "kAm" not in text:
+    if "kAm" not in text and "k^Am" not in text:
         return None
 
     # Find all ROT47 paragraph segments
@@ -157,8 +178,7 @@ def _decode_rot47_by_markers(text: str) -> str | None:
         letters = sum(1 for ch in decoded if ch.isalpha())
         if len(decoded) > 0 and letters / len(decoded) >= 0.3:
             # Clean up HTML tags
-            cleaned = re.sub(r"</?p>", " ", decoded)
-            cleaned = re.sub(r"<hr\s*/?>", " ", cleaned)
+            cleaned = _DECODED_TAG_RE.sub(" ", decoded)
             replacements.append((match.start(), match.end(), cleaned))
 
     if not replacements:
