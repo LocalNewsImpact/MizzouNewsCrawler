@@ -64,7 +64,13 @@ def _make_service() -> ArticleClassificationService:
     return ArticleClassificationService(session=session)
 
 
-def test_prepare_text_prefers_first_non_empty_field():
+def test_prepare_text_combines_title_with_the_cleaned_body():
+    """Renamed from test_prepare_text_prefers_first_non_empty_field.
+
+    The contract changed: the classifier is given the headline AND the body
+    rather than whichever field is non-empty first. A headline states what a
+    story is about, which is the judgement the CIN classifier makes.
+    """
     service = _make_service()
     article = _make_article(
         content="\n\n",
@@ -72,7 +78,7 @@ def test_prepare_text_prefers_first_non_empty_field():
         title="Headline",
     )
     assert service._prepare_text(article) == (  # type: ignore[arg-type]
-        "  candidate text  "
+        "Headline\n\ncandidate text"
     )
 
     empty_article = _make_article(content="", text="   ", title="  ")
