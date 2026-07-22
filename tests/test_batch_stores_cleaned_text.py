@@ -43,9 +43,14 @@ class TestBatchPathKeepsBothSides:
         )
 
     def test_cleaned_text_falls_back_to_raw(self):
-        """A cleaner failure must degrade to today's behaviour, not an empty body."""
+        """A cleaner failure must degrade to today's behaviour, not an empty body.
+
+        The fallback now prefers the DECODED capture, so a cleaner failure on a
+        ROT47 page stores recovered prose rather than ciphertext. See
+        tests/test_rot47_on_extraction_path.py.
+        """
         src = _batch_source()
-        assert "cleaned_text = stripped_content or content_text" in src
+        assert "cleaned_text = stripped_content or decoded_text or content_text" in src
 
     def test_hash_describes_the_cleaned_side(self):
         """text_hash is recorded as article_entities.article_text_hash."""

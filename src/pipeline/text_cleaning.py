@@ -2,16 +2,33 @@
 
 from __future__ import annotations
 
+import html
 import re
 from collections.abc import Iterable
 
 _ROT47_MARKERS = set("@?:;[]=^$\\|")
 _TOKEN_RE = re.compile(r"\S+")
 
+# Markup revealed by decoding. The encoding hides real tags, so the decoded
+# text carries them back: <p class="p1">, <hr />, and friends. A literal
+# </?p> misses every attributed form and leaves it in the article body.
+_DECODED_TAG_RE = re.compile(r"</?(?:p|hr|br|em|strong|span)\b[^>]*>", re.I)
+
 # Lee Enterprises ROT47 paragraph markers
 # kAm = <p>, k^Am = </p>, k9C ^m = <hr >
+#
+# The opening tag frequently carries attributes, which encode into the run
+# between `kA` and the closing `m`:
+#
+#     kA 4=2DDlQAcQm   ->   <p class="p4">
+#
+# Requiring a bare `kAm` therefore matched nothing on those articles. In the
+# March researcher file the attribute form is the DOMINANT one — affected rows
+# carry 24-27 `k^Am` closers and zero bare `kAm` openers, so the decoder passed
+# straight over them. `[^m]` is safe as the attribute body because `m` is the
+# encoding of `>`, which cannot appear unescaped inside a tag.
 _ROT47_PARAGRAPH_PATTERN = re.compile(
-    r"kAm.*?k\^Am",
+    r"kA[^m]{0,120}m.*?k\^Am",
     re.DOTALL,
 )
 
@@ -71,14 +88,59 @@ def _iter_rot47_ranges(text: str) -> Iterable[tuple[int, int]]:
             )
 
 
+# Damage left by decoding ROT47 without unescaping first. `U=Ej` sits where a
+# `k` belongs and `U8Ej` where an `m` belongs, so "asked" was stored as
+# "asU=Ejed" and "community" as "coU8EjU8Ejunity". Neither sequence occurs in
+# English, which makes the repair unambiguous and safe to apply to any input.
+_ENTITY_ARTIFACTS = (("U=Ej", "k"), ("U8Ej", "m"))
+
+
+def repair_entity_artifacts(text: str) -> str:
+    """Undo the ``U=Ej`` / ``U8Ej`` corruption in already-stored text.
+
+    Rows written before the unescape fix carry this damage baked in: they hold
+    no ROT47 markers and no escaped entities, just prose with every ``k`` and
+    ``m`` replaced. Decoding cannot help them — the ciphertext is gone — but the
+    substitution is reversible on its own.
+    """
+
+    if not text:
+        return text
+    for artifact, letter in _ENTITY_ARTIFACTS:
+        if artifact in text:
+            text = text.replace(artifact, letter)
+    return text
+
+
+def _decode_rot47_text(segment: str) -> str:
+    """ROT47-decode *segment*, unescaping HTML entities FIRST.
+
+    ROT47 maps ``k`` -> ``<`` and ``m`` -> ``>``. Any ``k`` or ``m`` in the
+    original prose therefore arrives inside the ciphertext as a literal ``<`` or
+    ``>``, which the page must escape as ``&lt;`` / ``&gt;`` to avoid breaking
+    its own markup. Decoding those entities character-by-character produces
+    ``U=Ej`` and ``U8Ej`` exactly where the letter belongs:
+
+        ciphertext on the page   '2D&lt;65'
+        decoded without unescape 'asU=Ejed'
+        decoded with unescape    'asked'
+
+    Every ``k`` and every ``m`` in the recovered text was corrupted this way, so
+    the output read as ciphertext to anything checking for it — which is why
+    29% of affected articles still looked encoded after decoding.
+    """
+
+    return _rot47(html.unescape(segment))
+
+
 def _decode_segment(segment: str) -> str | None:
-    decoded = _rot47(segment)
+    decoded = _decode_rot47_text(segment)
     letters = sum(1 for ch in decoded if ch.isalpha())
     if not decoded.strip():
         return None
     if letters / len(decoded) < 0.4:
         return None
-    cleaned = re.sub(r"</?p>", " ", decoded)
+    cleaned = _DECODED_TAG_RE.sub(" ", decoded)
     return cleaned
 
 
@@ -92,8 +154,13 @@ def _decode_rot47_by_markers(text: str) -> str | None:
 
     This is more reliable than token-based detection since short words
     like "of", "33," don't break the pattern matching.
+
+    The guard admits `k^Am` on its own. Articles whose paragraphs all open with
+    attributes carry no bare `kAm` anywhere, so guarding on it alone returned
+    None before the pattern ever ran — the regex finds 24 paragraphs in such an
+    article and decodes the first cleanly, but the function never reached it.
     """
-    if "kAm" not in text:
+    if "kAm" not in text and "k^Am" not in text:
         return None
 
     # Find all ROT47 paragraph segments
@@ -105,14 +172,13 @@ def _decode_rot47_by_markers(text: str) -> str | None:
     replacements: list[tuple[int, int, str]] = []
     for match in matches:
         segment = match.group(0)
-        decoded = _rot47(segment)
+        decoded = _decode_rot47_text(segment)
 
         # Basic validation: decoded should have reasonable letter ratio
         letters = sum(1 for ch in decoded if ch.isalpha())
         if len(decoded) > 0 and letters / len(decoded) >= 0.3:
             # Clean up HTML tags
-            cleaned = re.sub(r"</?p>", " ", decoded)
-            cleaned = re.sub(r"<hr\s*/?>", " ", cleaned)
+            cleaned = _DECODED_TAG_RE.sub(" ", decoded)
             replacements.append((match.start(), match.end(), cleaned))
 
     if not replacements:
@@ -139,6 +205,11 @@ def decode_rot47_segments(text: str | None) -> str | None:
 
     if not text:
         return text
+
+    # Repair first: rows decoded before the unescape fix carry the damage with
+    # no markers left to key off, so this is the only pass that can reach them.
+    text = repair_entity_artifacts(text)
+
     if "kAm" not in text and "k^Am" not in text:
         # Quick short-circuit for the common unaffected case.
         return text

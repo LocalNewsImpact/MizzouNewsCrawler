@@ -98,12 +98,42 @@ class ArticleClassificationService:
 
         return list(self.session.scalars(stmt))
 
+    # The body the classifier sees, in order of preference.
+    #
+    # `text` is the cleaned body, `content` the raw capture. Classifying the raw
+    # capture means classifying whatever the page happened to carry — navigation
+    # menus, paywall prompts, cookie notices. 3% of stored articles are mostly
+    # nav chrome, and for those the CIN label was derived from a list of section
+    # names rather than from any reporting.
+    #
+    # This used to read `content` first and return it alone. That was harmless
+    # while extraction wrote the same string to both columns, and became wrong
+    # the moment they diverged. `content` stays as the fallback for rows
+    # extracted before the split, where the raw capture is the only body there
+    # is.
+    _BODY_FIELD_PREFERENCE = ("text", "content")
+
     def _prepare_text(self, article: Article) -> str | None:
-        for field_name in ("content", "text", "title"):
+        """Headline plus cleaned body — the two together, not the first of them.
+
+        A headline is a dense statement of what a story is about, which is
+        exactly the judgement the CIN classifier makes, so it is prepended to
+        the body rather than used only as a last resort. Either part may be
+        missing; whatever is present is classified.
+        """
+        parts: list[str] = []
+
+        title = getattr(article, "title", None)
+        if isinstance(title, str) and title.strip():
+            parts.append(title.strip())
+
+        for field_name in self._BODY_FIELD_PREFERENCE:
             value = getattr(article, field_name, None)
             if isinstance(value, str) and value.strip():
-                return value
-        return None
+                parts.append(value.strip())
+                break
+
+        return "\n\n".join(parts) if parts else None
 
     def apply_classification(
         self,

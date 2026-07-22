@@ -76,6 +76,18 @@ BOILERPLATE_MARKERS: tuple[str, ...] = (
     # recirculation
     "previous post",
     "next post",
+    # site navigation chrome. Mined separately from the cleaned/raw diff, which
+    # could not see these: nav text survived on BOTH sides of that comparison,
+    # so it never appeared as something a cleaner had removed. Found instead by
+    # cross-host repetition across the stored corpus, where "skip to main
+    # content" occurs on 46 distinct publishers and 985 articles — no newsroom
+    # writes that. 2,879 of 94,459 stored articles (3.0%) carry one of these.
+    "skip to main content",
+    "toggle navigation",
+    "main menu",
+    "advanced search",
+    "e-edition",
+    "photo galleries",
 )
 
 # Words belonging to the plumbing of a website rather than to a story. Unlike
@@ -143,6 +155,76 @@ def is_boilerplate_segment(segment: str) -> bool:
     return any(marker in lowered for marker in BOILERPLATE_MARKERS)
 
 
+# A navigation menu is not one segment, it is a RUN of them. Extractors emit
+# nav bars one item per line — "Home", "Categories", "Classifieds", "Columns" —
+# so every item is a 1-word segment and no per-segment rule reaches it. What
+# gives a menu away is the run: many consecutive short, capitalised fragments
+# with no sentence punctuation between them.
+#
+# Calibrated against 23 hand-marked articles: at these settings the rule removes
+# 32.7% of a marked article's text against 1.4% of an unmarked one — a 23:1
+# ratio. Looser settings (shorter runs, longer fragments) gain little and cost
+# collateral; see the sweep in the commit message.
+MENU_ITEM_MAX_WORDS = 4
+MENU_RUN_MIN_ITEMS = 6
+# A menu label is mostly capitalised and carries almost no function words.
+_MENU_MIN_CAPS = 0.6
+_MENU_MAX_FUNCTION = 0.34
+
+
+def _is_menu_item(segment: str) -> bool:
+    """Whether a segment looks like one entry in a navigation menu."""
+    words = segment.split()
+    if not (1 <= len(words) <= MENU_ITEM_MAX_WORDS):
+        return False
+    if segment.rstrip().endswith((".", "!", "?")):
+        return False  # a sentence, however short
+    letters = re.findall(r"[A-Za-z][A-Za-z']*", segment)
+    if not letters:
+        return False
+    caps = sum(1 for w in letters if w[0].isupper()) / len(letters)
+    if caps < _MENU_MIN_CAPS:
+        return False
+    fn = sum(1 for w in letters if w.lower() in FUNCTION_WORDS) / len(letters)
+    return fn <= _MENU_MAX_FUNCTION
+
+
+def _drop_menu_runs(segs: list[str]) -> list[str]:
+    """Drop runs of consecutive menu items from an already-split segment list.
+
+    Deliberately requires a RUN. A single capitalised fragment is far too weak a
+    signal on its own — "Mayor John Smith" would qualify — but six of them in a
+    row with no sentence between is a nav bar, not writing.
+
+    Takes and returns a LIST rather than text on purpose. Re-joining to a string
+    between passes destroys the line boundaries that segmentation produced, and
+    a later phrase match then applies to a segment that has swallowed the whole
+    article — which deleted entire stories before a test caught it.
+    """
+    flags = [_is_menu_item(s) for s in segs]
+    kept: list[str] = []
+    i = 0
+    while i < len(segs):
+        if flags[i]:
+            j = i
+            while j < len(segs) and flags[j]:
+                j += 1
+            if j - i < MENU_RUN_MIN_ITEMS:
+                kept.extend(segs[i:j])  # too short to be a menu; keep it
+            i = j
+        else:
+            kept.append(segs[i])
+            i += 1
+    return kept
+
+
+def strip_menu_runs(body: str) -> str:
+    """Text-in, text-out wrapper over _drop_menu_runs, for callers and tests."""
+    if not body:
+        return ""
+    return " ".join(_drop_menu_runs(segments(body))).strip()
+
+
 def strip_boilerplate(body: str) -> str:
     """Remove the segments of a body that are walls or furniture.
 
@@ -152,7 +234,13 @@ def strip_boilerplate(body: str) -> str:
     """
     if not body:
         return ""
-    kept = [s for s in segments(body) if not is_boilerplate_segment(s)]
+    # Both passes share ONE segment list. Menus go first — they are structural
+    # and would otherwise survive, because each item is a one-word segment that
+    # no phrase or shape test reaches alone — but the list is never re-joined
+    # between passes, or the phrase pass would match against a segment that had
+    # swallowed the article.
+    segs = _drop_menu_runs(segments(body))
+    kept = [s for s in segs if not is_boilerplate_segment(s)]
     return " ".join(kept).strip()
 
 
