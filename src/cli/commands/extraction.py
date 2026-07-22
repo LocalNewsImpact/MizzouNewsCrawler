@@ -1127,7 +1127,16 @@ def handle_extract_url_command(args) -> int:
                     "title": content.get("title"),
                     "author": cleaned_author,
                     "publish_date": content.get("publish_date"),
-                    "content": cleaned_text,
+                    # content holds the RAW capture, text the cleaned body.
+                    # These used to receive the same cleaned string, which threw
+                    # the raw copy away: `content` was byte-identical to `text`
+                    # for 96,169 of 96,170 stored articles. With no before/after
+                    # pair, nothing could measure what cleaning removed — or
+                    # notice that it had stopped removing anything.
+                    # The rest of the pipeline already assumes this split:
+                    # cleaning reads a.content as its input, entity extraction
+                    # reads a.text as the cleaned result.
+                    "content": content_text,
                     "text": cleaned_text,
                     "status": article_status,
                     "metadata": json.dumps(metadata_value),
@@ -2363,7 +2372,11 @@ def _run_post_extraction_cleaning(domains_to_articles, db=None):
                             session,
                             ARTICLE_UPDATE_SQL,
                             {
-                                "content": cleaned_content,
+                                # Re-cleaning writes only the cleaned side. The
+                                # raw capture stays as it was, so this can be
+                                # re-run against improved rules and the result
+                                # compared with what it replaced.
+                                "content": original_content,
                                 "text": cleaned_content,
                                 "text_hash": new_hash,
                                 "excerpt": excerpt,

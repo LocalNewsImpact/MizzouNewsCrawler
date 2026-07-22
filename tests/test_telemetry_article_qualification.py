@@ -10,14 +10,14 @@ data (15,656 cleaned/uncleaned pairs and 1,036 labelled extractions), so these
 tests use the real strings rather than invented ones.
 """
 
-from src.utils.comprehensive_telemetry import (
-    ExtractionMetrics,
+from src.utils.boilerplate import (
     capitalization_ratio,
     looks_like_article,
     prose_density,
     strip_boilerplate,
     utility_word_rate,
 )
+from src.utils.comprehensive_telemetry import ExtractionMetrics
 
 STORY = (
     "The county commission voted 4-1 on Tuesday to approve the measure. "
