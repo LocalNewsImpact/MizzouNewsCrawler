@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import re
 from collections.abc import Iterable
 
@@ -71,8 +72,53 @@ def _iter_rot47_ranges(text: str) -> Iterable[tuple[int, int]]:
             )
 
 
+# Damage left by decoding ROT47 without unescaping first. `U=Ej` sits where a
+# `k` belongs and `U8Ej` where an `m` belongs, so "asked" was stored as
+# "asU=Ejed" and "community" as "coU8EjU8Ejunity". Neither sequence occurs in
+# English, which makes the repair unambiguous and safe to apply to any input.
+_ENTITY_ARTIFACTS = (("U=Ej", "k"), ("U8Ej", "m"))
+
+
+def repair_entity_artifacts(text: str) -> str:
+    """Undo the ``U=Ej`` / ``U8Ej`` corruption in already-stored text.
+
+    Rows written before the unescape fix carry this damage baked in: they hold
+    no ROT47 markers and no escaped entities, just prose with every ``k`` and
+    ``m`` replaced. Decoding cannot help them — the ciphertext is gone — but the
+    substitution is reversible on its own.
+    """
+
+    if not text:
+        return text
+    for artifact, letter in _ENTITY_ARTIFACTS:
+        if artifact in text:
+            text = text.replace(artifact, letter)
+    return text
+
+
+def _decode_rot47_text(segment: str) -> str:
+    """ROT47-decode *segment*, unescaping HTML entities FIRST.
+
+    ROT47 maps ``k`` -> ``<`` and ``m`` -> ``>``. Any ``k`` or ``m`` in the
+    original prose therefore arrives inside the ciphertext as a literal ``<`` or
+    ``>``, which the page must escape as ``&lt;`` / ``&gt;`` to avoid breaking
+    its own markup. Decoding those entities character-by-character produces
+    ``U=Ej`` and ``U8Ej`` exactly where the letter belongs:
+
+        ciphertext on the page   '2D&lt;65'
+        decoded without unescape 'asU=Ejed'
+        decoded with unescape    'asked'
+
+    Every ``k`` and every ``m`` in the recovered text was corrupted this way, so
+    the output read as ciphertext to anything checking for it — which is why
+    29% of affected articles still looked encoded after decoding.
+    """
+
+    return _rot47(html.unescape(segment))
+
+
 def _decode_segment(segment: str) -> str | None:
-    decoded = _rot47(segment)
+    decoded = _decode_rot47_text(segment)
     letters = sum(1 for ch in decoded if ch.isalpha())
     if not decoded.strip():
         return None
@@ -105,7 +151,7 @@ def _decode_rot47_by_markers(text: str) -> str | None:
     replacements: list[tuple[int, int, str]] = []
     for match in matches:
         segment = match.group(0)
-        decoded = _rot47(segment)
+        decoded = _decode_rot47_text(segment)
 
         # Basic validation: decoded should have reasonable letter ratio
         letters = sum(1 for ch in decoded if ch.isalpha())
@@ -139,6 +185,11 @@ def decode_rot47_segments(text: str | None) -> str | None:
 
     if not text:
         return text
+
+    # Repair first: rows decoded before the unescape fix carry the damage with
+    # no markers left to key off, so this is the only pass that can reach them.
+    text = repair_entity_artifacts(text)
+
     if "kAm" not in text and "k^Am" not in text:
         # Quick short-circuit for the common unaffected case.
         return text

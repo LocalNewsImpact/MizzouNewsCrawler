@@ -28,6 +28,10 @@ from src.models.database import (
     safe_session_execute,
     save_article_entities,
 )
+
+# stdlib-only module (re + collections.abc), so this stays safe to import in the
+# crawler image, which carries no ML dependencies.
+from src.pipeline.text_cleaning import decode_rot47_segments
 from src.services.wire_detection import resolve_api_token
 
 # Lazy import: entity_extraction only needed for entity-extraction command
@@ -119,6 +123,37 @@ def _initial_wire_check_status(article_status: str) -> str:
     # Default to pending for safety - includes "extracted", "wire", "cleaned", "labeled"
     # This ensures even incorrectly-set "wire" status gets verified
     return WIRE_CHECK_STATUS_PENDING
+
+
+def _decode_capture(raw: str | None) -> str:
+    """Decode ROT47-obfuscated body text before anything reads it as prose.
+
+    Lee Enterprises / TownNews sites serve premium paragraphs ROT47-encoded
+    rather than withholding them, so a capture looks healthy: the free preview
+    is plain text and the ciphertext starts several sentences in, past the point
+    where a reader — or a reviewer spot-checking the corpus — stops looking.
+
+    The decoder itself has been in the tree and correct all along, but it was
+    only ever called from two places: entity extraction, which decodes into a
+    local and writes nothing back, and the standalone `clean` command. This
+    module is what writes `content` and `text` for every crawled article and it
+    never called it, so the ciphertext was stored and every later consumer
+    inherited it. Entity extraction decoding on read is what hid the problem —
+    that stage's output looked right while the cleaner, the classifier, word
+    counts and the researcher export all saw scrambled text.
+
+    Decode is applied to the CLEANING INPUT, not to the stored `content`.
+    `content` keeps the raw capture verbatim so the before/after pair stays
+    intact and the decode can be re-run or audited later; `text` gets the
+    decoded, cleaned body.
+
+    Returns *raw* unchanged when no ROT47 markers are present, which is the
+    overwhelmingly common case.
+    """
+
+    if not raw:
+        return raw or ""
+    return decode_rot47_segments(raw) or raw
 
 
 def _get_canonical_url(original_url: str, metadata: dict) -> str:
@@ -1096,12 +1131,13 @@ def handle_extract_url_command(args) -> int:
             return 1
 
         # If necessary, run content cleaning to obtain text
+        decoded_text = _decode_capture(content_text)
         try:
             cleaned_text, _cleaned_meta = content_cleaner.process_single_article(
-                content_text, domain, dry_run=False
+                decoded_text, domain, dry_run=False
             )
         except Exception:
-            cleaned_text = content_text
+            cleaned_text = decoded_text
             _cleaned_meta = {}
 
         text_hash = calculate_content_hash(cleaned_text)
@@ -1684,12 +1720,17 @@ def _process_batch(
                         from urllib.parse import urlparse
 
                         domain = urlparse(url).netloc
+                        # ROT47 must be undone before the cleaner runs, or every
+                        # length check below counts ciphertext as article body:
+                        # a fully-paywalled page reads as ~4,000 healthy chars
+                        # and never trips the paywall branch.
+                        decoded_text = _decode_capture(content_text)
                         # Clean content using persistent patterns from database
                         # Note: Some test implementations may not support dry_run parameter
                         try:
                             stripped_content, cleaning_metadata = (
                                 content_cleaner.process_single_article(
-                                    text=content_text,
+                                    text=decoded_text,
                                     domain=domain,
                                     dry_run=True,  # Don't modify the original content
                                 )
@@ -1698,10 +1739,11 @@ def _process_batch(
                             # Fallback for test mocks without dry_run parameter
                             stripped_content, cleaning_metadata = (
                                 content_cleaner.process_single_article(
-                                    content_text, domain
+                                    decoded_text, domain
                                 )
                             )
                     else:
+                        decoded_text = ""
                         stripped_content = ""
 
                     # Check if content is insufficient AND has paywall indicators
@@ -1775,7 +1817,11 @@ def _process_batch(
                     # storing an empty body. Paywall rows reach here with a short
                     # stripped_content by design — that IS the finding, and the
                     # raw prose is still preserved in `content`.
-                    cleaned_text = stripped_content or content_text
+                    #
+                    # The fallback takes the DECODED text, never the raw capture:
+                    # on a ROT47 page a cleaner failure would otherwise store
+                    # ciphertext as the article body.
+                    cleaned_text = stripped_content or decoded_text or content_text
 
                     # Hash the cleaned side: text_hash describes `text`, and entity
                     # extraction records it as article_entities.article_text_hash to
@@ -2328,8 +2374,15 @@ def _run_post_extraction_cleaning(domains_to_articles, db=None):
                     if not original_content.strip():
                         continue
 
+                    # Re-cleaning reads `content` straight from the database, so
+                    # it inherits whatever was stored — including the ciphertext
+                    # written by every extraction that ran before this fix. Decode
+                    # here too, or re-running the cleaner over the backlog would
+                    # faithfully re-clean scrambled text.
+                    decoded_content = _decode_capture(original_content)
+
                     cleaned_content, metadata = cleaner.process_single_article(
-                        text=original_content,
+                        text=decoded_content,
                         domain=domain,
                         article_id=article_id,
                     )
