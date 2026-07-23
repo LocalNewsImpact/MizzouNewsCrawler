@@ -18,12 +18,19 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import requests
 import urllib3
 from requests import Session
 from requests.exceptions import RequestException, Timeout
 from requests.structures import CaseInsensitiveDict
+
+from src.pipeline.url_filters import FILE_EXTENSION_MARKERS
+
+# Non-article asset extensions. Sourced from url_filters so the two agree; a
+# tuple so str.endswith() can take it directly.
+_ASSET_EXTENSIONS = tuple(FILE_EXTENSION_MARKERS)
 
 # Suppress InsecureRequestWarning for proxies without SSL certs
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -503,6 +510,33 @@ class URLVerificationService:
             self.logger.debug(
                 f"Filtered opinion URL: {url} "
                 f"({result['verification_time_ms']:.1f}ms)"
+            )
+            return result
+
+        # Stage -0.5: Reject asset URLs by file extension.
+        #
+        # The extension filter used to live in check_is_article(), which is now
+        # dead code — verification moved to DB patterns plus StorySniffer, and
+        # StorySniffer.guess() returns truthy for WordPress favicons such as
+        # `.../wp-content/uploads/2021/03/favicon-16x16-1.png`. In one run, 15
+        # such image URLs were marked status='article' across 11 papers and each
+        # cost a wasted extraction fetch (they produced no article and were
+        # discarded — no corpus damage, just wasted work). Reject them here,
+        # before the sniffer and before an extraction slot is spent.
+        #
+        # Checks the path's final segment, so a query string (`favicon.png?v=2`)
+        # or an article whose slug merely contains ".png" is unaffected.
+        last_segment = urlparse(url).path.rsplit("/", 1)[-1].lower()
+        if last_segment.endswith(_ASSET_EXTENSIONS):
+            result["storysniffer_result"] = False
+            result["pattern_filtered"] = True
+            result["pattern_status"] = "not_article"
+            result["pattern_type"] = "asset_extension"
+            result["verification_time_ms"] = (time.time() - start_time) * 1000
+            self.logger.debug(
+                "Filtered asset URL by extension: %s (%.1fms)",
+                url,
+                result["verification_time_ms"],
             )
             return result
 
