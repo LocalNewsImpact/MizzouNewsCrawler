@@ -3508,7 +3508,7 @@ class ContentExtractor:
         article = NewspaperArticle(url, fetch_images=False)
         http_status = None
         # Initialize proxy metadata (will be populated if proxy is used)
-        proxy_metadata = {
+        proxy_metadata: Dict[str, Any] = {
             "proxy_used": False,
             "proxy_url": None,
             "proxy_authenticated": False,
