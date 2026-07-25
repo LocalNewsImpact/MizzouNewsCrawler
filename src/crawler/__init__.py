@@ -759,6 +759,9 @@ class ContentExtractor:
         # Track domain-specific sessions and user agents
         self.domain_sessions: dict[str, Any] = {}
         self.domain_user_agents: dict[str, str] = {}
+        # Which RouterProxy backs each domain's current session, so
+        # per-request outcomes can be reported back to proxy_router.
+        self.domain_router_proxy: dict[str, Any] = {}
         self.request_counts: dict[str, int] = {}
         self.last_request_times: dict[str, float] = {}
 
@@ -1111,15 +1114,32 @@ class ContentExtractor:
 
             new_session.headers.update(headers)
 
-            # CRITICAL: ALWAYS use Squid proxy for ALL connections (domain sessions too)
-            squid_proxy_url = os.getenv(
-                "SQUID_PROXY_URL", "http://t9880447.eero.online:3128"
+            # CRITICAL: ALWAYS use a proxy for ALL connections (domain sessions
+            # too) -- never direct. proxy_router picks which Squid (home or
+            # Mizzou) based on live per-domain health; get_requests_proxies_
+            # for_domain() itself falls back to the always-on home Squid if
+            # the router is unavailable or picks something unconfigured, so
+            # this can never resolve to no proxy at all.
+            router_proxies, router_proxy, _method = (
+                self.proxy_manager.get_requests_proxies_for_domain(
+                    domain, service="newscrawler"
+                )
             )
-            squid_proxies = {"http": squid_proxy_url, "https": squid_proxy_url}
-            new_session.proxies.update(squid_proxies)
-            logger.debug(
-                f"🔀 Squid proxy ENFORCED for domain session ({domain}): {squid_proxy_url}"
-            )
+            self.domain_router_proxy[domain] = router_proxy
+            if router_proxies:
+                new_session.proxies.update(router_proxies)
+                logger.debug(
+                    "🔀 Proxy for domain session (%s): %s (%s)",
+                    domain,
+                    mask_proxy_url(router_proxies.get("http")),
+                    router_proxy.value if router_proxy else "unknown",
+                )
+            else:
+                logger.warning(
+                    "🚫 No proxy configured for %s (router and Squid fallback "
+                    "both unavailable) -- session will attempt direct",
+                    domain,
+                )
 
             # Legacy proxy selection (DEPRECATED - Squid is now enforced)
             proxy = self._choose_proxy_for_domain(domain)
@@ -2080,11 +2100,22 @@ class ContentExtractor:
     ) -> Dict[str, Any]:
         """Create a standardized error result."""
         # Record proxy failure for network/bot blocking errors
-        if any(
+        is_proxy_failure = any(
             err in error_msg.lower()
             for err in ["bot protection", "cloudflare", "captcha", "403", "429"]
-        ):
+        )
+        if is_proxy_failure:
             self.proxy_manager.record_failure()
+
+            domain = urlparse(url).netloc
+            router_proxy = self.domain_router_proxy.get(domain)
+            self.proxy_manager.report_domain_result(
+                domain,
+                router_proxy,
+                success=False,
+                reason=error_msg[:200],
+                service="newscrawler",
+            )
 
         return {
             "url": url,
@@ -2103,6 +2134,7 @@ class ContentExtractor:
         """Clear all domain sessions and reset rotation state."""
         self.domain_sessions.clear()
         self.domain_user_agents.clear()
+        self.domain_router_proxy.clear()
         self.request_counts.clear()
         self.last_request_times.clear()
         logger.info("Cleared all domain sessions and rotation state")
@@ -3476,12 +3508,13 @@ class ContentExtractor:
         article = NewspaperArticle(url, fetch_images=False)
         http_status = None
         # Initialize proxy metadata (will be populated if proxy is used)
-        proxy_metadata = {
+        proxy_metadata: Dict[str, Any] = {
             "proxy_used": False,
             "proxy_url": None,
             "proxy_authenticated": False,
             "proxy_status": None,
             "proxy_error": None,
+            "router_proxy": None,
         }
 
         if html:
@@ -3575,15 +3608,28 @@ class ContentExtractor:
                         )
                 http_status = response.status_code
 
-                # Capture proxy metadata from response if available
+                # Capture which proxy this domain's session actually used, so
+                # per-article telemetry records the router's routing decision.
+                # session.proxies is a plain dict in production, but tests
+                # commonly patch _get_domain_session with a bare Mock() whose
+                # .proxies.get(...) auto-returns another Mock -- guard so that
+                # never breaks the string ops below.
+                session_proxies = getattr(session, "proxies", None)
+                session_proxy_url = None
+                if isinstance(session_proxies, dict):
+                    session_proxy_url = session_proxies.get(
+                        "https"
+                    ) or session_proxies.get("http")
+                if not isinstance(session_proxy_url, str):
+                    session_proxy_url = None
+                router_proxy = self.domain_router_proxy.get(domain)
                 proxy_metadata = {
-                    "proxy_used": getattr(response, "_proxy_used", False),
-                    "proxy_url": getattr(response, "_proxy_url", None),
-                    "proxy_authenticated": getattr(
-                        response, "_proxy_authenticated", False
-                    ),
-                    "proxy_status": getattr(response, "_proxy_status", None),
-                    "proxy_error": getattr(response, "_proxy_error", None),
+                    "proxy_used": bool(session_proxy_url),
+                    "proxy_url": mask_proxy_url(session_proxy_url),
+                    "proxy_authenticated": "@" in (session_proxy_url or ""),
+                    "proxy_status": http_status,
+                    "proxy_error": None,
+                    "router_proxy": router_proxy.value if router_proxy else None,
                 }
 
                 # Log response details
@@ -3691,6 +3737,12 @@ class ContentExtractor:
                                 response_time = amp_response.elapsed.total_seconds()
                                 self.proxy_manager.record_success(
                                     response_time=response_time
+                                )
+                                self.proxy_manager.report_domain_result(
+                                    domain,
+                                    self.domain_router_proxy.get(domain),
+                                    success=True,
+                                    service="newscrawler",
                                 )
                                 # Update default response object so downstream logic (status checks) sees success
                                 response = amp_response
@@ -3807,6 +3859,12 @@ class ContentExtractor:
                     # Record proxy success
                     response_time = response.elapsed.total_seconds()
                     self.proxy_manager.record_success(response_time=response_time)
+                    self.proxy_manager.report_domain_result(
+                        domain,
+                        self.domain_router_proxy.get(domain),
+                        success=True,
+                        service="newscrawler",
+                    )
 
                     # Use the downloaded HTML content to parse the article
                     article.html = response.text

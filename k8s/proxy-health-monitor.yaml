@@ -59,17 +59,58 @@ spec:
                   from urllib.parse import urlparse
                   from google.cloud import secretmanager
 
+                  # Proactively feeds this proxy's health into the same Firestore
+                  # collection proxy_router reads, so the router has signal on a
+                  # domain before any real crawl/discovery/verification attempt
+                  # has to fail first. Import is best-effort: report_result()
+                  # already degrades to a no-op on any Firestore issue, so a
+                  # broken import shouldn't take the connectivity check down too.
+                  try:
+                      from src.crawler.proxy_router import RouterProxy, report_result
+                  except Exception as e:
+                      print(f"proxy_router unavailable, skipping Firestore reporting: {e}")
+
+                      class _NoRouterProxy:
+                          """Stand-in so `RouterProxy.HOME_SQUID`-style attribute
+                          access at call sites never raises when the real import
+                          failed -- report_domain_health() still no-ops on the
+                          None report_result below."""
+
+                          HOME_SQUID = None
+                          MIZZOU_SQUID = None
+
+                      RouterProxy = _NoRouterProxy
+                      report_result = None
+
                   PROJECT_ID = "mizzou-news-crawler"
                   PROXY_URL = os.getenv("SQUID_PROXY_URL")
+                  # Second egress point (Mizzou Pi Squid via reverse-tunnel VM).
+                  # Optional -- absent until the K8s secret carries it, in which
+                  # case the Mizzou check below is skipped entirely.
+                  MIZZOU_PROXY_URL = os.getenv("MIZZOU_SQUID_PROXY_URL")
                   NODE_NAME = os.getenv("NODE_NAME", "unknown")
                   POD_NAME = os.getenv("POD_NAME", "unknown")
+                  # (test_url, report_domain_or_None) -- httpbin.org/google.com are
+                  # generic connectivity probes, not real crawl targets, so only
+                  # ky3.com's result is worth writing into the per-domain router.
                   TEST_URLS = [
-                      "https://httpbin.org/ip",
-                      "https://www.google.com",
-                      "https://www.ky3.com",
+                      ("https://httpbin.org/ip", None),
+                      ("https://www.google.com", None),
+                      ("https://www.ky3.com", "ky3.com"),
                   ]
                   CONNECT_TIMEOUT = 15
                   REQUEST_TIMEOUT = 30
+
+                  def report_domain_health(domain, ok, router_proxy, error=None):
+                      if not domain or report_result is None:
+                          return
+                      report_result(
+                          domain,
+                          router_proxy,
+                          success=ok,
+                          reason=None if ok else (error or "health check failed"),
+                          service="proxy-health-monitor",
+                      )
 
                   def get_secret(secret_id):
                       """Fetch secret from GCP Secret Manager."""
@@ -185,13 +226,53 @@ spec:
 
                   # HTTP checks (only if TCP passed)
                   if ok:
-                      for url in TEST_URLS:
+                      for url, report_domain in TEST_URLS:
                           http_ok, http_msg = check_http(PROXY_URL, url)
                           results.append(f"[{'pass' if http_ok else 'FAIL'}] {http_msg}")
+                          report_domain_health(
+                              report_domain, http_ok, RouterProxy.HOME_SQUID, http_msg
+                          )
                           if not http_ok:
                               all_ok = False
                               if "ACL" in http_msg or "403" in http_msg or "Forbidden" in http_msg:
                                   acl_denied = True
+                  else:
+                      # TCP itself failed -- Squid is entirely unreachable, not just
+                      # blocking a specific domain. Report that against ky3.com too
+                      # so the router doesn't keep sending it there.
+                      for _url, report_domain in TEST_URLS:
+                          report_domain_health(
+                              report_domain, False, RouterProxy.HOME_SQUID, msg
+                          )
+
+                  # Secondary check: Mizzou Pi Squid, when configured. This is
+                  # proactive signal for the router only -- it deliberately does
+                  # NOT feed into all_ok/acl_denied/email alerting below, since
+                  # this proxy isn't wired into any live crawler traffic yet and
+                  # its outages aren't actionable the way home Squid's are.
+                  if MIZZOU_PROXY_URL:
+                      print("-" * 50)
+                      print("Mizzou Squid (secondary egress) check:")
+                      mizzou_ok, mizzou_tcp_msg = check_tcp(MIZZOU_PROXY_URL)
+                      print(f"[{'pass' if mizzou_ok else 'FAIL'}] {mizzou_tcp_msg}")
+                      if mizzou_ok:
+                          for url, report_domain in TEST_URLS:
+                              http_ok, http_msg = check_http(MIZZOU_PROXY_URL, url)
+                              print(f"[{'pass' if http_ok else 'FAIL'}] {http_msg}")
+                              report_domain_health(
+                                  report_domain,
+                                  http_ok,
+                                  RouterProxy.MIZZOU_SQUID,
+                                  http_msg,
+                              )
+                      else:
+                          for _url, report_domain in TEST_URLS:
+                              report_domain_health(
+                                  report_domain,
+                                  False,
+                                  RouterProxy.MIZZOU_SQUID,
+                                  mizzou_tcp_msg,
+                              )
 
                   # Print results
                   for r in results:
@@ -259,6 +340,12 @@ spec:
                     secretKeyRef:
                       name: squid-proxy-credentials
                       key: squid-proxy-url
+                - name: MIZZOU_SQUID_PROXY_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: squid-proxy-credentials
+                      key: mizzou-squid-proxy-url
+                      optional: true
                 - name: NODE_NAME
                   valueFrom:
                     fieldRef:

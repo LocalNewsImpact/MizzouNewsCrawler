@@ -169,6 +169,32 @@ def block_external_network(request, monkeypatch):
     monkeypatch.setattr(socket.socket, "connect_ex", _guard(real_connect_ex))
 
 
+@pytest.fixture(autouse=True)
+def mock_proxy_router_client(request, monkeypatch):
+    """Prevent unit tests from reaching real Firestore via proxy_router.
+
+    google-cloud-firestore talks gRPC, which has its own C-level networking
+    that block_external_network's socket.socket.connect() patch cannot see
+    -- so without this, any test that exercises code wired to proxy_router
+    (discovery.py, url_verification.py, crawler/__init__.py's domain
+    sessions) silently makes a real Firestore call whenever the environment
+    happens to have ADC credentials (e.g. from `gcloud auth` on a dev
+    machine), which is slow and can write real rows into production
+    Firestore. Forcing _get_client() to None makes every such call take the
+    same static-fallback path deterministically.
+
+    Tests marked `proxy` manage their own client mocking (or run against the
+    Firestore emulator) and are exempt; `integration` tests that genuinely
+    need real Firestore are exempt too.
+    """
+    if "proxy" in request.keywords or "integration" in request.keywords:
+        return
+
+    from src.crawler import proxy_router
+
+    monkeypatch.setattr(proxy_router, "_get_client", lambda: None)
+
+
 @pytest.fixture
 def clean_app_state():
     """Fixture to ensure FastAPI app.state is clean between tests.
