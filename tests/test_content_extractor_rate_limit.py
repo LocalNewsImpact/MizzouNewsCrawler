@@ -56,6 +56,12 @@ def extractor(monkeypatch):
     proxy_manager = SimpleNamespace(
         active_provider=SimpleNamespace(value="decodo"),
         get_requests_proxies=lambda: {"https": "https://proxy.decodo.local:60000"},
+        get_requests_proxies_for_domain=lambda domain, service="newscrawler": (
+            {"https": "https://proxy.decodo.local:60000"},
+            None,
+            "http",
+        ),
+        report_domain_result=lambda *args, **kwargs: None,
     )
 
     monkeypatch.setattr(crawler_module, "get_proxy_manager", lambda: proxy_manager)

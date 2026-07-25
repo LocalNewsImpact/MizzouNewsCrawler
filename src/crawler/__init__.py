@@ -3610,9 +3610,18 @@ class ContentExtractor:
 
                 # Capture which proxy this domain's session actually used, so
                 # per-article telemetry records the router's routing decision.
-                session_proxy_url = session.proxies.get("https") or session.proxies.get(
-                    "http"
-                )
+                # session.proxies is a plain dict in production, but tests
+                # commonly patch _get_domain_session with a bare Mock() whose
+                # .proxies.get(...) auto-returns another Mock -- guard so that
+                # never breaks the string ops below.
+                session_proxies = getattr(session, "proxies", None)
+                session_proxy_url = None
+                if isinstance(session_proxies, dict):
+                    session_proxy_url = session_proxies.get(
+                        "https"
+                    ) or session_proxies.get("http")
+                if not isinstance(session_proxy_url, str):
+                    session_proxy_url = None
                 router_proxy = self.domain_router_proxy.get(domain)
                 proxy_metadata = {
                     "proxy_used": bool(session_proxy_url),
