@@ -69,7 +69,17 @@ spec:
                       from src.crawler.proxy_router import RouterProxy, report_result
                   except Exception as e:
                       print(f"proxy_router unavailable, skipping Firestore reporting: {e}")
-                      RouterProxy = None
+
+                      class _NoRouterProxy:
+                          """Stand-in so `RouterProxy.HOME_SQUID`-style attribute
+                          access at call sites never raises when the real import
+                          failed -- report_domain_health() still no-ops on the
+                          None report_result below."""
+
+                          HOME_SQUID = None
+                          MIZZOU_SQUID = None
+
+                      RouterProxy = _NoRouterProxy
                       report_result = None
 
                   PROJECT_ID = "mizzou-news-crawler"
@@ -240,7 +250,7 @@ spec:
                   # NOT feed into all_ok/acl_denied/email alerting below, since
                   # this proxy isn't wired into any live crawler traffic yet and
                   # its outages aren't actionable the way home Squid's are.
-                  if MIZZOU_PROXY_URL and RouterProxy is not None:
+                  if MIZZOU_PROXY_URL:
                       print("-" * 50)
                       print("Mizzou Squid (secondary egress) check:")
                       mizzou_ok, mizzou_tcp_msg = check_tcp(MIZZOU_PROXY_URL)
