@@ -61,3 +61,4 @@ google-cloud-storage>=3.13.0  # Raw HTML archive (extractor A/B replay)
 # Needed by api, crawler and processor, so it belongs here rather than being
 # repeated in each service's requirements.
 google-cloud-secret-manager>=2.30.0  # Secret retrieval
+google-cloud-firestore>=2.21.0  # Shared proxy/domain health state (proxy_router)
