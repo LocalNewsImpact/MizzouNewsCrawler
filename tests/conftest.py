@@ -183,11 +183,17 @@ def mock_proxy_router_client(request, monkeypatch):
     Firestore. Forcing _get_client() to None makes every such call take the
     same static-fallback path deterministically.
 
-    Tests marked `proxy` manage their own client mocking (or run against the
-    Firestore emulator) and are exempt; `integration` tests that genuinely
-    need real Firestore are exempt too.
+    ONLY tests marked `proxy` are exempt -- they manage their own client
+    mocking or run against the Firestore emulator. A blanket `integration`
+    exemption used to exist here and was a live regression: the
+    postgres+integration extractor telemetry tests silently made real
+    production-Firestore round-trips on every simulated request (272s and
+    240s per test instead of ~1s -- 88% of the whole postgres suite's
+    runtime) and wrote junk rows into the production proxy_domain_status
+    collection. Integration tests that genuinely need real/emulated
+    Firestore must also carry the `proxy` marker.
     """
-    if "proxy" in request.keywords or "integration" in request.keywords:
+    if "proxy" in request.keywords:
         return
 
     from src.crawler import proxy_router
