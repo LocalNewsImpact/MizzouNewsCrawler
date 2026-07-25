@@ -694,7 +694,7 @@ def test_check_http_health_reports_fallback_failure(
     monkeypatch.setattr(
         service,
         "_attempt_get_fallback",
-        lambda _url: (False, 599, "fallback error"),
+        lambda _url, **_kwargs: (False, 599, "fallback error"),
     )
 
     ok, status, error, attempts = service._check_http_health(
@@ -752,7 +752,7 @@ def test_verify_url_propagates_fallback_error(
     monkeypatch.setattr(
         service,
         "_attempt_get_fallback",
-        lambda _url: (False, 403, "blocked"),
+        lambda _url, **_kwargs: (False, 403, "blocked"),
     )
 
     result = service.verify_url("https://example.com/fail")

@@ -133,9 +133,6 @@ class TestRealFirestoreRoundTrip:
         collection.document(
             proxy_router._doc_id(RouterProxy.MIZZOU_SQUID, domain)
         ).set({"blocked_until": now + timedelta(minutes=5)})
-        collection.document(
-            proxy_router._doc_id(RouterProxy.DIRECT, domain)
-        ).set({"blocked_until": now + timedelta(minutes=90)})
 
         choice = get_proxy_for(domain, service="test")
 

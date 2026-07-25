@@ -352,6 +352,22 @@ class URLVerificationService:
         last_error: str | None = None
         status_code: int | None = None
 
+        domain = urlparse(url).netloc
+        router_proxies, router_proxy, _method = (
+            self.proxy_manager.get_requests_proxies_for_domain(
+                domain, service="newscrawler"
+            )
+        )
+
+        def _report(success: bool, reason: str | None = None) -> None:
+            self.proxy_manager.report_domain_result(
+                domain,
+                router_proxy,
+                success=success,
+                reason=reason,
+                service="newscrawler",
+            )
+
         while attempts < self.http_retry_attempts:
             attempts += 1
 
@@ -360,6 +376,7 @@ class URLVerificationService:
                     url,
                     allow_redirects=True,
                     timeout=self.http_timeout,
+                    proxies=router_proxies,
                 )
                 status_code = getattr(response, "status_code", None)
 
@@ -372,14 +389,16 @@ class URLVerificationService:
                 elif status_code >= 400:
                     if self._should_attempt_get_fallback(status_code):
                         fallback_ok, fallback_status, fallback_error = (
-                            self._attempt_get_fallback(url)
+                            self._attempt_get_fallback(url, proxies=router_proxies)
                         )
                         status_code = fallback_status or status_code
                         if fallback_ok:
+                            _report(True)
                             return True, status_code, None, attempts
 
                         last_error = fallback_error or f"HTTP {status_code}"
                     else:
+                        _report(False, last_error or f"HTTP {status_code}")
                         return (
                             False,
                             status_code,
@@ -387,6 +406,7 @@ class URLVerificationService:
                             attempts,
                         )
                 else:
+                    _report(True)
                     return True, status_code, None, attempts
 
             except Timeout:
@@ -408,13 +428,16 @@ class URLVerificationService:
         if last_error is None:
             last_error = "HTTP check failed"
 
+        _report(False, last_error)
         return False, status_code, last_error, attempts
 
     @staticmethod
     def _should_attempt_get_fallback(status_code: int | None) -> bool:
         return bool(status_code) and status_code in _FALLBACK_GET_STATUSES
 
-    def _attempt_get_fallback(self, url: str) -> tuple[bool, int | None, str | None]:
+    def _attempt_get_fallback(
+        self, url: str, proxies: dict | None = None
+    ) -> tuple[bool, int | None, str | None]:
         """Attempt a GET request when HEAD is blocked by the origin."""
         # Try a few GET attempts with slight backoff and rotating User-Agent values.
         response = None
@@ -438,6 +461,7 @@ class URLVerificationService:
                     allow_redirects=True,
                     timeout=self.http_timeout,
                     stream=True,
+                    proxies=proxies,
                 )
                 status_code = getattr(response, "status_code", None)
                 if status_code is None:

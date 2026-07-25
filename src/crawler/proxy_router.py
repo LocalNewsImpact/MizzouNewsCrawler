@@ -51,20 +51,22 @@ class RouterProxy(Enum):
     Deliberately small and static -- unlike proxy_config.py's
     ProxyProvider (which enumerates paid third-party services that may or
     may not be configured), this is exactly what physically exists today:
-    two Squid boxes and no-proxy. Extend this enum, not around it, if a
-    new proxy comes online.
+    two Squid boxes. Extend this enum, not around it, if a new proxy comes
+    online.
+
+    No DIRECT option: every caller of this router (the crawler today,
+    the isolated newsgrabs pipeline later) must always egress through a
+    proxy -- direct connections are never a valid routing decision here.
     """
 
     HOME_SQUID = "home_squid"  # SQUID_PROXY_URL (t9880447.eero.online)
     MIZZOU_SQUID = "mizzou_squid"  # MIZZOU_SQUID_PROXY_URL (10.128.0.46 tunnel VM)
-    DIRECT = "direct"  # no proxy
 
 
 # Preference order when multiple proxies are equally healthy for a domain.
 _DEFAULT_PREFERENCE = [
     RouterProxy.HOME_SQUID,
     RouterProxy.MIZZOU_SQUID,
-    RouterProxy.DIRECT,
 ]
 
 # Returned by get_proxy_for() when Firestore itself is unreachable -- the

@@ -759,7 +759,7 @@ def test_discover_with_rss_feeds_returns_empty_on_not_found(monkeypatch):
         def __init__(self) -> None:
             self.calls = 0
 
-        def get(self, url: str, timeout: int):
+        def get(self, url: str, timeout: int, **_kwargs):
             self.calls += 1
             return _FakeResponse(404)
 
@@ -804,7 +804,7 @@ class _SequenceSession:
         self.sequence = sequence
         self.calls: list[str] = []
 
-    def get(self, url: str, timeout: int):
+    def get(self, url: str, timeout: int, **_kwargs):
         index = len(self.calls)
         if index >= len(self.sequence):
             raise AssertionError("SequenceSession exhausted")

@@ -7,6 +7,9 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
+from src.crawler.proxy_router import RouterProxy
+from src.crawler.proxy_router import get_proxy_for as _router_get_proxy_for
+from src.crawler.proxy_router import report_result as _router_report_result
 from src.crawler.utils import mask_proxy_url
 
 # Suppress InsecureRequestWarning for proxy connections (expected behavior)
@@ -49,6 +52,10 @@ class ProxyProvider(Enum):
     # Smartproxy
     SMARTPROXY = "smartproxy"
 
+    # Mizzou Pi Squid, reached via a reverse SSH tunnel VM -- the crawler's
+    # second egress point, selectable by proxy_router per domain.
+    MIZZOU_SQUID = "mizzou_squid"
+
 
 @dataclass
 class ProxyConfig:
@@ -89,6 +96,28 @@ class ProxyConfig:
             return "unhealthy"
         else:
             return "critical"
+
+
+def _build_proxies_dict(config: ProxyConfig) -> Optional[dict]:
+    """Build a requests-style {http, https} proxy mapping from a config,
+    injecting basic auth into the URL when credentials are present.
+    Shared by get_requests_proxies() and get_requests_proxies_for_domain()
+    so both providers and router-selected proxies build URLs identically.
+    """
+    if not config.url:
+        return None
+
+    if config.username:
+        auth = f"{config.username}:{config.password or ''}@"
+        if "://" in config.url:
+            protocol, rest = config.url.split("://", 1)
+            proxy_url = f"{protocol}://{auth}{rest}"
+        else:
+            proxy_url = f"http://{auth}{config.url}"
+    else:
+        proxy_url = config.url
+
+    return {"http": proxy_url, "https": proxy_url}
 
 
 class ProxyManager:
@@ -185,6 +214,18 @@ class ProxyManager:
                 password=os.getenv("SMARTPROXY_PASSWORD"),
             )
 
+        # Mizzou Pi Squid (second egress) -- not yet deployed everywhere, so
+        # this stays disabled/absent until MIZZOU_SQUID_PROXY_URL is set.
+        mizzou_squid_url = os.getenv("MIZZOU_SQUID_PROXY_URL")
+        if mizzou_squid_url:
+            self.configs[ProxyProvider.MIZZOU_SQUID] = ProxyConfig(
+                provider=ProxyProvider.MIZZOU_SQUID,
+                enabled=bool(mizzou_squid_url),
+                url=mizzou_squid_url,
+                username=os.getenv("MIZZOU_SQUID_PROXY_USERNAME"),
+                password=os.getenv("MIZZOU_SQUID_PROXY_PASSWORD"),
+            )
+
     def _get_active_provider(self) -> ProxyProvider:
         """Determine active provider from PROXY_PROVIDER env var.
 
@@ -197,8 +238,8 @@ class ProxyManager:
         aliases = {
             "none": ProxyProvider.SQUID,  # FORCE SQUID - no direct connections allowed
             "off": ProxyProvider.SQUID,  # FORCE SQUID - no direct connections allowed
-            "disabled": ProxyProvider.SQUID,  # FORCE SQUID - no direct connections allowed
-            "direct": ProxyProvider.SQUID,  # FORCE SQUID - no direct connections allowed
+            "disabled": ProxyProvider.SQUID,  # FORCE SQUID - no direct allowed
+            "direct": ProxyProvider.SQUID,  # FORCE SQUID - no direct allowed
             "default": ProxyProvider.SQUID,
             "standard": ProxyProvider.STANDARD,
             "http": ProxyProvider.STANDARD,
@@ -232,8 +273,8 @@ class ProxyManager:
                 else ProxyProvider.DIRECT
             )
             logger.warning(
-                f"Provider {provider.value if provider else provider_name} not configured, "
-                f"falling back to {fallback_provider.value}"
+                f"Provider {provider.value if provider else provider_name} "
+                f"not configured, falling back to {fallback_provider.value}"
             )
             provider = fallback_provider
 
@@ -313,26 +354,63 @@ class ProxyManager:
         if config.provider == ProxyProvider.DIRECT:
             return None
 
-        # Build proxy URL with auth for other providers
-        if config.url:
-            if config.username:
-                auth = f"{config.username}:{config.password or ''}@"
-                # Insert auth into URL after protocol
-                if "://" in config.url:
-                    protocol, rest = config.url.split("://", 1)
-                    proxy_url = f"{protocol}://{auth}{rest}"
-                else:
-                    proxy_url = f"http://{auth}{config.url}"
-            else:
-                proxy_url = config.url
+        return _build_proxies_dict(config)
 
-            # Return proxies dict for requests
-            return {
-                "http": proxy_url,
-                "https": proxy_url,
-            }
+    def get_requests_proxies_for_domain(
+        self, domain: str, service: str = "newscrawler"
+    ) -> tuple[Optional[dict], Optional[RouterProxy], str]:
+        """Return (proxies_dict, router_proxy, method) chosen for `domain`.
 
-        return None
+        Consults the shared Firestore-backed proxy_router for a live,
+        per-domain routing decision, then maps that decision onto whichever
+        real ProxyConfig is actually configured here. If the router picks a
+        proxy that isn't configured locally (e.g. MIZZOU_SQUID before
+        MIZZOU_SQUID_PROXY_URL is set), or the router itself is unavailable,
+        this falls back to the manager's active Squid config -- the crawler
+        must never end up direct, regardless of router state.
+
+        Returns router_proxy=None only if even the Squid fallback isn't
+        configured, in which case proxies_dict is also None.
+        """
+        choice = _router_get_proxy_for(domain, service=service)
+
+        provider = None
+        router_proxy = None
+        if choice.proxy == RouterProxy.MIZZOU_SQUID:
+            provider = self.configs.get(ProxyProvider.MIZZOU_SQUID)
+            router_proxy = RouterProxy.MIZZOU_SQUID
+
+        if provider is None or not provider.enabled:
+            # Router picked something unconfigured, or picked HOME_SQUID --
+            # either way, fall back to the always-on Squid config.
+            provider = self.configs.get(ProxyProvider.SQUID)
+            router_proxy = RouterProxy.HOME_SQUID
+
+        if provider is None or not provider.enabled:
+            return None, None, choice.method
+
+        return _build_proxies_dict(provider), router_proxy, choice.method
+
+    def report_domain_result(
+        self,
+        domain: str,
+        router_proxy: Optional[RouterProxy],
+        success: bool,
+        service: str = "newscrawler",
+        **kwargs,
+    ) -> None:
+        """Report an attempt outcome back to the shared proxy_router.
+
+        No-op if router_proxy is None (get_requests_proxies_for_domain
+        couldn't resolve any configured proxy at all). Never raises --
+        proxy_router.report_result() already degrades to a no-op on any
+        Firestore failure.
+        """
+        if router_proxy is None:
+            return
+        _router_report_result(
+            domain, router_proxy, success, service=service, **kwargs
+        )
 
 
 # Global proxy manager instance

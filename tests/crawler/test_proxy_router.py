@@ -100,9 +100,6 @@ class TestGetProxyFor:
         docs[_doc_id(RouterProxy.MIZZOU_SQUID, "wsj.com")] = _mock_doc(
             True, {"blocked_until": now + timedelta(minutes=5)}
         )
-        docs[_doc_id(RouterProxy.DIRECT, "wsj.com")] = _mock_doc(
-            True, {"blocked_until": now + timedelta(minutes=90)}
-        )
 
         choice = get_proxy_for("wsj.com")
 

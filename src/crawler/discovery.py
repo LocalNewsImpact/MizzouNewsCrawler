@@ -474,9 +474,14 @@ class NewsDiscovery:
         if timeout is None:
             timeout = self.timeout
 
+        domain = urlparse(url).netloc
+        router_proxies, router_proxy = self._router_proxies_for_domain(domain)
+
         # Try primary session first (cloudscraper or requests)
         try:
-            return self.session.get(url, timeout=timeout)
+            response = self.session.get(url, timeout=timeout, proxies=router_proxies)
+            self._report_router_result(domain, router_proxy, success=True)
+            return response
         except requests.exceptions.SSLError as e:
             logger.warning(
                 "SSL error with primary session for %s, trying fallback: %s",
@@ -484,13 +489,55 @@ class NewsDiscovery:
                 str(e)[:80],
             )
             # Fall through to fallback session
-        except requests.exceptions.RequestException:
+        except requests.exceptions.RequestException as e:
+            self._report_router_result(
+                domain, router_proxy, success=False, reason=str(e)[:200]
+            )
             # Non-SSL errors should propagate normally
             raise
 
         # Fallback to curl-like session
         logger.info("Using fallback session (curl-like UA) for %s", url)
-        return self._fallback_session.get(url, timeout=timeout)
+        try:
+            response = self._fallback_session.get(
+                url, timeout=timeout, proxies=router_proxies
+            )
+            self._report_router_result(domain, router_proxy, success=True)
+            return response
+        except requests.exceptions.RequestException as e:
+            self._report_router_result(
+                domain, router_proxy, success=False, reason=str(e)[:200]
+            )
+            raise
+
+    def _router_proxies_for_domain(self, domain: str):
+        """Consult proxy_router for `domain`, degrading gracefully.
+
+        Returns (proxies_dict_or_None, router_proxy_or_None). `proxy_manager`
+        is normally set in __init__, but test doubles built via
+        NewsDiscovery.__new__() skip __init__ entirely -- guard so those
+        stubs fall back to "no override" (session-level default) instead of
+        raising.
+        """
+        proxy_manager = getattr(self, "proxy_manager", None)
+        if proxy_manager is None:
+            return None, None
+        proxies, router_proxy, _method = proxy_manager.get_requests_proxies_for_domain(
+            domain, service="newscrawler"
+        )
+        return proxies, router_proxy
+
+    def _report_router_result(self, domain, router_proxy, success, reason=None):
+        proxy_manager = getattr(self, "proxy_manager", None)
+        if proxy_manager is None:
+            return
+        proxy_manager.report_domain_result(
+            domain,
+            router_proxy,
+            success=success,
+            reason=reason,
+            service="newscrawler",
+        )
 
     def _create_db_manager(self) -> DatabaseManager:
         """Factory method for database manager instances."""
