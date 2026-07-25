@@ -718,6 +718,11 @@ jobs:
           echo "Firestore emulator never became ready" >&2
           exit 1
 
+      # The inline `pip install google-cloud-firestore` bridges the prebuilt-
+      # image gap: PR CI runs inside mizzou-ci-base, which only picks up the
+      # requirements-base.txt addition when it's rebuilt post-merge. Once a
+      # rebuilt ci-base ships with the package, the install is a ~2s no-op and
+      # can be removed. (Same bridge in the integration job below.)
       - name: Run Firestore proxy router integration tests
         env:
           FIRESTORE_EMULATOR_HOST: "localhost:8080"
@@ -730,7 +735,7 @@ jobs:
             -e FIRESTORE_EMULATOR_HOST="$FIRESTORE_EMULATOR_HOST" \
             -e GOOGLE_CLOUD_PROJECT="$GOOGLE_CLOUD_PROJECT" \
             ghcr.io/localnewsimpact/mizzou-ci-base:latest \
-            /bin/bash -c "git config --global --add safe.directory /workspace && pytest -v -m 'integration and proxy' --tb=short --no-cov"
+            /bin/bash -c "git config --global --add safe.directory /workspace && pip install -q 'google-cloud-firestore>=2.21.0' && pytest -v -m 'integration and proxy' --tb=short --no-cov"
 
   integration:
     name: Integration & Coverage
@@ -769,7 +774,7 @@ jobs:
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
             ghcr.io/localnewsimpact/mizzou-ci-base:latest \
-            /bin/bash -c "git config --global --add safe.directory /workspace && pytest -m 'not postgres and not docker and not local_scripts' --cov=src --cov-report=xml --cov-report=html --cov-report=term-missing --cov-fail-under=78"
+            /bin/bash -c "git config --global --add safe.directory /workspace && pip install -q 'google-cloud-firestore>=2.21.0' && pytest -m 'not postgres and not docker and not local_scripts' --cov=src --cov-report=xml --cov-report=html --cov-report=term-missing --cov-fail-under=78"
 
       - name: Generate coverage summary
         if: success()
