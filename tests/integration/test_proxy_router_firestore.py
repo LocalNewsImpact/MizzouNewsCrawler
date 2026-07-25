@@ -100,21 +100,15 @@ class TestRealFirestoreRoundTrip:
         data = doc.to_dict()
 
         assert data["consecutive_failures"] == 3
-        expected_backoff = proxy_router._BACKOFF_BASE_SECONDS * (2 ** 2)
+        expected_backoff = proxy_router._BACKOFF_BASE_SECONDS * (2**2)
         blocked_until = data["blocked_until"]
         now = datetime.now(timezone.utc)
-        assert blocked_until > now + timedelta(
-            seconds=expected_backoff - 30
-        )
+        assert blocked_until > now + timedelta(seconds=expected_backoff - 30)
         assert blocked_until < now + timedelta(seconds=expected_backoff + 30)
 
     def test_success_resets_failure_streak_after_failures(self, domain):
-        report_result(
-            domain, RouterProxy.HOME_SQUID, success=False, reason="timeout"
-        )
-        report_result(
-            domain, RouterProxy.HOME_SQUID, success=False, reason="timeout"
-        )
+        report_result(domain, RouterProxy.HOME_SQUID, success=False, reason="timeout")
+        report_result(domain, RouterProxy.HOME_SQUID, success=False, reason="timeout")
         report_result(domain, RouterProxy.HOME_SQUID, success=True)
 
         choice = get_proxy_for(domain, service="test")
@@ -127,12 +121,12 @@ class TestRealFirestoreRoundTrip:
         client = proxy_router._get_client()
         collection = client.collection(proxy_router._FIRESTORE_COLLECTION)
 
-        collection.document(
-            proxy_router._doc_id(RouterProxy.HOME_SQUID, domain)
-        ).set({"blocked_until": now + timedelta(minutes=30)})
-        collection.document(
-            proxy_router._doc_id(RouterProxy.MIZZOU_SQUID, domain)
-        ).set({"blocked_until": now + timedelta(minutes=5)})
+        collection.document(proxy_router._doc_id(RouterProxy.HOME_SQUID, domain)).set(
+            {"blocked_until": now + timedelta(minutes=30)}
+        )
+        collection.document(proxy_router._doc_id(RouterProxy.MIZZOU_SQUID, domain)).set(
+            {"blocked_until": now + timedelta(minutes=5)}
+        )
 
         choice = get_proxy_for(domain, service="test")
 
@@ -141,9 +135,7 @@ class TestRealFirestoreRoundTrip:
 
     def test_domains_are_isolated_in_real_firestore(self, domain):
         other_domain = f"other-{domain}"
-        report_result(
-            domain, RouterProxy.HOME_SQUID, success=False, reason="403"
-        )
+        report_result(domain, RouterProxy.HOME_SQUID, success=False, reason="403")
 
         choice = get_proxy_for(other_domain, service="test")
 

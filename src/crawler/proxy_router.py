@@ -229,9 +229,8 @@ def report_result(
         return
 
     try:
-        doc_ref = (
-            client.collection(_FIRESTORE_COLLECTION)
-            .document(_doc_id(proxy, domain))
+        doc_ref = client.collection(_FIRESTORE_COLLECTION).document(
+            _doc_id(proxy, domain)
         )
         now = datetime.now(timezone.utc)
 

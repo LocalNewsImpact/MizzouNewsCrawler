@@ -408,9 +408,7 @@ class ProxyManager:
         """
         if router_proxy is None:
             return
-        _router_report_result(
-            domain, router_proxy, success, service=service, **kwargs
-        )
+        _router_report_result(domain, router_proxy, success, service=service, **kwargs)
 
 
 # Global proxy manager instance
