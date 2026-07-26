@@ -171,9 +171,16 @@ class TestFetchPageHtml:
 class TestParsersNeverFetch:
     """Parsers receive the capture; none of them may touch the network."""
 
-    def test_parse_with_mcmetadata_requires_html(self, extractor):
+    def test_parse_with_mcmetadata_requires_html(self, extractor, monkeypatch):
         """THE invariant: no html means an error, never a self-fetch via
-        mcmetadata.extract(url, html_text=None)."""
+        mcmetadata.extract(url, html_text=None).
+
+        MCMETADATA_AVAILABLE is forced: it reflects whether the optional
+        dependency imported in THIS environment (true locally, false in the
+        CI image), and without pinning it the method raises "not installed"
+        before ever reaching the invariant under test.
+        """
+        monkeypatch.setattr(crawler_module, "MCMETADATA_AVAILABLE", True)
         with pytest.raises(RuntimeError, match="requires HTML"):
             extractor._parse_with_mcmetadata("https://example.com/story", None)
 
@@ -186,7 +193,15 @@ class TestParsersNeverFetch:
             captured.update(kwargs)
             return _mc_result()
 
-        monkeypatch.setattr(crawler_module.mcmetadata, "extract", fake_extract)
+        # Stub the module itself rather than patching an attribute on it:
+        # mcmetadata is optional and is None in the CI image, so
+        # setattr(crawler_module.mcmetadata, ...) would fail there.
+        class _FakeMcMetadata:
+            STAT_NAMES = ["fetch", "content"]
+            extract = staticmethod(fake_extract)
+
+        monkeypatch.setattr(crawler_module, "MCMETADATA_AVAILABLE", True)
+        monkeypatch.setattr(crawler_module, "mcmetadata", _FakeMcMetadata())
 
         result = extractor._parse_with_mcmetadata(
             "https://example.com/story", "<html>capture</html>"
