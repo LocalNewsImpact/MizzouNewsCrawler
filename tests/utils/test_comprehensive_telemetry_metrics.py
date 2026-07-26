@@ -686,6 +686,10 @@ def test_extraction_metrics_proxy_metrics():
         publisher="Test",
     )
 
+    # Default: no router decision supplied leaves router_proxy unset (not
+    # coerced to a backend name).
+    assert metrics.router_proxy is None
+
     # Test setting proxy metrics
     metrics.set_proxy_metrics(
         proxy_used=True,
@@ -700,6 +704,18 @@ def test_extraction_metrics_proxy_metrics():
     assert metrics.proxy_authenticated is True
     assert metrics.proxy_status == ct.PROXY_STATUS_SUCCESS
     assert metrics.proxy_error is None
+    # No router_proxy arg -> stays None even after a proxy is recorded.
+    assert metrics.router_proxy is None
+
+    # Router decision is captured when supplied.
+    metrics.set_proxy_metrics(
+        proxy_used=True,
+        proxy_url="http://proxy.example.com:8080",
+        proxy_authenticated=True,
+        proxy_status="success",
+        router_proxy="mizzou_squid",
+    )
+    assert metrics.router_proxy == "mizzou_squid"
 
     # Test with error
     metrics.set_proxy_metrics(
@@ -758,7 +774,8 @@ def test_extraction_metrics_metadata_proxy_extraction():
         publisher="Test",
     )
 
-    # Proxy info in metadata should be captured
+    # Proxy info in metadata should be captured, including the router decision
+    # the crawler spreads in via **proxy_metadata.
     metrics.end_method(
         "method1",
         success=True,
@@ -770,6 +787,7 @@ def test_extraction_metrics_metadata_proxy_extraction():
                 "proxy_authenticated": True,
                 "proxy_status": "success",
                 "proxy_error": None,
+                "router_proxy": "mizzou_squid",
             },
         },
     )
@@ -778,6 +796,7 @@ def test_extraction_metrics_metadata_proxy_extraction():
     assert metrics.proxy_url == "http://proxy.test:8080"
     assert metrics.proxy_authenticated is True
     assert metrics.proxy_status == ct.PROXY_STATUS_SUCCESS
+    assert metrics.router_proxy == "mizzou_squid"
     assert metrics.field_extraction["method1"]["metadata"] is True
 
 
