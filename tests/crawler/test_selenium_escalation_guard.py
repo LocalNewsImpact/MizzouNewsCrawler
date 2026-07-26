@@ -74,9 +74,18 @@ def test_text_field_counts_as_body(extractor):
 
 
 def test_boundary_is_inclusive_of_stub_threshold(extractor):
-    """At exactly the threshold we still treat it as a teaser and escalate."""
-    at_limit = "x" * ContentExtractor.PAYWALL_STUB_MAX_CHARS
-    over_limit = "x" * (ContentExtractor.PAYWALL_STUB_MAX_CHARS + 1)
+    """At exactly the threshold we still treat it as a teaser and escalate.
+
+    Filler must be real prose: the quality gate now also rejects bodies that
+    are not writing, so a run of "xxxx" would escalate for that reason
+    instead and this would no longer be testing the length boundary.
+    """
+    prose = (
+        "The council met on Tuesday evening to review the budget and heard "
+        "from residents about the proposed changes to the fee schedule. "
+    )
+    at_limit = (prose * 40)[: ContentExtractor.PAYWALL_STUB_MAX_CHARS]
+    over_limit = (prose * 40)[: ContentExtractor.PAYWALL_STUB_MAX_CHARS + 1]
 
     assert (
         extractor._selenium_would_add_value({"content": at_limit}, ["author"]) is True
