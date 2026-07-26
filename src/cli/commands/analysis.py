@@ -16,7 +16,15 @@ from src.services.classification_service import ArticleClassificationService
 
 logger = logging.getLogger(__name__)
 
-EXCLUDED_STATUSES = {"opinion", "opinions", "obituary", "obits", "wire", "paywall"}
+EXCLUDED_STATUSES = {
+    "opinion",
+    "opinions",
+    "obituary",
+    "obits",
+    "wire",
+    "paywall",
+    "not_article",
+}
 
 
 def _resolve_statuses(

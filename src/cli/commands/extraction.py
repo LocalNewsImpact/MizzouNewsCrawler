@@ -33,6 +33,7 @@ from src.models.database import (
 # crawler image, which carries no ML dependencies.
 from src.pipeline.text_cleaning import decode_rot47_segments
 from src.services.wire_detection import resolve_api_token
+from src.utils.boilerplate import looks_like_furniture
 
 # Lazy import: entity_extraction only needed for entity-extraction command
 # Importing at top level causes ModuleNotFoundError in crawler image (no rapidfuzz)
@@ -116,8 +117,10 @@ def _initial_wire_check_status(article_status: str) -> str:
     if not ENABLE_MEDIACLOUD_WIRE_CHECK:
         return WIRE_CHECK_STATUS_COMPLETE
 
-    # Only skip wire check for statuses that explicitly don't need it
-    if article_status in {"error", "paywall", "obituary", "opinion"}:
+    # Only skip wire check for statuses that explicitly don't need it. A
+    # not_article capture has no prose body to match against MediaCloud, so
+    # checking it is pointless -- treat it like paywall/error.
+    if article_status in {"error", "paywall", "obituary", "opinion", "not_article"}:
         return WIRE_CHECK_STATUS_COMPLETE
 
     # Default to pending for safety - includes "extracted", "wire", "cleaned", "labeled"
@@ -1817,18 +1820,61 @@ def _process_batch(
                         or len(stripped_content.strip()) < MIN_CONTENT_LENGTH
                     )
 
-                    # Only mark as paywall if BOTH conditions are met
-                    if is_insufficient_content and has_paywall_patterns:
+                    # Shape gate: a capture can clear the length threshold and
+                    # still be pure furniture -- a comment-form country dropdown
+                    # (5,308 chars of "X, Republic of ..."), a subscription wall
+                    # wrapped in a site's nav menu, a page whose body is only a
+                    # PDF embed notice. looks_like_furniture combines the same
+                    # measured signals the cleaner already uses (utility-word
+                    # rate, capitalisation, boilerplate markers), so it catches
+                    # these by SHAPE, not by matching exact phrases -- and it
+                    # leaves unusual-but-real prose alone (Spanish articles score
+                    # low on the English-only prose density but read as
+                    # sentences; public-records columns have real structure).
+                    # Verified against the 216-article 2026-07-26 run: flags
+                    # 8/8 country dropdowns, 9/9 subscription walls, 2/2 PDF
+                    # embeds, 0 of the Spanish captures.
+                    is_furniture = bool(stripped_content) and looks_like_furniture(
+                        stripped_content
+                    )
+
+                    # A wall (short OR long/nav-wrapped) keeps its metadata and
+                    # drops the furniture body. Long non-prose without a wall
+                    # marker is a mis-extraction or prose-less page -> not_article
+                    # (also kept, also body-dropped, also excluded from ML).
+                    if (
+                        is_insufficient_content or is_furniture
+                    ) and has_paywall_patterns:
                         non_boilerplate_len = (
                             len(stripped_content.strip()) if stripped_content else 0
                         )
                         logger.warning(
-                            f"Article has insufficient content with paywall indicators - marking "
-                            f"as paywall ({non_boilerplate_len} chars "
-                            f"non-boilerplate < {MIN_CONTENT_LENGTH}): {url}"
+                            f"Article has paywall indicators - marking as paywall "
+                            f"({non_boilerplate_len} chars non-boilerplate, "
+                            f"furniture={is_furniture}): {url}"
                         )
                         # Set status='paywall' to save but skip ML
                         article_status = "paywall"
+                        # Drop the furniture/wall so it is never stored as a body;
+                        # headline/byline/date captured alongside it are kept.
+                        # decoded_text is cleared too, or the cleaned_text
+                        # fallback below would restore the furniture from it.
+                        content_text = ""
+                        content["content"] = ""
+                        stripped_content = ""
+                        decoded_text = ""
+                    elif is_furniture:
+                        logger.warning(
+                            f"Article body is furniture, not prose (cap/util shape) "
+                            f"- marking as not_article ({len(stripped_content.strip())} "
+                            f"chars): {url}"
+                        )
+                        # Keep the record and its metadata, drop the furniture body.
+                        article_status = "not_article"
+                        content_text = ""
+                        content["content"] = ""
+                        stripped_content = ""
+                        decoded_text = ""
                     elif is_insufficient_content:
                         # Short content but no paywall indicators - skip entirely
                         non_boilerplate_len = (

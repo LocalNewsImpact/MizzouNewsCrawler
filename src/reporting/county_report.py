@@ -23,6 +23,10 @@ DEFAULT_EXCLUDED_STATUSES: tuple[str, ...] = (
     "obituary",
     "obits",
     "wire",
+    # A not_article capture (nav chrome, a comment-form dropdown, a PDF-embed
+    # shell) is not real coverage -- unlike paywall, which is a real story that
+    # happens to be walled and is deliberately NOT excluded here.
+    "not_article",
 )
 
 

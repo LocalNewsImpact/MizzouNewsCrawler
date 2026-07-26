@@ -209,10 +209,17 @@ class TestContentValidationLogic:
                 return False
 
             def extract_content(self, *args, **kwargs):
-                # Return content with 200 chars (will have 150+ after cleaning)
+                # Real prose, not filler: the shape gate rejects a run of
+                # identical capitals ("A" * 200 reads as 100% capitalised, i.e.
+                # furniture), so a length-only fixture would mis-test the gate.
                 return {
                     "title": "Test Article",
-                    "content": "A" * 200,  # 200 chars of real content
+                    "content": (
+                        "The county commission met on Monday evening to review "
+                        "the annual road maintenance budget and heard from a "
+                        "dozen residents who asked for repairs on rural routes. "
+                        "The chair said the plan would be finalized next month."
+                    ),
                     "author": "Test Author",
                     "metadata": {},
                 }
@@ -226,8 +233,9 @@ class TestContentValidationLogic:
 
         class FakeContentCleaner:
             def process_single_article(self, text, domain, dry_run=False):
-                # Simulate removing 30 chars of boilerplate, leaving 170 chars
-                cleaned_text = text[:170] if len(text) > 170 else text
+                # Simulate removing a little boilerplate; still real prose and
+                # comfortably over MIN_CONTENT_LENGTH.
+                cleaned_text = text[:200] if len(text) > 200 else text
                 return cleaned_text, {}
 
         class FakeTelemetry:
@@ -331,7 +339,12 @@ class TestContentValidationLogic:
             def extract_content(self, *args, **kwargs):
                 return {
                     "title": "Wire Story",
-                    "content": "A" * 200,
+                    "content": (
+                        "Federal regulators on Thursday proposed a new rule that "
+                        "would require airlines to disclose baggage fees earlier "
+                        "in the booking process, a change consumer advocates have "
+                        "sought for years. The agency will take comments this fall."
+                    ),
                     "author": "Associated Press",
                     "metadata": {},
                 }
@@ -890,6 +903,200 @@ class TestContentValidationLogic:
                 "error": "Insufficient content (no paywall detected)",
             }
         ]
+
+
+class TestFurnitureShapeGate:
+    """A long capture can still be pure furniture and must not be saved as prose.
+
+    The length gate (< MIN_CONTENT_LENGTH) only catches *short* captures. A
+    comment-form country dropdown (5,308 chars), a subscription wall wrapped in
+    a nav menu, a PDF-embed shell -- all clear the length gate and were stored
+    as articles. looks_like_furniture flags them by measured shape (capitalisation
+    / utility-word rate), so the save gate now catches them regardless of length:
+    a paywall marker -> status='paywall', otherwise status='not_article'. Both
+    keep the record + metadata and drop the furniture body. Real prose -- including
+    the Spanish and public-records captures that only *look* unusual on one axis
+    -- is untouched.
+    """
+
+    # >150 chars each, so the length gate passes and only the shape gate can fire.
+    COUNTRY_DROPDOWN = (
+        "United States of America US Virgin Islands Canada Mexico Bahamas Cuba "
+        "Dominican Republic Haiti Jamaica Afghanistan Albania Algeria American "
+        "Samoa Andorra Angola Anguilla Antarctica Antigua Argentina Armenia Aruba "
+        "Australia Austria Azerbaijan Bahrain Bangladesh Barbados Belarus Belgium"
+    )
+    NAV_WRAPPED_WALL = (
+        "Skip to main content Log in Forecast Main menu News Local News Sports "
+        "Obituaries Subscribe This article is only available to subscribers. "
+        "Log in. Create an account to get 3 free articles each month. "
+        "GET UNLIMITED ACCESS $1 for your first month No commitment, cancel anytime."
+    )
+    REAL_PROSE = (
+        "The city council voted Tuesday to approve the new budget after a lengthy "
+        "public hearing that drew more than fifty residents. Members said the plan "
+        "preserves funding for the library and fire department while trimming "
+        "costs. The measure passed on a five to two vote and takes effect in July."
+    )
+
+    def _run(self, monkeypatch, body, cleaner_metadata):
+        """Drive one capture through _process_batch and return the insert params."""
+        rows = [
+            (
+                "cand-1",
+                "https://example.com/article",
+                "example.com",
+                "article",
+                "Example Site",
+            )
+        ]
+
+        class FakeSession:
+            def __init__(self):
+                self.insert_calls = []
+                self.update_calls = []
+                self.commit_calls = 0
+
+            def execute(self, query, params=None):
+                query_str = str(getattr(query, "text", query))
+                if "INSERT INTO articles" in query_str:
+                    self.insert_calls.append(params)
+                elif "UPDATE candidate_links" in query_str:
+                    self.update_calls.append(params)
+                elif params and "limit_with_buffer" in params:
+                    return Mock(fetchall=lambda: rows)
+                return Mock(fetchall=lambda: [], scalar=lambda: None)
+
+            def commit(self):
+                self.commit_calls += 1
+
+            def close(self):
+                pass
+
+            def expire_all(self):
+                pass
+
+            def rollback(self):
+                pass
+
+        class FakeDBManager:
+            def __init__(self):
+                self.session = FakeSession()
+
+        class FakeExtractor:
+            def _check_rate_limit(self, domain):
+                return False
+
+            def extract_content(self, *args, **kwargs):
+                return {
+                    "title": "Headline Outside The Furniture",
+                    "content": body,
+                    "author": "Jane Reporter",
+                    "metadata": {},
+                }
+
+            def get_driver_stats(self):
+                return {"has_persistent_driver": False}
+
+        class FakeBylineCleaner:
+            def clean_byline(self, *args, **kwargs):
+                return {"authors": ["Jane Reporter"], "wire_services": []}
+
+        class FakeContentCleaner:
+            # The cleaner returns the body unchanged: these captures have no
+            # per-segment furniture the cleaner can strip -- that IS why the
+            # shape gate has to catch the whole capture.
+            def process_single_article(self, text, domain, dry_run=False):
+                return text, dict(cleaner_metadata)
+
+        class FakeTelemetry:
+            def record_extraction(self, *args, **kwargs):
+                pass
+
+        class FakeMetrics:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def set_content_type_detection(self, *args):
+                pass
+
+            def finalize(self, *args):
+                pass
+
+        monkeypatch.setattr(extraction, "DatabaseManager", FakeDBManager)
+        monkeypatch.setattr(extraction, "BylineCleaner", FakeBylineCleaner)
+        monkeypatch.setattr(extraction, "ExtractionMetrics", FakeMetrics)
+        monkeypatch.setattr(extraction, "calculate_content_hash", lambda *a: "hash123")
+        monkeypatch.setattr(
+            extraction,
+            "ContentTypeDetector",
+            lambda **kw: Mock(detect=lambda **k: None),
+        )
+
+        db = FakeDBManager()
+        args = Namespace(dump_sql=False)
+        extraction._process_batch(
+            args,
+            FakeExtractor(),
+            FakeBylineCleaner(),
+            FakeContentCleaner(),
+            FakeTelemetry(),
+            per_batch=1,
+            batch_num=1,
+            host_403_tracker={},
+            domains_for_cleaning=defaultdict(list),
+            db=db,
+        )
+        return db.session.insert_calls
+
+    def test_country_dropdown_marked_not_article_body_dropped(self, monkeypatch):
+        inserts = self._run(
+            monkeypatch, self.COUNTRY_DROPDOWN, {"patterns_matched": []}
+        )
+        assert len(inserts) == 1
+        row = inserts[0]
+        assert row["status"] == "not_article"
+        # Furniture body dropped from both columns...
+        assert row["content"] == ""
+        assert row["text"] == ""
+        # ...but the metadata captured alongside it is preserved.
+        assert row["title"] == "Headline Outside The Furniture"
+
+    def test_nav_wrapped_wall_with_paywall_pattern_marked_paywall(self, monkeypatch):
+        inserts = self._run(
+            monkeypatch,
+            self.NAV_WRAPPED_WALL,
+            {"patterns_matched": ["subscription", "paywall"]},
+        )
+        assert len(inserts) == 1
+        row = inserts[0]
+        assert row["status"] == "paywall"
+        assert row["content"] == ""
+        assert row["text"] == ""
+        assert row["title"] == "Headline Outside The Furniture"
+
+    def test_nav_wrapped_wall_without_pattern_falls_back_to_not_article(
+        self, monkeypatch
+    ):
+        """A wall the cleaner did not tag still fails the shape gate (util rate),
+        so it is filed as not_article rather than saved as an article body --
+        the houstonherald.com case, whose phrase matches no marker."""
+        inserts = self._run(
+            monkeypatch, self.NAV_WRAPPED_WALL, {"patterns_matched": []}
+        )
+        assert len(inserts) == 1
+        assert inserts[0]["status"] == "not_article"
+        assert inserts[0]["text"] == ""
+
+    def test_real_prose_is_not_gated(self, monkeypatch):
+        """Ordinary reporting passes: it is neither short nor furniture-shaped."""
+        inserts = self._run(monkeypatch, self.REAL_PROSE, {"patterns_matched": []})
+        assert len(inserts) == 1
+        row = inserts[0]
+        assert row["status"] not in ("paywall", "not_article")
+        # Body preserved.
+        assert row["text"] == self.REAL_PROSE
+        assert row["content"] == self.REAL_PROSE
 
 
 @pytest.mark.postgres
