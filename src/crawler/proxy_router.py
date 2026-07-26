@@ -25,6 +25,7 @@ a static default and report_result() silently no-ops.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import threading
@@ -63,16 +64,39 @@ class RouterProxy(Enum):
     MIZZOU_SQUID = "mizzou_squid"  # MIZZOU_SQUID_PROXY_URL (10.128.0.46 tunnel VM)
 
 
-# Preference order when multiple proxies are equally healthy for a domain.
-_DEFAULT_PREFERENCE = [
+# The pool the load balancer spreads domains across. Order matters only
+# for index stability of the hash assignment below -- append new proxies,
+# never reorder, or every domain's sticky assignment shifts at once.
+_PROXY_POOL = [
     RouterProxy.HOME_SQUID,
     RouterProxy.MIZZOU_SQUID,
 ]
 
-# Returned by get_proxy_for() when Firestore itself is unreachable -- the
-# same "always Squid" default proxy_config.py enforces today, so a router
-# outage degrades to exactly today's behavior rather than something new.
-_FALLBACK_CHOICE_REASON = "firestore unavailable, using static default"
+# Kept for callers/tests that referenced the old name.
+_DEFAULT_PREFERENCE = _PROXY_POOL
+
+# Returned by get_proxy_for() when Firestore itself is unreachable. The
+# hash-sticky assignment still applies (it needs no health data), so a
+# Firestore outage costs only the health-based failover, not the load
+# balancing.
+_FALLBACK_CHOICE_REASON = "firestore unavailable, using sticky assignment"
+
+
+def assigned_proxy(domain: str) -> RouterProxy:
+    """The domain's sticky home in the pool: a stable md5-based hash.
+
+    This IS the load balancer: domains split ~evenly across the pool, and
+    a given domain always prefers the same proxy -- so each publisher sees
+    one consistent egress IP (which also reads as normal traffic to bot
+    defenses) while total load spreads across both Squids. Health-based
+    failover in get_proxy_for() overrides this only while the assigned
+    proxy is backed off for that domain.
+
+    md5 rather than hash(): Python salts hash() per process, and this
+    assignment must agree across every pod and service.
+    """
+    digest = hashlib.md5(domain.lower().encode("utf-8")).digest()
+    return _PROXY_POOL[digest[0] % len(_PROXY_POOL)]
 
 
 @dataclass
@@ -130,14 +154,23 @@ def _doc_id(proxy: RouterProxy, domain: str) -> str:
 def get_proxy_for(domain: str, service: str = "unknown") -> ProxyChoice:
     """Return the best available (proxy, method) for `domain` right now.
 
+    Load-balancing policy: the domain's hash-sticky assigned_proxy() wins
+    whenever it is healthy; if it's backed off for this domain, fail over
+    to the healthiest other proxy in the pool; if everything is backed
+    off, return whichever frees up soonest with all_blocked=True.
+
     `service` is an attribution label ("newscrawler" / "newsgrabs") -- it's
     written into telemetry for debugging only, it never affects the
     decision itself.
     """
+    sticky = assigned_proxy(domain)
+
     client = _get_client()
     if client is None:
+        # No health data, but the sticky assignment needs none -- load
+        # balancing survives a Firestore outage; only failover is lost.
         return ProxyChoice(
-            proxy=_DEFAULT_PREFERENCE[0],
+            proxy=sticky,
             method="http",
             reason=_FALLBACK_CHOICE_REASON,
         )
@@ -147,7 +180,7 @@ def get_proxy_for(domain: str, service: str = "unknown") -> ProxyChoice:
     try:
         collection = client.collection(_FIRESTORE_COLLECTION)
         candidates = []
-        for proxy in _DEFAULT_PREFERENCE:
+        for proxy in _PROXY_POOL:
             doc = collection.document(_doc_id(proxy, domain)).get()
             data = doc.to_dict() if doc.exists else {}
             blocked_until = data.get("blocked_until")
@@ -162,26 +195,39 @@ def get_proxy_for(domain: str, service: str = "unknown") -> ProxyChoice:
             )
     except Exception as exc:
         logger.warning(
-            "proxy_router: read failed for %s, using static default (%s: %s)",
+            "proxy_router: read failed for %s, using sticky assignment (%s: %s)",
             domain,
             type(exc).__name__,
             exc,
         )
         return ProxyChoice(
-            proxy=_DEFAULT_PREFERENCE[0],
+            proxy=sticky,
             method="http",
             reason=_FALLBACK_CHOICE_REASON,
         )
 
     available = [c for c in candidates if not c["blocked"]]
     if available:
-        # Among available proxies, prefer fewest recent failures; ties keep
-        # the static preference order already baked into `candidates`.
+        for candidate in available:
+            if candidate["proxy"] is sticky:
+                return ProxyChoice(
+                    proxy=sticky,
+                    method=candidate["preferred_method"],
+                    reason=(
+                        "sticky assignment, "
+                        f"{candidate['consecutive_failures']} recent failures"
+                    ),
+                )
+        # Assigned proxy is backed off for this domain: fail over to the
+        # healthiest remaining proxy.
         best = min(available, key=lambda c: c["consecutive_failures"])
         return ProxyChoice(
             proxy=best["proxy"],
             method=best["preferred_method"],
-            reason=f"available, {best['consecutive_failures']} recent failures",
+            reason=(
+                f"failover from {sticky.value}, "
+                f"{best['consecutive_failures']} recent failures"
+            ),
         )
 
     # Every proxy is currently backed off for this domain. Return whichever

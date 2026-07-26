@@ -88,6 +88,10 @@ def harness(monkeypatch):
     ex._check_rate_limit = lambda d: False
     ex._apply_cms_metadata_fallback = lambda r: None
 
+    # The single HTTP capture. Parsers only run when this produced html,
+    # so the rung-ordering assertions below need a capture to exist.
+    ex._fetch_page_html = lambda url: "<html>capture</html>"
+
     # Capture rungs — all stubbed, each recording that it ran.
     def mc(url, html=None, include_other_metadata=None):
         calls.append("mcmetadata")
@@ -111,9 +115,9 @@ def harness(monkeypatch):
         result["extraction_methods"]["author"] = "selenium"
         return True, True
 
-    ex._extract_with_mcmetadata = mc
-    ex._extract_with_newspaper = news
-    ex._extract_with_beautifulsoup = bs4
+    ex._parse_with_mcmetadata = mc
+    ex._parse_with_newspaper = news
+    ex._parse_with_beautifulsoup = bs4
     ex._extract_with_unblock_proxy = tls
     ex._run_selenium_extraction = selenium
 
@@ -151,7 +155,7 @@ def test_flagged_unblock_domain_still_tries_tls(harness):
 
 def test_tls_is_skipped_when_nothing_is_missing(harness):
     """No gap, no extra capture — this must not add requests gratuitously."""
-    harness.ex._extract_with_mcmetadata = lambda url, html=None, **kw: (
+    harness.ex._parse_with_mcmetadata = lambda url, html=None, **kw: (
         harness.calls.append("mcmetadata") or _full_result("mcmetadata")
     )
 

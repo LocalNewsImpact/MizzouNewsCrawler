@@ -132,13 +132,13 @@ class TestAMPBypassIntegration:
 
         # Test extraction
         url = "https://fox4kc.com/news/article/"
-        result = extractor._extract_with_newspaper(url)
+        result = extractor._fetch_page_html(url)
 
         # Verify AMP bypass was used
         assert result is not None
-        assert result.get("title") == "Sample Article Title"
-        assert len(result.get("content", "")) > 100
-        assert "first paragraph" in result.get("content", "")
+        assert "Sample Article Title" in result
+        assert len(result) > 100
+        assert "first paragraph" in result
 
         # Verify amp_supported was marked True
         mock_mark_amp.assert_called_with("fox4kc.com", True)
@@ -189,11 +189,11 @@ class TestAMPBypassIntegration:
 
         # Test extraction
         url = "https://fox4kc.com/news/article/"
-        result = extractor._extract_with_newspaper(url)
+        result = extractor._fetch_page_html(url)
 
         # Verify extraction succeeded
         assert result is not None
-        assert result.get("title") == "Sample Article Title"
+        assert "Sample Article Title" in result
 
         # Verify preemptive AMP telemetry
         calls = mock_bot_manager.record_bot_detection.call_args_list
@@ -259,7 +259,7 @@ class TestAMPBypassIntegration:
         url = "https://example.com/news/article/"
 
         with pytest.raises(Exception) as exc_info:
-            extractor._extract_with_newspaper(url)
+            extractor._fetch_page_html(url)
 
         # Verify exception mentions Selenium
         assert (
@@ -317,11 +317,11 @@ class TestAMPBypassIntegration:
 
         # Test extraction
         url = "https://regular-site.com/news/article/"
-        result = extractor._extract_with_newspaper(url)
+        result = extractor._fetch_page_html(url)
 
         # Verify extraction succeeded with regular flow
         assert result is not None
-        assert result.get("title") is not None
+        assert result is not None and len(result) > 0
 
         # Verify no AMP telemetry
         calls = mock_bot_manager.record_bot_detection.call_args_list

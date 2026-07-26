@@ -93,6 +93,12 @@ spec:
               key: squid-proxy-url
               name: squid-proxy-credentials
               optional: true
+        - name: MIZZOU_SQUID_PROXY_URL
+          valueFrom:
+            secretKeyRef:
+              key: mizzou-squid-proxy-url
+              name: squid-proxy-credentials
+              optional: true
               name: squid-proxy-credentials
               optional: true
               name: squid-proxy-credentials

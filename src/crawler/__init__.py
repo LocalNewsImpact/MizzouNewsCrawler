@@ -2668,15 +2668,45 @@ class ContentExtractor:
                 f"(protection: {protection_type}) - skipping HTTP methods"
             )
 
-        # Try mcmetadata first if enabled (skip for selenium_only domains)
-        if self._mcmetadata_enabled() and not skip_http_methods:
+        # ── FETCH ONCE, PARSE MANY ─────────────────────────────────────
+        # The single proxied HTTP capture. Every parser below (mcmetadata,
+        # newspaper4k, BeautifulSoup) parses THIS html; none of them fetch.
+        # A Selenium capture (if selenium-first ran) wins via
+        # _capture_for_parsing. With no capture and HTTP allowed, fetch now:
+        # NotFound/RateLimit stop extraction; any other failure (bot block,
+        # transport error) leaves html None so the Selenium fallback runs.
+        html_for_methods = self._capture_for_parsing(html_for_methods)
+        if not html_for_methods and not skip_http_methods:
+            # Tracked as its own metrics step: the fetch can now fail
+            # (404/rate-limit/bot block) before any parser runs, and that
+            # outcome must still show up in telemetry.
+            if metrics:
+                metrics.start_method("http_fetch")
+            try:
+                html_for_methods = self._fetch_page_html(url)
+                if metrics:
+                    metrics.end_method("http_fetch", True, None, {})
+            except (NotFoundError, RateLimitError) as e:
+                if metrics:
+                    metrics.end_method("http_fetch", False, str(e), {})
+                raise
+            except Exception as e:
+                if metrics:
+                    metrics.end_method("http_fetch", False, str(e), {})
+                logger.info(f"HTTP capture failed for {url}: {e}; will try Selenium")
+                html_for_methods = None
+
+        # Try mcmetadata first if enabled (skip for selenium_only domains).
+        # Guarded on html_for_methods so mcmetadata can NEVER be handed a
+        # bare URL -- that would trip its vendored self-fetcher (un-proxied,
+        # pod-IP egress).
+        if self._mcmetadata_enabled() and not skip_http_methods and html_for_methods:
             try:
                 logger.info(f"Attempting mcmetadata extraction for {url}")
                 if metrics:
                     metrics.start_method("mcmetadata")
 
-                html_for_methods = self._capture_for_parsing(html_for_methods)
-                mcmetadata_result = self._extract_with_mcmetadata(
+                mcmetadata_result = self._parse_with_mcmetadata(
                     url,
                     html_for_methods,
                     include_other_metadata=self.mcmetadata_include_other_metadata,
@@ -2709,6 +2739,7 @@ class ContentExtractor:
             NEWSPAPER_AVAILABLE
             and (not self._mcmetadata_enabled() or missing_fields)
             and not skip_http_methods
+            and bool(html_for_methods)
         )
         if use_newspaper:
             try:
@@ -2716,8 +2747,7 @@ class ContentExtractor:
                 if metrics:
                     metrics.start_method("newspaper4k")
 
-                html_for_methods = self._capture_for_parsing(html_for_methods)
-                newspaper_result = self._extract_with_newspaper(url, html_for_methods)
+                newspaper_result = self._parse_with_newspaper(url, html_for_methods)
 
                 if newspaper_result:
                     self._merge_extraction_results(
@@ -2800,10 +2830,10 @@ class ContentExtractor:
         self._apply_cms_metadata_fallback(result)
         missing_fields = self._get_missing_fields(result)
 
-        # Try BeautifulSoup fallback for missing fields
-        # For selenium_only domains without pre-fetched HTML, skip to Selenium
-        has_html_for_bs = html_for_methods or (result.get("metadata", {}).get("html"))
-        if missing_fields and (has_html_for_bs or not skip_http_methods):
+        # Try BeautifulSoup fallback for missing fields. Parser-only now, so
+        # it only runs when we actually have a capture to parse; otherwise
+        # the Selenium fallback below is the next step.
+        if missing_fields and html_for_methods:
             try:
                 logger.info(
                     f"Attempting BeautifulSoup fallback for missing "
@@ -2812,11 +2842,7 @@ class ContentExtractor:
                 if metrics:
                     metrics.start_method("beautifulsoup")
 
-                # Was passing `html` — the untouched extract_content parameter,
-                # None for every production call — so this re-fetched even
-                # though the guard above had just confirmed a capture exists.
-                html_for_methods = self._capture_for_parsing(html_for_methods)
-                bs_result = self._extract_with_beautifulsoup(url, html_for_methods)
+                bs_result = self._parse_with_beautifulsoup(url, html_for_methods)
 
                 if bs_result:
                     # Only copy missing fields
@@ -3341,7 +3367,298 @@ class ContentExtractor:
 
         return bool(title) or (bool(content) and len(content) > 100)
 
-    def _extract_with_mcmetadata(
+    def _fetch_page_html(self, url: str) -> str:
+        """Fetch page HTML ONCE via the proxied per-domain session.
+
+        This is the crawler's single HTTP capture step -- the ONLY place
+        (besides Selenium) that touches a live domain. The parsers
+        (mcmetadata, newspaper4k, BeautifulSoup) all parse the string this
+        returns; none of them fetch (fetch-once-parse-many). The session
+        carries the router-chosen Squid proxy and a rotated browser UA, and
+        every outcome is reported back to proxy_router.
+
+        Records per-fetch telemetry on self._last_fetch_proxy_metadata /
+        self._last_fetch_http_status for the parsers to attach to results.
+
+        Raises to signal how the caller should proceed:
+          - NotFoundError   404/410/permanent-4xx: stop all fallbacks
+          - RateLimitError  429/5xx/rate-limited: back off, stop this round
+          - Exception       bot protection / transport error: caller should
+                            fall through to Selenium
+        """
+        ttl = getattr(self, "dead_url_ttl", 0)
+        if ttl and url in getattr(self, "dead_urls", {}):
+            if time.time() < self.dead_urls[url]:
+                raise NotFoundError(f"URL is cached dead: {url}")
+
+        domain = urlparse(url).netloc
+        http_status = None
+        captured_html = None
+        self._last_fetch_proxy_metadata = {
+            "proxy_used": False,
+            "proxy_url": None,
+            "proxy_authenticated": False,
+            "proxy_status": None,
+            "proxy_error": None,
+            "router_proxy": None,
+        }
+        self._last_fetch_http_status = None
+
+        try:
+            session = self._get_domain_session(url)
+            if self._check_rate_limit(domain):
+                raise RateLimitError(f"Domain {domain} is rate limited")
+
+            with self._get_domain_lock(domain):
+                logger.info(f"📡 Fetching {url[:80]}... via session for {domain}")
+
+                request_headers = {}
+                referer = self._generate_referer(url)
+                if referer:
+                    request_headers["Referer"] = referer
+                    logger.debug(f"Using Referer: {referer}")
+
+                response = None
+                amp_supported = self._get_domain_amp_support(domain)
+                if amp_supported is True:
+                    logger.info(
+                        f"🔄 Domain {domain} known to support AMP, trying AMP first"
+                    )
+                    for amp_url in self._convert_to_amp_url(url):
+                        try:
+                            logger.info(f"📡 Fetching AMP URL: {amp_url}")
+                            response = session.get(
+                                amp_url,
+                                timeout=self.timeout,
+                                headers=request_headers,
+                            )
+                            if response.status_code == 200 and self._validate_amp_page(
+                                response.text
+                            ):
+                                logger.info(
+                                    f"✅ Successfully fetched AMP page for {domain}"
+                                )
+                                http_status = 200
+                                captured_html = response.text
+                                self.bot_sensitivity_manager.record_bot_detection(
+                                    host=domain,
+                                    url=url,
+                                    event_type="amp_preemptive_success",
+                                    http_status_code=200,
+                                    response_indicators={"amp_url": amp_url},
+                                )
+                                break
+                        except Exception as amp_e:
+                            logger.debug(
+                                f"AMP preemptive fetch failed: {amp_url} - {amp_e}"
+                            )
+                            continue
+
+                    if not captured_html:
+                        logger.warning("AMP preemptive fetch failed, trying normal URL")
+                        response = session.get(
+                            url, timeout=self.timeout, headers=request_headers
+                        )
+                else:
+                    response = session.get(
+                        url, timeout=self.timeout, headers=request_headers
+                    )
+
+            http_status = response.status_code
+
+            session_proxies = getattr(session, "proxies", None)
+            session_proxy_url = None
+            if isinstance(session_proxies, dict):
+                session_proxy_url = session_proxies.get("https") or session_proxies.get(
+                    "http"
+                )
+            if not isinstance(session_proxy_url, str):
+                session_proxy_url = None
+            router_proxy = self.domain_router_proxy.get(domain)
+            fetch_meta: Dict[str, Any] = {
+                "proxy_used": bool(session_proxy_url),
+                "proxy_url": mask_proxy_url(session_proxy_url),
+                "proxy_authenticated": "@" in (session_proxy_url or ""),
+                "proxy_status": http_status,
+                "proxy_error": None,
+                "router_proxy": router_proxy.value if router_proxy else None,
+            }
+            self._last_fetch_proxy_metadata = fetch_meta
+
+            logger.info(
+                f"📥 Received {http_status} for {domain} "
+                f"(content: {len(response.text) if response.text else 0} bytes)"
+            )
+
+            if captured_html:
+                # AMP-preemptive already succeeded above.
+                pass
+            elif http_status == 429:
+                logger.warning(f"Rate limited (429) by {domain}")
+                self._handle_rate_limit_error(domain, response)
+                self.bot_sensitivity_manager.record_bot_detection(
+                    host=domain,
+                    url=url,
+                    event_type="rate_limit_429",
+                    http_status_code=429,
+                )
+                raise RateLimitError(f"Rate limited (429) by {domain}")
+            elif http_status in [401, 403, 502, 503, 504]:
+                assert response is not None
+                protection_type = self._detect_bot_protection_in_response(response)
+                if protection_type:
+                    self._record_bot_protection_detection(
+                        protection_type=protection_type,
+                        status_code=http_status,
+                        source="http_fetch",
+                    )
+                    captured_html = self._try_amp_bypass_for_protection(
+                        url, domain, protection_type, response, request_headers
+                    )
+                    if not captured_html:
+                        raise Exception(
+                            f"Bot protection on {domain}: "
+                            f"{protection_type} ({http_status}) - will try Selenium"
+                        )
+                else:
+                    logger.warning(
+                        f"Server error ({http_status}) by {domain} - "
+                        f"{response.text[:200] if response.text else 'empty'}"
+                    )
+                    self._handle_rate_limit_error(domain, response)
+                    raise Exception(
+                        f"Server error ({http_status}) on {domain} - will try Selenium"
+                    )
+            elif http_status in (404, 410):
+                if ttl:
+                    self.dead_urls[url] = time.time() + ttl
+                logger.warning(f"Permanent missing ({http_status}) for {url}; caching")
+                raise NotFoundError(f"URL returned {http_status}: {url}")
+            elif http_status == 200:
+                self._reset_error_count(domain)
+                self.proxy_manager.record_success(
+                    response_time=response.elapsed.total_seconds()
+                )
+                self.proxy_manager.report_domain_result(
+                    domain,
+                    router_proxy,
+                    success=True,
+                    service="newscrawler",
+                )
+                captured_html = response.text
+                ua = self.domain_user_agents.get(domain, "Unknown")
+                logger.info(
+                    f"✅ Successfully fetched {len(captured_html)} bytes from "
+                    f"{domain} (UA: {ua[:30]}...)"
+                )
+            elif 400 <= http_status < 500:
+                logger.warning(f"Client error ({http_status}) for {url}")
+                if http_status in (400, 405, 406, 451):
+                    if ttl:
+                        self.dead_urls[url] = time.time() + ttl
+                    raise NotFoundError(f"Client error ({http_status}): {url}")
+                raise RateLimitError(f"Client error ({http_status}) on {domain}")
+            elif 500 <= http_status < 600:
+                logger.warning(f"Server error ({http_status}) on {domain}")
+                self._handle_rate_limit_error(domain, response)
+                raise RateLimitError(f"Server error ({http_status}) on {domain}")
+            else:
+                logger.warning(f"Unexpected status {http_status} for {url}")
+                raise RateLimitError(f"Unexpected status ({http_status}) on {domain}")
+
+        except (RateLimitError, NotFoundError):
+            raise
+        except Exception as e:
+            # Transport/bot failure. Report it, escalate proxy, and re-raise
+            # so the caller falls through to Selenium. Deliberately NO
+            # newspaper article.download() fallback here -- that fetched
+            # directly from the pod IP, bypassing the proxy.
+            self.proxy_manager.report_domain_result(
+                domain,
+                self.domain_router_proxy.get(domain),
+                success=False,
+                reason=str(e)[:200],
+                service="newscrawler",
+            )
+            self._handle_connection_error_with_proxy_escalation(domain, e)
+            raise
+
+        self._last_fetch_http_status = http_status
+        self._update_wire_hints_from_html(captured_html, url)
+        self._record_raw_html(captured_html, "http")
+        return captured_html
+
+    def _try_amp_bypass_for_protection(
+        self, url, domain, protection_type, response, request_headers
+    ) -> Optional[str]:
+        """AMP-bypass attempt for a bot-protected page. Returns AMP HTML on
+        success (PerimeterX only), else None so the caller escalates to
+        Selenium. Extracted verbatim from the old newspaper fetch path."""
+        if protection_type != "perimeterx":
+            is_captcha = self._is_js_required_protection(protection_type)
+            if is_captcha:
+                self._mark_domain_special_extraction(domain, protection_type)
+            self.bot_sensitivity_manager.record_bot_detection(
+                host=domain,
+                url=url,
+                event_type="captcha_detected" if is_captcha else "403_forbidden",
+                http_status_code=response.status_code,
+                response_indicators={"protection_type": protection_type},
+            )
+            return None
+
+        logger.info(f"🔄 Attempting AMP bypass for PerimeterX on {domain}")
+        session = self._get_domain_session(url)
+        for amp_url in self._convert_to_amp_url(url):
+            try:
+                logger.info(f"📡 Trying AMP URL: {amp_url}")
+                amp_response = session.get(
+                    amp_url, timeout=self.timeout, headers=request_headers
+                )
+                if amp_response.status_code == 200 and self._validate_amp_page(
+                    amp_response.text
+                ):
+                    logger.info(f"✅ AMP bypass successful for {domain}!")
+                    self._mark_domain_amp_supported(domain, True)
+                    self.bot_sensitivity_manager.record_bot_detection(
+                        host=domain,
+                        url=url,
+                        event_type="amp_bypass_success",
+                        http_status_code=200,
+                        response_indicators={
+                            "protection_type": protection_type,
+                            "amp_url": amp_url,
+                        },
+                    )
+                    self._reset_error_count(domain)
+                    self.proxy_manager.record_success(
+                        response_time=amp_response.elapsed.total_seconds()
+                    )
+                    self.proxy_manager.report_domain_result(
+                        domain,
+                        self.domain_router_proxy.get(domain),
+                        success=True,
+                        service="newscrawler",
+                    )
+                    return amp_response.text
+            except Exception as amp_e:
+                logger.debug(f"AMP URL failed: {amp_url} - {amp_e}")
+                continue
+
+        logger.warning(f"❌ AMP bypass failed for {domain}, trying Selenium")
+        self._mark_domain_amp_supported(domain, False)
+        self.bot_sensitivity_manager.record_bot_detection(
+            host=domain,
+            url=url,
+            event_type="amp_bypass_failure",
+            http_status_code=response.status_code,
+            response_indicators={"protection_type": protection_type},
+        )
+        if self._is_js_required_protection(protection_type):
+            self._mark_domain_special_extraction(domain, protection_type)
+        return None
+
+    def _parse_with_mcmetadata(
         self,
         url: str,
         html: Optional[str] = None,
@@ -3359,6 +3676,13 @@ class ContentExtractor:
 
         if not MCMETADATA_AVAILABLE:
             raise RuntimeError("mcmetadata library is not installed")
+
+        if not html:
+            # PARSER-ONLY. Never call mcmetadata.extract(url, html_text=None):
+            # that trips its vendored self-fetcher (un-proxied, pod-IP
+            # egress). The crawler fetches once via _fetch_page_html and
+            # passes html in. No html => nothing to parse.
+            raise RuntimeError("mcmetadata requires HTML; none was provided")
 
         include_other = (
             self.mcmetadata_include_other_metadata
@@ -3495,7 +3819,7 @@ class ContentExtractor:
             "metadata": metadata_payload,
         }
 
-    def _extract_with_newspaper(self, url: str, html: str = None) -> Dict[str, Any]:
+    def _parse_with_newspaper(self, url: str, html: str = None) -> Dict[str, Any]:
         """Extract content using newspaper4k library with cloudscraper support."""
         # Skip if known-dead URL
         ttl = getattr(self, "dead_url_ttl", 0)
@@ -3517,446 +3841,20 @@ class ContentExtractor:
             "router_proxy": None,
         }
 
-        if html:
-            # Use provided HTML
-            article.html = html
-        else:
-            # Use domain-specific session to fetch HTML
-            try:
-                session = self._get_domain_session(url)
-                domain = urlparse(url).netloc
-                # Respect domain backoff
-                if self._check_rate_limit(domain):
-                    raise RateLimitError(f"Domain {domain} is rate limited")
-                # Single in-flight per domain
-                with self._get_domain_lock(domain):
-                    logger.info(f"📡 Fetching {url[:80]}... via session for {domain}")
+        if not html:
+            # Parser-only: mcmetadata / newspaper4k / BeautifulSoup never
+            # fetch. The crawler fetches once (_fetch_page_html) and passes
+            # the HTML in. Being called without html means the fetch failed
+            # upstream and this parser has nothing to do.
+            return self._create_error_result(
+                url, "newspaper4k called without html", {"status": None}
+            )
 
-                    # Add Referer header for this specific request to look more natural
-                    request_headers = {}
-                    referer = self._generate_referer(url)
-                    if referer:
-                        request_headers["Referer"] = referer
-                        logger.debug(f"Using Referer: {referer}")
-
-                    # Check if domain is known to support AMP - try AMP first if so
-                    amp_supported = self._get_domain_amp_support(domain)
-                    if amp_supported is True:
-                        logger.info(
-                            f"🔄 Domain {domain} known to support AMP, trying AMP first"
-                        )
-                        amp_urls = self._convert_to_amp_url(url)
-
-                        for amp_url in amp_urls:
-                            try:
-                                logger.info(f"📡 Fetching AMP URL: {amp_url}")
-                                response = session.get(
-                                    amp_url,
-                                    timeout=self.timeout,
-                                    headers=request_headers,
-                                )
-
-                                if response.status_code == 200:
-                                    if self._validate_amp_page(response.text):
-                                        logger.info(
-                                            f"✅ Successfully fetched AMP page for {domain}"
-                                        )
-                                        http_status = 200
-                                        article.html = response.text
-
-                                        # Record AMP success
-                                        self.bot_sensitivity_manager.record_bot_detection(
-                                            host=domain,
-                                            url=url,
-                                            event_type="amp_preemptive_success",
-                                            http_status_code=200,
-                                            response_indicators={"amp_url": amp_url},
-                                        )
-
-                                        # Skip normal HTTP request, go directly to parsing
-                                        break
-                                    else:
-                                        logger.debug(
-                                            f"AMP URL succeeded but not valid AMP: {amp_url}"
-                                        )
-                                else:
-                                    logger.debug(
-                                        f"AMP URL returned {response.status_code}: {amp_url}"
-                                    )
-
-                            except Exception as amp_e:
-                                logger.debug(
-                                    f"AMP preemptive fetch failed: {amp_url} - {amp_e}"
-                                )
-                                continue
-
-                        # If we successfully got AMP HTML, skip the normal request
-                        if article.html:
-                            logger.info(f"✅ Using preemptive AMP fetch for {domain}")
-                        else:
-                            # AMP fetch failed, fall back to normal request
-                            logger.warning(
-                                "AMP preemptive fetch failed, trying normal URL"
-                            )
-                            response = session.get(
-                                url, timeout=self.timeout, headers=request_headers
-                            )
-                    else:
-                        # Domain not known to support AMP or unknown, use normal flow
-                        response = session.get(
-                            url, timeout=self.timeout, headers=request_headers
-                        )
-                http_status = response.status_code
-
-                # Capture which proxy this domain's session actually used, so
-                # per-article telemetry records the router's routing decision.
-                # session.proxies is a plain dict in production, but tests
-                # commonly patch _get_domain_session with a bare Mock() whose
-                # .proxies.get(...) auto-returns another Mock -- guard so that
-                # never breaks the string ops below.
-                session_proxies = getattr(session, "proxies", None)
-                session_proxy_url = None
-                if isinstance(session_proxies, dict):
-                    session_proxy_url = session_proxies.get(
-                        "https"
-                    ) or session_proxies.get("http")
-                if not isinstance(session_proxy_url, str):
-                    session_proxy_url = None
-                router_proxy = self.domain_router_proxy.get(domain)
-                proxy_metadata = {
-                    "proxy_used": bool(session_proxy_url),
-                    "proxy_url": mask_proxy_url(session_proxy_url),
-                    "proxy_authenticated": "@" in (session_proxy_url or ""),
-                    "proxy_status": http_status,
-                    "proxy_error": None,
-                    "router_proxy": router_proxy.value if router_proxy else None,
-                }
-
-                # Log response details
-                logger.info(
-                    f"📥 Received {http_status} for {domain} "
-                    f"(content: {len(response.text) if response.text else 0} bytes)"
-                )
-
-                # Check for rate limiting
-                if response.status_code == 429:
-                    logger.warning(f"Rate limited (429) by {domain}")
-                    self._handle_rate_limit_error(domain, response)
-                    # Record bot detection event
-                    self.bot_sensitivity_manager.record_bot_detection(
-                        host=domain,
-                        url=url,
-                        event_type="rate_limit_429",
-                        http_status_code=429,
-                    )
-                    # Raise exception to stop all fallback attempts
-                    raise RateLimitError(f"Rate limited (429) by {domain}")
-                elif response.status_code in [401, 403, 502, 503, 504]:
-                    # Detect specific bot protection type
-                    protection_type = self._detect_bot_protection_in_response(response)
-
-                    if protection_type:
-                        logger.warning(
-                            f"🚫 Bot protection detected ({response.status_code}, "
-                            f"{protection_type}) by {domain}"
-                        )
-
-                        self._record_bot_protection_detection(
-                            protection_type=protection_type,
-                            status_code=response.status_code,
-                            source="newspaper",
-                        )
-
-                        # Try AMP bypass for PerimeterX before marking domain or falling back
-                        if protection_type == "perimeterx":
-                            logger.info(
-                                f"🔄 Attempting AMP bypass for PerimeterX on {domain}"
-                            )
-
-                            amp_urls = self._convert_to_amp_url(url)
-                            amp_success = False
-
-                            for amp_url in amp_urls:
-                                try:
-                                    logger.info(f"📡 Trying AMP URL: {amp_url}")
-                                    amp_response = session.get(
-                                        amp_url,
-                                        timeout=self.timeout,
-                                        headers=request_headers,
-                                    )
-
-                                    if amp_response.status_code == 200:
-                                        if self._validate_amp_page(amp_response.text):
-                                            logger.info(
-                                                f"✅ AMP bypass successful for {domain}!"
-                                            )
-
-                                            # Mark domain as AMP-supported
-                                            self._mark_domain_amp_supported(
-                                                domain, True
-                                            )
-
-                                            # Record AMP bypass success
-                                            self.bot_sensitivity_manager.record_bot_detection(
-                                                host=domain,
-                                                url=url,
-                                                event_type="amp_bypass_success",
-                                                http_status_code=200,
-                                                response_indicators={
-                                                    "protection_type": protection_type,
-                                                    "amp_url": amp_url,
-                                                },
-                                            )
-
-                                            # Use AMP HTML for extraction
-                                            article.html = amp_response.text
-                                            http_status = 200
-                                            amp_success = True
-                                            break
-                                        else:
-                                            logger.debug(
-                                                f"AMP URL succeeded but invalid AMP: {amp_url}"
-                                            )
-                                    else:
-                                        logger.debug(
-                                            f"AMP URL returned {amp_response.status_code}"
-                                        )
-
-                                except Exception as amp_e:
-                                    logger.debug(f"AMP URL failed: {amp_url} - {amp_e}")
-                                    continue
-
-                            if amp_success:
-                                # Successfully bypassed with AMP, continue to parsing
-                                logger.info(
-                                    f"✅ Successfully used AMP to bypass PerimeterX on {domain}"
-                                )
-                                # Reset error count on success
-                                self._reset_error_count(domain)
-                                # Record proxy success
-                                response_time = amp_response.elapsed.total_seconds()
-                                self.proxy_manager.record_success(
-                                    response_time=response_time
-                                )
-                                self.proxy_manager.report_domain_result(
-                                    domain,
-                                    self.domain_router_proxy.get(domain),
-                                    success=True,
-                                    service="newscrawler",
-                                )
-                                # Update default response object so downstream logic (status checks) sees success
-                                response = amp_response
-                                # Note: article.html already set above, will parse after this block
-                            else:
-                                # AMP bypass failed, record and continue to fallback
-                                logger.warning(
-                                    f"❌ AMP bypass failed for {domain}, trying Selenium"
-                                )
-                                self._mark_domain_amp_supported(domain, False)
-
-                                # Record AMP bypass failure
-                                self.bot_sensitivity_manager.record_bot_detection(
-                                    host=domain,
-                                    url=url,
-                                    event_type="amp_bypass_failure",
-                                    http_status_code=response.status_code,
-                                    response_indicators={
-                                        "protection_type": protection_type,
-                                    },
-                                )
-
-                                # Continue with normal fallback flow
-                                if self._is_js_required_protection(protection_type):
-                                    self._mark_domain_special_extraction(
-                                        domain, protection_type
-                                    )
-
-                                # Record bot detection event
-                                is_captcha = self._is_js_required_protection(
-                                    protection_type
-                                )
-                                event_type = (
-                                    "captcha_detected"
-                                    if is_captcha
-                                    else "403_forbidden"
-                                )
-                                self.bot_sensitivity_manager.record_bot_detection(
-                                    host=domain,
-                                    url=url,
-                                    event_type=event_type,
-                                    http_status_code=response.status_code,
-                                    response_indicators={
-                                        "protection_type": protection_type
-                                    },
-                                )
-
-                                raise Exception(
-                                    f"Bot protection on {domain}: "
-                                    f"{protection_type} ({response.status_code}) - will try Selenium"
-                                )
-                        else:
-                            # Non-PerimeterX protection, use normal flow
-                            if self._is_js_required_protection(protection_type):
-                                self._mark_domain_special_extraction(
-                                    domain, protection_type
-                                )
-
-                            # Record bot detection event
-                            is_captcha = self._is_js_required_protection(
-                                protection_type
-                            )
-                            event_type = (
-                                "captcha_detected" if is_captcha else "403_forbidden"
-                            )
-                            self.bot_sensitivity_manager.record_bot_detection(
-                                host=domain,
-                                url=url,
-                                event_type=event_type,
-                                http_status_code=response.status_code,
-                                response_indicators={
-                                    "protection_type": protection_type
-                                },
-                            )
-
-                            # Raise regular Exception to allow Selenium fallback
-                            raise Exception(
-                                f"Bot protection on {domain}: "
-                                f"{protection_type} ({response.status_code}) - will try Selenium"
-                            )
-                    else:
-                        # Generic server error without bot protection indicators
-                        logger.warning(
-                            f"Server error ({response.status_code}) by {domain} "
-                            f"- response preview: {response.text[:200] if response.text else 'empty'}"
-                        )
-                        self._handle_rate_limit_error(domain, response)
-                        # Raise regular Exception to allow Selenium fallback
-                        raise Exception(
-                            f"Server error ({response.status_code}) on {domain} - will try Selenium"
-                        )
-
-                # Permanent missing -> cache as dead URL and raise exception
-                if response.status_code in (404, 410):
-                    if ttl:
-                        self.dead_urls[url] = time.time() + ttl
-                    logger.warning(
-                        f"Permanent missing ({response.status_code}) for {url}; caching"
-                    )
-                    # Raise NotFoundError to stop all fallback attempts immediately
-                    raise NotFoundError(f"URL returned {response.status_code}: {url}")
-
-                # Check if request was successful
-                if response.status_code == 200:
-                    # Note: Removed aggressive bot protection check in 200 responses
-                    # If page loaded successfully (200), attempt content extraction.
-                    # Real bot protection will result in extraction failure naturally.
-                    # False positives were causing legitimate pages to be incorrectly
-                    # paused after Chromedriver/stealth updates.
-
-                    # Reset error count on successful request
-                    self._reset_error_count(domain)
-
-                    # Record proxy success
-                    response_time = response.elapsed.total_seconds()
-                    self.proxy_manager.record_success(response_time=response_time)
-                    self.proxy_manager.report_domain_result(
-                        domain,
-                        self.domain_router_proxy.get(domain),
-                        success=True,
-                        service="newscrawler",
-                    )
-
-                    # Use the downloaded HTML content to parse the article
-                    article.html = response.text
-                    ua = self.domain_user_agents.get(domain, "Unknown")
-                    logger.info(
-                        f"✅ Successfully fetched {len(response.text)} bytes from {domain} "
-                        f"(UA: {ua[:30]}...)"
-                    )
-                elif 400 <= response.status_code < 500:
-                    # All other 4xx client errors (besides those explicitly
-                    # handled above). Examples: 400 Bad Request, 405 Method
-                    # Not Allowed, 406 Not Acceptable, 408 Request Timeout,
-                    # 451 Unavailable For Legal Reasons, etc.
-                    logger.warning(
-                        f"Client error ({response.status_code}) for {url}: "
-                        f"{response.text[:200] if response.text else 'empty'}"
-                    )
-                    # Determine appropriate exception type
-                    if response.status_code in (400, 405, 406, 451):
-                        # Permanent client errors - treat like 404
-                        if ttl:
-                            self.dead_urls[url] = time.time() + ttl
-                        raise NotFoundError(
-                            f"Client error ({response.status_code}): {url}"
-                        )
-                    else:
-                        # Other 4xx errors might be temporary (408, etc.)
-                        raise RateLimitError(
-                            f"Client error ({response.status_code}) on {domain}"
-                        )
-                elif 500 <= response.status_code < 600:
-                    # All other 5xx server errors (besides 502, 503, 504
-                    # handled above). Examples: 500 Internal Server Error,
-                    # 501 Not Implemented, 505 HTTP Version Not Supported
-                    logger.warning(
-                        f"Server error ({response.status_code}) on {domain}: "
-                        f"{response.text[:200] if response.text else 'empty'}"
-                    )
-                    self._handle_rate_limit_error(domain, response)
-                    raise RateLimitError(
-                        f"Server error ({response.status_code}) on {domain}"
-                    )
-                else:
-                    # Unexpected status code (1xx, 3xx, or something else)
-                    # 3xx should be handled automatically by requests, but just in case
-                    logger.warning(
-                        f"Unexpected status {response.status_code} for {url}"
-                    )
-                    raise RateLimitError(
-                        f"Unexpected status ({response.status_code}) on {domain}"
-                    )
-
-            except RateLimitError:
-                # Re-raise to stop all fallback attempts
-                raise
-            except NotFoundError:
-                # Re-raise to stop all fallback attempts
-                raise
-            except Exception as e:
-                logger.warning(
-                    f"Session fetch failed for {url}: {e}, "
-                    f"falling back to newspaper download"
-                )
-
-                # Escalate proxy if connection error detected
-                domain = urlparse(url).netloc
-                self._handle_connection_error_with_proxy_escalation(domain, e)
-
-                # Fallback to newspaper4k's built-in download
-                try:
-                    article.download()
-                except Exception as download_e:
-                    # Try to extract HTTP status from newspaper4k error message
-                    error_str = str(download_e)
-                    if "Status code" in error_str:
-                        import re
-
-                        status_match = re.search(r"Status code (\d+)", error_str)
-                        if status_match:
-                            http_status = int(status_match.group(1))
-                            logger.warning(
-                                "Newspaper4k download failed with status %s: %s",
-                                http_status,
-                                error_str,
-                            )
-                            if http_status in {401, 403, 429}:
-                                self._record_bot_protection_detection(
-                                    protection_type=None,
-                                    status_code=http_status,
-                                    source="newspaper",
-                                )
-                    raise download_e
+        article.html = html
+        proxy_metadata = dict(
+            getattr(self, "_last_fetch_proxy_metadata", None) or proxy_metadata
+        )
+        http_status = getattr(self, "_last_fetch_http_status", None)
 
         article.parse()
 
@@ -3986,106 +3884,13 @@ class ContentExtractor:
             "extracted_at": datetime.utcnow().isoformat(),
         }
 
-    def _extract_with_beautifulsoup(self, url: str, html: str = None) -> Dict[str, Any]:
+    def _parse_with_beautifulsoup(self, url: str, html: str = None) -> Dict[str, Any]:
         """Extract content using BeautifulSoup with bot-avoidance."""
-        # Lazily fetch HTML if not provided
         page_html = html
         if page_html is None:
-            try:
-                # Get domain-specific session with rotated user agent
-                session = self._get_domain_session(url)
-
-                # Additional headers for better bot-avoidance
-                headers = {
-                    "Accept": (
-                        "text/html,application/xhtml+xml,"
-                        "application/xml;q=0.9,image/webp,*/*;q=0.8"
-                    ),
-                    "Accept-Language": random.choice(self.accept_language_pool),
-                    "Accept-Encoding": random.choice(self.accept_encoding_pool),
-                    "Connection": "keep-alive",
-                    "Upgrade-Insecure-Requests": "1",
-                    "Sec-Fetch-Dest": "document",
-                    "Sec-Fetch-Mode": "navigate",
-                    "Sec-Fetch-Site": "none",
-                    "Cache-Control": "max-age=0",
-                }
-
-                # Temporarily update session headers (preserve existing)
-                original_headers = session.headers.copy()
-                session.headers.update(headers)
-
-                try:
-                    domain = urlparse(url).netloc
-                    if self._check_rate_limit(domain):
-                        raise RateLimitError(f"Domain {domain} is rate limited")
-                    with self._get_domain_lock(domain):
-                        resp = session.get(url, timeout=self.timeout)
-
-                    if resp.status_code in (404, 410):
-                        if getattr(self, "dead_url_ttl", 0):
-                            self.dead_urls[url] = time.time() + self.dead_url_ttl
-                        logger.warning(
-                            f"Permanent missing ({resp.status_code}) for {url}; caching"
-                        )
-                        # Gracefully stop fallback attempts for true 404/410 responses
-                        return {}
-
-                    # Check for rate limiting and server errors
-                    if resp.status_code == 429:
-                        logger.warning(f"Rate limited (429) by {domain}")
-                        raise RateLimitError(f"Rate limited (429) by {domain}")
-                    elif resp.status_code in [401, 403, 502, 503, 504]:
-                        protection_type = self._detect_bot_protection_in_response(resp)
-                        if protection_type:
-                            logger.warning(
-                                f"🚫 Bot protection detected ({resp.status_code}, {protection_type}) by {domain} during BeautifulSoup fallback"
-                            )
-                            self._record_bot_protection_detection(
-                                protection_type=protection_type,
-                                status_code=resp.status_code,
-                                source="beautifulsoup",
-                            )
-                            raise Exception(
-                                f"Bot protection on {domain}: {protection_type} ({resp.status_code}) - will try Selenium"
-                            )
-
-                        logger.warning(f"Server error ({resp.status_code}) by {domain}")
-                        raise Exception(
-                            f"Server error ({resp.status_code}) on {domain} - will try Selenium"
-                        )
-
-                    resp.raise_for_status()
-                    page_html = resp.text
-
-                    ua = self.domain_user_agents.get(domain, "Unknown")
-                    is_cloudscraper = (
-                        CLOUDSCRAPER_AVAILABLE and cloudscraper is not None
-                    )
-                    logger.debug(
-                        f"BeautifulSoup fetched {len(page_html)} chars "
-                        f"from {url} (cloudscraper: {is_cloudscraper}, "
-                        f"UA: {ua[:20]}...)"
-                    )
-
-                finally:
-                    # Restore original headers
-                    session.headers = original_headers
-
-            except RateLimitError:
-                # Propagate rate limiting up to extract_content so it can halt
-                raise
-            except NotFoundError:
-                # Propagate permanent missing errors to stop fallback cascade
-                raise
-            except Exception as e:
-                logger.warning(f"Failed to fetch page for extraction {url}: {e}")
-
-                # Escalate proxy if connection error detected
-                domain = urlparse(url).netloc
-                self._handle_connection_error_with_proxy_escalation(domain, e)
-
-                return {}
+            # Parser-only: BeautifulSoup never fetches. The crawler
+            # fetches once (_fetch_page_html) and passes the HTML in.
+            return {}
 
         self._update_wire_hints_from_html(page_html, url)
         self._record_raw_html(page_html, "beautifulsoup")
@@ -4504,7 +4309,7 @@ class ContentExtractor:
                     or result.get("_bot_protection_detected")
                 )
                 try:
-                    capture_result = self._extract_with_mcmetadata(url, capture)
+                    capture_result = self._parse_with_mcmetadata(url, capture)
                     if capture_result:
                         self._merge_extraction_results(
                             result,
