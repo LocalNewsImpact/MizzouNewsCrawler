@@ -106,6 +106,8 @@ class ExtractionMetrics:
         # 0=disabled, 1=success, 2=failed, 3=bypassed
         self.proxy_status: int | None = None
         self.proxy_error: str | None = None
+        # RouterProxy the shared proxy_router assigned (home_squid/mizzou_squid)
+        self.router_proxy: str | None = None
 
         # Driver metrics (ChromeDriver lifecycle, proxy provider health)
         self.driver_metrics: dict[str, Any] | None = None
@@ -176,6 +178,7 @@ class ExtractionMetrics:
                     proxy_authenticated=metadata.get("proxy_authenticated", False),
                     proxy_status=metadata.get("proxy_status"),
                     proxy_error=metadata.get("proxy_error"),
+                    router_proxy=metadata.get("router_proxy"),
                 )
 
     @staticmethod
@@ -257,6 +260,7 @@ class ExtractionMetrics:
         proxy_authenticated: bool = False,
         proxy_status: str | None = None,
         proxy_error: str | None = None,
+        router_proxy: str | None = None,
     ):
         """Record proxy-level metrics.
 
@@ -266,11 +270,17 @@ class ExtractionMetrics:
             proxy_authenticated: Whether proxy credentials were present
             proxy_status: Status of proxy usage: success, failed, bypassed, disabled
             proxy_error: Error message if proxy failed
+            router_proxy: RouterProxy the shared proxy_router assigned for this
+                domain (home_squid / mizzou_squid). proxy_url alone cannot
+                answer which physical proxy served the request -- it was often
+                None even when mizzou_squid was picked.
         """
         self.proxy_used = proxy_used
         self.proxy_url = proxy_url
         self.proxy_authenticated = proxy_authenticated
         self.proxy_status = proxy_status_to_int(proxy_status)
+        if router_proxy:
+            self.router_proxy = router_proxy
         if proxy_error:
             # Truncate long error messages
             self.proxy_error = proxy_error[:500]
@@ -402,7 +412,7 @@ class ComprehensiveExtractionTelemetry:
                 http_status_code, http_error_type,
                 response_size_bytes, response_time_ms,
                 proxy_used, proxy_url, proxy_authenticated,
-                proxy_status, proxy_error,
+                proxy_status, proxy_error, router_proxy,
                 methods_attempted, successful_method,
                 method_timings, method_success, method_errors,
                 field_extraction, extracted_fields,
@@ -410,7 +420,7 @@ class ComprehensiveExtractionTelemetry:
                 driver_metrics,
                 content_length, is_success, error_message, error_type,
                 created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
@@ -439,6 +449,7 @@ class ComprehensiveExtractionTelemetry:
                     ),
                     metrics.proxy_status,
                     metrics.proxy_error,
+                    metrics.router_proxy,
                     json.dumps(metrics.methods_attempted),
                     metrics.successful_method,
                     json.dumps(metrics.method_timings),
