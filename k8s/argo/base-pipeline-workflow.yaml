@@ -370,7 +370,16 @@ spec:
       backoff:
         duration: "5m"
         factor: 2
-        maxDuration: "20m"
+        # Extraction runs for hours by design (extract-batches defaults to
+        # 667). maxDuration bounds the *total* time across all retry
+        # attempts starting from the first attempt, not each attempt's own
+        # runtime -- at 20m, any transient failure on attempt 1 (a brief
+        # network blip, a spot-node preemption) truncated an otherwise
+        # healthy retry to whatever was left of that 20m window, silently
+        # cutting an hours-long run down to minutes. Matches the cron's
+        # 6-hour cadence so a retry gets the same runway a first attempt
+        # would have had.
+        maxDuration: "6h"
     container:
       image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:dcc138e
       imagePullPolicy: IfNotPresent
