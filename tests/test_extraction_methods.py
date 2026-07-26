@@ -145,7 +145,7 @@ class TestContentExtractor:
         monkeypatch.setattr(
             crawler_module.ContentExtractor,
             "_fetch_page_html",
-            lambda self, url: "<html>stubbed page</html>",
+            lambda self, url, metrics=None: "<html>stubbed page</html>",
         )
 
         def _convert_final_payload(payload: dict) -> dict:

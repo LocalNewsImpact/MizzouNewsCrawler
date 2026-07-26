@@ -2693,7 +2693,7 @@ class ContentExtractor:
             if metrics:
                 metrics.start_method("http_fetch")
             try:
-                html_for_methods = self._fetch_page_html(url)
+                html_for_methods = self._fetch_page_html(url, metrics=metrics)
                 if metrics:
                     metrics.end_method("http_fetch", True, None, {})
             except (NotFoundError, RateLimitError) as e:
@@ -3385,7 +3385,7 @@ class ContentExtractor:
 
         return bool(title) or (bool(content) and len(content) > 100)
 
-    def _fetch_page_html(self, url: str) -> str:
+    def _fetch_page_html(self, url: str, metrics=None) -> str:
         """Fetch page HTML ONCE via the proxied per-domain session.
 
         This is the crawler's single HTTP capture step -- the ONLY place
@@ -3483,6 +3483,24 @@ class ContentExtractor:
                     )
 
             http_status = response.status_code
+            if metrics is not None:
+                # set_http_metrics also derives http_error_type and records
+                # size/timing, which the old newspaper fetch supplied.
+                # Wrapped: telemetry must never be able to discard a capture
+                # we already hold (it did exactly that twice while building
+                # this -- a Mock response_time, then a wrong method name).
+                try:
+                    try:
+                        response_ms = float(response.elapsed.total_seconds()) * 1000
+                    except (TypeError, ValueError, AttributeError):
+                        response_ms = 0.0
+                    try:
+                        body_size = len(response.text or "")
+                    except (TypeError, AttributeError):
+                        body_size = 0
+                    metrics.set_http_metrics(http_status, body_size, response_ms)
+                except Exception as exc:
+                    logger.warning("http metrics recording failed: %s", exc)
 
             session_proxies = getattr(session, "proxies", None)
             session_proxy_url = None
@@ -3553,17 +3571,25 @@ class ContentExtractor:
                 logger.warning(f"Permanent missing ({http_status}) for {url}; caching")
                 raise NotFoundError(f"URL returned {http_status}: {url}")
             elif http_status == 200:
-                self._reset_error_count(domain)
-                self.proxy_manager.record_success(
-                    response_time=response.elapsed.total_seconds()
-                )
-                self.proxy_manager.report_domain_result(
-                    domain,
-                    router_proxy,
-                    success=True,
-                    service="newscrawler",
-                )
+                # Take the payload FIRST. Everything after this is
+                # bookkeeping, and bookkeeping must never be able to discard
+                # a page we already hold -- a Mock response_time in a test
+                # once threw inside record_success() and the broad handler
+                # below turned a good 200 capture into "capture failed".
                 captured_html = response.text
+                self._reset_error_count(domain)
+                try:
+                    self.proxy_manager.record_success(
+                        response_time=response.elapsed.total_seconds()
+                    )
+                    self.proxy_manager.report_domain_result(
+                        domain,
+                        router_proxy,
+                        success=True,
+                        service="newscrawler",
+                    )
+                except Exception as exc:
+                    logger.warning("proxy bookkeeping failed for %s: %s", domain, exc)
                 ua = self.domain_user_agents.get(domain, "Unknown")
                 logger.info(
                     f"✅ Successfully fetched {len(captured_html)} bytes from "
