@@ -623,7 +623,22 @@ jobs:
 
   update-versions-env:
     name: Update versions.env
-    needs: [detect-changes, wait-for-builds]
+    # The build-* jobs must be listed here, not just reached transitively via
+    # wait-for-builds: the `needs` context contains ONLY direct dependencies,
+    # so `needs.build-crawler.outputs.build_id` resolved to empty and this job
+    # reported success while updating nothing. k8s/versions.env consequently
+    # went un-updated from 2026-04-03 until this fix, leaving the committed
+    # tags months behind what is actually deployed.
+    needs:
+      [
+        detect-changes,
+        wait-for-builds,
+        build-base,
+        build-ml-base,
+        build-processor,
+        build-api,
+        build-crawler,
+      ]
     if: >-
       github.ref == 'refs/heads/main' &&
       (
@@ -666,8 +681,15 @@ jobs:
           if [ -n "$CRAWLER_BUILD_ID" ]; then ARGS+=(--crawler "$SHORT"); fi
           if [ -n "$API_BUILD_ID" ]; then ARGS+=(--api "$SHORT"); fi
           if [ ${#ARGS[@]} -eq 0 ]; then
-            echo "No services requested a versions update"
-            exit 0
+            # This job's `if:` already established that at least one build ran,
+            # so reaching here means the build IDs did not resolve -- the exact
+            # silent no-op that left versions.env stale for ~4 months. Fail
+            # loudly rather than report success while doing nothing.
+            echo "::error::Build IDs did not resolve despite this job being" \
+                 "triggered by a build. Check that every build-* job is listed" \
+                 "in this job's needs: -- the needs context only exposes direct" \
+                 "dependencies, so transitive access via wait-for-builds is empty."
+            exit 1
           fi
           ./scripts/update-versions-env.sh "${ARGS[@]}"
           if git diff --quiet k8s/versions.env k8s/argo/base-pipeline-workflow.yaml; then
