@@ -312,3 +312,85 @@ def looks_like_furniture(text: str) -> bool:
     if utility_word_rate(text) > MAX_UTILITY_WORD_RATE:
         return True
     return capitalization_ratio(text) > MAX_CAPITALIZATION
+
+
+# Paywall/registration prompts specifically, as opposed to the consent banners
+# and comment-policy blocks that BOILERPLATE_MARKERS also covers. Same
+# derivation discipline: phrase-level, because bare words like "subscribe"
+# occur inside real reporting ("subscribers to the service said...") while
+# whole prompts do not.
+#
+# Split out from BOILERPLATE_MARKERS because the two answer different
+# questions. That list asks "should this segment be stripped?"; this one asks
+# "is the page a wall instead of a story?" -- which decides whether a browser
+# would help (it would not; the wall is served to browsers too) and whether the
+# record should be filed as paywalled rather than retried.
+# Moved here verbatim from content_cleaner_balanced.py so the cleaner and the
+# capture gate read ONE list instead of drifting apart. The cleaner strips
+# these; note it deliberately includes newsletter asks ("subscribe to our
+# newsletter"), which are furniture but NOT walls -- a newsletter prompt sits
+# beside a readable story.
+SUBSCRIPTION_MARKERS: tuple[str, ...] = (
+    "subscribe to our newsletter",
+    "sign up for updates",
+    "get daily updates",
+    "subscribe now",
+    "join our mailing list",
+    "email updates",
+    "available in full to subscribers",
+    "this item is available in full to subscribers",
+    "to continue reading please log in or subscribe",
+    "to continue reading please login or subscribe",
+    "please log in to continue reading",
+    "please login to continue reading",
+    "need an account print subscribers",
+)
+
+# The wall-specific subset, plus prompts observed in production that the
+# stripping list does not carry (greenfieldvedette.com serves "This content is
+# for subscribers only"). Newsletter asks are excluded on purpose: they are
+# furniture on a readable page, not a wall in place of one.
+PAYWALL_MARKERS: tuple[str, ...] = tuple(
+    dict.fromkeys(
+        (
+            "available in full to subscribers",
+            "this item is available in full to subscribers",
+            "to continue reading please log in or subscribe",
+            "to continue reading please login or subscribe",
+            "please log in to continue reading",
+            "please login to continue reading",
+            "need an account print subscribers",
+            # observed in production, absent from the stripping list
+            "this content is for subscribers only",
+            "login to continue reading",
+            "please log in to continue",
+            "sign up for complimentary access",
+            "click here to see your options for becoming a subscriber",
+            "otherwise, click here to view your options for subscribing",
+            "click here to start your free trial",
+            "subscribe to continue reading",
+            "to continue reading, please subscribe",
+            "start your free trial",
+            "for subscribers only",
+        )
+    )
+)
+
+
+def looks_like_paywall(text: str | None) -> str | None:
+    """The paywall prompt a body contains, or None.
+
+    Returns the matched phrase rather than a bool so callers can record WHICH
+    prompt fired -- the same reasoning as capture-quality telemetry: a verdict
+    you cannot audit is a verdict you cannot tune.
+
+    Matches on the raw body, NOT the stripped one: strip_boilerplate removes
+    these very phrases, so checking after the strip would find nothing.
+    """
+    if not text:
+        return None
+    lowered = text.lower()
+    for marker in PAYWALL_MARKERS:
+        if marker in lowered:
+            return marker
+    return None

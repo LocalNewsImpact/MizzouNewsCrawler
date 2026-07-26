@@ -2164,5 +2164,13 @@ class SourceProcessor:
         if stats["articles_expired"] > 0:
             return DiscoveryOutcome.EXPIRED_ONLY
         if stats["articles_found_total"] == 0:
+            # Zero links has three different causes with three different
+            # fixes. Report which one, when the fetch layer recorded a
+            # diagnosis; fall back to the old catch-all when it did not.
+            diagnosis = stats.get("capture_diagnosis")
+            if diagnosis == "paywall":
+                return DiscoveryOutcome.PAYWALL_BLOCKED
+            if diagnosis == "render_required":
+                return DiscoveryOutcome.RENDER_REQUIRED
             return DiscoveryOutcome.NO_ARTICLES_FOUND
         return DiscoveryOutcome.UNKNOWN_ERROR
