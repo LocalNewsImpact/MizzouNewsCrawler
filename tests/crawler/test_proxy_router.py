@@ -71,25 +71,53 @@ def _doc_id(proxy, domain):
     return proxy_router._doc_id(proxy, domain)
 
 
+# Domains with known md5-sticky assignments (see assigned_proxy):
+#   example.com / js-heavy.com / blocked.com / beta.com -> HOME_SQUID
+#   wsj.com / unrelated.com / alpha.com                 -> MIZZOU_SQUID
+_HOME_DOMAIN = "example.com"
+_MIZZOU_DOMAIN = "alpha.com"
+
+
+class TestLoadBalancing:
+    def test_assignment_is_stable_and_covers_both_proxies(self):
+        domains = [f"paper-{i}.example.com" for i in range(40)]
+        first_pass = [proxy_router.assigned_proxy(d) for d in domains]
+        second_pass = [proxy_router.assigned_proxy(d) for d in domains]
+
+        assert first_pass == second_pass  # sticky
+        assert set(first_pass) == {
+            RouterProxy.HOME_SQUID,
+            RouterProxy.MIZZOU_SQUID,
+        }  # both proxies actually take load
+
+    def test_assignment_is_case_insensitive(self):
+        assert proxy_router.assigned_proxy("Example.COM") == (
+            proxy_router.assigned_proxy("example.com")
+        )
+
+
 class TestGetProxyFor:
-    def test_no_history_picks_first_preference_with_http(self, mock_firestore):
-        choice = get_proxy_for("example.com")
+    def test_no_history_uses_sticky_assignment(self, mock_firestore):
+        home_choice = get_proxy_for(_HOME_DOMAIN)
+        mizzou_choice = get_proxy_for(_MIZZOU_DOMAIN)
 
-        assert choice.proxy == RouterProxy.HOME_SQUID
-        assert choice.method == "http"
-        assert choice.all_blocked is False
+        assert home_choice.proxy == RouterProxy.HOME_SQUID
+        assert mizzou_choice.proxy == RouterProxy.MIZZOU_SQUID
+        assert home_choice.method == "http"
+        assert home_choice.all_blocked is False
 
-    def test_blocked_home_squid_falls_through_to_mizzou(self, mock_firestore):
+    def test_blocked_assigned_proxy_fails_over_to_other(self, mock_firestore):
         _, docs = mock_firestore
         future = datetime.now(timezone.utc) + timedelta(minutes=10)
-        docs[_doc_id(RouterProxy.HOME_SQUID, "wsj.com")] = _mock_doc(
+        docs[_doc_id(RouterProxy.HOME_SQUID, _HOME_DOMAIN)] = _mock_doc(
             True, {"blocked_until": future, "consecutive_failures": 3}
         )
 
-        choice = get_proxy_for("wsj.com")
+        choice = get_proxy_for(_HOME_DOMAIN)
 
         assert choice.proxy == RouterProxy.MIZZOU_SQUID
         assert choice.all_blocked is False
+        assert choice.reason.startswith("failover from home_squid")
 
     def test_all_proxies_blocked_returns_soonest_and_flags_it(self, mock_firestore):
         _, docs = mock_firestore
@@ -106,18 +134,21 @@ class TestGetProxyFor:
         assert choice.all_blocked is True
         assert choice.proxy == RouterProxy.MIZZOU_SQUID  # soonest to free up
 
-    def test_prefers_fewest_failures_over_static_order(self, mock_firestore):
+    def test_sticky_wins_even_with_more_failures_while_unblocked(self, mock_firestore):
+        """Failure count alone must not bounce a domain between egress IPs;
+        only an actual backoff (blocked_until) triggers failover."""
         _, docs = mock_firestore
-        docs[_doc_id(RouterProxy.HOME_SQUID, "example.com")] = _mock_doc(
-            True, {"consecutive_failures": 5}
+        docs[_doc_id(RouterProxy.HOME_SQUID, _HOME_DOMAIN)] = _mock_doc(
+            True, {"consecutive_failures": 2}
         )
-        docs[_doc_id(RouterProxy.MIZZOU_SQUID, "example.com")] = _mock_doc(
+        docs[_doc_id(RouterProxy.MIZZOU_SQUID, _HOME_DOMAIN)] = _mock_doc(
             True, {"consecutive_failures": 0}
         )
 
-        choice = get_proxy_for("example.com")
+        choice = get_proxy_for(_HOME_DOMAIN)
 
-        assert choice.proxy == RouterProxy.MIZZOU_SQUID
+        assert choice.proxy == RouterProxy.HOME_SQUID
+        assert choice.reason.startswith("sticky assignment")
 
     def test_honors_stored_preferred_method(self, mock_firestore):
         _, docs = mock_firestore
@@ -139,25 +170,26 @@ class TestGetProxyFor:
 
         choice = get_proxy_for("unrelated.com")
 
-        assert choice.proxy == RouterProxy.HOME_SQUID
+        assert choice.proxy == proxy_router.assigned_proxy("unrelated.com")
+        assert choice.reason.startswith("sticky assignment")
         assert choice.all_blocked is False
 
-    def test_no_client_falls_back_to_static_default(self, monkeypatch):
+    def test_no_client_still_load_balances(self, monkeypatch):
+        """A Firestore outage costs failover, never the load balancing."""
         monkeypatch.setattr(proxy_router, "_get_client", lambda: None)
 
-        choice = get_proxy_for("example.com")
-
-        assert choice == ProxyChoice(
+        assert get_proxy_for(_HOME_DOMAIN) == ProxyChoice(
             proxy=RouterProxy.HOME_SQUID,
             method="http",
             reason=proxy_router._FALLBACK_CHOICE_REASON,
         )
+        assert get_proxy_for(_MIZZOU_DOMAIN).proxy == RouterProxy.MIZZOU_SQUID
 
-    def test_read_exception_falls_back_to_static_default(self, mock_firestore):
+    def test_read_exception_falls_back_to_sticky(self, mock_firestore):
         client, _ = mock_firestore
         client.collection.side_effect = RuntimeError("firestore on fire")
 
-        choice = get_proxy_for("example.com")
+        choice = get_proxy_for(_HOME_DOMAIN)
 
         assert choice.proxy == RouterProxy.HOME_SQUID
         assert choice.reason == proxy_router._FALLBACK_CHOICE_REASON

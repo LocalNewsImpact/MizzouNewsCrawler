@@ -54,7 +54,7 @@ def _result(**over):
 
 def test_capture_is_parsed_by_trafilatura_not_only_soup(extractor):
     """The point: the better parser reads the rendered page."""
-    extractor._extract_with_mcmetadata = lambda url, html=None, **kw: {
+    extractor._parse_with_mcmetadata = lambda url, html=None, **kw: {
         "title": "Headline from trafilatura",
         "content": TRAFILATURA_BODY,
         "publish_date": "2026-07-20",
@@ -72,7 +72,7 @@ def test_capture_is_parsed_by_trafilatura_not_only_soup(extractor):
 
 def test_soup_fills_only_what_trafilatura_left(extractor):
     """Selenium's own extraction is the last resort, not the default."""
-    extractor._extract_with_mcmetadata = lambda url, html=None, **kw: {
+    extractor._parse_with_mcmetadata = lambda url, html=None, **kw: {
         "content": TRAFILATURA_BODY,
         "metadata": {"meta_description": "d"},
     }
@@ -89,7 +89,7 @@ def test_soup_fills_only_what_trafilatura_left(extractor):
 
 def test_good_http_content_survives_an_author_only_escalation(extractor):
     """Escalating for a byline must not discard body text already extracted."""
-    extractor._extract_with_mcmetadata = lambda url, html=None, **kw: {}
+    extractor._parse_with_mcmetadata = lambda url, html=None, **kw: {}
     result = _result(
         title="Good HTTP headline",
         content=HTTP_BODY,
@@ -111,7 +111,7 @@ def test_good_http_content_survives_an_author_only_escalation(extractor):
 def test_bot_blocked_http_fields_are_replaced_by_the_capture_parse(extractor):
     """Challenge-page text is not worth preserving."""
     extractor._last_bot_protection_detection = {"type": "cloudflare"}
-    extractor._extract_with_mcmetadata = lambda url, html=None, **kw: {
+    extractor._parse_with_mcmetadata = lambda url, html=None, **kw: {
         "title": "Real headline",
         "content": TRAFILATURA_BODY,
         "metadata": {"meta_description": "d"},
@@ -137,7 +137,7 @@ def test_capture_parse_failure_falls_back_to_soup(extractor):
     def boom(url, html=None, **kw):
         raise RuntimeError("trafilatura exploded")
 
-    extractor._extract_with_mcmetadata = boom
+    extractor._parse_with_mcmetadata = boom
     result = _result()
 
     extractor._run_selenium_extraction(
@@ -149,7 +149,7 @@ def test_capture_parse_failure_falls_back_to_soup(extractor):
 
 def test_no_capture_recorded_still_works(extractor):
     extractor._raw_html_by_method = {}
-    extractor._extract_with_mcmetadata = lambda url, html=None, **kw: {
+    extractor._parse_with_mcmetadata = lambda url, html=None, **kw: {
         "content": "should not be used"
     }
     result = _result()

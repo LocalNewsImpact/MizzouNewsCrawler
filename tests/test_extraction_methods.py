@@ -134,7 +134,19 @@ class TestContentExtractor:
         crawler_module.mcmetadata = original_module
 
     def _install_mcmetadata_stub(self, monkeypatch, *, extract_result=None, error=None):
-        """Install a stub mcmetadata module for controlled responses."""
+        """Install a stub mcmetadata module for controlled responses.
+
+        Also stubs the crawler's single fetch step (_fetch_page_html):
+        parsers never fetch, so extract_content fetches once up front and
+        hands the HTML to every parser. These tests exercise the
+        merge/fallback logic, not transport, so the fetch is replaced with
+        canned HTML.
+        """
+        monkeypatch.setattr(
+            crawler_module.ContentExtractor,
+            "_fetch_page_html",
+            lambda self, url: "<html>stubbed page</html>",
+        )
 
         def _convert_final_payload(payload: dict) -> dict:
             converted = {
@@ -236,12 +248,12 @@ class TestContentExtractor:
         with (
             patch.object(
                 extractor,
-                "_extract_with_newspaper",
+                "_parse_with_newspaper",
                 return_value=newspaper_result,
             ),
             patch.object(
                 extractor,
-                "_extract_with_beautifulsoup",
+                "_parse_with_beautifulsoup",
                 return_value={},
             ),
             patch.object(
@@ -279,12 +291,12 @@ class TestContentExtractor:
         with (
             patch.object(
                 extractor,
-                "_extract_with_newspaper",
+                "_parse_with_newspaper",
                 return_value=newspaper_result,
             ),
             patch.object(
                 extractor,
-                "_extract_with_beautifulsoup",
+                "_parse_with_beautifulsoup",
                 return_value={},
             ),
             patch.object(
@@ -337,12 +349,12 @@ class TestContentExtractor:
 
         monkeypatch.setattr(
             extractor,
-            "_extract_with_newspaper",
+            "_parse_with_newspaper",
             fake_newspaper,
         )
         monkeypatch.setattr(
             extractor,
-            "_extract_with_beautifulsoup",
+            "_parse_with_beautifulsoup",
             fail_beautifulsoup,
         )
         monkeypatch.setattr(
@@ -412,12 +424,12 @@ class TestContentExtractor:
 
         monkeypatch.setattr(
             extractor,
-            "_extract_with_newspaper",
+            "_parse_with_newspaper",
             fake_newspaper,
         )
         monkeypatch.setattr(
             extractor,
-            "_extract_with_beautifulsoup",
+            "_parse_with_beautifulsoup",
             fake_beautifulsoup,
         )
         monkeypatch.setattr(
@@ -501,10 +513,8 @@ class TestContentExtractor:
             called["selenium"] = True
             return {}
 
-        monkeypatch.setattr(extractor, "_extract_with_newspaper", note_newspaper)
-        monkeypatch.setattr(
-            extractor, "_extract_with_beautifulsoup", note_beautifulsoup
-        )
+        monkeypatch.setattr(extractor, "_parse_with_newspaper", note_newspaper)
+        monkeypatch.setattr(extractor, "_parse_with_beautifulsoup", note_beautifulsoup)
         monkeypatch.setattr(extractor, "_extract_with_selenium", note_selenium)
 
         extractor.use_mcmetadata = True
@@ -577,10 +587,8 @@ class TestContentExtractor:
             return {}
 
         extractor.use_mcmetadata = True
-        monkeypatch.setattr(extractor, "_extract_with_newspaper", fake_newspaper)
-        monkeypatch.setattr(
-            extractor, "_extract_with_beautifulsoup", note_beautifulsoup
-        )
+        monkeypatch.setattr(extractor, "_parse_with_newspaper", fake_newspaper)
+        monkeypatch.setattr(extractor, "_parse_with_beautifulsoup", note_beautifulsoup)
         monkeypatch.setattr(extractor, "_extract_with_selenium", note_selenium)
 
         result = extractor.extract_content("https://example.com/partial")
@@ -622,7 +630,9 @@ class TestContentExtractor:
 
         def fake_beautifulsoup(url, html=None):
             call_order.append("beautifulsoup")
-            assert html is None  # mcmetadata failure should not provide HTML override
+            # fetch-once-parse-many: every parser gets the same capture,
+            # including after an earlier parser raised.
+            assert html == "<html>stubbed page</html>"
             return {
                 "url": url,
                 "title": "Fallback Title",
@@ -640,10 +650,8 @@ class TestContentExtractor:
             return {}
 
         extractor.use_mcmetadata = True
-        monkeypatch.setattr(extractor, "_extract_with_newspaper", fake_newspaper)
-        monkeypatch.setattr(
-            extractor, "_extract_with_beautifulsoup", fake_beautifulsoup
-        )
+        monkeypatch.setattr(extractor, "_parse_with_newspaper", fake_newspaper)
+        monkeypatch.setattr(extractor, "_parse_with_beautifulsoup", fake_beautifulsoup)
         monkeypatch.setattr(extractor, "_extract_with_selenium", fail_selenium)
 
         result = extractor.extract_content("https://example.com/boom")
@@ -672,7 +680,7 @@ class TestContentExtractor:
             </html>
             """)
 
-        result = extractor._extract_with_beautifulsoup(
+        result = extractor._parse_with_beautifulsoup(
             "https://www.kbia.org/example", html
         )
 
@@ -698,7 +706,7 @@ class TestContentExtractor:
             </html>
             """)
 
-        result = extractor._extract_with_beautifulsoup(
+        result = extractor._parse_with_beautifulsoup(
             "https://www.mexicoledger.com/example", html
         )
 
@@ -723,7 +731,7 @@ class TestContentExtractor:
             </html>
             """)
 
-        result = extractor._extract_with_beautifulsoup(
+        result = extractor._parse_with_beautifulsoup(
             "https://www.maconhomepress.com/example", html
         )
 
@@ -745,10 +753,8 @@ class TestContentExtractor:
         }
 
         with (
-            patch.object(
-                extractor, "_extract_with_newspaper", return_value=empty_result
-            ),
-            patch.object(extractor, "_extract_with_beautifulsoup", return_value={}),
+            patch.object(extractor, "_parse_with_newspaper", return_value=empty_result),
+            patch.object(extractor, "_parse_with_beautifulsoup", return_value={}),
             patch.object(extractor, "_extract_with_selenium", return_value={}),
         ):
             result = extractor.extract_content(url)
@@ -945,8 +951,8 @@ class TestRealWorldExtraction:
         print(f"{'=' * 60}")
 
         methods = [
-            ("newspaper4k", extractor._extract_with_newspaper),
-            ("beautifulsoup", extractor._extract_with_beautifulsoup),
+            ("newspaper4k", extractor._parse_with_newspaper),
+            ("beautifulsoup", extractor._parse_with_beautifulsoup),
             ("selenium", extractor._extract_with_selenium),
         ]
 
@@ -1000,8 +1006,8 @@ class TestRealWorldExtraction:
         # Track method calls by patching the methods
         method_calls = {"newspaper": 0, "beautifulsoup": 0, "selenium": 0}
 
-        original_newspaper = extractor._extract_with_newspaper
-        original_beautifulsoup = extractor._extract_with_beautifulsoup
+        original_newspaper = extractor._parse_with_newspaper
+        original_beautifulsoup = extractor._parse_with_beautifulsoup
         original_selenium = extractor._extract_with_selenium
 
         def track_newspaper(*args, **kwargs):
@@ -1017,8 +1023,8 @@ class TestRealWorldExtraction:
             return original_selenium(*args, **kwargs)
 
         with (
-            patch.object(extractor, "_extract_with_newspaper", track_newspaper),
-            patch.object(extractor, "_extract_with_beautifulsoup", track_beautifulsoup),
+            patch.object(extractor, "_parse_with_newspaper", track_newspaper),
+            patch.object(extractor, "_parse_with_beautifulsoup", track_beautifulsoup),
             patch.object(extractor, "_extract_with_selenium", track_selenium),
         ):
             try:
@@ -1094,7 +1100,9 @@ class TestNewspaperMethod:
             with patch.object(
                 extractor, "_get_domain_session", return_value=mock_session
             ):
-                result = extractor._extract_with_newspaper("https://test.com")
+                result = extractor._parse_with_newspaper(
+                    "https://test.com", mock_html_complete
+                )
 
                 assert result is not None
                 assert result["title"] == "Test Article Title"
@@ -1111,7 +1119,7 @@ class TestNewspaperMethod:
 
             # Should handle exception and return empty result
             try:
-                extractor._extract_with_newspaper("https://test.com")
+                extractor._parse_with_newspaper("https://test.com", "<html>page</html>")
                 assert False, "Expected exception to be raised"
             except Exception as e:
                 assert str(e) == "Parse error"
@@ -1145,7 +1153,9 @@ class TestNewspaperMethod:
             with patch.object(
                 extractor, "_get_domain_session", return_value=mock_session
             ):
-                result = extractor._extract_with_newspaper("https://test.com")
+                result = extractor._parse_with_newspaper(
+                    "https://test.com", mock_html_partial
+                )
 
                 assert result is not None
                 assert result["title"] == "Partial Article"
@@ -1168,7 +1178,9 @@ class TestBeautifulSoupMethod:
                 "_get_domain_session",
                 return_value=extractor.session,
             ):
-                result = extractor._extract_with_beautifulsoup("https://test.com")
+                result = extractor._parse_with_beautifulsoup(
+                    "https://test.com", mock_html_complete
+                )
 
             assert result is not None
             assert result["title"] == "Test Article Title"
@@ -1176,7 +1188,7 @@ class TestBeautifulSoupMethod:
 
     def test_beautifulsoup_with_provided_html(self, extractor, mock_html_complete):
         """Test BeautifulSoup extraction with pre-provided HTML."""
-        result = extractor._extract_with_beautifulsoup(
+        result = extractor._parse_with_beautifulsoup(
             "https://test.com", mock_html_complete
         )
 
@@ -1198,7 +1210,7 @@ class TestBeautifulSoupMethod:
                 return_value=extractor.session,
             ):
                 # Should return empty dict, not raise (graceful degradation)
-                result = extractor._extract_with_beautifulsoup("https://test.com")
+                result = extractor._parse_with_beautifulsoup("https://test.com", None)
                 assert result == {}
 
 
@@ -1269,8 +1281,11 @@ class TestFallbackMechanism:
     def test_complete_extraction_no_fallback(self, extractor, mock_html_complete):
         """Test that no fallback is needed when first method succeeds."""
         with (
-            patch.object(extractor, "_extract_with_newspaper") as mock_np,
-            patch.object(extractor, "_extract_with_beautifulsoup") as mock_bs,
+            patch.object(
+                extractor, "_fetch_page_html", return_value="<html>capture</html>"
+            ),
+            patch.object(extractor, "_parse_with_newspaper") as mock_np,
+            patch.object(extractor, "_parse_with_beautifulsoup") as mock_bs,
             patch.object(extractor, "_extract_with_selenium") as mock_sel,
         ):
             # Newspaper returns complete results
@@ -1314,8 +1329,11 @@ class TestFallbackMechanism:
         # missing, so the cascade otherwise launches a REAL Chrome for
         # https://test.com (~30-60s and network-dependent).
         with (
-            patch.object(extractor, "_extract_with_newspaper") as mock_np,
-            patch.object(extractor, "_extract_with_beautifulsoup") as mock_bs,
+            patch.object(
+                extractor, "_fetch_page_html", return_value="<html>capture</html>"
+            ),
+            patch.object(extractor, "_parse_with_newspaper") as mock_np,
+            patch.object(extractor, "_parse_with_beautifulsoup") as mock_bs,
             patch.object(extractor, "_extract_with_selenium", return_value={}),
         ):
             # Newspaper returns partial results
@@ -1360,8 +1378,11 @@ class TestFallbackMechanism:
     def test_full_cascade_to_selenium(self, extractor):
         """Test full cascade from newspaper → BeautifulSoup → Selenium."""
         with (
-            patch.object(extractor, "_extract_with_newspaper") as mock_np,
-            patch.object(extractor, "_extract_with_beautifulsoup") as mock_bs,
+            patch.object(
+                extractor, "_fetch_page_html", return_value="<html>capture</html>"
+            ),
+            patch.object(extractor, "_parse_with_newspaper") as mock_np,
+            patch.object(extractor, "_parse_with_beautifulsoup") as mock_bs,
             patch.object(extractor, "_extract_with_selenium") as mock_sel,
         ):
             # Newspaper fails completely
@@ -1410,7 +1431,12 @@ class TestMethodTracking:
     @pytest.mark.integration
     def test_extraction_methods_metadata(self, extractor):
         """Test that extraction methods are tracked in metadata."""
-        with patch.object(extractor, "_extract_with_newspaper") as mock_np:
+        with (
+            patch.object(
+                extractor, "_fetch_page_html", return_value="<html>capture</html>"
+            ),
+            patch.object(extractor, "_parse_with_newspaper") as mock_np,
+        ):
             mock_np.return_value = {
                 "title": "Test Title",
                 "author": "Test Author",
@@ -1440,8 +1466,8 @@ class TestEdgeCases:
     def test_all_methods_fail(self, extractor):
         """Test behavior when all extraction methods fail."""
         with (
-            patch.object(extractor, "_extract_with_newspaper", return_value={}),
-            patch.object(extractor, "_extract_with_beautifulsoup", return_value={}),
+            patch.object(extractor, "_parse_with_newspaper", return_value={}),
+            patch.object(extractor, "_parse_with_beautifulsoup", return_value={}),
             patch.object(extractor, "_extract_with_selenium", return_value={}),
         ):
             result = extractor.extract_content("https://test.com")
@@ -1464,9 +1490,7 @@ class TestEdgeCases:
             mock_session.return_value.get.side_effect = requests.Timeout("Timeout")
 
             # Call with no cached HTML - should handle timeout gracefully
-            result = extractor._extract_with_beautifulsoup(
-                "https://test.com", html=None
-            )
+            result = extractor._parse_with_beautifulsoup("https://test.com", html=None)
 
             # Should return empty dict when network fails
             assert result == {}
@@ -1477,9 +1501,7 @@ class TestEdgeCases:
                            <body><p>Unclosed tag</body></html>"""
 
         # BeautifulSoup should handle malformed HTML gracefully
-        result = extractor._extract_with_beautifulsoup(
-            "https://test.com", malformed_html
-        )
+        result = extractor._parse_with_beautifulsoup("https://test.com", malformed_html)
         assert result is not None
         assert result["title"] == "Test"
 

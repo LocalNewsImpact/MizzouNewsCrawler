@@ -52,25 +52,32 @@ def domain():
 
 
 class TestRealFirestoreRoundTrip:
-    def test_no_history_falls_back_to_static_preference(self, domain):
+    def test_no_history_uses_sticky_assignment(self, domain):
         choice = get_proxy_for(domain, service="test")
 
-        assert choice.proxy == RouterProxy.HOME_SQUID
+        assert choice.proxy == proxy_router.assigned_proxy(domain)
         assert choice.method == "http"
         assert choice.all_blocked is False
 
     def test_success_then_read_reflects_clear_state(self, domain):
-        report_result(domain, RouterProxy.HOME_SQUID, success=True, service="test")
+        sticky = proxy_router.assigned_proxy(domain)
+        report_result(domain, sticky, success=True, service="test")
 
         choice = get_proxy_for(domain, service="test")
 
-        assert choice.proxy == RouterProxy.HOME_SQUID
+        assert choice.proxy == sticky
         assert choice.all_blocked is False
 
-    def test_failure_backs_off_proxy_and_router_skips_it(self, domain):
+    def test_failure_backs_off_assigned_proxy_and_fails_over(self, domain):
+        sticky = proxy_router.assigned_proxy(domain)
+        other = (
+            RouterProxy.MIZZOU_SQUID
+            if sticky == RouterProxy.HOME_SQUID
+            else RouterProxy.HOME_SQUID
+        )
         report_result(
             domain,
-            RouterProxy.HOME_SQUID,
+            sticky,
             success=False,
             reason="403",
             service="test",
@@ -78,8 +85,9 @@ class TestRealFirestoreRoundTrip:
 
         choice = get_proxy_for(domain, service="test")
 
-        assert choice.proxy == RouterProxy.MIZZOU_SQUID
+        assert choice.proxy == other
         assert choice.all_blocked is False
+        assert choice.reason.startswith(f"failover from {sticky.value}")
 
     def test_repeated_failures_double_backoff_and_persist(self, domain):
         for _ in range(3):
@@ -107,14 +115,15 @@ class TestRealFirestoreRoundTrip:
         assert blocked_until < now + timedelta(seconds=expected_backoff + 30)
 
     def test_success_resets_failure_streak_after_failures(self, domain):
-        report_result(domain, RouterProxy.HOME_SQUID, success=False, reason="timeout")
-        report_result(domain, RouterProxy.HOME_SQUID, success=False, reason="timeout")
-        report_result(domain, RouterProxy.HOME_SQUID, success=True)
+        sticky = proxy_router.assigned_proxy(domain)
+        report_result(domain, sticky, success=False, reason="timeout")
+        report_result(domain, sticky, success=False, reason="timeout")
+        report_result(domain, sticky, success=True)
 
         choice = get_proxy_for(domain, service="test")
 
-        assert choice.proxy == RouterProxy.HOME_SQUID
-        assert choice.reason == "available, 0 recent failures"
+        assert choice.proxy == sticky
+        assert choice.reason == "sticky assignment, 0 recent failures"
 
     def test_all_proxies_blocked_flags_all_blocked_and_picks_soonest(self, domain):
         now = datetime.now(timezone.utc)
@@ -135,17 +144,24 @@ class TestRealFirestoreRoundTrip:
 
     def test_domains_are_isolated_in_real_firestore(self, domain):
         other_domain = f"other-{domain}"
-        report_result(domain, RouterProxy.HOME_SQUID, success=False, reason="403")
+        report_result(
+            domain,
+            proxy_router.assigned_proxy(domain),
+            success=False,
+            reason="403",
+        )
 
         choice = get_proxy_for(other_domain, service="test")
 
-        assert choice.proxy == RouterProxy.HOME_SQUID
+        assert choice.proxy == proxy_router.assigned_proxy(other_domain)
+        assert choice.reason.startswith("sticky assignment")
         assert choice.all_blocked is False
 
     def test_escalation_and_protection_type_persist_across_reads(self, domain):
+        sticky = proxy_router.assigned_proxy(domain)
         report_result(
             domain,
-            RouterProxy.HOME_SQUID,
+            sticky,
             success=False,
             protection_type="perimeterx",
             escalate_to_selenium=True,
@@ -154,11 +170,11 @@ class TestRealFirestoreRoundTrip:
 
         choice = get_proxy_for(domain, service="test")
 
-        assert choice.proxy != RouterProxy.HOME_SQUID
+        assert choice.proxy != sticky  # backed off -> failed over
         client = proxy_router._get_client()
         doc = (
             client.collection(proxy_router._FIRESTORE_COLLECTION)
-            .document(proxy_router._doc_id(RouterProxy.HOME_SQUID, domain))
+            .document(proxy_router._doc_id(sticky, domain))
             .get()
         )
         data = doc.to_dict()

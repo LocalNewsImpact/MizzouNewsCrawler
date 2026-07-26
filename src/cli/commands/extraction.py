@@ -678,11 +678,44 @@ def add_extraction_parser(subparsers):
     extract_parser.set_defaults(func=handle_extraction_command)
 
 
+def _set_proxy_env_safety_net() -> None:
+    """Point stray third-party fetchers at the proxy via env vars.
+
+    The session/router paths carry their own proxies explicitly; this is
+    the backstop for any library that opens its own connection (newspaper4k
+    internals, feedparser, future dependencies). Discovery has done the
+    same since day one (_set_global_proxy_env); extraction never did --
+    which is how mcmetadata's built-in fetcher, the week it went live as
+    the primary extractor, egressed directly from the pod IP with no test
+    or telemetry noticing.
+
+    NO_PROXY exempts cluster-internal services (work-queue), Google APIs
+    (Firestore/GCS/Cloud SQL admin), and the metadata server -- proxying
+    those through a residential Squid would break them.
+    """
+    proxy_url = os.getenv("SQUID_PROXY_URL")
+    if not proxy_url:
+        return
+
+    no_proxy = (
+        "localhost,127.0.0.1,169.254.169.254,metadata.google.internal,"
+        ".svc.cluster.local,.googleapis.com,.google.com"
+    )
+    for key in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
+        os.environ.setdefault(key, proxy_url)
+    for key in ("NO_PROXY", "no_proxy"):
+        existing = os.environ.get(key)
+        os.environ[key] = f"{existing},{no_proxy}" if existing else no_proxy
+    logger.info("🌍 Proxy env safety net set for third-party libraries")
+
+
 def handle_extraction_command(args) -> int:
     """Execute extraction command logic."""
     _ensure_crawler_dependencies()
     if ContentExtractor is None:  # pragma: no cover - defensive fallback
         raise RuntimeError("ContentExtractor dependency is unavailable")
+
+    _set_proxy_env_safety_net()
 
     extractor_cls = ContentExtractor
     process_accepts_db = "db" in inspect.signature(_process_batch).parameters

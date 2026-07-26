@@ -82,6 +82,12 @@ spec:
             secretKeyRef:
               name: squid-proxy-credentials
               key: squid-proxy-url
+        - name: MIZZOU_SQUID_PROXY_URL
+          valueFrom:
+            secretKeyRef:
+              name: squid-proxy-credentials
+              key: mizzou-squid-proxy-url
+              optional: true
               optional: true
         - name: SELENIUM_PROXY
           valueFrom:

@@ -310,7 +310,7 @@ class TestExtractionFlowWithSeleniumOnly:
         ):
             with patch.object(extractor, "_extract_with_selenium") as mock_selenium:
                 with patch.object(
-                    extractor, "_extract_with_mcmetadata"
+                    extractor, "_parse_with_mcmetadata"
                 ) as mock_mcmetadata:
                     mock_selenium.return_value = {
                         "title": "Test",
@@ -332,9 +332,7 @@ class TestExtractionFlowWithSeleniumOnly:
             return_value=("selenium", "perimeterx"),
         ):
             with patch.object(extractor, "_extract_with_selenium") as mock_selenium:
-                with patch.object(
-                    extractor, "_extract_with_newspaper"
-                ) as mock_newspaper:
+                with patch.object(extractor, "_parse_with_newspaper") as mock_newspaper:
                     mock_selenium.return_value = {
                         "title": "Test",
                         "text": "Content " * 50,
@@ -372,7 +370,7 @@ class TestExtractionFlowWithSeleniumOnly:
         with patch.object(
             extractor, "_get_domain_extraction_method", return_value=("http", None)
         ):
-            with patch.object(extractor, "_extract_with_mcmetadata") as mock_mcmetadata:
+            with patch.object(extractor, "_parse_with_mcmetadata") as mock_mcmetadata:
                 mock_mcmetadata.return_value = {
                     "title": "Test Article",
                     "text": "This is the article content with sufficient length.",
@@ -412,11 +410,16 @@ class TestHeadfulPrimarySelenium:
             ),
             patch.object(
                 extractor,
+                "_fetch_page_html",
+                return_value="<html>capture</html>",
+            ),
+            patch.object(
+                extractor,
                 "_run_selenium_extraction",
             ) as mock_selenium,
             patch.object(
                 extractor,
-                "_extract_with_mcmetadata",
+                "_parse_with_mcmetadata",
                 return_value=True,
             ) as mock_mcmetadata,
             patch.object(
@@ -453,21 +456,26 @@ class TestHeadfulPrimarySelenium:
             ),
             patch.object(
                 extractor,
+                "_fetch_page_html",
+                return_value="<html>capture</html>",
+            ),
+            patch.object(
+                extractor,
                 "_run_selenium_extraction",
             ) as mock_selenium,
             patch.object(
                 extractor,
-                "_extract_with_mcmetadata",
+                "_parse_with_mcmetadata",
                 return_value=True,  # mcmetadata succeeds
             ) as mock_mcmetadata,
             patch.object(
                 extractor,
-                "_extract_with_newspaper",
+                "_parse_with_newspaper",
                 return_value=True,  # newspaper succeeds
             ),
             patch.object(
                 extractor,
-                "_extract_with_beautifulsoup",
+                "_parse_with_beautifulsoup",
                 return_value=True,  # beautifulsoup succeeds
             ),
             patch.object(

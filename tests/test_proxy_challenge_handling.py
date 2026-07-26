@@ -174,7 +174,7 @@ class TestProxyChallengeErrorPreventsFallback:
     def test_proxy_challenge_stops_selenium_fallback(self, extractor):
         """Test that ProxyChallengeError from unblock proxy stops Selenium fallback."""
         with (
-            patch.object(extractor, "_extract_with_newspaper") as mock_np,
+            patch.object(extractor, "_parse_with_newspaper") as mock_np,
             patch.object(extractor, "_extract_with_unblock_proxy") as mock_unblock,
             patch.object(extractor, "_extract_with_selenium") as mock_sel,
             patch.object(extractor, "_get_domain_extraction_method") as mock_method,
@@ -206,9 +206,9 @@ class TestProxyChallengeErrorPreventsFallback:
     def test_proxy_challenge_in_extract_content_workflow(self, extractor):
         """Test full extract_content workflow with proxy challenge."""
         with (
-            patch.object(extractor, "_extract_with_newspaper") as mock_np,
+            patch.object(extractor, "_parse_with_newspaper") as mock_np,
             patch.object(extractor, "_extract_with_unblock_proxy") as mock_unblock,
-            patch.object(extractor, "_extract_with_beautifulsoup") as mock_bs,
+            patch.object(extractor, "_parse_with_beautifulsoup") as mock_bs,
             patch.object(extractor, "_extract_with_selenium") as mock_sel,
             patch.object(extractor, "_get_domain_extraction_method") as mock_method,
         ):

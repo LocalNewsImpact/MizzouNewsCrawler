@@ -64,7 +64,7 @@ class TestNotFoundErrorHandling:
             mock_session.return_value = mock_sess
 
             with pytest.raises(NotFoundError, match="URL returned 404"):
-                extractor._extract_with_newspaper("https://example.com/missing")
+                extractor._fetch_page_html("https://example.com/missing")
 
     def test_410_returns_structured_not_found(self, extractor, mock_response):
         """410 Gone response should raise NotFoundError immediately."""
@@ -74,15 +74,15 @@ class TestNotFoundErrorHandling:
             mock_session.return_value = mock_sess
 
             with pytest.raises(NotFoundError, match="URL returned 410"):
-                extractor._extract_with_newspaper("https://example.com/gone")
+                extractor._fetch_page_html("https://example.com/gone")
 
     def test_404_not_found_stops_extract_content_fallback(self, extractor):
         """
         Test that NotFoundError in newspaper4k stops BS/Selenium fallback.
         """
         with (
-            patch.object(extractor, "_extract_with_newspaper") as mock_np,
-            patch.object(extractor, "_extract_with_beautifulsoup") as mock_bs,
+            patch.object(extractor, "_fetch_page_html") as mock_np,
+            patch.object(extractor, "_parse_with_beautifulsoup") as mock_bs,
             patch.object(extractor, "_extract_with_selenium") as mock_sel,
         ):
 
@@ -101,8 +101,8 @@ class TestNotFoundErrorHandling:
     def test_410_gone_stops_extract_content_fallback(self, extractor):
         """Test that 410 Gone stops all fallback methods."""
         with (
-            patch.object(extractor, "_extract_with_newspaper") as mock_np,
-            patch.object(extractor, "_extract_with_beautifulsoup") as mock_bs,
+            patch.object(extractor, "_fetch_page_html") as mock_np,
+            patch.object(extractor, "_parse_with_beautifulsoup") as mock_bs,
             patch.object(extractor, "_extract_with_selenium") as mock_sel,
         ):
 
@@ -133,13 +133,13 @@ class TestRateLimitErrorHandling:
             mock_session.return_value = mock_sess
 
             with pytest.raises(RateLimitError, match="Rate limited \\(429\\)"):
-                extractor._extract_with_newspaper("https://example.com/article")
+                extractor._fetch_page_html("https://example.com/article")
 
     def test_rate_limit_error_stops_extract_content_fallback(self, extractor):
         """Test that RateLimitError stops BS/Selenium fallback."""
         with (
-            patch.object(extractor, "_extract_with_newspaper") as mock_np,
-            patch.object(extractor, "_extract_with_beautifulsoup") as mock_bs,
+            patch.object(extractor, "_fetch_page_html") as mock_np,
+            patch.object(extractor, "_parse_with_beautifulsoup") as mock_bs,
             patch.object(extractor, "_extract_with_selenium") as mock_sel,
         ):
 
@@ -165,7 +165,7 @@ class Test4xxClientErrorHandling:
             mock_session.return_value = mock_sess
 
             with pytest.raises(NotFoundError, match="Client error \\(400\\)"):
-                extractor._extract_with_newspaper("https://example.com/bad-request")
+                extractor._fetch_page_html("https://example.com/bad-request")
 
     def test_405_method_not_allowed_raises_not_found_error(
         self, extractor, mock_response
@@ -177,7 +177,7 @@ class Test4xxClientErrorHandling:
             mock_session.return_value = mock_sess
 
             with pytest.raises(NotFoundError, match="Client error \\(405\\)"):
-                extractor._extract_with_newspaper("https://example.com/no-get")
+                extractor._fetch_page_html("https://example.com/no-get")
 
     def test_406_not_acceptable_raises_not_found_error(self, extractor, mock_response):
         """Test that 406 Not Acceptable raises NotFoundError."""
@@ -187,7 +187,7 @@ class Test4xxClientErrorHandling:
             mock_session.return_value = mock_sess
 
             with pytest.raises(NotFoundError, match="Client error \\(406\\)"):
-                extractor._extract_with_newspaper("https://example.com/not-acceptable")
+                extractor._fetch_page_html("https://example.com/not-acceptable")
 
     def test_451_unavailable_for_legal_reasons_raises_not_found_error(
         self, extractor, mock_response
@@ -201,7 +201,7 @@ class Test4xxClientErrorHandling:
             mock_session.return_value = mock_sess
 
             with pytest.raises(NotFoundError, match="Client error \\(451\\)"):
-                extractor._extract_with_newspaper("https://example.com/blocked")
+                extractor._fetch_page_html("https://example.com/blocked")
 
     def test_408_request_timeout_raises_rate_limit_error(
         self, extractor, mock_response
@@ -213,17 +213,17 @@ class Test4xxClientErrorHandling:
             mock_session.return_value = mock_sess
 
             with pytest.raises(RateLimitError, match="Client error \\(408\\)"):
-                extractor._extract_with_newspaper("https://example.com/timeout")
+                extractor._fetch_page_html("https://example.com/timeout")
 
     def test_4xx_errors_stop_extract_content_fallback(self, extractor):
         """Test that 4xx errors stop BeautifulSoup/Selenium fallback."""
         with (
-            patch.object(extractor, "_extract_with_newspaper") as mock_newspaper,
-            patch.object(extractor, "_extract_with_beautifulsoup") as mock_bs,
+            patch.object(extractor, "_fetch_page_html") as mock_newspaper,
+            patch.object(extractor, "_parse_with_beautifulsoup") as mock_bs,
             patch.object(extractor, "_extract_with_selenium") as mock_sel,
         ):
 
-            # newspaper4k raises NotFoundError for 400
+            # The fetch raises NotFoundError for 400
             mock_newspaper.side_effect = NotFoundError(
                 "Client error (400): https://example.com/bad"
             )
@@ -252,7 +252,7 @@ class Test5xxServerErrorHandling:
             mock_session.return_value = mock_sess
 
             with pytest.raises(RateLimitError, match="Server error \\(500\\)"):
-                extractor._extract_with_newspaper("https://example.com/error")
+                extractor._fetch_page_html("https://example.com/error")
 
     def test_501_not_implemented_raises_rate_limit_error(
         self, extractor, mock_response
@@ -267,7 +267,7 @@ class Test5xxServerErrorHandling:
             mock_session.return_value = mock_sess
 
             with pytest.raises(RateLimitError, match="Server error \\(501\\)"):
-                extractor._extract_with_newspaper("https://example.com/not-impl")
+                extractor._fetch_page_html("https://example.com/not-impl")
 
     def test_505_http_version_not_supported_raises_rate_limit_error(
         self, extractor, mock_response
@@ -284,17 +284,17 @@ class Test5xxServerErrorHandling:
             mock_session.return_value = mock_sess
 
             with pytest.raises(RateLimitError, match="Server error \\(505\\)"):
-                extractor._extract_with_newspaper("https://example.com/version")
+                extractor._fetch_page_html("https://example.com/version")
 
     def test_5xx_errors_stop_extract_content_fallback(self, extractor):
         """Test that 5xx errors stop BeautifulSoup/Selenium fallback."""
         with (
-            patch.object(extractor, "_extract_with_newspaper") as mock_newspaper,
-            patch.object(extractor, "_extract_with_beautifulsoup") as mock_bs,
+            patch.object(extractor, "_fetch_page_html") as mock_newspaper,
+            patch.object(extractor, "_parse_with_beautifulsoup") as mock_bs,
             patch.object(extractor, "_extract_with_selenium") as mock_sel,
         ):
 
-            # newspaper4k raises RateLimitError for 500
+            # The fetch raises RateLimitError for 500
             mock_newspaper.side_effect = RateLimitError(
                 "Server error (500) on example.com"
             )
@@ -341,8 +341,8 @@ class TestExplicitlyHandledErrorCodes:
             mock_detect.return_value = "cloudflare"
 
             # Should raise Exception from download fallback
-            with pytest.raises(Exception, match="Download blocked"):
-                extractor._extract_with_newspaper("https://example.com/protected")
+            with pytest.raises(Exception, match="will try Selenium"):
+                extractor._fetch_page_html("https://example.com/protected")
 
     def test_502_bad_gateway_raises_rate_limit_error(self, extractor, mock_response):
         """Test that 502 Bad Gateway raises Exception when newspaper fallback also fails."""
@@ -372,8 +372,8 @@ class TestExplicitlyHandledErrorCodes:
             mock_detect.return_value = None  # No bot protection detected
 
             # Should raise Exception from download fallback
-            with pytest.raises(Exception, match="Download blocked"):
-                extractor._extract_with_newspaper("https://example.com/gateway")
+            with pytest.raises(Exception, match="will try Selenium"):
+                extractor._fetch_page_html("https://example.com/gateway")
 
     def test_503_service_unavailable_raises_rate_limit_error(
         self, extractor, mock_response
@@ -405,8 +405,8 @@ class TestExplicitlyHandledErrorCodes:
             mock_detect.return_value = None
 
             # Should raise Exception from download fallback
-            with pytest.raises(Exception, match="Download blocked"):
-                extractor._extract_with_newspaper("https://example.com/unavailable")
+            with pytest.raises(Exception, match="will try Selenium"):
+                extractor._fetch_page_html("https://example.com/unavailable")
 
     def test_504_gateway_timeout_raises_rate_limit_error(
         self, extractor, mock_response
@@ -438,8 +438,8 @@ class TestExplicitlyHandledErrorCodes:
             mock_detect.return_value = None
 
             # Should raise Exception from download fallback
-            with pytest.raises(Exception, match="Download blocked"):
-                extractor._extract_with_newspaper("https://example.com/timeout")
+            with pytest.raises(Exception, match="will try Selenium"):
+                extractor._fetch_page_html("https://example.com/timeout")
 
 
 class TestUnexpectedStatusCodes:
@@ -454,7 +454,7 @@ class TestUnexpectedStatusCodes:
             mock_session.return_value = mock_sess
 
             with pytest.raises(RateLimitError, match="Unexpected status \\(301\\)"):
-                extractor._extract_with_newspaper("https://example.com/moved")
+                extractor._fetch_page_html("https://example.com/moved")
 
 
 class TestSuccessfulExtraction:
@@ -477,12 +477,10 @@ class TestSuccessfulExtraction:
             mock_detect.return_value = None  # No bot protection
 
             # Should not raise exception
-            result = extractor._extract_with_newspaper("https://example.com/article")
+            result = extractor._fetch_page_html("https://example.com/article")
 
-            # Result should contain extracted data
-            assert result is not None
-            assert "url" in result
-            assert result["url"] == "https://example.com/article"
+            # The fetcher returns the page HTML for the parsers to use
+            assert result == "<html><body>Article content</body></html>"
 
 
 class TestFallbackBehavior:
@@ -494,8 +492,11 @@ class TestFallbackBehavior:
             patch.object(
                 extractor, "_get_domain_extraction_method", return_value=("http", None)
             ),
-            patch.object(extractor, "_extract_with_newspaper") as mock_newspaper,
-            patch.object(extractor, "_extract_with_beautifulsoup") as mock_bs,
+            patch.object(
+                extractor, "_fetch_page_html", return_value="<html>capture</html>"
+            ),
+            patch.object(extractor, "_parse_with_newspaper") as mock_newspaper,
+            patch.object(extractor, "_parse_with_beautifulsoup") as mock_bs,
             patch.object(extractor, "_get_missing_fields") as mock_missing,
         ):
 
@@ -532,8 +533,11 @@ class TestFallbackBehavior:
             patch.object(
                 extractor, "_get_domain_extraction_method", return_value=("http", None)
             ),
-            patch.object(extractor, "_extract_with_newspaper") as mock_newspaper,
-            patch.object(extractor, "_extract_with_beautifulsoup") as mock_bs,
+            patch.object(
+                extractor, "_fetch_page_html", return_value="<html>capture</html>"
+            ),
+            patch.object(extractor, "_parse_with_newspaper") as mock_newspaper,
+            patch.object(extractor, "_parse_with_beautifulsoup") as mock_bs,
             patch.object(extractor, "_get_missing_fields") as mock_missing,
         ):
 
@@ -579,7 +583,7 @@ class TestDeadURLCaching:
             url = "https://example.com/missing"
 
             with pytest.raises(NotFoundError, match="URL returned 404"):
-                extractor._extract_with_newspaper(url)
+                extractor._fetch_page_html(url)
 
         # Verify URL was cached as dead before exception was raised
         assert url in extractor.dead_urls
@@ -598,7 +602,7 @@ class TestDeadURLCaching:
             url = "https://example.com/bad"
 
             with pytest.raises(NotFoundError):
-                extractor._extract_with_newspaper(url)
+                extractor._fetch_page_html(url)
 
             # Verify URL was cached as dead
             assert url in extractor.dead_urls
@@ -619,7 +623,7 @@ class TestDeadURLCaching:
             url = "https://example.com/error"
 
             with pytest.raises(RateLimitError):
-                extractor._extract_with_newspaper(url)
+                extractor._fetch_page_html(url)
 
             # Verify URL was NOT cached (temporary error)
             assert url not in extractor.dead_urls
@@ -647,12 +651,12 @@ class TestMetricsTracking:
                     "https://example.com/missing", metrics=mock_metrics
                 )
 
-        # Should track the newspaper4k method attempt and failure
-        mock_metrics.start_method.assert_called_with("newspaper4k")
-        # end_method should be called with failure status
+        # The 404 now surfaces from the single fetch step, which runs
+        # before any parser -- so that is the step metrics must record.
+        mock_metrics.start_method.assert_called_with("http_fetch")
         assert mock_metrics.end_method.called
         call_args = mock_metrics.end_method.call_args
-        assert call_args[0][0] == "newspaper4k"  # method name
+        assert call_args[0][0] == "http_fetch"  # method name
         assert call_args[0][1] is False  # success=False
 
     def test_successful_extraction_tracks_metrics(self, extractor, mock_response):

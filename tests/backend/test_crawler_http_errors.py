@@ -67,7 +67,7 @@ class TestCrawlerHTTPErrorHandling:
         mock_session.get.return_value = mock_response
 
         with patch("cloudscraper.create_scraper", return_value=mock_session):
-            with patch.object(extractor, "_extract_with_beautifulsoup") as mock_bs:
+            with patch.object(extractor, "_parse_with_beautifulsoup") as mock_bs:
                 with pytest.raises(NotFoundError):
                     extractor.extract_content("https://example.com/missing")
 
@@ -120,7 +120,7 @@ class TestCrawlerHTTPErrorHandling:
 
         with patch("cloudscraper.create_scraper", return_value=mock_session):
             with (
-                patch.object(extractor, "_extract_with_beautifulsoup") as mock_bs,
+                patch.object(extractor, "_parse_with_beautifulsoup") as mock_bs,
                 patch.object(extractor, "_extract_with_selenium") as mock_selenium,
             ):
                 with pytest.raises(RateLimitError):
@@ -243,8 +243,11 @@ class TestCrawlerHTTPErrorHandling:
     def test_generic_exception_allows_fallback(self, extractor):
         """Generic exceptions (not NotFoundError/RateLimitError) allow fallback."""
         with (
-            patch.object(extractor, "_extract_with_newspaper") as mock_newspaper,
-            patch.object(extractor, "_extract_with_beautifulsoup") as mock_bs,
+            patch.object(
+                extractor, "_fetch_page_html", return_value="<html>capture</html>"
+            ),
+            patch.object(extractor, "_parse_with_newspaper") as mock_newspaper,
+            patch.object(extractor, "_parse_with_beautifulsoup") as mock_bs,
         ):
             # Newspaper fails with generic exception
             mock_newspaper.side_effect = RuntimeError("Parse error")
