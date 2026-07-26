@@ -90,7 +90,7 @@ def harness(monkeypatch):
 
     # The single HTTP capture. Parsers only run when this produced html,
     # so the rung-ordering assertions below need a capture to exist.
-    ex._fetch_page_html = lambda url: "<html>capture</html>"
+    ex._fetch_page_html = lambda url, metrics=None: "<html>capture</html>"
 
     # Capture rungs — all stubbed, each recording that it ran.
     def mc(url, html=None, include_other_metadata=None):
