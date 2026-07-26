@@ -11,6 +11,7 @@ from typing import Any
 from sqlalchemy import text as sql_text
 
 from src.models.database import DatabaseManager, safe_session_execute
+from src.utils.boilerplate import SUBSCRIPTION_MARKERS as bp_SUBSCRIPTION_MARKERS
 from src.utils.boilerplate import is_boilerplate_segment as bp_is_boilerplate_segment
 from src.utils.boilerplate import segments as bp_segments
 
@@ -1835,21 +1836,9 @@ class BalancedBoundaryContentCleaner:
         ]
 
         # Subscription and newsletter patterns
-        subscription_patterns = [
-            "subscribe to our newsletter",
-            "sign up for updates",
-            "get daily updates",
-            "subscribe now",
-            "join our mailing list",
-            "email updates",
-            "available in full to subscribers",
-            "this item is available in full to subscribers",
-            "to continue reading please log in or subscribe",
-            "to continue reading please login or subscribe",
-            "please log in to continue reading",
-            "please login to continue reading",
-            "need an account print subscribers",
-        ]
+        # Shared with the capture-quality gate via boilerplate.py so the two
+        # cannot drift; contents unchanged by that move.
+        subscription_patterns = list(bp_SUBSCRIPTION_MARKERS)
 
         # Copyright and legal patterns
         copyright_patterns = [

@@ -31,6 +31,7 @@ from src.utils.boilerplate import (
     MIN_PROSE_DENSITY,
     capitalization_ratio,
     looks_like_article,
+    looks_like_paywall,
     prose_density,
     strip_boilerplate,
     utility_word_rate,
@@ -5861,6 +5862,11 @@ class ContentExtractor:
     # "not_article_like"), or None when it was accepted.
     _last_capture_rejection: Optional[str] = None
 
+    # Which paywall prompt the last capture matched, when the rejection
+    # reason was "paywall". Recorded so the marker list can be audited
+    # against real traffic rather than trusted.
+    _last_paywall_marker: Optional[str] = None
+
     def _assess_capture_quality(self, content: str) -> Dict[str, Any]:
         """The measured signals behind a capture-quality verdict.
 
@@ -5927,7 +5933,15 @@ class ContentExtractor:
         # MAX_CAPITALIZATION / MAX_UTILITY_WORD_RATE, from a sample that
         # excludes everything the gate let through.
         quality = self._assess_capture_quality(content)
+        marker = looks_like_paywall(content)
+        quality["paywall_marker"] = marker
+        quality["is_paywall"] = bool(marker)
         result.setdefault("metadata", {})["capture_quality"] = quality
+        if marker:
+            # The save path files this as status="paywall" and keeps the
+            # metadata the page did expose instead of storing the wall text.
+            result["metadata"]["capture_rejected_as"] = "paywall"
+            result["metadata"]["paywall_marker"] = marker
 
         if not content:
             self._last_capture_rejection = "empty"
@@ -5944,6 +5958,25 @@ class ContentExtractor:
         # set is_success -- but only ever to RECORD the failure, never to act on
         # it. Act on it: a body that is not writing is worth a browser.
         if not looks_like_article(content):
+            # A wall is a special case of "not writing": the site served a
+            # subscription prompt in place of the story. Selenium cannot beat
+            # it -- the same wall is served to a real browser -- so escalating
+            # costs a browser session (~3 min observed) and recovers nothing.
+            # File it as paywalled instead and keep whatever the page did give
+            # us (headline, byline, date live outside the wall).
+            paywall_marker = looks_like_paywall(content)
+            if paywall_marker:
+                self._last_capture_rejection = "paywall"
+                self._last_paywall_marker = paywall_marker
+                logger.info(
+                    "Capture for %s is a paywall prompt (%d chars, matched %r); "
+                    "not escalating -- a browser gets the same wall",
+                    result.get("url") or "?",
+                    len(content),
+                    paywall_marker,
+                )
+                return False
+
             self._last_capture_rejection = "not_article_like"
             logger.info(
                 "Capture for %s is not article-like (%d chars); escalating",

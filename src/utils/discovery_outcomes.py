@@ -18,6 +18,14 @@ class DiscoveryOutcome(Enum):
     RSS_MISSING = "rss_missing"  # RSS unavailable
     CONTENT_BLOCKED = "content_blocked"  # Blocked content
 
+    # Zero links is not one condition. Until these existed, a homepage that
+    # served a subscription wall, one that shipped an empty JS shell, and one
+    # that genuinely had nothing new all recorded as NO_ARTICLES_FOUND -- so a
+    # blocked source was indistinguishable from a quiet one, and the fix for
+    # each is different (credentials / rendering / nothing).
+    PAYWALL_BLOCKED = "paywall_blocked"  # Wall served instead of the page
+    RENDER_REQUIRED = "render_required"  # JS shell; links need a browser
+
     # Technical failures
     HTTP_ERROR = "http_error"  # HTTP 4xx/5xx errors
     TIMEOUT = "timeout"  # Request timeout
