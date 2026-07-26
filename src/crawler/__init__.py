@@ -1048,8 +1048,13 @@ class ContentExtractor:
         # Skip UA rotation if fingerprint profile is loaded (maintain consistency)
         if self._fingerprint_profile and self._fingerprint_profile.user_agent:
             if domain not in self.domain_sessions:
-                # Create new session with fingerprint UA
-                new_session = self._create_session_with_fingerprint_ua()
+                # Create new session with fingerprint UA. Pass the domain so the
+                # session is routed through the shared proxy_router (home vs
+                # mizzou Squid) and records which one it picked -- without this
+                # the fingerprint path applied a static SQUID_PROXY_URL and never
+                # consulted the router, so router selection AND its telemetry
+                # (router_proxy) were dead on the primary fetch path.
+                new_session = self._create_session_with_fingerprint_ua(domain)
                 self.domain_sessions[domain] = new_session
                 self.domain_user_agents[domain] = self._fingerprint_profile.user_agent
                 self.request_counts[domain] = 0
@@ -1178,8 +1183,16 @@ class ContentExtractor:
 
         return self.domain_sessions[domain]
 
-    def _create_session_with_fingerprint_ua(self):
-        """Create a new session using fingerprint profile user agent."""
+    def _create_session_with_fingerprint_ua(self, domain: Optional[str] = None):
+        """Create a new session using fingerprint profile user agent.
+
+        When ``domain`` is given, the session's proxy is chosen by the shared
+        proxy_router (home vs mizzou Squid, by live per-domain health) and the
+        choice is recorded on ``self.domain_router_proxy[domain]`` so it reaches
+        per-request telemetry. Falls back to the static SQUID_PROXY_URL only if
+        the router (and its own Squid fallback) resolve nothing, so the crawler
+        can never end up direct.
+        """
         if CLOUDSCRAPER_AVAILABLE and cloudscraper is not None:
             new_session = cloudscraper.create_scraper(
                 browser=CLOUDSCRAPER_BROWSER_PROFILE
@@ -1217,12 +1230,38 @@ class ContentExtractor:
 
         new_session.headers.update(headers)
 
-        # Apply Squid proxy
-        squid_proxy_url = os.getenv(
-            "SQUID_PROXY_URL", "http://t9880447.eero.online:3128"
-        )
-        squid_proxies = {"http": squid_proxy_url, "https": squid_proxy_url}
-        new_session.proxies.update(squid_proxies)
+        # Route through the shared proxy_router when we know the domain, so the
+        # home/mizzou choice and its health-based failover apply on the primary
+        # fetch path -- and record which proxy was picked for telemetry.
+        # get_requests_proxies_for_domain already falls back to the always-on
+        # home Squid if the router is unavailable or picks something
+        # unconfigured, so router_proxies is None only when even that fails.
+        router_proxies = None
+        if domain is not None:
+            try:
+                router_proxies, router_proxy, _method = (
+                    self.proxy_manager.get_requests_proxies_for_domain(
+                        domain, service="newscrawler"
+                    )
+                )
+                self.domain_router_proxy[domain] = router_proxy
+            except Exception as exc:  # never let routing break session creation
+                logger.warning(
+                    "proxy_router lookup failed for %s (%s); using static Squid",
+                    domain,
+                    exc,
+                )
+
+        if router_proxies:
+            new_session.proxies.update(router_proxies)
+        else:
+            # No domain, or the router resolved nothing: static Squid, never direct.
+            squid_proxy_url = os.getenv(
+                "SQUID_PROXY_URL", "http://t9880447.eero.online:3128"
+            )
+            new_session.proxies.update(
+                {"http": squid_proxy_url, "https": squid_proxy_url}
+            )
 
         return new_session
 

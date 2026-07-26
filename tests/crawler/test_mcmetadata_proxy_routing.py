@@ -130,6 +130,68 @@ class TestFetchPageHtml:
         with pytest.raises(NotFoundError):
             extractor._fetch_page_html("https://example.com/gone")
 
+
+class TestFingerprintSessionRouting:
+    """The fingerprint session is the primary fetch path; it must go through
+    the shared proxy_router, not a static Squid, or router selection and its
+    router_proxy telemetry are dead on every normal extraction."""
+
+    def _fp_extractor(self, extractor):
+        extractor._fingerprint_profile = Mock(
+            user_agent="Mozilla/5.0 (Macintosh) FP", accept_language="en-US"
+        )
+        extractor.current_user_agent = "Mozilla/5.0 (Macintosh) FP"
+        extractor.accept_header_pool = ["text/html"]
+        extractor.accept_language_pool = ["en-US"]
+        extractor.accept_encoding_pool = ["gzip"]
+        return extractor
+
+    def test_routes_through_router_and_records_choice(self, extractor):
+        from src.crawler.proxy_router import RouterProxy
+
+        ex = self._fp_extractor(extractor)
+        proxies = {
+            "http": "http://u:p@mizzou.squid:3128",
+            "https": "http://u:p@mizzou.squid:3128",
+        }
+        ex.proxy_manager.get_requests_proxies_for_domain.return_value = (
+            proxies,
+            RouterProxy.MIZZOU_SQUID,
+            "sticky",
+        )
+
+        session = ex._create_session_with_fingerprint_ua("example.com")
+
+        # The router's proxy was applied, and its choice recorded for telemetry.
+        assert session.proxies.get("https") == "http://u:p@mizzou.squid:3128"
+        assert ex.domain_router_proxy["example.com"] == RouterProxy.MIZZOU_SQUID
+        ex.proxy_manager.get_requests_proxies_for_domain.assert_called_once_with(
+            "example.com", service="newscrawler"
+        )
+
+    def test_no_domain_uses_static_squid_and_skips_router(self, extractor, monkeypatch):
+        ex = self._fp_extractor(extractor)
+        monkeypatch.setenv("SQUID_PROXY_URL", "http://static.squid:3128")
+
+        session = ex._create_session_with_fingerprint_ua()
+
+        assert session.proxies.get("https") == "http://static.squid:3128"
+        ex.proxy_manager.get_requests_proxies_for_domain.assert_not_called()
+
+    def test_router_failure_falls_back_to_static_never_direct(
+        self, extractor, monkeypatch
+    ):
+        ex = self._fp_extractor(extractor)
+        monkeypatch.setenv("SQUID_PROXY_URL", "http://static.squid:3128")
+        ex.proxy_manager.get_requests_proxies_for_domain.side_effect = RuntimeError(
+            "firestore down"
+        )
+
+        session = ex._create_session_with_fingerprint_ua("example.com")
+
+        # Never direct: a router blow-up degrades to the static Squid.
+        assert session.proxies.get("https") == "http://static.squid:3128"
+
     def test_500_raises_rate_limit_with_backoff(self, extractor):
         backoffs = []
         extractor._handle_rate_limit_error = lambda domain, resp=None: backoffs.append(
