@@ -25,6 +25,16 @@ import requests
 from bs4 import BeautifulSoup, Tag
 from dateutil import parser as dateparser
 
+from src.utils.boilerplate import (
+    MAX_CAPITALIZATION,
+    MAX_UTILITY_WORD_RATE,
+    MIN_PROSE_DENSITY,
+    capitalization_ratio,
+    looks_like_article,
+    prose_density,
+    strip_boilerplate,
+    utility_word_rate,
+)
 from src.utils.bot_sensitivity_manager import BotSensitivityManager
 from src.utils.comprehensive_telemetry import ExtractionMetrics
 
@@ -2987,6 +2997,14 @@ class ContentExtractor:
                 fallback_reason = (
                     "selenium_secondary" if skip_http_methods else "http_fallback"
                 )
+                # Why the HTTP capture was rejected -- "empty" / "stub" /
+                # "not_article_like". Without this a wall-vs-real-article
+                # rejection is indistinguishable in telemetry from an
+                # ordinary missing-fields escalation.
+                rejection = getattr(self, "_last_capture_rejection", None)
+                if rejection:
+                    fallback_reason = f"{fallback_reason}:{rejection}"
+                    result.setdefault("metadata", {})["capture_rejected_as"] = rejection
                 self._run_selenium_extraction(
                     url,
                     result,
@@ -5813,6 +5831,51 @@ class ContentExtractor:
     # saving: 1200 chars would still escalate on 31% of complete stories.
     PAYWALL_STUB_MAX_CHARS = 400
 
+    # Why the last capture was rejected ("empty" / "stub" /
+    # "not_article_like"), or None when it was accepted.
+    _last_capture_rejection: Optional[str] = None
+
+    def _assess_capture_quality(self, content: str) -> Dict[str, Any]:
+        """The measured signals behind a capture-quality verdict.
+
+        Returned for every capture the gate judges -- accepted or rejected --
+        so the heuristic can be EVALUATED rather than trusted: what share of
+        captures each reason rejects, where the density/capitalisation
+        distributions actually sit, and (paired with the Selenium body that
+        follows a rejection) whether escalating was right. The thresholds
+        that produced the verdict travel with it, so old rows stay readable
+        after a retune.
+        """
+        stripped = (content or "").strip()
+        quality: Dict[str, Any] = {
+            "chars": len(stripped),
+            "stub_threshold": self.PAYWALL_STUB_MAX_CHARS,
+        }
+        if not stripped:
+            quality["article_like"] = False
+            return quality
+
+        try:
+            body = strip_boilerplate(stripped)
+            quality.update(
+                {
+                    "chars_after_strip": len(body),
+                    "prose_density": round(prose_density(body), 4),
+                    "capitalization_ratio": round(capitalization_ratio(body), 4),
+                    "utility_word_rate": round(utility_word_rate(body), 4),
+                    "article_like": looks_like_article(stripped),
+                    "thresholds": {
+                        "min_prose_density": MIN_PROSE_DENSITY,
+                        "max_capitalization": MAX_CAPITALIZATION,
+                        "max_utility_word_rate": MAX_UTILITY_WORD_RATE,
+                    },
+                }
+            )
+        except Exception as exc:  # never let measurement break extraction
+            logger.debug("capture quality assessment failed: %s", exc)
+            quality["error"] = str(exc)[:120]
+        return quality
+
     def _selenium_would_add_value(self, result: dict, missing_fields: list) -> bool:
         """Whether launching a browser can plausibly recover the missing fields.
 
@@ -5832,12 +5895,40 @@ class ContentExtractor:
         and are only missing author/date.
         """
         content = (result.get("content") or result.get("text") or "").strip()
+        # Record the measured signals for EVERY decision, accept or reject.
+        # Logging only rejections makes the heuristic unfalsifiable: you
+        # cannot measure a false-positive rate, or retune MIN_PROSE_DENSITY /
+        # MAX_CAPITALIZATION / MAX_UTILITY_WORD_RATE, from a sample that
+        # excludes everything the gate let through.
+        quality = self._assess_capture_quality(content)
+        result.setdefault("metadata", {})["capture_quality"] = quality
+
         if not content:
+            self._last_capture_rejection = "empty"
             return True  # nothing captured at all — Selenium is the last resort
         if len(content) <= self.PAYWALL_STUB_MAX_CHARS:
+            self._last_capture_rejection = "stub"
             return True  # teaser above a paywall; a real browser may reveal the body
+
+        # Length alone says nothing about WHAT was captured. A consent wall, a
+        # bot-challenge interstitial or a nav dump can all clear the stub
+        # threshold and be accepted as an article. looks_like_article() already
+        # answers this (prose density / capitalisation / utility-word rate, no
+        # word-count floor) and comprehensive_telemetry already computes it to
+        # set is_success -- but only ever to RECORD the failure, never to act on
+        # it. Act on it: a body that is not writing is worth a browser.
+        if not looks_like_article(content):
+            self._last_capture_rejection = "not_article_like"
+            logger.info(
+                "Capture for %s is not article-like (%d chars); escalating",
+                result.get("url") or "?",
+                len(content),
+            )
+            return True
+
         # Full body in hand. Whatever metadata is still missing is missing from the
         # page itself, and re-fetching it will not conjure it.
+        self._last_capture_rejection = None
         return False
 
     def _page_has_article_content(self, driver) -> bool:
