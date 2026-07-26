@@ -1749,6 +1749,34 @@ def _process_batch(
                     # Uses database boilerplate patterns to strip noise
                     MIN_CONTENT_LENGTH = 150
                     cleaning_metadata = {}
+
+                    # The capture gate already recognised a subscription wall
+                    # (boilerplate.looks_like_paywall). Trust that verdict here
+                    # rather than re-deriving it from length: the existing
+                    # check below only fires under MIN_CONTENT_LENGTH, and a
+                    # wall wrapped in a site's nav menu clears that easily --
+                    # greenfieldvedette.com served 1,039 chars of menu plus
+                    # "This content is for subscribers only" and would have
+                    # been stored as a normal article whose body is furniture.
+                    #
+                    # Headline, byline and date live OUTSIDE the wall, so they
+                    # are kept; only the wall text is discarded as the body.
+                    capture_meta = content.get("metadata") or {}
+                    gate_says_paywall = (
+                        capture_meta.get("capture_rejected_as") == "paywall"
+                    )
+                    if gate_says_paywall:
+                        logger.warning(
+                            "Paywall wall detected (%s) - saving metadata only: %s",
+                            capture_meta.get("paywall_marker"),
+                            url,
+                        )
+                        # Drop the wall text so furniture is never stored as a
+                        # body; the headline/byline/date captured alongside it
+                        # are kept by the save below.
+                        content_text = ""
+                        content["content"] = ""
+
                     if content_text:
                         from urllib.parse import urlparse
 
@@ -1780,7 +1808,7 @@ def _process_batch(
                         stripped_content = ""
 
                     # Check if content is insufficient AND has paywall indicators
-                    has_paywall_patterns = any(
+                    has_paywall_patterns = gate_says_paywall or any(
                         pattern in cleaning_metadata.get("patterns_matched", [])
                         for pattern in ["subscription", "paywall"]
                     )
