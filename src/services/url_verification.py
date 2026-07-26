@@ -715,6 +715,35 @@ class URLVerificationService:
 
         self.logger.debug(f"Updated candidate {candidate_id} to: {new_status}")
 
+    def decide_status(self, verification_result: dict) -> tuple[str, str | None]:
+        """Map a verify_url() result to (new_status, error_message).
+
+        Shared by the normal verification loop (process_batch) and the
+        backlog re-verification path (reverify_candidates) so both always
+        classify identically.
+        """
+        if verification_result.get("error"):
+            # If we ran HTTP pre-checks (production opt-in), treat
+            # exhausted HTTP failures as a terminal verification
+            # failure so orchestration can move candidates to the
+            # failed bucket. When running the default sniffer-first
+            # test-friendly path, preserve the non-terminal
+            # 'verification_uncertain' status so unit tests and
+            # manual review flows can retry or inspect candidates.
+            if self.run_http_precheck:
+                return "verification_failed", verification_result["error"]
+            return "verification_uncertain", verification_result["error"]
+        if verification_result.get("wire_filtered"):
+            return "wire", None
+        if verification_result.get("pattern_filtered"):
+            return (
+                verification_result.get("pattern_status") or "not_article",
+                None,
+            )
+        if verification_result.get("storysniffer_result"):
+            return "article", None
+        return "not_article", None
+
     def process_batch(self, candidates: list[dict]) -> dict:
         """Process a batch of candidates and return metrics."""
         batch_metrics: dict = {
@@ -734,44 +763,13 @@ class URLVerificationService:
             verification_result = self.verify_url(candidate["url"])
             batch_metrics["total_processed"] += 1
 
-            # Determine new status and update metrics
+            new_status, error_message = self.decide_status(verification_result)
             if verification_result.get("error"):
                 batch_metrics["verification_errors"] += 1
-                # If we ran HTTP pre-checks (production opt-in), treat
-                # exhausted HTTP failures as a terminal verification
-                # failure so orchestration can move candidates to the
-                # failed bucket. When running the default sniffer-first
-                # test-friendly path, preserve the non-terminal
-                # 'verification_uncertain' status so unit tests and
-                # manual review flows can retry or inspect candidates.
-                if self.run_http_precheck:
-                    new_status = "verification_failed"
-                else:
-                    new_status = "verification_uncertain"
-                error_message = verification_result["error"]
-            elif verification_result.get("wire_filtered"):
-                # Wire service URL detected - mark as wire
-                batch_metrics["verified_non_articles"] += 1
-                new_status = "wire"
-                error_message = None
-            elif verification_result.get("pattern_filtered"):
-                pattern_status = (
-                    verification_result.get("pattern_status") or "not_article"
-                )
-                if pattern_status == "article":
-                    batch_metrics["verified_articles"] += 1
-                else:
-                    batch_metrics["verified_non_articles"] += 1
-                new_status = pattern_status
-                error_message = None
-            elif verification_result.get("storysniffer_result"):
+            elif new_status == "article":
                 batch_metrics["verified_articles"] += 1
-                new_status = "article"
-                error_message = None
             else:
                 batch_metrics["verified_non_articles"] += 1
-                new_status = "not_article"
-                error_message = None
 
             batch_metrics["total_time_ms"] += verification_result.get(
                 "verification_time_ms", 0
@@ -789,6 +787,160 @@ class URLVerificationService:
         )
 
         return batch_metrics
+
+    def get_reverify_candidates(
+        self,
+        status: str = "article",
+        older_than_days: int | None = None,
+        host: str | None = None,
+        dataset_id: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict]:
+        """Select existing candidates for re-verification.
+
+        Unlike get_unverified_urls (status='discovered' only), this targets
+        candidates that already carry a terminal-ish status -- typically
+        'article' rows verified long ago under older rules, or links that
+        were manually unpaused straight back to 'article' without passing
+        through verification again.
+        """
+        query = """
+            SELECT id, url, source_name, source_city, source_county, status
+            FROM candidate_links
+            WHERE status = :status
+        """
+        params: dict = {"status": status}
+
+        if older_than_days is not None:
+            query += (
+                " AND created_at < NOW() - CAST(:older_days || ' days' AS INTERVAL)"
+            )
+            params["older_days"] = str(older_than_days)
+        if host:
+            query += " AND (source = :host OR url LIKE :host_like)"
+            params["host"] = host
+            params["host_like"] = f"%{host}%"
+        if dataset_id:
+            query += " AND dataset_id = :dataset_id"
+            params["dataset_id"] = dataset_id
+
+        query += " ORDER BY created_at ASC"
+        if limit:
+            query += f" LIMIT {int(limit)}"
+
+        with self.db.engine.connect() as conn:
+            result = safe_execute(conn, query, params)
+            return [dict(row._mapping) for row in result.fetchall()]
+
+    def reverify_candidates(
+        self,
+        candidates: list[dict],
+        dry_run: bool = False,
+        progress_every: int = 500,
+    ) -> dict:
+        """Re-run current verification over already-classified candidates.
+
+        Each candidate is re-classified with the same verify_url() +
+        decide_status() logic the normal verification loop uses. Candidates
+        whose status would not change are left untouched; the rest are
+        updated in place (unless dry_run).
+
+        Returns metrics: {"total", "kept", "reclassified": {status: count},
+        "errors"}.
+        """
+        metrics: dict = {
+            "total": 0,
+            "kept": 0,
+            "reclassified": {},
+            "errors": 0,
+        }
+
+        for candidate in candidates:
+            metrics["total"] += 1
+            result = self.verify_url(candidate["url"])
+            new_status, error_message = self.decide_status(result)
+
+            if result.get("error"):
+                # Don't demote existing rows on a transient verification
+                # error -- an error tells us nothing about the URL itself.
+                metrics["errors"] += 1
+            elif new_status == candidate.get("status"):
+                metrics["kept"] += 1
+            else:
+                metrics["reclassified"][new_status] = (
+                    metrics["reclassified"].get(new_status, 0) + 1
+                )
+                if not dry_run:
+                    self.update_candidate_status(
+                        candidate["id"], new_status, error_message
+                    )
+                self.logger.info(
+                    "%sReclassified %s: %s -> %s",
+                    "[dry-run] " if dry_run else "",
+                    candidate["url"],
+                    candidate.get("status"),
+                    new_status,
+                )
+
+            if progress_every and metrics["total"] % progress_every == 0:
+                self.logger.info(
+                    "Reverify progress: %d processed, %d kept, %d reclassified, "
+                    "%d errors",
+                    metrics["total"],
+                    metrics["kept"],
+                    sum(metrics["reclassified"].values()),
+                    metrics["errors"],
+                )
+
+        return metrics
+
+    def release_paused(
+        self,
+        older_than_days: int | None = None,
+        host: str | None = None,
+        dataset_id: str | None = None,
+        dry_run: bool = False,
+    ) -> int:
+        """Move paused candidates back to 'discovered' so the normal
+        verification loop re-screens them with current rules.
+
+        This is the sanctioned unpause path: paused links must never go
+        straight back to 'article' -- that skips verification entirely and
+        feeds stale junk to extraction.
+        """
+        where = "WHERE status = 'paused'"
+        params: dict = {}
+        if older_than_days is not None:
+            where += (
+                " AND created_at < NOW() - CAST(:older_days || ' days' AS INTERVAL)"
+            )
+            params["older_days"] = str(older_than_days)
+        if host:
+            where += " AND (source = :host OR url LIKE :host_like)"
+            params["host"] = host
+            params["host_like"] = f"%{host}%"
+        if dataset_id:
+            where += " AND dataset_id = :dataset_id"
+            params["dataset_id"] = dataset_id
+
+        with self.db.engine.connect() as conn:
+            if dry_run:
+                result = safe_execute(
+                    conn, f"SELECT COUNT(*) FROM candidate_links {where}", params
+                )
+                return int(result.scalar() or 0)
+
+            result = safe_execute(
+                conn,
+                "UPDATE candidate_links SET status = 'discovered', "
+                f"error_message = NULL {where}",
+                params,
+            )
+            try:
+                conn.commit()
+            except Exception:
+                pass
+            return int(getattr(result, "rowcount", 0) or 0)
 
     def save_telemetry_summary(
         self, batch_metrics: dict, candidates: list[dict], job_name: str
