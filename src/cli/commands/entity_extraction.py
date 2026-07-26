@@ -114,7 +114,7 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
                 WHERE a.content IS NOT NULL
                 AND a.text IS NOT NULL
                 AND a.entities_extracted_at IS NULL
-                AND a.status NOT IN ('error', 'paywall', 'wire')
+                AND a.status NOT IN ('error', 'paywall', 'wire', 'not_article')
                 """
                 + ("AND cl.source = :source" if source else "")
                 + """
