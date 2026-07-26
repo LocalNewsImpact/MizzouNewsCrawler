@@ -154,3 +154,67 @@ class TestDiagnosisNeverBreaksFetching:
 
     def test_dataclass_default_signals(self):
         assert CaptureDiagnosis("empty").signals == {}
+
+
+class TestHomepagePathIsCovered:
+    """The newspaper.build worker is the PRIMARY homepage path.
+
+    It runs in a subprocess and returns only URLs, so the parent never sees
+    the homepage HTML. Diagnosing only the section/RSS fetches would leave
+    render_required systematically undercounted on exactly the pages the
+    signal exists to find -- so the worker diagnoses its own capture.
+    """
+
+    def _run_worker(self, tmp_path, monkeypatch, html, urls):
+        import pickle
+
+        import src.crawler.discovery as discovery_module
+
+        class FakeConfig:
+            def __init__(self):
+                self.fetch_images = False
+
+        class FakeArticle:
+            def __init__(self, url):
+                self.url = url
+
+        class FakePaper:
+            def __init__(self, urls, html):
+                self.articles = [FakeArticle(u) for u in urls]
+                self.html = html
+
+        monkeypatch.setattr(discovery_module, "Config", FakeConfig)
+        monkeypatch.setattr(
+            discovery_module, "build", lambda t, config: FakePaper(urls, html)
+        )
+        out = tmp_path / "out.pkl"
+        discovery_module._newspaper_build_worker("https://example.com", str(out), False)
+        with out.open("rb") as fh:
+            return pickle.load(fh)
+
+    def test_js_shell_homepage_is_diagnosed(self, tmp_path, monkeypatch):
+        payload = self._run_worker(tmp_path, monkeypatch, JS_SHELL, urls=[])
+
+        assert payload["urls"] == []
+        assert payload["diagnosis"]["reason"] == "render_required"
+        assert payload["diagnosis"]["signals"]["spa_root"] is True
+
+    def test_paywalled_homepage_is_diagnosed(self, tmp_path, monkeypatch):
+        payload = self._run_worker(tmp_path, monkeypatch, PAYWALL_HOMEPAGE, urls=[])
+
+        assert payload["diagnosis"]["reason"] == "paywall"
+
+    def test_quiet_homepage_gets_no_diagnosis(self, tmp_path, monkeypatch):
+        """A real page with nothing new must NOT be reported as blocked."""
+        payload = self._run_worker(tmp_path, monkeypatch, REAL_HOMEPAGE, urls=[])
+
+        assert payload["diagnosis"] is None
+
+    def test_successful_build_is_never_diagnosed(self, tmp_path, monkeypatch):
+        """Found links means not blocked, whatever the HTML looks like."""
+        payload = self._run_worker(
+            tmp_path, monkeypatch, JS_SHELL, urls=["https://example.com/a"]
+        )
+
+        assert payload["urls"] == ["https://example.com/a"]
+        assert payload["diagnosis"] is None

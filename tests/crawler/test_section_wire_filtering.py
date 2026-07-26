@@ -391,7 +391,7 @@ def test_newspaper_build_worker_writes_urls(
     with out_file.open("rb") as fh:
         urls = pickle.load(fh)
 
-    assert urls == [
+    assert urls["urls"] == [
         "https://example.com/a",
         "https://example.com/b",
     ]

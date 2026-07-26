@@ -990,8 +990,8 @@ def test_newspaper_build_worker_success(tmp_path):
             urls = pickle.load(f)
 
         assert len(urls) == 2
-        assert "https://example.com/article1" in urls
-        assert "https://example.com/article2" in urls
+        assert "https://example.com/article1" in urls["urls"]
+        assert "https://example.com/article2" in urls["urls"]
 
 
 def test_newspaper_build_worker_with_proxy(tmp_path):
@@ -1038,7 +1038,7 @@ def test_newspaper_build_worker_build_failure(tmp_path):
         with open(output_file, "rb") as f:
             urls = pickle.load(f)
 
-        assert urls == []
+        assert urls["urls"] == []
 
 
 def test_newspaper_build_worker_persist_failure(tmp_path):

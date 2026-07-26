@@ -389,12 +389,16 @@ def test_newspaper_build_worker_writes_urls(
     )
 
     with out_file.open("rb") as fh:
-        urls = pickle.load(fh)
+        payload = pickle.load(fh)
 
-    assert urls == [
+    # Payload is a dict now so a capture diagnosis can ride along with the
+    # URLs; the parent still accepts the old bare-list form during a rollout.
+    assert payload["urls"] == [
         "https://example.com/a",
         "https://example.com/b",
     ]
+    # A build that produced URLs is not blocked, so no diagnosis is attached.
+    assert payload["diagnosis"] is None
     assert recorded == {
         "target": "https://example.com",
         "fetch_images": True,

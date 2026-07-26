@@ -198,12 +198,34 @@ def _newspaper_build_worker(
             )
             urls = []
 
-        # Write URLs back to disk via pickle; best-effort
+        # Why did this homepage yield nothing? newspaper.build already
+        # downloaded it, so diagnose that capture here -- the parent never
+        # sees this HTML, and this is the main homepage discovery path.
+        diagnosis = None
+        if not urls:
+            try:
+                from src.utils.capture_diagnosis import diagnose_capture
+
+                page_html = getattr(locals().get("p", None), "html", None)
+                if page_html:
+                    d = diagnose_capture(page_html)
+                    if d.is_blocked:
+                        diagnosis = {"reason": d.reason, "signals": d.signals}
+            except Exception:
+                logger.debug(
+                    "capture diagnosis failed in worker for %s",
+                    target_url,
+                    exc_info=True,
+                )
+
+        # Write results back to disk via pickle; best-effort.
+        # Dict payload (was a bare list) so a diagnosis can ride along; the
+        # parent accepts both shapes so an in-flight worker cannot break it.
         try:
             import pickle as _pickle
 
             with open(out_path, "wb") as fh:
-                _pickle.dump(urls, fh)
+                _pickle.dump({"urls": urls, "diagnosis": diagnosis}, fh)
         except Exception as persist_err:
             # Best-effort persistence; ignore but log for diagnosis.
             logger.debug(
@@ -3064,7 +3086,26 @@ class NewsDiscovery:
                         import pickle as _pickle
 
                         with open(tmp_path, "rb") as fh:
-                            urls = _pickle.load(fh)
+                            payload = _pickle.load(fh)
+                        # Accepts the dict the worker now writes and the bare
+                        # list it used to, so a worker from an older image (or
+                        # one already in flight during a rollout) still parses.
+                        if isinstance(payload, dict):
+                            urls = payload.get("urls") or []
+                            worker_diagnosis = payload.get("diagnosis")
+                            if worker_diagnosis:
+                                self._last_capture_diagnosis_reason = (
+                                    worker_diagnosis.get("reason")
+                                )
+                                logger.warning(
+                                    "Homepage for %s looks %s (%s) -- zero links "
+                                    "here is a block, not a quiet day",
+                                    source_url,
+                                    worker_diagnosis.get("reason"),
+                                    worker_diagnosis.get("signals"),
+                                )
+                        else:
+                            urls = payload or []
                     except Exception:
                         urls = []
                     finally:
