@@ -215,6 +215,13 @@ jobs:
           echo "Services to build: ${{ steps.services.outputs.list }}"
           echo "================================"
 
+  # Every build below is triggered by SHA, never by branch. `--branch` builds
+  # whatever main points at WHEN THE TRIGGER FIRES, which need not be the commit
+  # this run validated. On 2026-07-26 #417 merged at 13:49:36 and #418 at
+  # 13:50:03; #417's triggers fired at 13:50:18 and 13:50:44 and so built and
+  # tagged 797faa0 -- #418's tree -- while reporting against c6082b1f. The
+  # concurrency group above serialises Actions runs but cannot prevent this,
+  # because the SHA was never pinned.
   build-base:
     name: Build Base Image
     needs: detect-changes
@@ -246,7 +253,7 @@ jobs:
         run: |
           set +e
           BUILD_ID=$(gcloud builds triggers run build-base-manual \
-            --branch="${{ github.ref_name }}" \
+            --sha="${{ github.sha }}" \
             --format="value(metadata.build.id)" 2>&1)
           EXIT_CODE=$?
           set -e
@@ -310,7 +317,7 @@ jobs:
         run: |
           set +e
           BUILD_ID=$(gcloud builds triggers run build-ml-base-manual \
-            --branch="${{ github.ref_name }}" \
+            --sha="${{ github.sha }}" \
             --format="value(metadata.build.id)" 2>&1)
           EXIT_CODE=$?
           set -e
@@ -372,7 +379,7 @@ jobs:
         run: |
           set +e
           BUILD_ID=$(gcloud builds triggers run build-processor-manual \
-            --branch="${{ github.ref_name }}" \
+            --sha="${{ github.sha }}" \
             --format="value(metadata.build.id)" 2>&1)
           EXIT_CODE=$?
           set -e
@@ -415,7 +422,7 @@ jobs:
         run: |
           set +e
           BUILD_ID=$(gcloud builds triggers run build-api-manual \
-            --branch="${{ github.ref_name }}" \
+            --sha="${{ github.sha }}" \
             --format="value(metadata.build.id)" 2>&1)
           EXIT_CODE=$?
           set -e
@@ -458,7 +465,7 @@ jobs:
         run: |
           set +e
           BUILD_ID=$(gcloud builds triggers run build-crawler-manual \
-            --branch="${{ github.ref_name }}" \
+            --sha="${{ github.sha }}" \
             --format="value(metadata.build.id)" 2>&1)
           EXIT_CODE=$?
           set -e
