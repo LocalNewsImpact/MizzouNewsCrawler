@@ -133,20 +133,27 @@ jobs:
             echo "✅ ML base image changed (Dockerfile.ml-base / requirements-ml.txt)"
           fi
 
-          # Processor: processor-specific changes, ML code, or migrations
-          if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.processor|requirements-processor\.txt|src/(models|pipeline|utils|services|ml)/|pyproject\.toml|orchestration/|alembic/versions/'; then
+          # Processor: processor-specific changes, ML code, or migrations.
+          # src/cli/ is the entrypoint the processor runs (continuous_processor
+          # shells out to `cli_modular extract/analyze/extract-entities`), and
+          # src/reporting/ ships in the processor image — both were MISSING here,
+          # so #423 (which touched only src/cli/ and src/reporting/) built
+          # nothing at all and shipped no image. See 2026-07-26.
+          if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.processor|requirements-processor\.txt|src/(models|pipeline|utils|services|ml|cli|reporting)/|pyproject\.toml|orchestration/|alembic/versions/'; then
             PROCESSOR=true
             echo "✅ Processor changed (processor code or migrations)"
           fi
 
-          # API: API-specific changes, shared models, or migrations
-          if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.api|requirements-api\.txt|src/(models|services)/|backend/|pyproject\.toml|alembic/versions/'; then
+          # API: API-specific changes, shared models, or migrations. src/cli/
+          # and src/reporting/ ship in the API image (report generation).
+          if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.api|requirements-api\.txt|src/(models|services|cli|reporting)/|backend/|pyproject\.toml|alembic/versions/'; then
             API=true
             echo "✅ API changed (API code or shared models)"
           fi
 
-          # Crawler: crawler-specific changes
-          if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.crawler|requirements-crawler\.txt|src/(crawler|models|services|utils)/|pyproject\.toml'; then
+          # Crawler: crawler-specific changes. src/cli/ is the crawler entrypoint
+          # (`cli_modular extract` runs the extraction path in the crawler image).
+          if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.crawler|requirements-crawler\.txt|src/(crawler|models|services|utils|cli)/|pyproject\.toml'; then
             CRAWLER=true
             echo "✅ Crawler changed (crawler code)"
           fi
