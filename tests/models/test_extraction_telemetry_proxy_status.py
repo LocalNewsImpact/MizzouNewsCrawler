@@ -225,3 +225,73 @@ class TestProxyStatusColumnType:
             .count()
         )
         assert bypassed_records == 2  # Records 2 and 6
+
+
+class TestRouterProxyColumn:
+    """router_proxy persists which Squid the shared proxy_router assigned.
+
+    proxy_url (the raw session proxy string) went NULL on most rows even when
+    mizzou_squid was chosen, so it can't answer "which physical proxy served
+    this". router_proxy is the reliable per-article signal.
+    """
+
+    def test_router_proxy_stores_both_backends(self, db_session):
+        now = datetime.utcnow()
+        cases = ["home_squid", "mizzou_squid"]
+        for idx, backend in enumerate(cases):
+            db_session.add(
+                ExtractionTelemetryV2(
+                    operation_id=f"op-router-{idx}",
+                    article_id=f"article-{idx}",
+                    url=f"https://example.com/article-{idx}",
+                    host="example.com",
+                    start_time=now,
+                    end_time=now,
+                    proxy_used=1,
+                    proxy_status="success",
+                    router_proxy=backend,
+                    is_success=True,
+                    created_at=now,
+                )
+            )
+        db_session.commit()
+
+        for idx, backend in enumerate(cases):
+            result = (
+                db_session.query(ExtractionTelemetryV2)
+                .filter_by(operation_id=f"op-router-{idx}")
+                .first()
+            )
+            assert result.router_proxy == backend
+
+    def test_router_proxy_nullable_when_router_absent(self, db_session):
+        """A capture with no router decision (e.g. direct/legacy) stays NULL,
+        not silently coerced to a backend name."""
+        now = datetime.utcnow()
+        db_session.add(
+            ExtractionTelemetryV2(
+                operation_id="op-router-none",
+                article_id="article-none",
+                url="https://example.com/none",
+                host="example.com",
+                start_time=now,
+                end_time=now,
+                proxy_used=0,
+                router_proxy=None,
+                is_success=True,
+                created_at=now,
+            )
+        )
+        db_session.commit()
+
+        result = (
+            db_session.query(ExtractionTelemetryV2)
+            .filter_by(operation_id="op-router-none")
+            .first()
+        )
+        assert result.router_proxy is None
+
+    def test_router_proxy_column_present_in_schema(self, sqlite_engine):
+        inspector = inspect(sqlite_engine)
+        columns = {c["name"] for c in inspector.get_columns("extraction_telemetry_v2")}
+        assert "router_proxy" in columns

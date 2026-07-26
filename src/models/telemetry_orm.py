@@ -141,6 +141,12 @@ class ExtractionTelemetryV2(Base):
     proxy_authenticated = Column(Integer, nullable=True)  # 0 or 1
     proxy_status = Column(String, nullable=True)
     proxy_error = Column(String, nullable=True)
+    # Which RouterProxy (home_squid / mizzou_squid) proxy_router actually
+    # assigned for this domain. proxy_url is the raw session proxy string and
+    # was observed to go unset/None on most rows even when the router picked
+    # mizzou_squid -- this is the field that lets a per-article export answer
+    # "which physical proxy served this" without cross-referencing Firestore.
+    router_proxy = Column(String, nullable=True, index=True)
 
     # Method tracking (JSON strings)
     methods_attempted = Column(Text, nullable=True)  # JSON array
