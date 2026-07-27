@@ -719,10 +719,7 @@ class ContentExtractor:
                 "Gecko/20100101 Firefox/130.0"
             ),
             # Firefox on Linux
-            (
-                "Mozilla/5.0 (X11; Linux x86_64; rv:130.0) "
-                "Gecko/20100101 Firefox/130.0"
-            ),
+            ("Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0"),
             # Safari on macOS (latest versions)
             (
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -780,15 +777,15 @@ class ContentExtractor:
         self.domain_locks: dict[str, Any] = {}
 
         # Rate limiting and backoff management
-        self.domain_request_times: dict[str, float] = (
-            {}
-        )  # Track last request time per domain
-        self.domain_backoff_until: dict[str, float] = (
-            {}
-        )  # Track when domain is available again
-        self.domain_error_counts: dict[str, int] = (
-            {}
-        )  # Track consecutive errors per domain
+        self.domain_request_times: dict[
+            str, float
+        ] = {}  # Track last request time per domain
+        self.domain_backoff_until: dict[
+            str, float
+        ] = {}  # Track when domain is available again
+        self.domain_error_counts: dict[
+            str, int
+        ] = {}  # Track consecutive errors per domain
 
         try:
             self.unblock_rate_limit_seconds = float(
@@ -801,9 +798,9 @@ class ContentExtractor:
 
         # Selenium-specific failure tracking (separate from requests failures)
         # This prevents disabling Selenium for CAPTCHA-protected domains
-        self._selenium_failure_counts: dict[str, int] = (
-            {}
-        )  # Track Selenium failures per domain
+        self._selenium_failure_counts: dict[
+            str, int
+        ] = {}  # Track Selenium failures per domain
 
         # Base inter-request delay (env tunable)
         try:
@@ -863,7 +860,7 @@ class ContentExtractor:
             )
 
         logger.info(
-            f"🔀 Proxy manager initialized with provider: " f"{active_provider.value}"
+            f"🔀 Proxy manager initialized with provider: {active_provider.value}"
         )
 
         # MODIFIED: Use Squid proxy for all proxy traffic
@@ -1328,8 +1325,7 @@ class ContentExtractor:
                     new_proxy = random.choice(available)
                     self.domain_proxies[domain] = new_proxy
                     logger.info(
-                        f"Escalated proxy for {domain}: "
-                        f"{current_proxy} → {new_proxy}"
+                        f"Escalated proxy for {domain}: {current_proxy} → {new_proxy}"
                     )
 
     def _generate_referer(self, url: str) -> Optional[str]:
@@ -2354,7 +2350,7 @@ class ContentExtractor:
                         "secure": bool(c.get("secure", False)),
                         "httpOnly": bool(c.get("httpOnly", False)),
                         "domain": cookie_domain,
-                        "url": f"https://{domain}{c.get('path','/')}",
+                        "url": f"https://{domain}{c.get('path', '/')}",
                     }
                     expires = c.get("expires")
                     if isinstance(expires, (int, float)) and expires > 0:
@@ -2986,7 +2982,9 @@ class ContentExtractor:
                 if metrics:
                     metrics.start_method("unblock_proxy")
 
-                unblock_result = self._extract_with_unblock_proxy(url, None, metrics)
+                unblock_result = self._extract_with_unblock_proxy(
+                    url, None, metrics, domain=domain
+                )
 
                 if unblock_result and unblock_result.get("content"):
                     self._merge_extraction_results(
@@ -4010,6 +4008,7 @@ class ContentExtractor:
         url: str,
         browser_actions: Optional[list] = None,
         metrics: Optional[ExtractionMetrics] = None,
+        domain: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Extract content using Squid proxy for strong bot protection.
 
@@ -4018,6 +4017,12 @@ class ContentExtractor:
 
         Args:
             url: URL to extract
+            domain: When given, the proxy is chosen by the shared proxy_router
+                (home vs mizzou Squid, by live per-domain health) instead of
+                the static SQUID_PROXY_URL -- this was the one fetch rung that
+                still bypassed the router after #416/d30ee7f0 fixed the
+                primary session path; every unblock-proxy challenge always
+                landed on home Squid because mizzou Squid was never tried.
 
         Returns:
             Extraction result dict with title, author, content, etc.
@@ -4027,10 +4032,36 @@ class ContentExtractor:
 
             warnings.filterwarnings("ignore", message="Unverified HTTPS request")
 
-            # Route ALL unblock traffic through residential Squid proxy
-            squid_proxy_url = os.getenv(
-                "SQUID_PROXY_URL", "http://t9880447.eero.online:3128"
-            )
+            # Route through the shared proxy_router when we know the domain, so
+            # the home/mizzou choice and its health-based failover apply here
+            # too. get_requests_proxies_for_domain already falls back to the
+            # always-on home Squid if the router is unavailable or picks
+            # something unconfigured, so this can never end up direct.
+            router_proxies = None
+            router_proxy = None
+            if domain is not None:
+                try:
+                    router_proxies, router_proxy, _method = (
+                        self.proxy_manager.get_requests_proxies_for_domain(
+                            domain, service="newscrawler"
+                        )
+                    )
+                    self.domain_router_proxy[domain] = router_proxy
+                except Exception as exc:  # never let routing break extraction
+                    logger.warning(
+                        "proxy_router lookup failed for %s (%s); using static Squid",
+                        domain,
+                        exc,
+                    )
+
+            if router_proxies:
+                squid_proxy_url = router_proxies.get("http") or router_proxies.get(
+                    "https"
+                )
+            else:
+                squid_proxy_url = os.getenv(
+                    "SQUID_PROXY_URL", "http://t9880447.eero.online:3128"
+                )
 
             logger.info(
                 f"Using Squid proxy for unblock extraction: {_mask_proxy_url(squid_proxy_url)}"
@@ -4213,6 +4244,10 @@ class ContentExtractor:
                 logger.info(
                     f"✅ Squid proxy extraction successful for {url}: {len(result['content'])} chars"
                 )
+                if domain is not None:
+                    self.proxy_manager.report_domain_result(
+                        domain, router_proxy, success=True, service="newscrawler"
+                    )
                 return result
 
             except Exception as e:
@@ -4228,6 +4263,14 @@ class ContentExtractor:
 
         except Exception as e:
             logger.error(f"Squid proxy extraction failed for {url}: {e}")
+            if domain is not None:
+                self.proxy_manager.report_domain_result(
+                    domain,
+                    router_proxy,
+                    success=False,
+                    reason=str(e)[:200],
+                    service="newscrawler",
+                )
             # Don't wrap ProxyChallengeError - let it pass through with original message
             if isinstance(e, ProxyChallengeError):
                 raise e
@@ -4804,7 +4847,6 @@ class ContentExtractor:
 
             # If proxy has authentication, create Chrome extension
             if proxy_user and proxy_pass:
-
                 # Create Chrome extension for proxy authentication
                 import tempfile
                 import zipfile
@@ -5508,8 +5550,7 @@ class ContentExtractor:
             # Check for subscription wall (separate from CAPTCHA)
             if self._detect_subscription_wall(driver):
                 logger.warning(
-                    f"Subscription wall detected on {url} "
-                    f"(modal_closed={modal_closed})"
+                    f"Subscription wall detected on {url} (modal_closed={modal_closed})"
                 )
                 if modal_closed:
                     logger.info(
