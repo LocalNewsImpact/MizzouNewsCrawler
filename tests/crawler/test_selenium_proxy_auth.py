@@ -229,3 +229,118 @@ class TestRelayWithoutCredentials:
         """Never expose an open proxy to the network."""
         host, _ = relay.proxy_url.split(":")
         assert host == "127.0.0.1"
+
+
+class TestTargetHostParsing:
+    """The relay routes on the host each request is FOR."""
+
+    @pytest.mark.parametrize(
+        "head,want",
+        [
+            (b"CONNECT example.com:443 HTTP/1.1\r\n\r\n", "example.com"),
+            (b"GET http://example.com/a HTTP/1.1\r\n\r\n", "example.com"),
+            (b"GET http://u:p@example.com:80/a HTTP/1.1\r\n\r\n", "example.com"),
+            (b"GET /relative HTTP/1.1\r\n\r\n", None),
+            (b"garbage\r\n\r\n", None),
+            (b"", None),
+        ],
+    )
+    def test_extracts_the_target(self, head, want):
+        assert ProxyAuthRelay.target_host(head) == want
+
+
+class TestPerConnectionRouting:
+    """Selenium's proxy choice must follow the router, per domain.
+
+    Chrome fixes --proxy-server at launch and drivers are reused across
+    domains, so choosing at driver creation would carry one domain's proxy to
+    the next. Routing therefore happens per connection inside the relay, which
+    is the only component that sees each request's target host.
+    """
+
+    def test_router_choice_is_honoured(self, squid):
+        """Two upstreams, and the resolver decides which serves each host."""
+        other = FakeSquid()
+        try:
+            routed = f"http://{UPSTREAM_USER}:{UPSTREAM_PASS}@127.0.0.1:{other.port}"
+            relay = ProxyAuthRelay(
+                f"http://{UPSTREAM_USER}:{UPSTREAM_PASS}@127.0.0.1:{squid.port}",
+                resolve_upstream=lambda host: (
+                    routed if host == "routed.example" else None
+                ),
+            )
+            relay.start()
+            try:
+                _speak(
+                    relay.proxy_url,
+                    b"CONNECT routed.example:443 HTTP/1.1\r\n\r\n",
+                )
+                _speak(
+                    relay.proxy_url,
+                    b"CONNECT default.example:443 HTTP/1.1\r\n\r\n",
+                )
+                assert other.seen_headers, "routed host did not reach the routed proxy"
+                assert squid.seen_headers, "default host did not reach the default"
+                assert b"routed.example" in other.seen_headers[0]
+                assert b"default.example" in squid.seen_headers[0]
+            finally:
+                relay.stop()
+        finally:
+            other.stop()
+
+    def test_routed_upstream_gets_its_own_credentials(self, squid):
+        """Auth is per-upstream: two Squids need not share a password."""
+        other = FakeSquid()
+        try:
+            routed = f"http://{UPSTREAM_USER}:{UPSTREAM_PASS}@127.0.0.1:{other.port}"
+            relay = ProxyAuthRelay(
+                f"http://127.0.0.1:{squid.port}", resolve_upstream=lambda h: routed
+            )
+            relay.start()
+            try:
+                reply = _speak(
+                    relay.proxy_url, b"CONNECT any.example:443 HTTP/1.1\r\n\r\n"
+                )
+                assert b"200" in reply, "routed upstream was not authenticated"
+                assert b"Proxy-Authorization: Basic " in other.seen_headers[0]
+            finally:
+                relay.stop()
+        finally:
+            other.stop()
+
+    def test_resolver_failure_falls_back_to_default(self, squid):
+        """A routing decision must never stop a page loading."""
+
+        def boom(host):
+            raise RuntimeError("router down")
+
+        relay = ProxyAuthRelay(
+            f"http://{UPSTREAM_USER}:{UPSTREAM_PASS}@127.0.0.1:{squid.port}",
+            resolve_upstream=boom,
+        )
+        relay.start()
+        try:
+            reply = _speak(relay.proxy_url, b"CONNECT any.example:443 HTTP/1.1\r\n\r\n")
+            assert b"200" in reply
+            assert b"407" not in reply
+        finally:
+            relay.stop()
+
+    @pytest.mark.parametrize("bad", ["http://", ""])
+    def test_unusable_routed_url_falls_back_rather_than_raising(self, squid, bad):
+        """A malformed routed proxy must degrade to the default, not except.
+
+        Note "://nonsense" is NOT such a case -- it parses to the host
+        "nonsense", which is a legitimate-looking name whose connection simply
+        fails. Only a URL with no host at all is unusable at parse time.
+        """
+        relay = ProxyAuthRelay(
+            f"http://{UPSTREAM_USER}:{UPSTREAM_PASS}@127.0.0.1:{squid.port}",
+            resolve_upstream=lambda h: bad,
+        )
+        relay.start()
+        try:
+            reply = _speak(relay.proxy_url, b"CONNECT any.example:443 HTTP/1.1\r\n\r\n")
+            assert b"200" in reply
+        finally:
+            relay.stop()

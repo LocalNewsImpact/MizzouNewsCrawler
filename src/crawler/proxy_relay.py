@@ -32,7 +32,7 @@ import logging
 import socket
 import threading
 import urllib.parse
-from typing import Optional
+from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -108,17 +108,85 @@ def _pipe(src: socket.socket, dst: socket.socket) -> None:
 class ProxyAuthRelay:
     """Loopback proxy that forwards to an authenticated upstream proxy."""
 
-    def __init__(self, upstream_url: str):
+    def __init__(
+        self,
+        upstream_url: str,
+        resolve_upstream: Optional[Callable[[str], Optional[str]]] = None,
+    ):
+        """
+        Args:
+            upstream_url: the Squid used when no resolver is given, or when the
+                resolver declines to choose.
+            resolve_upstream: maps a target host to the proxy URL that should
+                serve it. Routing lives HERE rather than at driver creation
+                because Chrome fixes --proxy-server when the process starts and
+                drivers are reused across domains (SELENIUM_DRIVER_REUSE_LIMIT),
+                so a per-domain choice made at launch would be carried to the
+                next domain. The relay sees every request's target host, so it
+                can route each connection independently behind one fixed
+                loopback endpoint.
+        """
+        self._default_upstream = upstream_url
+        self._resolve_upstream = resolve_upstream
         host, port, user, password = split_proxy_url(upstream_url)
         self.upstream_host = host
         self.upstream_port = port
-        self._auth_header = b""
-        if user is not None and password is not None:
-            token = base64.b64encode(f"{user}:{password}".encode()).decode("ascii")
-            self._auth_header = f"Proxy-Authorization: Basic {token}\r\n".encode()
+        self._auth_header = self._auth_for(user, password)
         self._server: Optional[socket.socket] = None
         self._thread: Optional[threading.Thread] = None
         self.port: Optional[int] = None
+
+    @staticmethod
+    def _auth_for(user: Optional[str], password: Optional[str]) -> bytes:
+        if user is None or password is None:
+            return b""
+        token = base64.b64encode(f"{user}:{password}".encode()).decode("ascii")
+        return f"Proxy-Authorization: Basic {token}\r\n".encode()
+
+    @staticmethod
+    def target_host(head: bytes) -> Optional[str]:
+        """Host this request is FOR, from the proxy request line.
+
+        `CONNECT example.com:443 HTTP/1.1` -> example.com
+        `GET http://example.com/x HTTP/1.1` -> example.com
+        """
+        try:
+            line = head.split(b"\r\n", 1)[0].decode("latin-1")
+        except Exception:
+            return None
+        parts = line.split()
+        if len(parts) < 2:
+            return None
+        method, target = parts[0].upper(), parts[1]
+        if method == "CONNECT":
+            return target.rsplit(":", 1)[0] or None
+        if "://" in target:
+            rest = target.split("://", 1)[1].split("/", 1)[0]
+            return rest.rsplit("@", 1)[-1].rsplit(":", 1)[0] or None
+        return None
+
+    def _upstream_for(self, head: bytes) -> tuple[str, int, bytes]:
+        """(host, port, auth_header) for this connection."""
+        if self._resolve_upstream is not None:
+            host = self.target_host(head)
+            if host:
+                try:
+                    chosen = self._resolve_upstream(host)
+                except Exception as exc:
+                    # Never fail a page load over a routing decision: the
+                    # default upstream is always reachable.
+                    logger.debug("relay upstream resolution failed: %s", exc)
+                    chosen = None
+                if chosen:
+                    try:
+                        h, p, u, pw = split_proxy_url(chosen)
+                        return h, p, self._auth_for(u, pw)
+                    except ValueError as exc:
+                        logger.warning(
+                            "relay ignoring unusable routed proxy (%s); using default",
+                            exc,
+                        )
+        return self.upstream_host, self.upstream_port, self._auth_header
 
     @property
     def requires_auth(self) -> bool:
@@ -186,11 +254,10 @@ class ProxyAuthRelay:
                 if len(head) > 1_048_576:  # runaway header guard
                     return
 
-            upstream = socket.create_connection(
-                (self.upstream_host, self.upstream_port), timeout=_CONNECT_TIMEOUT
-            )
+            host, port, auth = self._upstream_for(head)
+            upstream = socket.create_connection((host, port), timeout=_CONNECT_TIMEOUT)
             upstream.settimeout(_IDLE_TIMEOUT)
-            upstream.sendall(self._with_auth(head))
+            upstream.sendall(self._with_auth(head, auth))
 
             threading.Thread(target=_pipe, args=(client, upstream), daemon=True).start()
             _pipe(upstream, client)
@@ -204,13 +271,14 @@ class ProxyAuthRelay:
                     except OSError:
                         pass
 
-    def _with_auth(self, head: bytes) -> bytes:
+    def _with_auth(self, head: bytes, auth: Optional[bytes] = None) -> bytes:
         """Insert Proxy-Authorization after the request line.
 
         Any client-supplied Proxy-Authorization is dropped first so ours is
         authoritative and can't be duplicated.
         """
-        if not self._auth_header:
+        auth = self._auth_header if auth is None else auth
+        if not auth:
             return head
         line_end = head.find(b"\r\n")
         if line_end == -1:
@@ -225,23 +293,53 @@ class ProxyAuthRelay:
         # split/rejoin leaves a trailing empty element -> normalise the
         # header/body separator back to exactly one blank line.
         cleaned = cleaned.rstrip(b"\r\n") + b"\r\n\r\n"
-        return request_line + self._auth_header + cleaned
+        return request_line + auth + cleaned
 
 
 _relay: Optional[ProxyAuthRelay] = None
 _relay_lock = threading.Lock()
 
 
-def get_relay_proxy(upstream_url: str) -> str:
-    """Return a loopback ``host:port`` that proxies to ``upstream_url``.
+def _router_upstream(host: str) -> Optional[str]:
+    """Ask the shared proxy_router which Squid should serve ``host``.
 
-    One relay per process, reused across drivers. Raises ValueError if the
-    upstream URL is unusable -- callers must fail loudly rather than hand
-    Chrome no proxy at all.
+    Selenium previously egressed through a single static SELENIUM_PROXY, so
+    browser traffic was exempt from #413's home-vs-mizzou selection and its
+    health-based backoff -- the router would log
+    ``home_squid backed off for <domain> (62 failures)`` while Chrome kept
+    sending requests there anyway, with no failover available.
+
+    Returns None on any failure so the caller falls back to its default
+    upstream: a routing decision must never be able to stop a page loading.
+    """
+    try:
+        from .proxy_config import get_proxy_manager
+
+        proxies, _choice, _method = get_proxy_manager().get_requests_proxies_for_domain(
+            host, service="selenium"
+        )
+    except Exception as exc:  # router unavailable, misconfigured, anything
+        logger.debug("router lookup failed for %s: %s", host, exc)
+        return None
+    if not proxies:
+        return None
+    return proxies.get("https") or proxies.get("http")
+
+
+def get_relay_proxy(upstream_url: str, *, route: bool = True) -> str:
+    """Return a loopback ``host:port`` that proxies to Squid.
+
+    One relay per process, reused across drivers. With ``route`` the relay
+    picks the upstream per connection from the shared router, keyed on each
+    request's target host; ``upstream_url`` is the fallback when the router
+    declines or fails. Raises ValueError if that fallback is unusable --
+    callers must fail loudly rather than hand Chrome no proxy at all.
     """
     global _relay
     with _relay_lock:
         if _relay is None or _relay.port is None:
-            _relay = ProxyAuthRelay(upstream_url)
+            _relay = ProxyAuthRelay(
+                upstream_url, resolve_upstream=_router_upstream if route else None
+            )
             _relay.start()
         return _relay.proxy_url
