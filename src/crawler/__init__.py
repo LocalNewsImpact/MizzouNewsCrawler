@@ -3409,9 +3409,13 @@ class ContentExtractor:
                 logger.debug(f"Primary extraction method: {method} (based on {field})")
                 return method
 
-        # Fallback to newspaper4k if no methods tracked
-        logger.warning("No extraction methods tracked, defaulting to newspaper4k")
-        return "newspaper4k"
+        # Nothing tracked: say so. This used to return "newspaper4k", which
+        # invented an attribution for whatever actually ran and silently
+        # inflated newspaper4k in every per-method analysis (19 occurrences in
+        # a 2h production sample). "unknown" is the honest answer;
+        # _select_raw_html_for_archive simply finds no match for it.
+        logger.warning("No extraction methods tracked; attribution is unknown")
+        return "unknown"
 
     def _is_extraction_successful(self, result: Dict[str, Any]) -> bool:
         """Check if extraction result contains meaningful content."""

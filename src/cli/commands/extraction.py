@@ -1937,7 +1937,12 @@ def _process_batch(
 
                     metrics.set_content_type_detection(detection_payload)
                     _attach_driver_metrics(metrics, extractor, domain)
-                    metrics.finalize(content or {})
+                    # Hand telemetry our own verdict. A filtered body
+                    # (paywall/not_article) is emptied above, so no body-based
+                    # rule can tell a deliberate drop from a failed capture --
+                    # which is why 407 filtered rows looked like errors and 75
+                    # stored articles looked like losses.
+                    metrics.finalize(content or {}, outcome=article_status)
 
                     # Diagnostic: optionally dump SQL and parameters before execution
                     try:

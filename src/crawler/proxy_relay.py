@@ -32,7 +32,7 @@ import logging
 import socket
 import threading
 import urllib.parse
-from typing import Optional, Tuple
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ _CONNECT_TIMEOUT = 20
 _IDLE_TIMEOUT = 180
 
 
-def split_proxy_url(proxy_url: str) -> Tuple[str, int, Optional[str], Optional[str]]:
+def split_proxy_url(proxy_url: str) -> tuple[str, int, str | None, str | None]:
     """Return (host, port, username, password) for a proxy URL.
 
     Accepts values with or without a scheme and with or without credentials.
