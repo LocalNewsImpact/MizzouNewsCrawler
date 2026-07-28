@@ -777,15 +777,15 @@ class ContentExtractor:
         self.domain_locks: dict[str, Any] = {}
 
         # Rate limiting and backoff management
-        self.domain_request_times: dict[
-            str, float
-        ] = {}  # Track last request time per domain
-        self.domain_backoff_until: dict[
-            str, float
-        ] = {}  # Track when domain is available again
-        self.domain_error_counts: dict[
-            str, int
-        ] = {}  # Track consecutive errors per domain
+        self.domain_request_times: dict[str, float] = (
+            {}
+        )  # Track last request time per domain
+        self.domain_backoff_until: dict[str, float] = (
+            {}
+        )  # Track when domain is available again
+        self.domain_error_counts: dict[str, int] = (
+            {}
+        )  # Track consecutive errors per domain
 
         try:
             self.unblock_rate_limit_seconds = float(
@@ -798,9 +798,9 @@ class ContentExtractor:
 
         # Selenium-specific failure tracking (separate from requests failures)
         # This prevents disabling Selenium for CAPTCHA-protected domains
-        self._selenium_failure_counts: dict[
-            str, int
-        ] = {}  # Track Selenium failures per domain
+        self._selenium_failure_counts: dict[str, int] = (
+            {}
+        )  # Track Selenium failures per domain
 
         # Base inter-request delay (env tunable)
         try:
@@ -3553,11 +3553,41 @@ class ContentExtractor:
                 "proxy_used": bool(session_proxy_url),
                 "proxy_url": mask_proxy_url(session_proxy_url),
                 "proxy_authenticated": "@" in (session_proxy_url or ""),
-                "proxy_status": http_status,
+                # A status WORD, not the HTTP code. proxy_status_to_int() maps
+                # success/failed/bypassed/disabled; handing it the int status
+                # raised AttributeError and killed router_proxy on the way
+                # through set_proxy_metrics. The HTTP code is already recorded
+                # separately by set_http_metrics -> http_status_code.
+                "proxy_status": "success" if session_proxy_url else None,
                 "proxy_error": None,
                 "router_proxy": router_proxy.value if router_proxy else None,
             }
             self._last_fetch_proxy_metadata = fetch_meta
+
+            # Record onto the metrics object HERE, where the fetch actually
+            # happened. This dict used to reach telemetry only by way of
+            # _parse_with_newspaper's result metadata (the sole reader of
+            # _last_fetch_proxy_metadata), so whenever newspaper4k did not run
+            # -- the common case, since mcmetadata/http_fetch usually satisfy
+            # the required fields first -- proxy_used, proxy_url AND
+            # router_proxy were silently dropped. Confirmed live 2026-07-27:
+            # 2,621 of 3,150 rows in 6h reported proxy_used=0 and 100% had
+            # router_proxy NULL, with a perfect correlation to newspaper4k not
+            # running, even though every one of those fetches went through
+            # Squid. The proxy was never bypassed; the evidence was.
+            # Wrapped so telemetry can never break a capture we already hold.
+            if metrics is not None:
+                try:
+                    metrics.set_proxy_metrics(
+                        proxy_used=fetch_meta["proxy_used"],
+                        proxy_url=fetch_meta["proxy_url"],
+                        proxy_authenticated=fetch_meta["proxy_authenticated"],
+                        proxy_status=fetch_meta["proxy_status"],
+                        proxy_error=fetch_meta["proxy_error"],
+                        router_proxy=fetch_meta["router_proxy"],
+                    )
+                except Exception as exc:
+                    logger.warning("proxy metrics recording failed: %s", exc)
 
             logger.info(
                 f"📥 Received {http_status} for {domain} "

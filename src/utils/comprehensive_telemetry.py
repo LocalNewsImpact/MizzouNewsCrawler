@@ -32,8 +32,17 @@ PROXY_STATUS_BYPASSED = 3
 
 
 def proxy_status_to_int(status: str | None) -> int | None:
-    """Convert string proxy status to integer for database storage."""
+    """Convert string proxy status to integer for database storage.
+
+    Non-string input returns None rather than raising. Callers have passed an
+    int HTTP status here (the fetch path did exactly that), and the resulting
+    AttributeError propagated out of set_proxy_metrics *before* it assigned
+    router_proxy -- silently nulling that column on every row. A telemetry
+    coercion helper must never be able to take down the metrics it serves.
+    """
     if status is None:
+        return None
+    if not isinstance(status, str):
         return None
     status_map = {
         "disabled": PROXY_STATUS_DISABLED,
@@ -278,12 +287,18 @@ class ExtractionMetrics:
         self.proxy_used = proxy_used
         self.proxy_url = proxy_url
         self.proxy_authenticated = proxy_authenticated
-        self.proxy_status = proxy_status_to_int(proxy_status)
+        # Assign router_proxy BEFORE the status coercion. When that coercion
+        # raised (an int HTTP status reached proxy_status_to_int), the
+        # exception escaped this method with proxy_used/proxy_url already set
+        # but router_proxy never assigned -- which is precisely how
+        # router_proxy stayed NULL on 100% of rows while proxy_url looked
+        # fine. Ordering keeps the cheapest, most load-bearing field safe.
         if router_proxy:
             self.router_proxy = router_proxy
         if proxy_error:
             # Truncate long error messages
             self.proxy_error = proxy_error[:500]
+        self.proxy_status = proxy_status_to_int(proxy_status)
 
     def set_driver_metrics(self, payload: dict[str, Any] | None):
         """Attach driver/proxy telemetry payload for downstream analysis."""
