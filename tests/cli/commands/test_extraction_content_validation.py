@@ -1103,17 +1103,28 @@ class TestFurnitureShapeGate:
         assert row["content"] != ""
         assert row["title"] == "Headline Outside The Furniture"
 
-    def test_nav_wrapped_wall_without_pattern_falls_back_to_not_article(
+    def test_nav_wrapped_wall_without_pattern_is_now_recognised_as_paywall(
         self, monkeypatch
     ):
-        """A wall the cleaner did not tag still fails the shape gate (util rate),
-        so it is filed as not_article rather than saved as an article body --
-        the houstonherald.com case, whose phrase matches no marker."""
+        """Inverted on 2026-07-28, from not_article to paywall.
+
+        This asserted the OLD limitation. A wall the cleaner had not tagged was
+        caught only by the shape gate, which can say "this is furniture" but not
+        which kind, so a wall matching no literal marker was filed not_article --
+        the houstonherald.com case. That is the mislabel this project set out to
+        stop: a page that plainly says "This article is only available to
+        subscribers" and "GET UNLIMITED ACCESS" is a wall, and filing it
+        not_article throws away the fact that a story exists behind it.
+
+        Detection is now concept-based, so the entitlement is recognised without
+        anyone adding houstonherald's wording to a list, and the finding carries
+        a KIND that selects the status.
+        """
         inserts = self._run(
             monkeypatch, self.NAV_WRAPPED_WALL, {"patterns_matched": []}
         )
         assert len(inserts) == 1
-        assert inserts[0]["status"] == "not_article"
+        assert inserts[0]["status"] == "paywall"
         assert inserts[0]["text"] == ""
 
     def test_real_prose_is_not_gated(self, monkeypatch):

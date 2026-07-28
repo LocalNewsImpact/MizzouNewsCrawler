@@ -57,15 +57,34 @@ class TestDetectionWasNeverTheProblem:
             "function about the canonical capture"
         )
 
-    def test_stripping_the_wall_hides_it(self):
-        """Why asking the cleaned text cannot work.
+    def test_removing_one_phrase_no_longer_hides_the_wall(self):
+        """This assertion was inverted on 2026-07-28, on purpose.
 
-        Remove the marker, as strip_boilerplate does, and the same page is
-        undetectable. This is the mechanism, not a hypothetical.
+        It used to assert that deleting the matched phrase made the same page
+        undetectable -- the real mechanism behind the 298 mislabelled rows, and
+        worth pinning while detection was a list of whole phrases.
+
+        Detection is now concept-based (an access intent near a gate action), so
+        deleting ONE phrase leaves the wall perfectly visible: Sedalia still
+        says "To continue reading ... log into your subscriber account". Keeping
+        the old assertion would pin the fragility we set out to remove.
         """
         marker = looks_like_paywall(SEDALIA_WALL)
         stripped = SEDALIA_WALL.lower().replace(marker, "")
-        assert looks_like_paywall(stripped) is None
+        assert looks_like_paywall(stripped) is not None
+
+    def test_stripping_every_wall_phrase_still_hides_it(self):
+        """The original point, which still stands.
+
+        Concepts are more robust than phrases, not immune. Strip the access
+        intent AND the gate action -- which is what a thorough cleaner does --
+        and nothing is left to detect. Classification must therefore still read
+        the canonical capture rather than the cleaned text.
+        """
+        gutted = SEDALIA_WALL.lower()
+        for phrase in ("continue reading", "log into", "subscri", "purchase"):
+            gutted = gutted.replace(phrase, "")
+        assert looks_like_paywall(gutted) is None
 
 
 class TestGateReadsCanonical:
