@@ -26,6 +26,7 @@ from bs4 import BeautifulSoup, Tag
 from dateutil import parser as dateparser
 
 from src.utils.boilerplate import (
+    CONSENT,
     MAX_CAPITALIZATION,
     MAX_UTILITY_WORD_RATE,
     MIN_PROSE_DENSITY,
@@ -34,6 +35,7 @@ from src.utils.boilerplate import (
     looks_like_paywall,
     prose_density,
     strip_boilerplate,
+    strip_furniture,
     utility_word_rate,
 )
 from src.utils.bot_sensitivity_manager import BotSensitivityManager
@@ -3855,21 +3857,42 @@ class ContentExtractor:
         # Reject text that is clearly a cookie consent banner dump rather than article
         # content. Trafilatura (used internally by mcmetadata) can mistake WPConsent /
         # OneTrust cookie description tables for the main body text.
+        #
+        # This was five literal vendor strings and it failed exactly as a literal
+        # list must: kq2.com serves a CLOUDFLARE table, so none of the five
+        # matched and 11 of 17 articles in one 4-hour window were stored with
+        # 27,372 chars of cookie disclosure as the article body -- all of them
+        # CIN-labelled, sitting in the corpus. Adding kq2's wording would have
+        # fixed kq2 and missed the next vendor.
+        #
+        # It now shares the ONE detector in boilerplate.py, which recognises a
+        # disclosure table by shape (consent vocabulary saturation plus repeated
+        # cookie lifetimes) rather than by vendor. Measured on the 200-row
+        # production export: fires on 8/8 of the kq2 dumps and 0 of 180 real
+        # stories, which score 0.00 on the consent rate against the table's 3.29.
+        #
+        # And it is SURGICAL. The old guard set text_content = None, so one
+        # marker anywhere discarded the whole capture -- a page carrying a banner
+        # AND a story lost the story too. strip_furniture removes the table and
+        # returns the rest, so a real article below a banner survives intact.
         if text_content:
-            _cmp_dump_markers = [
-                "A powerful search engine that organizes",  # WPConsent/Google cookie desc
-                "wpconsent-service-google",
-                "onetrust-consent-sdk",
-                "This cookie is for authentication with your Google account",
-                "CookieConsent[stamp]",
-            ]
-            if any(marker in text_content for marker in _cmp_dump_markers):
-                logger.warning(
-                    "mcmetadata returned consent-banner text for %s; discarding content "
-                    "so downstream extractors can provide it",
-                    url,
-                )
-                text_content = None
+            stripped = strip_furniture(text_content)
+            if CONSENT in stripped.kinds:
+                if stripped.text:
+                    logger.warning(
+                        "mcmetadata returned a consent-banner table for %s; "
+                        "excised it and kept %d chars of article text",
+                        url,
+                        len(stripped.text),
+                    )
+                    text_content = stripped.text
+                else:
+                    logger.warning(
+                        "mcmetadata returned consent-banner text for %s; discarding "
+                        "content so downstream extractors can provide it",
+                        url,
+                    )
+                    text_content = None
 
         article_title = mc_result.get("article_title")
 

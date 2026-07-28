@@ -22,6 +22,7 @@ data rather than taste.
 from __future__ import annotations
 
 import re
+from typing import NamedTuple
 
 # --------------------------------------------------------------------------
 # Vocabulary
@@ -304,14 +305,13 @@ def looks_like_furniture(text: str) -> bool:
     removal really is scaffolding. Deliberately NOT `not looks_like_article(...)`:
     that would call anything short furniture, and a two-sentence paragraph in the
     middle of a story is not. This asks for positive evidence of scaffolding.
+
+    Thin wrapper over classify_furniture() since 2026-07-28. Callers that need to
+    know WHICH kind fired -- and in particular whether it is recoverable -- should
+    use that directly; this bool is kept for the call sites that only ever asked
+    "is this scaffolding".
     """
-    if not text or not text.strip():
-        return False
-    if is_boilerplate_segment(text):
-        return True
-    if utility_word_rate(text) > MAX_UTILITY_WORD_RATE:
-        return True
-    return capitalization_ratio(text) > MAX_CAPITALIZATION
+    return classify_furniture(text) is not None
 
 
 # Paywall/registration prompts specifically, as opposed to the consent banners
@@ -386,11 +386,475 @@ def looks_like_paywall(text: str | None) -> str | None:
 
     Matches on the raw body, NOT the stripped one: strip_boilerplate removes
     these very phrases, so checking after the strip would find nothing.
+
+    Thin wrapper over classify_furniture() since 2026-07-28 -- see the section
+    below for why paywalls stopped being their own detector. The literal list
+    is still consulted first, so the evidence returned for a wall this project
+    already had a phrase for is that exact phrase.
     """
-    if not text:
+    found = classify_furniture(text)
+    if found is not None and found.kind == PAYWALL:
+        return found.evidence
+    return None
+
+
+# --------------------------------------------------------------------------
+# One detector, and what KIND of furniture it found
+# --------------------------------------------------------------------------
+#
+# Paywall prompts, cookie modals, nav bars and comment policies all answer ONE
+# question: is this block scaffolding rather than reporting? They were three
+# separate mechanisms in three files -- looks_like_furniture() here (shape),
+# looks_like_paywall() here (literal PAYWALL_MARKERS), and an inline
+# _cmp_dump_markers list in crawler/__init__.py (literal, five vendor strings).
+# The comment above PAYWALL_MARKERS already conceded the point: these are
+# paywall prompts "as opposed to the consent banners ... that BOILERPLATE_MARKERS
+# also covers" -- same category, three implementations.
+#
+# That split is exactly how kq2.com slipped through. Its Cloudflare cookie table
+# is not WPConsent or OneTrust, so none of the five strings matched, and 11 of 17
+# articles in one 4-hour window were stored with 27,372 chars of cookie
+# disclosure as the article body -- all of them already CIN-labelled, sitting in
+# the corpus. Adding kq2's phrase fixes kq2 and misses the next vendor; the
+# header of this module already records that a hand-written list of plausible
+# paywall phrases scored 2% recall.
+#
+# What actually differs between these is DOWNSTREAM, not detection. It is a
+# label on the finding, not a reason for a separate code path:
+#
+#   PAYWALL   content exists but is withheld -- retryable with credentials
+#   CONSENT   cookie/GDPR modal: pure noise, nothing to recover
+#   PROMO     newsletter ask: furniture beside a readable story
+#   POLICY    comment rules, also noise
+#   NAV       menus, e-edition links, section indexes
+#   UNKNOWN   shape says scaffolding, vocabulary cannot say which kind
+#
+# Only PAYWALL is recoverable, and that is the one bit callers need in order to
+# choose a status: paywall vs not_article.
+PAYWALL = "paywall"
+CONSENT = "consent"
+PROMO = "promotion"
+POLICY = "comment_policy"
+NAV = "navigation"
+UNKNOWN = "furniture"
+
+#: Kinds that mean "the page has a story we did not get", as opposed to "this
+#: block is noise". Only these justify a retry with credentials.
+RECOVERABLE_KINDS: frozenset[str] = frozenset({PAYWALL})
+
+#: Kinds a SEGMENT may be deleted for. Everything except UNKNOWN, and the
+#: exclusion is the important part.
+#:
+#: UNKNOWN is the shape verdict -- prose density, capitalisation, utility-word
+#: rate -- and those thresholds were measured on whole bodies (medians over
+#: 1,036 labelled extractions). A single sentence has far too little text to
+#: estimate a rate from, so applying them per-segment deletes real writing:
+#: "Voters who want to continue receiving mail ballots must sign up again this
+#: year" scores 7.1 utility words per 100 and is a news sentence.
+#:
+#: So the two layers keep different jobs, which is also why this is not just a
+#: tuning constant: VOCABULARY and CONCEPTS are local and precise, and may
+#: remove a segment; SHAPE is statistical and only ever judges a whole body
+#: (via looks_like_furniture at the capture gate). Menus are the exception that
+#: proves it -- they are structural, so _drop_menu_runs handles them by RUN
+#: rather than by per-segment shape.
+_SEGMENT_REMOVABLE: frozenset[str] = frozenset({PAYWALL, CONSENT, PROMO, POLICY, NAV})
+
+
+class Furniture(NamedTuple):
+    """A furniture finding: what kind, and the evidence that decided it.
+
+    Evidence is carried for the same reason looks_like_paywall() returned a
+    phrase instead of a bool -- a verdict you cannot audit is a verdict you
+    cannot tune.
+    """
+
+    kind: str
+    evidence: str
+
+    @property
+    def recoverable(self) -> bool:
+        return self.kind in RECOVERABLE_KINDS
+
+
+# Concept matching, not phrase matching.
+#
+# The user's framing, 2026-07-28: this heuristic is a core function of the app
+# and "exact matching like this does not scale". Every vendor words its banner
+# differently, so a list of whole prompts needs a new entry per CMS forever.
+# What does NOT vary is the SHAPE of the demand: a wall names something you
+# cannot do (read on) and something you must do first (subscribe, log in). Match
+# those two ideas near each other and the wording stops mattering.
+#
+# This is the practical meaning of "semantic" without putting a model in the
+# extraction hot path: concepts composed of alternatives, required to co-occur.
+# Every alternative is anchored to READING or to a CONTENT NOUN. An earlier
+# draft allowed bare "to continue" and bare "access", which turns local news
+# into paywalls wholesale: "To continue the program, residents must register by
+# Friday" carries an access word and a gate word within a sentence and is a
+# story about a parks department. The anchor is what makes the concept a wall
+# rather than a coincidence.
+_CONTENT_NOUN = r"(?:article|story|content|piece|report|post)"
+_ACCESS_INTENT = re.compile(
+    r"(?:continue|keep|finish|start)\s+reading"
+    r"|continue\s+to\s+read"
+    r"|read(?:ing)?\s+(?:the\s+)?(?:full|rest|remainder|entire)\b"
+    rf"|read\s+(?:this|the)\s+{_CONTENT_NOUN}"
+    rf"|view\s+(?:this|the)\s+(?:full\s+)?{_CONTENT_NOUN}"
+    rf"|see\s+the\s+(?:full|rest|entire)\s+{_CONTENT_NOUN}"
+    rf"|access\s+(?:to\s+)?(?:this|the)\s+(?:full\s+)?{_CONTENT_NOUN}"
+    rf"|unlock\s+(?:this|the|full)\s*{_CONTENT_NOUN}?",
+    re.IGNORECASE,
+)
+_GATE_ACTION = re.compile(
+    r"subscri(?:be|ption|ber)|log\s?in|sign\s?in|sign\s?up|register"
+    r"|create\s+an?\s+account|free\s+trial|purchase|paid\s+plan|become\s+a\s+member",
+    re.IGNORECASE,
+)
+# Entitlement language is a wall on its own -- it states the restriction without
+# needing to name an action ("for subscribers only").
+_ENTITLEMENT = re.compile(
+    r"(?:subscribers?|members?|premium)[- ]only"
+    r"|only\s+(?:available\s+)?(?:to|for)\s+subscribers"
+    r"|available\s+in\s+full\s+to\s+subscribers"
+    r"|premium\s+content|subscriber\s+account"
+    # Stands alone rather than needing a gate action beside it. "Unlimited
+    # access" is subscription marketing and essentially never news prose --
+    # 0 hits across 180 real stories in the 2026-07-28 export. It was an
+    # access-intent at first, which failed to fire on "Members get unlimited
+    # access for less than a dollar a week": the sentence names no action
+    # because the entitlement IS the pitch.
+    r"|unlimited\s+(?:digital\s+)?access",
+    re.IGNORECASE,
+)
+# How close the two halves must sit. A story that mentions reading in one
+# paragraph and a subscription in another is not a wall; a prompt puts them in
+# the same breath.
+_GATE_WINDOW = 120
+
+_CONSENT_VOCAB = re.compile(
+    r"\bcookies?\b|\bconsent\b|\bgdpr\b|\bccpa\b|\btrackers?\b"
+    r"|\bthird[- ]party\b|\bopt[- ]out\b|\bprivacy\s+preferences?\b",
+    re.IGNORECASE,
+)
+# Cookie tables list a lifetime for every row. Vendor-independent: the unit is
+# the give-away, not the wording around it.
+_DURATION_TOKEN = re.compile(
+    r"\b\d+\s*(?:second|minute|hour|day|week|month|year)s?\b"
+    r"|\bsession\b|\bpersistent\b|\bexpir(?:es|ation|y)\b",
+    re.IGNORECASE,
+)
+# Vendor tokens still earn their place as a fast, unambiguous path -- they just
+# are no longer the ONLY path. kq2's Cloudflare names are here now, but the
+# density rule below is what catches the vendor nobody has seen yet.
+_CONSENT_VENDOR = re.compile(
+    r"wpconsent|onetrust|cookieconsent|cookiebot|trustarc|quantcast"
+    r"|__cf_bm|cf_ob_info|_ga\b|_gid\b|\bcookie[-_]?(?:policy|notice|banner)\b",
+    re.IGNORECASE,
+)
+# Consent vocabulary per 100 words. A story ABOUT privacy law mentions cookies a
+# handful of times in 800 words (~0.5); a disclosure table repeats the word on
+# every row. Set well above prose and well below a table.
+_CONSENT_RATE = 2.0
+_CONSENT_MIN_DURATIONS = 3
+
+# The consent NOTICE, as opposed to the cookie table. One or two sentences, so
+# the density rule cannot see it -- there is not enough text to measure a rate
+# from -- and the shape rules can only ever return UNKNOWN, which is not
+# removable by design. Without a CONSENT verdict it survived into the body:
+# four stltoday.com rows in the 2026-07-28 export are this notice plus dialog
+# chrome plus a photo caption, with no article at all, and they were labelled
+# Political life and Civic information.
+_CONSENT_NOTICE = re.compile(
+    r"(?:this\s+(?:website|site)\s+(?:uses|utilizes)|we\s+use)[^.]{0,80}cookies"
+    r"|cookies?\s+to\s+(?:enable|improve|analyse|analyze|personalise|personalize)"
+    r"|accept\s+all\s+cookies|manage\s+(?:your\s+)?(?:cookie\s+)?preferences"
+    r"|cookie\s+policy|privacy\s+policy",
+    re.IGNORECASE,
+)
+_PROMO = re.compile(
+    r"subscribe\s+to\s+our\s+newsletter|sign\s+up\s+for\s+(?:updates|our|the)"
+    r"|join\s+our\s+mailing\s+list|get\s+(?:daily|breaking|weekly)\s+updates"
+    r"|email\s+updates|delivered\s+to\s+your\s+inbox",
+    re.IGNORECASE,
+)
+_POLICY = re.compile(
+    r"obscene,\s*vulgar|racist\s+or\s+sexually|threats\s+of\s+harming"
+    r"|knowingly\s+lie\s+about|sort\s+of\s+-ism|report'?\s+link"
+    r"|abusive\s+posts|degrading\s+to\s+another",
+    re.IGNORECASE,
+)
+_NAV = re.compile(
+    r"skip\s+to\s+main\s+content|toggle\s+navigation|main\s+menu"
+    r"|advanced\s+search|e-edition|photo\s+galleries|previous\s+post|next\s+post"
+    # Modal and clipboard chrome that ships with the consent notice above.
+    r"|(?:beginning|end)\s+of\s+dialog\s+window|escape\s+will\s+cancel"
+    r"|opens?\s+(?:in\s+a\s+new|an\s+external)\s+(?:window|website)"
+    r"|copied\s+to\s+clipboard",
+    re.IGNORECASE,
+)
+
+# Which literal list maps to which kind, so a phrase this project already
+# derived from real data keeps naming itself as the evidence rather than being
+# replaced by a generic concept name.
+_MARKER_KINDS: tuple[tuple[tuple[str, ...], str], ...] = (
+    (PAYWALL_MARKERS, PAYWALL),
+    (SUBSCRIPTION_MARKERS, PROMO),
+)
+
+
+# Share of the text a SINGLE token may occupy before the block is filler.
+#
+# Found by challenging the control set rather than by design: four stltoday.com
+# rows in the 2026-07-28 export are site chrome plus literal "word word word
+# word ..." placeholder text, and one is CIN-labelled Economic Development at
+# 0.41 confidence. Their most common token is 71% of the body. Across the 176
+# genuine stories in the same export the worst case is 12.6% -- a 5.6x gap, the
+# widest separation of any signal measured here.
+#
+# Vendor-independent and language-independent, which is the point: it describes
+# degenerate text rather than anyone's markup.
+MAX_TOKEN_REPETITION = 0.25
+
+# Below this many words, rates and densities are noise rather than measurement.
+# Matches the floor _consent_dump already uses.
+_MIN_MEASURABLE_WORDS = 40
+
+
+def _max_token_share(text: str) -> float:
+    """Share of the text taken by its single most common word."""
+    words = re.findall(r"[a-z']+", text.lower())
+    if len(words) < _MIN_MEASURABLE_WORDS:
+        return 0.0
+    counts: dict[str, int] = {}
+    for w in words:
+        counts[w] = counts.get(w, 0) + 1
+    return max(counts.values()) / len(words)
+
+
+def _long_enough_to_measure(text: str) -> bool:
+    return len(re.findall(r"[a-zA-Z']+", text)) >= _MIN_MEASURABLE_WORDS
+
+
+def _consent_dump(text: str, lowered: str) -> str | None:
+    """Whether a block is a cookie-disclosure table, by shape not by vendor.
+
+    The kq2 case: a 27,372-char Cloudflare table with no phrase any list held.
+    Two independent signals have to agree -- saturation of consent vocabulary
+    AND repeated lifetime values -- because either alone has an obvious false
+    positive (an article about GDPR; a transit timetable).
+    """
+    words = re.findall(r"[a-zA-Z']+", lowered)
+    if len(words) < 40:
+        return None
+    hits = len(_CONSENT_VOCAB.findall(lowered))
+    if hits == 0:
+        return None
+    rate = hits * 100.0 / len(words)
+    durations = len(_DURATION_TOKEN.findall(lowered))
+    if rate >= _CONSENT_RATE and durations >= _CONSENT_MIN_DURATIONS:
+        return f"consent vocabulary {rate:.1f}/100w with {durations} lifetimes"
+    return None
+
+
+def _gated(lowered: str) -> str | None:
+    """A wall: something withheld, and the thing you must do to get it."""
+    entitle = _ENTITLEMENT.search(lowered)
+    if entitle:
+        return entitle.group(0).strip()
+    for m in _ACCESS_INTENT.finditer(lowered):
+        window = lowered[m.start() : m.end() + _GATE_WINDOW]
+        action = _GATE_ACTION.search(window)
+        if action:
+            return f"{m.group(0).strip()} ... {action.group(0).strip()}"
+    return None
+
+
+def classify_furniture(text: str | None) -> Furniture | None:
+    """What kind of furniture this block is, or None if it reads as reporting.
+
+    THE one detector. Order matters and encodes precedence rather than taste:
+
+    1. Literal markers first, so a wall this project already derived a phrase
+       for reports that phrase as its evidence (auditable, and it keeps the
+       marker lists doing real work rather than rotting).
+    2. Concepts next -- these generalise to vendors nobody has seen.
+    3. Shape last, which can say "scaffolding" but not which kind.
+
+    PAYWALL outranks the noise kinds throughout: a wall wrapped in a nav menu is
+    still a wall, and calling it navigation would throw away the one finding
+    that says a story exists behind it.
+    """
+    if not text or not text.strip():
         return None
     lowered = text.lower()
-    for marker in PAYWALL_MARKERS:
-        if marker in lowered:
-            return marker
+
+    for markers, kind in _MARKER_KINDS:
+        for marker in markers:
+            if marker in lowered:
+                return Furniture(kind, marker)
+
+    gate = _gated(lowered)
+    if gate:
+        return Furniture(PAYWALL, gate)
+
+    dump = _consent_dump(text, lowered)
+    if dump:
+        return Furniture(CONSENT, dump)
+    vendor = _CONSENT_VENDOR.search(text)
+    if vendor:
+        return Furniture(CONSENT, vendor.group(0).strip())
+    notice = _CONSENT_NOTICE.search(lowered)
+    if notice:
+        return Furniture(CONSENT, notice.group(0).strip())
+
+    for pattern, kind in ((_POLICY, POLICY), (_PROMO, PROMO), (_NAV, NAV)):
+        m = pattern.search(lowered)
+        if m:
+            return Furniture(kind, m.group(0).strip())
+
+    if is_boilerplate_segment(text):
+        return Furniture(UNKNOWN, "boilerplate marker")
+    if utility_word_rate(text) > MAX_UTILITY_WORD_RATE:
+        return Furniture(UNKNOWN, f"utility words {utility_word_rate(text):.1f}/100w")
+    repetition = _max_token_share(text)
+    if repetition > MAX_TOKEN_REPETITION:
+        return Furniture(UNKNOWN, f"one token is {repetition:.0%} of the text")
+    if _long_enough_to_measure(text) and prose_density(text) < MIN_PROSE_DENSITY:
+        return Furniture(UNKNOWN, f"prose density {prose_density(text):.2f}")
+    if capitalization_ratio(text) > MAX_CAPITALIZATION:
+        return Furniture(UNKNOWN, f"capitalisation {capitalization_ratio(text):.2f}")
     return None
+
+
+# Minimum characters of unbroken clean text to be believed as body copy inside a
+# block already condemned as a disclosure table.
+#
+# MEASURED, on the real 27,372-char kq2 capture. Its table breaks into 39 runs
+# of segments carrying no cookie word, no lifetime and no vendor token -- the
+# prose in the vendors' own descriptions -- and the LARGEST is 387 chars. A real
+# 1,476-char story appended to that same table forms one unbroken 1,463-char
+# run. So the story is ~4x the biggest thing the table can produce.
+#
+# Prose density was tried first and does not separate these at all: the table's
+# clean runs score 0.211-0.357 and real stories 0.221-0.367, because Cloudflare
+# and Google write their cookie descriptions in ordinary English. Length is what
+# actually distinguishes them.
+#
+# The known cost: a genuinely SHORT story glued to a full cookie table is lost
+# and the row is filed not_article. That is the safer of the two failures and
+# the honest one -- the alternative, which is what production did, was to store
+# the cookie table AS the story and let it be CIN-labelled. A visible
+# not_article can be re-filed; a plausible-looking mislabel cannot be found.
+MIN_EMBEDDED_PROSE_RUN = 500
+
+
+def _longest_prose_runs(segs: list[str]) -> str:
+    """Keep only substantial unbroken runs of table-signal-free segments.
+
+    Runs, not individual segments, because a banner and a story are contiguous
+    REGIONS of a page rather than interleaved sentences. Judging segment by
+    segment kept 3,648 chars of scattered vendor prose ("The Ray ID of the
+    original failed request.") that no per-sentence rule can tell from writing.
+    """
+    runs: list[list[str]] = []
+    current: list[str] = []
+    for seg in segs:
+        if (
+            _CONSENT_VOCAB.search(seg)
+            or _DURATION_TOKEN.search(seg)
+            or _CONSENT_VENDOR.search(seg)
+        ):
+            if current:
+                runs.append(current)
+                current = []
+        else:
+            current.append(seg)
+    if current:
+        runs.append(current)
+    kept = [" ".join(r) for r in runs if len(" ".join(r)) >= MIN_EMBEDDED_PROSE_RUN]
+    return " ".join(kept).strip()
+
+
+class Stripped(NamedTuple):
+    """What surgical removal left, and what it took."""
+
+    text: str
+    removed: tuple[Furniture, ...]
+
+    @property
+    def kinds(self) -> frozenset[str]:
+        return frozenset(f.kind for f in self.removed)
+
+    @property
+    def recoverable(self) -> bool:
+        """Whether anything removed means a story is being withheld."""
+        return any(f.recoverable for f in self.removed)
+
+
+def strip_furniture(body: str | None) -> Stripped:
+    """Remove the furniture segments and keep everything else.
+
+    SURGICAL, and that is the whole point. The consent guard this replaces did
+    ``text_content = None`` -- one marker anywhere discarded the entire capture,
+    so a page carrying a banner AND a story lost the story too. Removal is
+    per-segment, so a cookie table above the article takes the table only.
+
+    The caller decides status from what is LEFT plus ``.kinds``: prose survived
+    means store it, nothing survived plus a recoverable kind means paywall,
+    nothing survived otherwise means not_article. That decision does not belong
+    here -- this function reports, it does not adjudicate.
+    """
+    if not body or not body.strip():
+        return Stripped("", ())
+    segs = _drop_menu_runs(segments(body))
+    kept: list[str] = []
+    removed: list[Furniture] = []
+    for seg in segs:
+        found = classify_furniture(seg)
+        if found is None or found.kind not in _SEGMENT_REMOVABLE:
+            kept.append(seg)
+        else:
+            removed.append(found)
+    text = " ".join(kept).strip()
+    # Then ask the same question of what SURVIVED, because a disclosure table is
+    # a property of the whole block and not of any one sentence in it. The real
+    # kq2 capture is 27,372 chars with no line breaks at all, so it segments
+    # into ordinary-looking sentences -- "This cookie is used to store the
+    # user's cookie consent preferences. 30 days" -- and not one of them carries
+    # enough lifetimes on its own to be condemned. Only the 4,319-word whole
+    # does: 189 lifetimes at 3.3 consent words per 100.
+    #
+    # This deliberately runs even when segments were already removed. Gating it
+    # on `not removed` meant a page whose vendor strings matched a few segments
+    # had its whole-body check skipped, and 24,819 of those 27,372 chars were
+    # kept as the article body -- the exact bug, surviving the fix meant to
+    # remove it.
+    if text:
+        whole = _consent_dump(text, text.lower())
+        if whole:
+            # EXCISE the table, do not condemn the page. Returning "" here was
+            # the naive version and it reintroduced the original sin from the
+            # other direction: a capture holding the banner AND a story lost the
+            # story, which is the whole failure this rewrite exists to end.
+            #
+            # Inside a block already established as a disclosure dump, any one
+            # of the three table signals is enough to drop a sentence -- a much
+            # lower bar than the whole-body rate, and safe precisely because it
+            # is scoped to a block that has already been condemned.
+            #
+            # The lifetime token has to be in here. Consent vocabulary alone
+            # left 11,984 chars of this very table standing, because rows like
+            # "session __cfruid Used by the content network, Cloudflare, to
+            # identify trusted web traffic" never say "cookie" -- the column
+            # heading did, once, 4,000 words earlier. Every row carries a
+            # lifetime, which is what makes it a row.
+            #
+            # "30 days" can of course appear in real writing. That is an
+            # acceptable trade HERE and only here: this predicate never runs on
+            # a block that was not already condemned as a disclosure table.
+            return Stripped(
+                _longest_prose_runs(kept),
+                (*removed, Furniture(CONSENT, whole)),
+            )
+    return Stripped(text, tuple(removed))
