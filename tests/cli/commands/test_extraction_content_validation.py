@@ -249,7 +249,10 @@ class TestContentValidationLogic:
             def set_content_type_detection(self, *args):
                 pass
 
-            def finalize(self, *args):
+            # **kwargs so a new finalize() argument cannot silently blow up
+            # this fake: the production call now passes outcome=<status>,
+            # and a TypeError here is swallowed as an extraction failure.
+            def finalize(self, *args, **kwargs):
                 pass
 
         monkeypatch.setattr(extraction, "DatabaseManager", FakeDBManager)
@@ -375,7 +378,10 @@ class TestContentValidationLogic:
             def set_content_type_detection(self, *args):
                 pass
 
-            def finalize(self, *args):
+            # **kwargs so a new finalize() argument cannot silently blow up
+            # this fake: the production call now passes outcome=<status>,
+            # and a TypeError here is swallowed as an extraction failure.
+            def finalize(self, *args, **kwargs):
                 pass
 
         monkeypatch.setattr(extraction, "DatabaseManager", FakeDBManager)
@@ -505,7 +511,10 @@ class TestContentValidationLogic:
             def set_content_type_detection(self, *args):
                 pass
 
-            def finalize(self, *args):
+            # **kwargs so a new finalize() argument cannot silently blow up
+            # this fake: the production call now passes outcome=<status>,
+            # and a TypeError here is swallowed as an extraction failure.
+            def finalize(self, *args, **kwargs):
                 pass
 
         monkeypatch.setattr(extraction, "DatabaseManager", FakeDBManager)
@@ -624,7 +633,10 @@ class TestContentValidationLogic:
             def set_content_type_detection(self, *args):
                 pass
 
-            def finalize(self, *args):
+            # **kwargs so a new finalize() argument cannot silently blow up
+            # this fake: the production call now passes outcome=<status>,
+            # and a TypeError here is swallowed as an extraction failure.
+            def finalize(self, *args, **kwargs):
                 pass
 
         monkeypatch.setattr(extraction, "DatabaseManager", FakeDBManager)
@@ -744,7 +756,10 @@ class TestContentValidationLogic:
             def set_content_type_detection(self, *args):
                 pass
 
-            def finalize(self, *args):
+            # **kwargs so a new finalize() argument cannot silently blow up
+            # this fake: the production call now passes outcome=<status>,
+            # and a TypeError here is swallowed as an extraction failure.
+            def finalize(self, *args, **kwargs):
                 pass
 
         monkeypatch.setattr(extraction, "DatabaseManager", FakeDBManager)
@@ -851,7 +866,10 @@ class TestContentValidationLogic:
             def set_content_type_detection(self, *args):
                 pass
 
-            def finalize(self, *args):
+            # **kwargs so a new finalize() argument cannot silently blow up
+            # this fake: the production call now passes outcome=<status>,
+            # and a TypeError here is swallowed as an extraction failure.
+            def finalize(self, *args, **kwargs):
                 pass
 
         monkeypatch.setattr(extraction, "DatabaseManager", FakeDBManager)
@@ -1020,7 +1038,10 @@ class TestFurnitureShapeGate:
             def set_content_type_detection(self, *args):
                 pass
 
-            def finalize(self, *args):
+            # **kwargs so a new finalize() argument cannot silently blow up
+            # this fake: the production call now passes outcome=<status>,
+            # and a TypeError here is swallowed as an extraction failure.
+            def finalize(self, *args, **kwargs):
                 pass
 
         monkeypatch.setattr(extraction, "DatabaseManager", FakeDBManager)
@@ -1295,7 +1316,10 @@ class TestInsufficientContentIntegration:
             def set_content_type_detection(self, *args):
                 pass
 
-            def finalize(self, *args):
+            # **kwargs so a new finalize() argument cannot silently blow up
+            # this fake: the production call now passes outcome=<status>,
+            # and a TypeError here is swallowed as an extraction failure.
+            def finalize(self, *args, **kwargs):
                 pass
 
         monkeypatch.setattr(extraction, "ExtractionMetrics", FakeMetrics)

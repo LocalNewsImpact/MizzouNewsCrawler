@@ -30,10 +30,24 @@ PROXY_STATUS_SUCCESS = 1
 PROXY_STATUS_FAILED = 2
 PROXY_STATUS_BYPASSED = 3
 
+# candidate_links.status values that mean "the pipeline deliberately declined
+# this body", as opposed to "extraction failed". Kept here so telemetry and the
+# extraction command cannot drift apart on what counts as a filter.
+_FILTERED_OUTCOMES = frozenset({"paywall", "not_article"})
+
 
 def proxy_status_to_int(status: str | None) -> int | None:
-    """Convert string proxy status to integer for database storage."""
+    """Convert string proxy status to integer for database storage.
+
+    Non-string input returns None rather than raising. Callers have passed an
+    int HTTP status here (the fetch path did exactly that), and the resulting
+    AttributeError propagated out of set_proxy_metrics *before* it assigned
+    router_proxy -- silently nulling that column on every row. A telemetry
+    coercion helper must never be able to take down the metrics it serves.
+    """
     if status is None:
+        return None
+    if not isinstance(status, str):
         return None
     status_map = {
         "disabled": PROXY_STATUS_DISABLED,
@@ -278,12 +292,18 @@ class ExtractionMetrics:
         self.proxy_used = proxy_used
         self.proxy_url = proxy_url
         self.proxy_authenticated = proxy_authenticated
-        self.proxy_status = proxy_status_to_int(proxy_status)
+        # Assign router_proxy BEFORE the status coercion. When that coercion
+        # raised (an int HTTP status reached proxy_status_to_int), the
+        # exception escaped this method with proxy_used/proxy_url already set
+        # but router_proxy never assigned -- which is precisely how
+        # router_proxy stayed NULL on 100% of rows while proxy_url looked
+        # fine. Ordering keeps the cheapest, most load-bearing field safe.
         if router_proxy:
             self.router_proxy = router_proxy
         if proxy_error:
             # Truncate long error messages
             self.proxy_error = proxy_error[:500]
+        self.proxy_status = proxy_status_to_int(proxy_status)
 
     def set_driver_metrics(self, payload: dict[str, Any] | None):
         """Attach driver/proxy telemetry payload for downstream analysis."""
@@ -307,8 +327,15 @@ class ExtractionMetrics:
 
         self.driver_metrics = sanitized
 
-    def finalize(self, final_result: dict[str, Any]):
-        """Finalize metrics with the overall extraction result."""
+    def finalize(self, final_result: dict[str, Any], outcome: str | None = None):
+        """Finalize metrics with the overall extraction result.
+
+        Args:
+            final_result: the extracted content dict.
+            outcome: the pipeline's own verdict for this URL (the value it
+                stored as candidate_links.status: extracted / wire / paywall /
+                not_article). When given it is AUTHORITATIVE -- see below.
+        """
         self.end_time = datetime.utcnow()
         duration_sec = (self.end_time - self.start_time).total_seconds()
         self.total_duration_ms = duration_sec * 1000
@@ -340,6 +367,32 @@ class ExtractionMetrics:
             # raw character count nor a title fixes that, because a wall can be
             # arbitrarily wordy — so qualify on what survives the boilerplate.
             self.is_success = looks_like_article(body)
+
+        # The pipeline's verdict wins over the inference above. Re-deriving
+        # success here made telemetry disagree with what was actually stored,
+        # in both directions (measured over 6h of production, 2026-07-27):
+        #
+        #  * 407 rows the furniture/paywall gate deliberately filtered were
+        #    recorded as is_success=false with NO error_type and NO message --
+        #    indistinguishable from a genuine failure. They are the reason the
+        #    failure rate read as 27% when much of it was by-design filtering.
+        #  * 75 rows stored as status='extracted', with a body, were recorded
+        #    as failures because looks_like_article() is stricter than the save
+        #    path. The pipeline kept the article and telemetry called it a loss.
+        #
+        # The gate empties `content` before finalize, so no body-based rule can
+        # tell "we chose to drop this" from "we failed to get it". Only the
+        # caller knows, so the caller says.
+        if outcome:
+            if outcome in _FILTERED_OUTCOMES:
+                self.is_success = False
+                self.error_type = f"filtered_{outcome}"
+                self.error_message = (
+                    f"Filtered by the extraction pipeline as {outcome}; "
+                    "body intentionally dropped, metadata retained"
+                )
+            else:
+                self.is_success = True
 
 
 class ComprehensiveExtractionTelemetry:

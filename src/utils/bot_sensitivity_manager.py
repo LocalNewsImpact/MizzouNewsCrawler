@@ -119,7 +119,18 @@ SENSITIVITY_ADJUSTMENT_RULES = {
     "rate_limit_429": (1, 8, 0.5),  # 30min base, scales up
     "connection_timeout": (1, 7, 0.5),  # 30min base, scales up
     "multiple_failures": (2, 9, 1.5),  # 1.5hr base, scales up
+    # AMP outcomes. These were emitted by the crawler but had no rule, so every
+    # one of them hit the "Unknown event type ... no adjustment" branch and the
+    # feedback loop was dead (19 occurrences in a 2h production sample). A
+    # successful AMP fetch is evidence the host is serving us fine, so it
+    # RELAXES sensitivity -- the only negative adjustments in this table.
+    "amp_preemptive_success": (-1, 10, 0.5),  # AMP worked first try
+    "amp_bypass_success": (-1, 10, 0.5),  # AMP got us past a block
+    "amp_bypass_failure": (1, 8, 0.5),  # AMP did not help; tighten
 }
+
+# Sensitivity is defined on 1..10; negative adjustments must not undershoot it.
+SENSITIVITY_FLOOR = 1
 
 # Known bot-sensitive publishers (pre-configured)
 # Add known aggressive bot detectors here with their sensitivity levels (1-10)
@@ -364,7 +375,10 @@ class BotSensitivityManager:
             return current
 
         # Calculate new sensitivity
+        # Clamped at both ends: max_cap bounds increases, SENSITIVITY_FLOOR
+        # bounds the negative (relaxing) adjustments added for AMP successes.
         new_sensitivity = min(current + increase, max_cap)
+        new_sensitivity = max(SENSITIVITY_FLOOR, new_sensitivity)
 
         return new_sensitivity
 

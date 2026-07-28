@@ -45,6 +45,7 @@ from .fingerprint_profile import (
     prepare_user_data_dir,
 )
 from .proxy_config import ProxyProvider, get_proxy_manager
+from .proxy_relay import get_relay_proxy
 from .utils import mask_proxy_url
 
 UNBLOCK_MIN_HTML_BYTES = 3000
@@ -719,10 +720,7 @@ class ContentExtractor:
                 "Gecko/20100101 Firefox/130.0"
             ),
             # Firefox on Linux
-            (
-                "Mozilla/5.0 (X11; Linux x86_64; rv:130.0) "
-                "Gecko/20100101 Firefox/130.0"
-            ),
+            ("Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0"),
             # Safari on macOS (latest versions)
             (
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -863,7 +861,7 @@ class ContentExtractor:
             )
 
         logger.info(
-            f"🔀 Proxy manager initialized with provider: " f"{active_provider.value}"
+            f"🔀 Proxy manager initialized with provider: {active_provider.value}"
         )
 
         # MODIFIED: Use Squid proxy for all proxy traffic
@@ -1328,8 +1326,7 @@ class ContentExtractor:
                     new_proxy = random.choice(available)
                     self.domain_proxies[domain] = new_proxy
                     logger.info(
-                        f"Escalated proxy for {domain}: "
-                        f"{current_proxy} → {new_proxy}"
+                        f"Escalated proxy for {domain}: {current_proxy} → {new_proxy}"
                     )
 
     def _generate_referer(self, url: str) -> Optional[str]:
@@ -2354,7 +2351,7 @@ class ContentExtractor:
                         "secure": bool(c.get("secure", False)),
                         "httpOnly": bool(c.get("httpOnly", False)),
                         "domain": cookie_domain,
-                        "url": f"https://{domain}{c.get('path','/')}",
+                        "url": f"https://{domain}{c.get('path', '/')}",
                     }
                     expires = c.get("expires")
                     if isinstance(expires, (int, float)) and expires > 0:
@@ -2986,7 +2983,9 @@ class ContentExtractor:
                 if metrics:
                     metrics.start_method("unblock_proxy")
 
-                unblock_result = self._extract_with_unblock_proxy(url, None, metrics)
+                unblock_result = self._extract_with_unblock_proxy(
+                    url, None, metrics, domain=domain
+                )
 
                 if unblock_result and unblock_result.get("content"):
                     self._merge_extraction_results(
@@ -3410,9 +3409,13 @@ class ContentExtractor:
                 logger.debug(f"Primary extraction method: {method} (based on {field})")
                 return method
 
-        # Fallback to newspaper4k if no methods tracked
-        logger.warning("No extraction methods tracked, defaulting to newspaper4k")
-        return "newspaper4k"
+        # Nothing tracked: say so. This used to return "newspaper4k", which
+        # invented an attribution for whatever actually ran and silently
+        # inflated newspaper4k in every per-method analysis (19 occurrences in
+        # a 2h production sample). "unknown" is the honest answer;
+        # _select_raw_html_for_archive simply finds no match for it.
+        logger.warning("No extraction methods tracked; attribution is unknown")
+        return "unknown"
 
     def _is_extraction_successful(self, result: Dict[str, Any]) -> bool:
         """Check if extraction result contains meaningful content."""
@@ -3555,11 +3558,41 @@ class ContentExtractor:
                 "proxy_used": bool(session_proxy_url),
                 "proxy_url": mask_proxy_url(session_proxy_url),
                 "proxy_authenticated": "@" in (session_proxy_url or ""),
-                "proxy_status": http_status,
+                # A status WORD, not the HTTP code. proxy_status_to_int() maps
+                # success/failed/bypassed/disabled; handing it the int status
+                # raised AttributeError and killed router_proxy on the way
+                # through set_proxy_metrics. The HTTP code is already recorded
+                # separately by set_http_metrics -> http_status_code.
+                "proxy_status": "success" if session_proxy_url else None,
                 "proxy_error": None,
                 "router_proxy": router_proxy.value if router_proxy else None,
             }
             self._last_fetch_proxy_metadata = fetch_meta
+
+            # Record onto the metrics object HERE, where the fetch actually
+            # happened. This dict used to reach telemetry only by way of
+            # _parse_with_newspaper's result metadata (the sole reader of
+            # _last_fetch_proxy_metadata), so whenever newspaper4k did not run
+            # -- the common case, since mcmetadata/http_fetch usually satisfy
+            # the required fields first -- proxy_used, proxy_url AND
+            # router_proxy were silently dropped. Confirmed live 2026-07-27:
+            # 2,621 of 3,150 rows in 6h reported proxy_used=0 and 100% had
+            # router_proxy NULL, with a perfect correlation to newspaper4k not
+            # running, even though every one of those fetches went through
+            # Squid. The proxy was never bypassed; the evidence was.
+            # Wrapped so telemetry can never break a capture we already hold.
+            if metrics is not None:
+                try:
+                    metrics.set_proxy_metrics(
+                        proxy_used=fetch_meta["proxy_used"],
+                        proxy_url=fetch_meta["proxy_url"],
+                        proxy_authenticated=fetch_meta["proxy_authenticated"],
+                        proxy_status=fetch_meta["proxy_status"],
+                        proxy_error=fetch_meta["proxy_error"],
+                        router_proxy=fetch_meta["router_proxy"],
+                    )
+                except Exception as exc:
+                    logger.warning("proxy metrics recording failed: %s", exc)
 
             logger.info(
                 f"📥 Received {http_status} for {domain} "
@@ -4010,6 +4043,7 @@ class ContentExtractor:
         url: str,
         browser_actions: Optional[list] = None,
         metrics: Optional[ExtractionMetrics] = None,
+        domain: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Extract content using Squid proxy for strong bot protection.
 
@@ -4018,6 +4052,12 @@ class ContentExtractor:
 
         Args:
             url: URL to extract
+            domain: When given, the proxy is chosen by the shared proxy_router
+                (home vs mizzou Squid, by live per-domain health) instead of
+                the static SQUID_PROXY_URL -- this was the one fetch rung that
+                still bypassed the router after #416/d30ee7f0 fixed the
+                primary session path; every unblock-proxy challenge always
+                landed on home Squid because mizzou Squid was never tried.
 
         Returns:
             Extraction result dict with title, author, content, etc.
@@ -4027,10 +4067,43 @@ class ContentExtractor:
 
             warnings.filterwarnings("ignore", message="Unverified HTTPS request")
 
-            # Route ALL unblock traffic through residential Squid proxy
-            squid_proxy_url = os.getenv(
-                "SQUID_PROXY_URL", "http://t9880447.eero.online:3128"
-            )
+            # Route through the shared proxy_router when we know the domain, so
+            # the home/mizzou choice and its health-based failover apply here
+            # too. get_requests_proxies_for_domain already falls back to the
+            # always-on home Squid if the router is unavailable or picks
+            # something unconfigured, so this can never end up direct.
+            router_proxies = None
+            router_proxy = None
+            if domain is not None:
+                try:
+                    router_proxies, router_proxy, _method = (
+                        self.proxy_manager.get_requests_proxies_for_domain(
+                            domain, service="newscrawler"
+                        )
+                    )
+                    self.domain_router_proxy[domain] = router_proxy
+                except Exception as exc:  # never let routing break extraction
+                    logger.warning(
+                        "proxy_router lookup failed for %s (%s); using static Squid",
+                        domain,
+                        exc,
+                    )
+
+            # Both branches must end with a real URL string. A truthy
+            # router_proxies dict that happens to carry neither "http" nor
+            # "https" would otherwise leave this None, and requests treats
+            # proxies={"http": None} as NO PROXY -- egressing the pod IP, the
+            # exact leak the Squid requirement exists to prevent. mypy caught
+            # it as `Any | None` where `str` was expected.
+            squid_proxy_url = None
+            if router_proxies:
+                squid_proxy_url = router_proxies.get("http") or router_proxies.get(
+                    "https"
+                )
+            if not squid_proxy_url:
+                squid_proxy_url = os.getenv(
+                    "SQUID_PROXY_URL", "http://t9880447.eero.online:3128"
+                )
 
             logger.info(
                 f"Using Squid proxy for unblock extraction: {_mask_proxy_url(squid_proxy_url)}"
@@ -4213,6 +4286,10 @@ class ContentExtractor:
                 logger.info(
                     f"✅ Squid proxy extraction successful for {url}: {len(result['content'])} chars"
                 )
+                if domain is not None:
+                    self.proxy_manager.report_domain_result(
+                        domain, router_proxy, success=True, service="newscrawler"
+                    )
                 return result
 
             except Exception as e:
@@ -4228,6 +4305,14 @@ class ContentExtractor:
 
         except Exception as e:
             logger.error(f"Squid proxy extraction failed for {url}: {e}")
+            if domain is not None:
+                self.proxy_manager.report_domain_result(
+                    domain,
+                    router_proxy,
+                    success=False,
+                    reason=str(e)[:200],
+                    service="newscrawler",
+                )
             # Don't wrap ProxyChallengeError - let it pass through with original message
             if isinstance(e, ProxyChallengeError):
                 raise e
@@ -4791,84 +4876,40 @@ class ContentExtractor:
         logger.info(
             f"🔀 Selenium proxy URL from env: {_mask_proxy_url(selenium_proxy)}"
         )
-        proxy_extension_path = None
 
-        # Parse proxy URL: https://user:pass@host:port or http://host:port
-        import re
-
-        proxy_match = re.match(
-            r"https?://(?:([^:]+):([^@]+)@)?([^:]+):(\d+)", selenium_proxy
-        )
-        if proxy_match:
-            proxy_user, proxy_pass, proxy_host, proxy_port = proxy_match.groups()
-
-            # If proxy has authentication, create Chrome extension
-            if proxy_user and proxy_pass:
-
-                # Create Chrome extension for proxy authentication
-                import tempfile
-                import zipfile
-
-                manifest_json = """{
-                    "version": "1.0.0",
-                    "manifest_version": 2,
-                    "name": "Chrome Proxy Auth",
-                    "permissions": ["proxy", "tabs", "unlimitedStorage", "storage", "<all_urls>", "webRequest", "webRequestBlocking"],
-                    "background": {"scripts": ["background.js"]},
-                    "minimum_chrome_version": "76.0.0"
-                }"""
-
-                background_js = f"""
-                var config = {{
-                    mode: "fixed_servers",
-                    rules: {{
-                        singleProxy: {{
-                            scheme: "http",
-                            host: "{proxy_host}",
-                            port: parseInt({proxy_port})
-                        }},
-                        bypassList: ["localhost"]
-                    }}
-                }};
-
-                chrome.proxy.settings.set({{value: config, scope: "regular"}}, function() {{}});
-
-                function callbackFn(details) {{
-                    return {{
-                        authCredentials: {{
-                            username: "{proxy_user}",
-                            password: "{proxy_pass}"
-                        }}
-                    }};
-                }}
-
-                chrome.webRequest.onAuthRequired.addListener(
-                    callbackFn,
-                    {{urls: ["<all_urls>"]}},
-                    ['blocking']
-                );
-                """
-
-                # Create extension zip file
-                proxy_extension_path = tempfile.mktemp(suffix=".zip")
-                with zipfile.ZipFile(proxy_extension_path, "w") as zp:
-                    zp.writestr("manifest.json", manifest_json)
-                    zp.writestr("background.js", background_js)
-
-                options.add_extension(proxy_extension_path)
-                logger.debug(
-                    f"Configured proxy extension for {proxy_host}:{proxy_port}"
-                )
-            else:
-                # Proxy without authentication - use --proxy-server argument
-                options.add_argument(f"--proxy-server={selenium_proxy}")
-                logger.info(
-                    f"🔀 Selenium using Squid proxy via --proxy-server: {selenium_proxy}"
-                )
-        else:
-            logger.error(
-                f"Could not parse proxy URL: {mask_proxy_url(selenium_proxy)} - Selenium connections will FAIL"
+        # Chrome has no command-line syntax for proxy credentials. This used
+        # to be solved with a Manifest V2 extension answering
+        # chrome.webRequest.onAuthRequired -- but Chrome removed Manifest V2,
+        # and by Chrome 150 that extension is ignored SILENTLY: no error, no
+        # warning, just an unauthenticated browser. Every Selenium fetch then
+        # got 407 from Squid and returned a ~0.2s "successful" navigation to
+        # an empty error page. Production 2026-07-27: zero Selenium successes
+        # since 07-25 across ~500 attempts; from inside a pod, no-cred -> 407
+        # and with-cred -> 200. Manifest V3 cannot fix it either (blocking
+        # onAuthRequired is gone).
+        #
+        # So credentials leave the browser entirely: a loopback relay speaks
+        # unauthenticated proxy to Chrome and injects Proxy-Authorization
+        # upstream. No browser release can break that the way MV2 removal did.
+        try:
+            relay_endpoint = get_relay_proxy(selenium_proxy)
+            options.add_argument(f"--proxy-server={relay_endpoint}")
+            logger.info(
+                "🔀 Selenium proxying via auth relay %s -> %s",
+                relay_endpoint,
+                mask_proxy_url(selenium_proxy),
             )
+        except Exception as exc:
+            # Never fall through to a direct browser: an unproxied Selenium
+            # egresses the pod IP, which is exactly the leak the proxy exists
+            # to prevent.
+            logger.error(
+                "Proxy auth relay unavailable for %s (%s) - refusing to start "
+                "an unproxied browser",
+                mask_proxy_url(selenium_proxy),
+                exc,
+            )
+            raise
 
         # Use ephemeral user-data-dir per attempt to avoid profile locks
         try:
@@ -4934,38 +4975,20 @@ class ContentExtractor:
                     "SELENIUM_PROXY",
                     os.getenv("SQUID_PROXY_URL", "http://t9880447.eero.online:3128"),
                 )
-                import re as _re
-
-                pm = _re.match(
-                    r"https?://(?:([^:]+):([^@]+)@)?([^:]+):(\d+)", selenium_proxy
-                )
-                if pm:
-                    pu, pp, ph, pport = pm.groups()
-                    if pu and pp:
-                        import tempfile
-                        import zipfile
-
-                        proxy_ext_path_fb = tempfile.mktemp(suffix=".zip")
-                        manifest_json = """{
-                            \"version\": \"1.0.0\",
-                            \"manifest_version\": 2,
-                            \"name\": \"Chrome Proxy Auth\",
-                            \"permissions\": [\"proxy\", \"tabs\", \"unlimitedStorage\", \"storage\", \"<all_urls>\", \"webRequest\", \"webRequestBlocking\"],
-                            \"background\": {\"scripts\": [\"background.js\"]},
-                            \"minimum_chrome_version\": \"76.0.0\"
-                        }"""
-                        background_js = f"""
-                        var config = {{ mode: \"fixed_servers\", rules: {{ singleProxy: {{ scheme: \"http\", host: \"{ph}\", port: parseInt({pport}) }}, bypassList: [\"localhost\"] }} }};
-                        chrome.proxy.settings.set({{value: config, scope: \"regular\"}}, function() {{}});
-                        function callbackFn(details) {{ return {{ authCredentials: {{ username: \"{pu}\", password: \"{pp}\" }} }}; }}
-                        chrome.webRequest.onAuthRequired.addListener(callbackFn, {{urls: [\"<all_urls>\"]}}, ['blocking']);
-                        """
-                        with zipfile.ZipFile(proxy_ext_path_fb, "w") as zp:
-                            zp.writestr("manifest.json", manifest_json)
-                            zp.writestr("background.js", background_js)
-                        options_fb.add_extension(proxy_ext_path_fb)
-                    else:
-                        options_fb.add_argument(f"--proxy-server={selenium_proxy}")
+                # Same relay as the primary path: Chrome cannot take proxy
+                # credentials on the command line, and the old Manifest V2
+                # auth extension is silently ignored by modern Chrome.
+                try:
+                    options_fb.add_argument(
+                        f"--proxy-server={get_relay_proxy(selenium_proxy)}"
+                    )
+                except Exception as exc:
+                    logger.error(
+                        "Proxy auth relay unavailable (%s) - refusing an "
+                        "unproxied fallback browser",
+                        exc,
+                    )
+                    raise
                 # Ephemeral profile
                 try:
                     tmp_dir_fb = Path(f"/tmp/uc-profile-{uuid.uuid4().hex}")
@@ -4990,13 +5013,6 @@ class ContentExtractor:
                     f"Failed to create undetected driver (fallback use_subprocess=False, headless): {e_fallback}"
                 )
                 raise
-        finally:
-            # Clean up temporary proxy extension file
-            if proxy_extension_path and os.path.exists(proxy_extension_path):
-                try:
-                    os.unlink(proxy_extension_path)
-                except Exception:
-                    pass  # Non-critical cleanup
 
         # Set timeouts - use longer timeouts for headful to allow JS challenges to resolve
         if headless_mode:
@@ -5125,7 +5141,9 @@ class ContentExtractor:
             "SELENIUM_PROXY",
             os.getenv("SQUID_PROXY_URL", "http://t9880447.eero.online:3128"),
         )
-        chrome_options.add_argument(f"--proxy-server={selenium_proxy}")
+        # Via the auth relay -- credentials embedded in --proxy-server are
+        # ignored by Chrome, which is how this path silently ran unauthenticated.
+        chrome_options.add_argument(f"--proxy-server={get_relay_proxy(selenium_proxy)}")
         logger.debug(
             f"Squid proxy ENFORCED for stealth driver: {_mask_proxy_url(selenium_proxy)}"
         )
@@ -5508,8 +5526,7 @@ class ContentExtractor:
             # Check for subscription wall (separate from CAPTCHA)
             if self._detect_subscription_wall(driver):
                 logger.warning(
-                    f"Subscription wall detected on {url} "
-                    f"(modal_closed={modal_closed})"
+                    f"Subscription wall detected on {url} (modal_closed={modal_closed})"
                 )
                 if modal_closed:
                     logger.info(

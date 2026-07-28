@@ -18,7 +18,12 @@ from unittest.mock import Mock
 import pytest
 
 import src.crawler as crawler_module
-from src.crawler import ContentExtractor, NotFoundError, RateLimitError
+from src.crawler import (
+    ContentExtractor,
+    NotFoundError,
+    ProxyChallengeError,
+    RateLimitError,
+)
 
 
 class _NullLock:
@@ -228,6 +233,141 @@ class TestFingerprintSessionRouting:
 
         with pytest.raises(Exception, match="Bot protection"):
             extractor._fetch_page_html("https://example.com/story")
+
+
+class TestUnblockProxyRouting:
+    """The unblock-proxy fallback rung is what actually serves every
+    challenge/block retry (mcmetadata/newspaper4k/BeautifulSoup all failed
+    first). It bypassed the router even after d30ee7f0 fixed the primary
+    session path -- every challenge landed on home Squid because mizzou
+    Squid was never tried from here."""
+
+    def _article_html(self):
+        # >1000 bytes and no challenge-page phrase, so it clears the
+        # size/challenge checks and newspaper3k has something to parse.
+        body = "<p>Real article body text goes here. " * 40 + "</p>"
+        return f"<html><head><title>A Real Headline</title></head><body>{body}</body></html>"
+
+    def test_routes_through_router_and_records_choice(self, extractor, monkeypatch):
+        from src.crawler.proxy_router import RouterProxy
+
+        proxies = {
+            "http": "http://u:p@mizzou.squid:3128",
+            "https": "http://u:p@mizzou.squid:3128",
+        }
+        extractor.proxy_manager.get_requests_proxies_for_domain.return_value = (
+            proxies,
+            RouterProxy.MIZZOU_SQUID,
+            "sticky",
+        )
+        monkeypatch.setattr(
+            crawler_module.requests,
+            "get",
+            Mock(return_value=_response(text=self._article_html())),
+        )
+
+        extractor._extract_with_unblock_proxy(
+            "https://example.com/story", domain="example.com"
+        )
+
+        assert extractor.domain_router_proxy["example.com"] == RouterProxy.MIZZOU_SQUID
+        extractor.proxy_manager.get_requests_proxies_for_domain.assert_called_once_with(
+            "example.com", service="newscrawler"
+        )
+        _, get_kwargs = crawler_module.requests.get.call_args
+        assert get_kwargs["proxies"] == proxies
+
+    def test_no_domain_uses_static_squid_and_skips_router(self, extractor, monkeypatch):
+        monkeypatch.setenv("SQUID_PROXY_URL", "http://static.squid:3128")
+        monkeypatch.setattr(
+            crawler_module.requests,
+            "get",
+            Mock(return_value=_response(text=self._article_html())),
+        )
+
+        extractor._extract_with_unblock_proxy("https://example.com/story")
+
+        extractor.proxy_manager.get_requests_proxies_for_domain.assert_not_called()
+        _, get_kwargs = crawler_module.requests.get.call_args
+        assert get_kwargs["proxies"] == {
+            "http": "http://static.squid:3128",
+            "https": "http://static.squid:3128",
+        }
+
+    def test_router_failure_falls_back_to_static_never_direct(
+        self, extractor, monkeypatch
+    ):
+        monkeypatch.setenv("SQUID_PROXY_URL", "http://static.squid:3128")
+        extractor.proxy_manager.get_requests_proxies_for_domain.side_effect = (
+            RuntimeError("firestore down")
+        )
+        monkeypatch.setattr(
+            crawler_module.requests,
+            "get",
+            Mock(return_value=_response(text=self._article_html())),
+        )
+
+        extractor._extract_with_unblock_proxy(
+            "https://example.com/story", domain="example.com"
+        )
+
+        _, get_kwargs = crawler_module.requests.get.call_args
+        assert get_kwargs["proxies"] == {
+            "http": "http://static.squid:3128",
+            "https": "http://static.squid:3128",
+        }
+
+    def test_success_reports_to_router(self, extractor, monkeypatch):
+        from src.crawler.proxy_router import RouterProxy
+
+        extractor.proxy_manager.get_requests_proxies_for_domain.return_value = (
+            {
+                "http": "http://u:p@home.squid:3128",
+                "https": "http://u:p@home.squid:3128",
+            },
+            RouterProxy.HOME_SQUID,
+            "sticky",
+        )
+        monkeypatch.setattr(
+            crawler_module.requests,
+            "get",
+            Mock(return_value=_response(text=self._article_html())),
+        )
+
+        extractor._extract_with_unblock_proxy(
+            "https://example.com/story", domain="example.com"
+        )
+
+        extractor.proxy_manager.report_domain_result.assert_called_once_with(
+            "example.com", RouterProxy.HOME_SQUID, success=True, service="newscrawler"
+        )
+
+    def test_challenge_page_reports_failure_to_router(self, extractor, monkeypatch):
+        from src.crawler.proxy_router import RouterProxy
+
+        extractor.proxy_manager.get_requests_proxies_for_domain.return_value = (
+            {
+                "http": "http://u:p@mizzou.squid:3128",
+                "https": "http://u:p@mizzou.squid:3128",
+            },
+            RouterProxy.MIZZOU_SQUID,
+            "sticky",
+        )
+        monkeypatch.setattr(
+            crawler_module.requests,
+            "get",
+            Mock(return_value=_response(text="short", status=403)),
+        )
+
+        with pytest.raises(ProxyChallengeError):
+            extractor._extract_with_unblock_proxy(
+                "https://example.com/story", domain="example.com"
+            )
+
+        args, kwargs = extractor.proxy_manager.report_domain_result.call_args
+        assert args[0] == "example.com"
+        assert args[1] == RouterProxy.MIZZOU_SQUID
+        assert kwargs["success"] is False
 
 
 class TestOptionalDependencyBothStates:
