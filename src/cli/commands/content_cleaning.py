@@ -427,7 +427,9 @@ def clean_article(article_id, confidence_threshold, dry_run, show_content):
     cursor = conn.cursor()
 
     cursor.execute(
-        "SELECT url, content FROM articles WHERE id = ?",
+        # Cleaned body if a prior pass produced one, canonical on first pass.
+        # Cleaning must compose -- see the UPDATE below; `content` is read-only.
+        "SELECT url, COALESCE(text, content) FROM articles WHERE id = ?",
         (article_id,),
     )
     result = cursor.fetchone()
@@ -489,7 +491,14 @@ def clean_article(article_id, confidence_threshold, dry_run, show_content):
         # Update database if not dry run
         if not dry_run:
             cursor.execute(
-                "UPDATE articles SET content = ? WHERE id = ?",
+                # `text` is the cleaned, consumable column. `content` is the
+                # canonical capture and is NEVER written back to -- doing so
+                # made `content` a cleaned derivative, so the two columns
+                # converged (151 of 183 rows byte-identical in one export) and
+                # the raw capture was no longer recoverable from the row. The
+                # 30-day GCS raw HTML was then the only witness left, and it
+                # ages out.
+                "UPDATE articles SET text = ? WHERE id = ?",
                 (cleaned_content, article_id),
             )
             conn.commit()
@@ -523,7 +532,8 @@ def apply_cleaning(domain, confidence_threshold, limit, dry_run, verbose):
     cursor = conn.cursor()
 
     # Build query
-    query = "SELECT id, url, content FROM articles"
+    # COALESCE(text, content): prior cleaning if any, canonical on first pass.
+    query = "SELECT id, url, COALESCE(text, content) FROM articles"
     params = []
 
     if domain:
@@ -593,7 +603,8 @@ def apply_cleaning(domain, confidence_threshold, limit, dry_run, verbose):
     # Apply updates if not dry run
     if updates and not dry_run:
         cursor.executemany(
-            "UPDATE articles SET content = ? WHERE id = ?",
+            # Cleaned output goes to `text`; `content` stays as captured.
+            "UPDATE articles SET text = ? WHERE id = ?",
             updates,
         )
         conn.commit()

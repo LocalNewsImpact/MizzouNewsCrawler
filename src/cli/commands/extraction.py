@@ -33,7 +33,7 @@ from src.models.database import (
 # crawler image, which carries no ML dependencies.
 from src.pipeline.text_cleaning import decode_rot47_segments
 from src.services.wire_detection import resolve_api_token
-from src.utils.boilerplate import looks_like_furniture
+from src.utils.boilerplate import looks_like_furniture, looks_like_paywall
 
 # Lazy import: entity_extraction only needed for entity-extraction command
 # Importing at top level causes ModuleNotFoundError in crawler image (no rapidfuzz)
@@ -470,8 +470,13 @@ PAUSE_CANDIDATE_LINKS_SQL = text(
     "WHERE url LIKE :host_like OR source = :host"
 )
 
+# `content` is deliberately absent: it is the canonical capture and is never
+# written after insert. This statement used to carry "content = :content" bound
+# to original_content -- the value it had just SELECTed -- so dropping it is a
+# no-op today and makes the column immutable by construction rather than by
+# every caller remembering to pass the value back unchanged.
 ARTICLE_UPDATE_SQL = text(
-    "UPDATE articles SET content = :content, text = :text, "
+    "UPDATE articles SET text = :text, "
     "text_hash = :text_hash, text_excerpt = :excerpt, status = :status "
     "WHERE id = :id"
 )
@@ -1743,6 +1748,36 @@ def _process_batch(
                     now = datetime.utcnow()
                     content_text = content.get("content", "")
 
+                    # THE CANONICAL CAPTURE. Decoded once, never emptied.
+                    #
+                    # Everything below reads progressively less of the page:
+                    # the wall/furniture branches blank content_text and
+                    # content["content"] so a wall is never STORED as a body,
+                    # and the cleaner strips boilerplate out of what is left.
+                    # Both are correct for what gets saved and both destroy the
+                    # evidence a classifier needs. looks_like_paywall() even
+                    # documents this -- "matches on the raw body, NOT the
+                    # stripped one: strip_boilerplate removes these very
+                    # phrases" -- yet the gate below asked the cleaned text
+                    # anyway, so a wall whose phrases had just been stripped
+                    # read as an empty body and was filed not_article. Sedalia,
+                    # nwaonline and ~298 rows in one run: real headline, real
+                    # date, body gone, labelled "never was an article".
+                    #
+                    # So the split is explicit: CLASSIFICATION (is this a wall,
+                    # is this wire) reads the canonical, SUFFICIENCY (is there
+                    # a story left after cleaning) reads the cleaned output.
+                    # This is never reassigned -- do not blank it to signal a
+                    # decision; the storage variables above already do that.
+                    canonical_text = _decode_capture(content_text or "")
+
+                    # "Body dropped" is now an explicit decision rather than a
+                    # side effect of blanking variables. It has to be: with the
+                    # canonical preserved, the cleaned_text fallback further
+                    # down (stripped or decoded or content_text) would restore
+                    # the very wall/furniture the gate just rejected.
+                    body_dropped = False
+
                     # Validate content length - mark paywall articles
                     # Articles with <150 chars non-boilerplate: status='paywall'
                     # Tracked in DB but excluded from ML/BigQuery:
@@ -1777,8 +1812,8 @@ def _process_batch(
                         # Drop the wall text so furniture is never stored as a
                         # body; the headline/byline/date captured alongside it
                         # are kept by the save below.
-                        content_text = ""
-                        content["content"] = ""
+                        # Canonical preserved: only the cleaned body is
+                        # dropped. See the note on the furniture branch below.
 
                     if content_text:
                         from urllib.parse import urlparse
@@ -1810,11 +1845,34 @@ def _process_batch(
                         decoded_text = ""
                         stripped_content = ""
 
-                    # Check if content is insufficient AND has paywall indicators
-                    has_paywall_patterns = gate_says_paywall or any(
-                        pattern in cleaning_metadata.get("patterns_matched", [])
-                        for pattern in ["subscription", "paywall"]
+                    # CLASSIFICATION -- read the canonical, not the cleaned
+                    # text. The marker list already covers these walls: the
+                    # Sedalia prompt matches "otherwise, click here to view
+                    # your options for subscribing", which is in
+                    # PAYWALL_MARKERS today. It was never missing detection,
+                    # only ever asked of text the cleaner had already stripped
+                    # the phrases out of. Note this is additive -- it does not
+                    # replace gate_says_paywall or the cleaner's own patterns,
+                    # so a wall any one of the three recognises still counts.
+                    paywall_marker = looks_like_paywall(canonical_text)
+                    has_paywall_patterns = (
+                        gate_says_paywall
+                        or paywall_marker is not None
+                        or any(
+                            pattern in cleaning_metadata.get("patterns_matched", [])
+                            for pattern in ["subscription", "paywall"]
+                        )
                     )
+                    if paywall_marker and not gate_says_paywall:
+                        # Record WHICH prompt fired: looks_like_paywall returns
+                        # the phrase rather than a bool precisely so the verdict
+                        # can be audited and the list tuned from real captures.
+                        logger.info(
+                            "Paywall marker in canonical capture (%r) that the "
+                            "cleaned text no longer carried: %s",
+                            paywall_marker,
+                            url,
+                        )
                     is_insufficient_content = (
                         not stripped_content
                         or len(stripped_content.strip()) < MIN_CONTENT_LENGTH
@@ -1842,7 +1900,26 @@ def _process_batch(
                     # drops the furniture body. Long non-prose without a wall
                     # marker is a mis-extraction or prose-less page -> not_article
                     # (also kept, also body-dropped, also excluded from ML).
-                    if (
+                    # WIRE IS TERMINAL. Once wire is affirmatively identified
+                    # -- by byline above, or by the content detector, and only
+                    # after the evidence guard has had its say -- no later stage
+                    # may reclassify it. This gate ran unconditionally and did
+                    # exactly that: syndicated stories behind a wall arrived
+                    # here with an empty body and were rewritten to not_article,
+                    # discarding a wire attribution that had already been
+                    # established. Observed on rows carrying
+                    # wire=["The Associated Press"] and wire=["Washington Post"]
+                    # -- the syndicator was known and thrown away.
+                    #
+                    # A wire story that is also walled is still a wire story;
+                    # its provenance does not depend on whether we got the body.
+                    if article_status == "wire":
+                        logger.info(
+                            "Wire already established (%s); shape gate skipped: %s",
+                            wire_service_info,
+                            url,
+                        )
+                    elif (
                         is_insufficient_content or is_furniture
                     ) and has_paywall_patterns:
                         non_boilerplate_len = (
@@ -1859,8 +1936,16 @@ def _process_batch(
                         # headline/byline/date captured alongside it are kept.
                         # decoded_text is cleared too, or the cleaned_text
                         # fallback below would restore the furniture from it.
-                        content_text = ""
-                        content["content"] = ""
+                        # Drop the BODY, not the canonical. `content` is the
+                        # capture as taken and is never edited after capture --
+                        # `text` is the cleaned, consumable field, and emptying
+                        # that is what "body dropped" means. Blanking
+                        # content["content"] here destroyed the only durable
+                        # copy of the wall (raw HTML in GCS ages out at 30
+                        # days), which is why these rows show content=0 AND
+                        # text=0, and why the paywall could not be recognised
+                        # afterwards from the row itself.
+                        body_dropped = True
                         stripped_content = ""
                         decoded_text = ""
                     elif is_furniture:
@@ -1871,8 +1956,16 @@ def _process_batch(
                         )
                         # Keep the record and its metadata, drop the furniture body.
                         article_status = "not_article"
-                        content_text = ""
-                        content["content"] = ""
+                        # Drop the BODY, not the canonical. `content` is the
+                        # capture as taken and is never edited after capture --
+                        # `text` is the cleaned, consumable field, and emptying
+                        # that is what "body dropped" means. Blanking
+                        # content["content"] here destroyed the only durable
+                        # copy of the wall (raw HTML in GCS ages out at 30
+                        # days), which is why these rows show content=0 AND
+                        # text=0, and why the paywall could not be recognised
+                        # afterwards from the row itself.
+                        body_dropped = True
                         stripped_content = ""
                         decoded_text = ""
                     elif is_insufficient_content:
@@ -1928,7 +2021,13 @@ def _process_batch(
                     # The fallback takes the DECODED text, never the raw capture:
                     # on a ROT47 page a cleaner failure would otherwise store
                     # ciphertext as the article body.
-                    cleaned_text = stripped_content or decoded_text or content_text
+                    # An explicitly dropped body stays dropped: `text` is
+                    # empty, `content` keeps the capture. Without this the
+                    # fallback would reach content_text and store the wall.
+                    if body_dropped:
+                        cleaned_text = ""
+                    else:
+                        cleaned_text = stripped_content or decoded_text or content_text
 
                     # Hash the cleaned side: text_hash describes `text`, and entity
                     # extraction records it as article_entities.article_text_hash to
@@ -2564,7 +2663,6 @@ def _run_post_extraction_cleaning(domains_to_articles, db=None):
                                 # raw capture stays as it was, so this can be
                                 # re-run against improved rules and the result
                                 # compared with what it replaced.
-                                "content": original_content,
                                 "text": cleaned_content,
                                 "text_hash": new_hash,
                                 "excerpt": excerpt,

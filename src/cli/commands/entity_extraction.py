@@ -111,8 +111,14 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
                 SELECT a.id, a.text, a.text_hash, cl.source_id, cl.dataset_id, cl.source
                 FROM articles a
                 JOIN candidate_links cl ON a.candidate_link_id = cl.id
-                WHERE a.content IS NOT NULL
-                AND a.text IS NOT NULL
+                -- Gate on `text`, which is the column this query SELECTs and
+                -- entity extraction consumes. It used to also require
+                -- `content IS NOT NULL`: a canonical-capture check standing in
+                -- for "has a body", on a field this query never reads. That was
+                -- silently exclusionary while the wall/furniture branches blanked
+                -- content before insert -- rows with a perfectly good cleaned
+                -- body were skipped because the raw capture had been emptied.
+                WHERE a.text IS NOT NULL
                 AND a.entities_extracted_at IS NULL
                 AND a.status NOT IN ('error', 'paywall', 'wire', 'not_article')
                 """

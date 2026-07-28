@@ -228,7 +228,15 @@ def test_clean_article_updates_database(monkeypatch, runner):
     assert "Article content updated" in result.output
     assert cleaner.calls == [("example.com", "article-123", False)]
     queries = [q for q, _ in cursor.executed]
-    assert any("UPDATE articles SET content" in q for q in queries)
+    # Cleaned output goes to `text`. `content` is the canonical capture and must
+    # never be written after insert -- writing cleaned text back into it made the
+    # two columns converge (151 of 183 rows byte-identical in one production
+    # export), so the raw capture was no longer recoverable from the row and the
+    # 30-day GCS raw HTML became the only remaining witness.
+    assert any("UPDATE articles SET text" in q for q in queries)
+    assert not any(
+        "UPDATE articles SET content" in q for q in queries
+    ), "the canonical capture must never be overwritten"
     assert connection.commits == 1
 
 
