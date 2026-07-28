@@ -200,14 +200,26 @@ def safe_session_execute(session, sql, params=None):
     from sqlalchemy.exc import ArgumentError
     from sqlalchemy.sql import text as _text
 
-    # If caller passed a SQLAlchemy Core object, try to execute directly
+    # If caller passed a SQLAlchemy Core object, try to execute directly.
+    #
+    # Only ArgumentError falls through. This used to catch bare Exception and
+    # `pass`, so ANY failure -- a constraint violation, a type error, a dead
+    # connection -- was swallowed here and the caller carried on believing the
+    # statement had run. In the extraction save path that meant the article
+    # INSERT could fail while the very next statement still marked the
+    # candidate_link 'extracted' and committed: 142 links on one publisher were
+    # recorded as extracted with no article row anywhere and their captured
+    # bodies gone (telemetry had logged success, 2,171 chars). The fallthrough
+    # exists to retry legacy parameter styles, which is precisely what
+    # ArgumentError signals; nothing else here is retryable, and silence about
+    # the rest is what turned a failed write into a lie about the outcome.
     if not isinstance(sql, (str,)):
         try:
             if params is not None:
                 return session.execute(sql, params)
             return session.execute(sql)
-        except Exception:
-            # fallthrough to string-based handling
+        except ArgumentError:
+            # Legacy parameter style -- fall through to string-based handling.
             pass
 
     sql_str = str(sql)
@@ -829,17 +841,39 @@ def upsert_candidate_link(
     # Get scheme-agnostic version for deduplication check
     dedup_path = normalize_url_for_dedup(url)
 
-    # Check both http and https variants to avoid duplicates
-    http_url = f"http://{dedup_path}"
-    https_url = f"https://{dedup_path}"
+    # Every stored form this page could already be under. The www. variants are
+    # the point: normalize_url_for_dedup strips "www.", but normalize_url KEEPS
+    # it for storage, so this lookup previously searched for
+    # "https://example.com/x" while the row was stored as
+    # "https://www.example.com/x" and could never match. Both scheme variants
+    # were then inserted as separate rows -- one publisher carried 471
+    # candidate_links against 300 articles, with 142 links marked 'extracted'
+    # whose article was stored under the other scheme. Nothing was lost; the
+    # link simply pointed at nothing.
+    candidates = [
+        f"{scheme}://{prefix}{dedup_path}"
+        for scheme in ("https", "http")
+        for prefix in ("", "www.")
+    ]
 
     existing = (
         session.query(CandidateLink)
-        .filter(CandidateLink.url.in_([http_url, https_url]))
+        .filter(CandidateLink.url.in_(candidates))
+        .order_by(CandidateLink.url.startswith("https").desc())
         .first()
     )
 
     if existing:
+        # Prefer https for the surviving row. Both schemes serve the same page;
+        # keeping the secure form means later discoveries converge on it rather
+        # than alternating and re-creating the split this dedup exists to stop.
+        if normalized_url.startswith("https://") and existing.url.startswith("http://"):
+            logger.info(
+                "Upgrading candidate link to https: %s -> %s",
+                existing.url,
+                normalized_url,
+            )
+            existing.url = normalized_url
         # Update existing record with new data
         for key, value in kwargs.items():
             if hasattr(existing, key) and value is not None:

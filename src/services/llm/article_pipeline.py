@@ -106,7 +106,14 @@ class ArticleLLMPipeline:
             yield article
 
     def _render_prompt(self, article: Article) -> str:
-        content = article.content or article.text or ""
+        # `text` is the cleaned body; `content` is the raw capture and may
+        # carry navigation menus, cookie notices and paywall prompts. Summarising
+        # the raw capture summarises the furniture -- the CIN classifier reached
+        # the same conclusion and reads `text` first for exactly this reason
+        # (classification_service._BODY_FIELD_PREFERENCE). `content` stays as the
+        # fallback for rows extracted before the two columns diverged, where the
+        # raw capture is the only body that exists.
+        content = article.text or article.content or ""
         content = (content or "").strip()
         if len(content) > 4000:
             content = content[:4000] + "\n..."

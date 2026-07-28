@@ -4204,6 +4204,35 @@ class ContentExtractor:
                 html_len = len(html)
                 self._record_raw_html(html, "unblock_proxy")
 
+                # Record proxy telemetry HERE. This capture path never touches
+                # _fetch_page_html, which until now was the only place
+                # set_proxy_metrics() was called -- so every extraction captured
+                # by this rung reported proxy_used=0, proxy_url NULL and
+                # router_proxy NULL despite going through Squid. Measured
+                # 2026-07-28 on 250 rows: all 47 with router_proxy NULL were
+                # captured by this path or by Selenium, never by http_fetch.
+                # Same defect class as the one fixed on the fetch path: the
+                # proxy was never bypassed, only the evidence was lost.
+                if metrics is not None:
+                    try:
+                        router_choice = (
+                            self.domain_router_proxy.get(domain) if domain else None
+                        )
+                        metrics.set_proxy_metrics(
+                            proxy_used=bool(proxy_url),
+                            proxy_url=mask_proxy_url(proxy_url),
+                            proxy_authenticated="@" in (proxy_url or ""),
+                            proxy_status="success" if proxy_url else None,
+                            proxy_error=None,
+                            router_proxy=(
+                                router_choice.value if router_choice else None
+                            ),
+                        )
+                    except Exception as exc:
+                        logger.warning(
+                            "unblock proxy metrics recording failed: %s", exc
+                        )
+
                 logger.info(
                     f"Squid proxy returned {html_len} bytes for {url} (status: {status_code})"
                 )
@@ -4408,6 +4437,19 @@ class ContentExtractor:
                 self.close_persistent_driver()
             return {}
 
+    @staticmethod
+    def _resolve_selenium_proxy() -> str:
+        """The proxy Selenium egresses through.
+
+        Defined once so telemetry cannot report a different value than the
+        driver actually uses -- the three driver-creation sites each inline
+        this same lookup, and a divergence between them would be invisible.
+        """
+        return os.getenv(
+            "SELENIUM_PROXY",
+            os.getenv("SQUID_PROXY_URL", "http://t9880447.eero.online:3128"),
+        )
+
     def _run_selenium_extraction(
         self,
         url: str,
@@ -4437,6 +4479,33 @@ class ContentExtractor:
 
         if metrics:
             metrics.start_method("selenium")
+            # A Selenium capture skips _fetch_page_html entirely, which was the
+            # only caller of set_proxy_metrics -- so every Selenium-captured
+            # extraction reported proxy_used=0 with a NULL proxy_url even
+            # though Chrome egresses through the auth relay to Squid. That
+            # under-reporting was invisible while Selenium was broken (it
+            # produced no rows at all from 2026-07-25 to 07-27) and appeared
+            # the moment it started working again: 2026-07-28, all 47 of 250
+            # rows missing proxy data were Selenium- or unblock-captured.
+            #
+            # router_proxy stays None deliberately: Selenium reads a static
+            # SELENIUM_PROXY and never calls get_requests_proxies_for_domain(),
+            # so no router decision exists to record. That is a real gap in
+            # #413's home-vs-mizzou failover -- browser traffic is exempt from
+            # it -- but it is a behaviour change, not a telemetry one, so it is
+            # recorded honestly here rather than papered over with a guess.
+            try:
+                selenium_proxy = self._resolve_selenium_proxy()
+                metrics.set_proxy_metrics(
+                    proxy_used=bool(selenium_proxy),
+                    proxy_url=mask_proxy_url(selenium_proxy),
+                    proxy_authenticated="@" in (selenium_proxy or ""),
+                    proxy_status="success" if selenium_proxy else None,
+                    proxy_error=None,
+                    router_proxy=None,
+                )
+            except Exception as exc:
+                logger.warning("selenium proxy metrics recording failed: %s", exc)
 
         try:
             if self._check_rate_limit(dom):
@@ -4869,10 +4938,7 @@ class ContentExtractor:
         # PerimeterX blocks GKE datacenter IPs, residential proxy required
         # Use Chrome extension for proxy auth (standard approach)
         # CRITICAL: ALWAYS use Squid proxy - no direct connections allowed
-        selenium_proxy = os.getenv(
-            "SELENIUM_PROXY",
-            os.getenv("SQUID_PROXY_URL", "http://t9880447.eero.online:3128"),
-        )
+        selenium_proxy = self._resolve_selenium_proxy()
         logger.info(
             f"🔀 Selenium proxy URL from env: {_mask_proxy_url(selenium_proxy)}"
         )
@@ -4971,10 +5037,7 @@ class ContentExtractor:
                 realistic_ua_fb = self._resolve_selenium_user_agent()
                 options_fb.add_argument(f"--user-agent={realistic_ua_fb}")
                 # Proxy
-                selenium_proxy = os.getenv(
-                    "SELENIUM_PROXY",
-                    os.getenv("SQUID_PROXY_URL", "http://t9880447.eero.online:3128"),
-                )
+                selenium_proxy = self._resolve_selenium_proxy()
                 # Same relay as the primary path: Chrome cannot take proxy
                 # credentials on the command line, and the old Manifest V2
                 # auth extension is silently ignored by modern Chrome.
@@ -5137,10 +5200,7 @@ class ContentExtractor:
         chrome_options.add_argument(f"--user-agent={realistic_ua}")
 
         # CRITICAL: ALWAYS use Squid proxy for Selenium - no direct connections allowed
-        selenium_proxy = os.getenv(
-            "SELENIUM_PROXY",
-            os.getenv("SQUID_PROXY_URL", "http://t9880447.eero.online:3128"),
-        )
+        selenium_proxy = self._resolve_selenium_proxy()
         # Via the auth relay -- credentials embedded in --proxy-server are
         # ignored by Chrome, which is how this path silently ran unauthenticated.
         chrome_options.add_argument(f"--proxy-server={get_relay_proxy(selenium_proxy)}")

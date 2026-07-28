@@ -1077,10 +1077,15 @@ class TestFurnitureShapeGate:
         assert len(inserts) == 1
         row = inserts[0]
         assert row["status"] == "not_article"
-        # Furniture body dropped from both columns...
-        assert row["content"] == ""
+        # The BODY is dropped -- `text` is the cleaned, consumable column and
+        # that is what "body dropped" means. `content` is the canonical capture
+        # and is NOT edited after capture: blanking it destroyed the only
+        # durable copy of the furniture (raw HTML in GCS ages out at 30 days),
+        # leaving rows that could not afterwards be re-examined to see why they
+        # were rejected, or re-filed when a wall went unrecognised.
         assert row["text"] == ""
-        # ...but the metadata captured alongside it is preserved.
+        assert row["content"] == self.COUNTRY_DROPDOWN
+        # ...and the metadata captured alongside it is preserved.
         assert row["title"] == "Headline Outside The Furniture"
 
     def test_nav_wrapped_wall_with_paywall_pattern_marked_paywall(self, monkeypatch):
@@ -1092,8 +1097,10 @@ class TestFurnitureShapeGate:
         assert len(inserts) == 1
         row = inserts[0]
         assert row["status"] == "paywall"
-        assert row["content"] == ""
+        # Same rule: cleaned body dropped, canonical wall text retained so the
+        # row itself still evidences WHY it was filed paywall.
         assert row["text"] == ""
+        assert row["content"] != ""
         assert row["title"] == "Headline Outside The Furniture"
 
     def test_nav_wrapped_wall_without_pattern_falls_back_to_not_article(

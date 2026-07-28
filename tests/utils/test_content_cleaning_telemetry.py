@@ -911,3 +911,62 @@ class TestPersistentPatternsSourceIdKeying:
             telemetry.get_persistent_patterns(domain="other.com", source_id="SRC-2")
             == []
         )
+
+
+class TestSqlIsDialectNeutral:
+    """The SQL here runs on SQLite in tests and Postgres in production.
+
+    The persistent-pattern UPDATE used `MAX(confidence_score, ?)` -- SQLite's
+    two-argument scalar max. Postgres has no such function; max() there is a
+    one-argument aggregate, so the statement failed every time with:
+
+        42883: function max(double precision, unknown) does not exist
+
+    No test caught it because the suite runs on SQLite, where that SQL is
+    valid. It only showed up in production logs, and not as itself: the failed
+    statement aborts the transaction, so every later write on that connection
+    died with "InterfaceError: in failed transaction block". Ten of each per
+    45 minutes, with the real cause buried underneath.
+
+    So this asserts on the SQL text rather than on behaviour -- behaviour on
+    SQLite cannot distinguish the two dialects, which is exactly the blind spot.
+    """
+
+    def _module_sql(self) -> str:
+        """Module source with comments removed.
+
+        The prose above necessarily quotes the offending SQL, and a naive scan
+        of the raw source matches that quote rather than real code -- it fails
+        on the fixed module. Only executable text is scanned.
+        """
+        import inspect
+        import re
+
+        import src.utils.content_cleaning_telemetry as mod
+
+        src = inspect.getsource(mod)
+        return "\n".join(
+            re.sub(r"#.*$", "", line)
+            for line in src.splitlines()
+            if not line.strip().startswith("#")
+        )
+
+    def test_no_two_argument_max(self):
+        """max(a, b) is SQLite-only. Postgres needs GREATEST, which SQLite
+        lacks -- so neither belongs here; compare in Python instead."""
+        import re
+
+        assert not re.search(r"\bMAX\s*\([^)]*,", self._module_sql(), re.I), (
+            "two-argument MAX() is not valid Postgres; compute the comparison "
+            "in Python so the SQL works on both dialects"
+        )
+
+    def test_no_two_argument_min(self):
+        """Same trap, same fix."""
+        import re
+
+        assert not re.search(r"\bMIN\s*\([^)]*,", self._module_sql(), re.I)
+
+    def test_greatest_is_not_used_either(self):
+        """GREATEST would fix Postgres and break SQLite."""
+        assert "GREATEST(" not in self._module_sql().upper()

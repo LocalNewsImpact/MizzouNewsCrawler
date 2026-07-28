@@ -367,7 +367,7 @@ class ContentCleaningTelemetry:
                 # legacy domain-keyed row (transition: rows predate source_id).
                 cursor.execute(
                     """
-                    SELECT id, occurrences_total, last_seen
+                    SELECT id, occurrences_total, last_seen, confidence_score
                     FROM persistent_boilerplate_patterns
                     WHERE text_hash = ?
                       AND (source_id = ? OR (source_id IS NULL AND domain = ?))
@@ -378,6 +378,25 @@ class ContentCleaningTelemetry:
                 existing = cursor.fetchone()
 
                 if existing:
+                    # Keep the higher confidence, computed HERE rather than in
+                    # SQL. This read `MAX(confidence_score, ?)`, which is
+                    # SQLite's two-argument scalar max. Postgres has no such
+                    # function -- max() there is a one-argument aggregate -- so
+                    # on Postgres the statement failed with
+                    #   42883: function max(double precision, unknown) does not exist
+                    # every single time. The damage was not limited to this
+                    # table: the failed statement aborts the transaction, so
+                    # every later write on that connection died with
+                    # "InterfaceError: in failed transaction block" (10 of each
+                    # per 45 min in production, 2026-07-28). GREATEST() would
+                    # fix Postgres and break SQLite, which this module also
+                    # targets, so the comparison moves to Python and the SQL
+                    # stays dialect-neutral.
+                    prior_confidence = existing[3] if len(existing) > 3 else None
+                    best_confidence = max(
+                        float(prior_confidence or 0.0),
+                        float(segment.get("boundary_score") or 0.0),
+                    )
                     # Stamp source_id onto a legacy (domain-only) row as it is
                     # re-seen, so it becomes source-keyed without a backfill.
                     cursor.execute(
@@ -385,7 +404,7 @@ class ContentCleaningTelemetry:
                         UPDATE persistent_boilerplate_patterns
                         SET occurrences_total = occurrences_total + ?,
                             last_seen = ?,
-                            confidence_score = MAX(confidence_score, ?),
+                            confidence_score = ?,
                             is_ml_training_eligible = ?,
                             source_id = COALESCE(source_id, ?),
                             updated_at = CURRENT_TIMESTAMP
@@ -394,7 +413,7 @@ class ContentCleaningTelemetry:
                         (
                             segment.get("occurrences"),
                             datetime.now(),
-                            segment.get("boundary_score"),
+                            best_confidence,
                             is_ml_eligible,
                             source_id,
                             existing[0],
