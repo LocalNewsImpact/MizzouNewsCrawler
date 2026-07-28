@@ -105,7 +105,12 @@ def harness(monkeypatch):
         calls.append("beautifulsoup")
         return _partial_result("beautifulsoup")
 
-    def tls(url, html=None, metrics=None):
+    def tls(url, html=None, metrics=None, domain=None):
+        # `domain` mirrors the production signature: 3a06db3c threaded it in so
+        # this rung consults the shared proxy_router. A stub missing it raises
+        # TypeError, which the caller's broad `except Exception` swallows -- the
+        # rung then silently never runs and every assertion here fails with
+        # "'tls_client' is not in list" rather than a signature error.
         calls.append("tls_client")
         return _full_result("unblock_proxy")
 
@@ -191,8 +196,10 @@ def test_successful_tls_capture_prevents_the_selenium_escalation(harness):
 
 def test_tls_failure_still_escalates_to_selenium(harness):
     """A failed rung must not strand the article."""
-    harness.ex._extract_with_unblock_proxy = lambda url, html=None, metrics=None: (
-        harness.calls.append("tls_client") or {}
+    harness.ex._extract_with_unblock_proxy = (
+        lambda url, html=None, metrics=None, domain=None: (
+            harness.calls.append("tls_client") or {}
+        )
     )
 
     _run(harness)
@@ -208,7 +215,7 @@ def test_tls_failure_still_escalates_to_selenium(harness):
 def test_challenge_on_flagged_domain_is_still_terminal(harness):
     """Flagged domains mark the article for retry and skip Selenium — as before."""
 
-    def challenged(url, html=None, metrics=None):
+    def challenged(url, html=None, metrics=None, domain=None):
         harness.calls.append("tls_client")
         raise ProxyChallengeError("blocked")
 
@@ -228,7 +235,7 @@ def test_challenge_on_unflagged_domain_must_not_abort_extraction(harness):
     failing outright.
     """
 
-    def challenged(url, html=None, metrics=None):
+    def challenged(url, html=None, metrics=None, domain=None):
         harness.calls.append("tls_client")
         raise ProxyChallengeError("blocked")
 
@@ -243,7 +250,7 @@ def test_challenge_on_unflagged_domain_must_not_abort_extraction(harness):
 def test_unexpected_error_in_the_rung_is_swallowed(harness):
     """A broken rung degrades to the previous escalation path."""
 
-    def boom(url, html=None, metrics=None):
+    def boom(url, html=None, metrics=None, domain=None):
         harness.calls.append("tls_client")
         raise RuntimeError("tls_client exploded")
 
