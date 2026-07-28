@@ -93,7 +93,21 @@ def fetch_live_tags() -> dict[str, str]:
 
 
 def kubectl_apply(rendered: str, dry_run: bool) -> tuple[int, str, str]:
-    cmd = ["kubectl", "apply", "-f", "-"]
+    """Apply the template server-side.
+
+    A client-side `kubectl apply` cannot update this object at all:
+
+        metadata.resourceVersion: Invalid value: 0: must be specified for
+        an update
+
+    The rendered manifest carries no resourceVersion (correctly -- it is
+    generated from the repo, not read from the cluster), so the client-side
+    path demands one and fails every time. Server-side apply resolves the
+    merge on the API server and needs no resourceVersion. --force-conflicts
+    takes ownership of the fields last written by the old client-side applier,
+    which otherwise conflict on every field this manifest sets.
+    """
+    cmd = ["kubectl", "apply", "--server-side", "--force-conflicts", "-f", "-"]
     if dry_run:
         cmd.append("--dry-run=server")
     proc = subprocess.run(cmd, input=rendered, capture_output=True, text=True)

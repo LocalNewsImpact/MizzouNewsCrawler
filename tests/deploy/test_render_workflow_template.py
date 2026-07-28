@@ -19,6 +19,7 @@ import yaml
 from scripts.render_workflow_template import (
     KNOWN_SERVICES,
     apply_tags,
+    kubectl_apply,
     main,
     parse_live_tags,
 )
@@ -183,3 +184,51 @@ class TestMainDoesNotTouchClusterOnFailure:
 
         assert rc == 1
         assert calls == [True], "real apply must not run after a failed dry run"
+
+
+class TestApplyUsesServerSide:
+    """Client-side apply cannot update this object at all.
+
+    The rendered manifest carries no resourceVersion -- correctly, since it is
+    generated from the repo rather than read from the cluster. A client-side
+    `kubectl apply` then rejects it outright:
+
+        metadata.resourceVersion: Invalid value: 0: must be specified for
+        an update
+
+    so the deploy step failed every time it was reached. Combined with the
+    BRANCH_NAME gate that stopped it being reached at all, the WorkflowTemplate
+    had two independent reasons never to update -- which is how production ran
+    extraction on 2bc05a2 while every Deployment was already on 60872f7.
+    """
+
+    def _cmd(self, monkeypatch, *, dry_run):
+        seen = {}
+
+        class _Proc:
+            returncode = 0
+            stdout = "applied"
+            stderr = ""
+
+        def fake_run(cmd, **kwargs):
+            seen["cmd"] = cmd
+            return _Proc()
+
+        monkeypatch.setattr("scripts.render_workflow_template.subprocess.run", fake_run)
+        kubectl_apply("apiVersion: v1\n", dry_run=dry_run)
+        return seen["cmd"]
+
+    def test_apply_is_server_side(self, monkeypatch):
+        assert "--server-side" in self._cmd(monkeypatch, dry_run=False)
+
+    def test_conflicts_are_forced(self, monkeypatch):
+        """The old client-side applier owns these fields; take them over."""
+        assert "--force-conflicts" in self._cmd(monkeypatch, dry_run=False)
+
+    def test_validation_pass_is_also_server_side(self, monkeypatch):
+        cmd = self._cmd(monkeypatch, dry_run=True)
+        assert "--server-side" in cmd
+        assert "--dry-run=server" in cmd
+
+    def test_still_reads_the_manifest_from_stdin(self, monkeypatch):
+        assert self._cmd(monkeypatch, dry_run=False)[-2:] == ["-f", "-"]
