@@ -45,6 +45,7 @@ from .fingerprint_profile import (
     prepare_user_data_dir,
 )
 from .proxy_config import ProxyProvider, get_proxy_manager
+from .proxy_relay import get_relay_proxy
 from .utils import mask_proxy_url
 
 UNBLOCK_MIN_HTML_BYTES = 3000
@@ -4864,83 +4865,40 @@ class ContentExtractor:
         logger.info(
             f"🔀 Selenium proxy URL from env: {_mask_proxy_url(selenium_proxy)}"
         )
-        proxy_extension_path = None
 
-        # Parse proxy URL: https://user:pass@host:port or http://host:port
-        import re
-
-        proxy_match = re.match(
-            r"https?://(?:([^:]+):([^@]+)@)?([^:]+):(\d+)", selenium_proxy
-        )
-        if proxy_match:
-            proxy_user, proxy_pass, proxy_host, proxy_port = proxy_match.groups()
-
-            # If proxy has authentication, create Chrome extension
-            if proxy_user and proxy_pass:
-                # Create Chrome extension for proxy authentication
-                import tempfile
-                import zipfile
-
-                manifest_json = """{
-                    "version": "1.0.0",
-                    "manifest_version": 2,
-                    "name": "Chrome Proxy Auth",
-                    "permissions": ["proxy", "tabs", "unlimitedStorage", "storage", "<all_urls>", "webRequest", "webRequestBlocking"],
-                    "background": {"scripts": ["background.js"]},
-                    "minimum_chrome_version": "76.0.0"
-                }"""
-
-                background_js = f"""
-                var config = {{
-                    mode: "fixed_servers",
-                    rules: {{
-                        singleProxy: {{
-                            scheme: "http",
-                            host: "{proxy_host}",
-                            port: parseInt({proxy_port})
-                        }},
-                        bypassList: ["localhost"]
-                    }}
-                }};
-
-                chrome.proxy.settings.set({{value: config, scope: "regular"}}, function() {{}});
-
-                function callbackFn(details) {{
-                    return {{
-                        authCredentials: {{
-                            username: "{proxy_user}",
-                            password: "{proxy_pass}"
-                        }}
-                    }};
-                }}
-
-                chrome.webRequest.onAuthRequired.addListener(
-                    callbackFn,
-                    {{urls: ["<all_urls>"]}},
-                    ['blocking']
-                );
-                """
-
-                # Create extension zip file
-                proxy_extension_path = tempfile.mktemp(suffix=".zip")
-                with zipfile.ZipFile(proxy_extension_path, "w") as zp:
-                    zp.writestr("manifest.json", manifest_json)
-                    zp.writestr("background.js", background_js)
-
-                options.add_extension(proxy_extension_path)
-                logger.debug(
-                    f"Configured proxy extension for {proxy_host}:{proxy_port}"
-                )
-            else:
-                # Proxy without authentication - use --proxy-server argument
-                options.add_argument(f"--proxy-server={selenium_proxy}")
-                logger.info(
-                    f"🔀 Selenium using Squid proxy via --proxy-server: {selenium_proxy}"
-                )
-        else:
-            logger.error(
-                f"Could not parse proxy URL: {mask_proxy_url(selenium_proxy)} - Selenium connections will FAIL"
+        # Chrome has no command-line syntax for proxy credentials. This used
+        # to be solved with a Manifest V2 extension answering
+        # chrome.webRequest.onAuthRequired -- but Chrome removed Manifest V2,
+        # and by Chrome 150 that extension is ignored SILENTLY: no error, no
+        # warning, just an unauthenticated browser. Every Selenium fetch then
+        # got 407 from Squid and returned a ~0.2s "successful" navigation to
+        # an empty error page. Production 2026-07-27: zero Selenium successes
+        # since 07-25 across ~500 attempts; from inside a pod, no-cred -> 407
+        # and with-cred -> 200. Manifest V3 cannot fix it either (blocking
+        # onAuthRequired is gone).
+        #
+        # So credentials leave the browser entirely: a loopback relay speaks
+        # unauthenticated proxy to Chrome and injects Proxy-Authorization
+        # upstream. No browser release can break that the way MV2 removal did.
+        try:
+            relay_endpoint = get_relay_proxy(selenium_proxy)
+            options.add_argument(f"--proxy-server={relay_endpoint}")
+            logger.info(
+                "🔀 Selenium proxying via auth relay %s -> %s",
+                relay_endpoint,
+                mask_proxy_url(selenium_proxy),
             )
+        except Exception as exc:
+            # Never fall through to a direct browser: an unproxied Selenium
+            # egresses the pod IP, which is exactly the leak the proxy exists
+            # to prevent.
+            logger.error(
+                "Proxy auth relay unavailable for %s (%s) - refusing to start "
+                "an unproxied browser",
+                mask_proxy_url(selenium_proxy),
+                exc,
+            )
+            raise
 
         # Use ephemeral user-data-dir per attempt to avoid profile locks
         try:
@@ -5006,38 +4964,20 @@ class ContentExtractor:
                     "SELENIUM_PROXY",
                     os.getenv("SQUID_PROXY_URL", "http://t9880447.eero.online:3128"),
                 )
-                import re as _re
-
-                pm = _re.match(
-                    r"https?://(?:([^:]+):([^@]+)@)?([^:]+):(\d+)", selenium_proxy
-                )
-                if pm:
-                    pu, pp, ph, pport = pm.groups()
-                    if pu and pp:
-                        import tempfile
-                        import zipfile
-
-                        proxy_ext_path_fb = tempfile.mktemp(suffix=".zip")
-                        manifest_json = """{
-                            \"version\": \"1.0.0\",
-                            \"manifest_version\": 2,
-                            \"name\": \"Chrome Proxy Auth\",
-                            \"permissions\": [\"proxy\", \"tabs\", \"unlimitedStorage\", \"storage\", \"<all_urls>\", \"webRequest\", \"webRequestBlocking\"],
-                            \"background\": {\"scripts\": [\"background.js\"]},
-                            \"minimum_chrome_version\": \"76.0.0\"
-                        }"""
-                        background_js = f"""
-                        var config = {{ mode: \"fixed_servers\", rules: {{ singleProxy: {{ scheme: \"http\", host: \"{ph}\", port: parseInt({pport}) }}, bypassList: [\"localhost\"] }} }};
-                        chrome.proxy.settings.set({{value: config, scope: \"regular\"}}, function() {{}});
-                        function callbackFn(details) {{ return {{ authCredentials: {{ username: \"{pu}\", password: \"{pp}\" }} }}; }}
-                        chrome.webRequest.onAuthRequired.addListener(callbackFn, {{urls: [\"<all_urls>\"]}}, ['blocking']);
-                        """
-                        with zipfile.ZipFile(proxy_ext_path_fb, "w") as zp:
-                            zp.writestr("manifest.json", manifest_json)
-                            zp.writestr("background.js", background_js)
-                        options_fb.add_extension(proxy_ext_path_fb)
-                    else:
-                        options_fb.add_argument(f"--proxy-server={selenium_proxy}")
+                # Same relay as the primary path: Chrome cannot take proxy
+                # credentials on the command line, and the old Manifest V2
+                # auth extension is silently ignored by modern Chrome.
+                try:
+                    options_fb.add_argument(
+                        f"--proxy-server={get_relay_proxy(selenium_proxy)}"
+                    )
+                except Exception as exc:
+                    logger.error(
+                        "Proxy auth relay unavailable (%s) - refusing an "
+                        "unproxied fallback browser",
+                        exc,
+                    )
+                    raise
                 # Ephemeral profile
                 try:
                     tmp_dir_fb = Path(f"/tmp/uc-profile-{uuid.uuid4().hex}")
@@ -5062,13 +5002,6 @@ class ContentExtractor:
                     f"Failed to create undetected driver (fallback use_subprocess=False, headless): {e_fallback}"
                 )
                 raise
-        finally:
-            # Clean up temporary proxy extension file
-            if proxy_extension_path and os.path.exists(proxy_extension_path):
-                try:
-                    os.unlink(proxy_extension_path)
-                except Exception:
-                    pass  # Non-critical cleanup
 
         # Set timeouts - use longer timeouts for headful to allow JS challenges to resolve
         if headless_mode:
@@ -5197,7 +5130,9 @@ class ContentExtractor:
             "SELENIUM_PROXY",
             os.getenv("SQUID_PROXY_URL", "http://t9880447.eero.online:3128"),
         )
-        chrome_options.add_argument(f"--proxy-server={selenium_proxy}")
+        # Via the auth relay -- credentials embedded in --proxy-server are
+        # ignored by Chrome, which is how this path silently ran unauthenticated.
+        chrome_options.add_argument(f"--proxy-server={get_relay_proxy(selenium_proxy)}")
         logger.debug(
             f"Squid proxy ENFORCED for stealth driver: {_mask_proxy_url(selenium_proxy)}"
         )
