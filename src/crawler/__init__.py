@@ -4089,11 +4089,18 @@ class ContentExtractor:
                         exc,
                     )
 
+            # Both branches must end with a real URL string. A truthy
+            # router_proxies dict that happens to carry neither "http" nor
+            # "https" would otherwise leave this None, and requests treats
+            # proxies={"http": None} as NO PROXY -- egressing the pod IP, the
+            # exact leak the Squid requirement exists to prevent. mypy caught
+            # it as `Any | None` where `str` was expected.
+            squid_proxy_url = None
             if router_proxies:
                 squid_proxy_url = router_proxies.get("http") or router_proxies.get(
                     "https"
                 )
-            else:
+            if not squid_proxy_url:
                 squid_proxy_url = os.getenv(
                     "SQUID_PROXY_URL", "http://t9880447.eero.online:3128"
                 )
