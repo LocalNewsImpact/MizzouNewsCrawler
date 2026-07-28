@@ -739,9 +739,16 @@ spec:
               # stopped launching a browser to chase bylines over bodies already
               # captured, which was ~92% of selenium invocations and ~67% of worker
               # capacity, for one useful author in 6,366 tries.
+              #
+              # 2026-07-28: cap raised 2 -> 5 for backlog drawdown. The analysis
+              # above sizes STEADY-STATE against a 6h cron window, where 2 clears
+              # peak with headroom. It does not cover a standing backlog: ~8,100
+              # links at 95/hr/worker is ~43h on 2 workers versus ~17h on 5.
+              # The reasoning above stands for normal operation -- if the cron is
+              # resumed against a drained queue, put this back to 2.
               if backlog < 50:
                   return 1
-              workers = min(2, max(2, (backlog // 100) * 2))
+              workers = min(5, max(2, (backlog // 100) * 2))
               return workers
 
           backlog = get_extraction_backlog()

@@ -12,6 +12,7 @@ cluster, and a deploy of one service never rolls another one back.
 """
 
 import pathlib
+import re
 
 import pytest
 import yaml
@@ -122,9 +123,13 @@ class TestAgainstTheRealTemplate:
 
         assert applied["crawler"][0] == "abc1234"
         assert applied["processor"][0] == "613a942"
-        # The two settings that had silently failed to reach production.
+        # The two settings that had silently failed to reach production. What
+        # matters is that the repo's worker cap reaches the cluster at all --
+        # the drifted copy sat at 10 for months after 702cd559 lowered it --
+        # not the specific number, which is tuned (2 steady-state, raised to 5
+        # while drawing down the post-outage backlog).
         assert rendered.count("MIZZOU_SQUID_PROXY_URL") >= 1
-        assert "min(2, max(2" in rendered
+        assert re.search(r"workers = min\(\d+, max\(\d+", rendered)
         assert all(
             isinstance(d, (dict, type(None))) for d in yaml.safe_load_all(rendered)
         )
