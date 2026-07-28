@@ -2086,7 +2086,7 @@ def _process_batch(
                         except Exception:
                             logger.exception("Failed to log diagnostic SQL/params")
 
-                    safe_session_execute(
+                    insert_result = safe_session_execute(
                         session,
                         ARTICLE_INSERT_SQL,
                         {
@@ -2111,11 +2111,35 @@ def _process_batch(
                             "raw_gcs_path": raw_gcs_path,
                         },
                     )
-                    safe_session_execute(
-                        session,
-                        CANDIDATE_STATUS_UPDATE_SQL,
-                        {"status": article_status, "id": str(url_id)},
-                    )
+                    # Did the INSERT actually write a row? ARTICLE_INSERT_SQL
+                    # ends in ON CONFLICT DO NOTHING against uq_articles_url, so
+                    # a URL already stored under a different candidate_link is
+                    # skipped silently -- and until safe_session_execute stopped
+                    # swallowing failures, so was any other error. Either way the
+                    # next statement marked the link 'extracted' and committed,
+                    # so the status asserted an article that did not exist: 176
+                    # such links on one publisher, 142 of them with no article
+                    # anywhere and the captured body gone.
+                    #
+                    # Claim 'extracted' only when a row was written. A conflict
+                    # is not an error -- the article exists, under another link --
+                    # but this link did not produce one and must not say it did.
+                    inserted = getattr(insert_result, "rowcount", 1)
+                    if inserted == 0:
+                        logger.error(
+                            "Article INSERT wrote no row for %s (id=%s); most "
+                            "likely a uq_articles_url conflict with an existing "
+                            "article. Leaving candidate_link status unchanged "
+                            "rather than claiming 'extracted'.",
+                            article_url,
+                            article_id,
+                        )
+                    else:
+                        safe_session_execute(
+                            session,
+                            CANDIDATE_STATUS_UPDATE_SQL,
+                            {"status": article_status, "id": str(url_id)},
+                        )
 
                     # Explicit commit with logging to catch silent failures
                     try:
