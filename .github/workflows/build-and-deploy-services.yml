@@ -666,6 +666,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
 
     steps:
       - uses: actions/checkout@v7
@@ -688,6 +689,8 @@ jobs:
           PROCESSOR_BUILD_ID: ${{ needs.build-processor.outputs.build_id }}
           API_BUILD_ID: ${{ needs.build-api.outputs.build_id }}
           CRAWLER_BUILD_ID: ${{ needs.build-crawler.outputs.build_id }}
+          # Required by `gh pr create` below.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           SHORT=${SHORT_SHA:0:7}
           ARGS=()
@@ -710,6 +713,25 @@ jobs:
             echo "versions.env and Argo workflow already up to date"
             exit 0
           fi
+          # A direct push to main is rejected by the repository ruleset
+          # (GH013: "Repository rule violations found for refs/heads/main"),
+          # so this job resolved the tags correctly and then failed at the very
+          # last step -- leaving versions.env stale for a permissions reason
+          # after the earlier logic bug was fixed. This repo lands changes by
+          # PR, so open one.
+          BRANCH="chore/image-tags-${SHORT}"
           git add k8s/versions.env k8s/argo/base-pipeline-workflow.yaml
           git commit -m "chore: update image tags (${SHORT}) [skip ci]"
-          git push origin HEAD
+          # --force so a re-run of the same SHA updates its branch rather than
+          # failing on a non-fast-forward.
+          git push --force origin "HEAD:refs/heads/${BRANCH}"
+
+          if gh pr view "$BRANCH" --json number >/dev/null 2>&1; then
+            echo "PR for ${BRANCH} already open; branch updated."
+          else
+            gh pr create \
+              --base main \
+              --head "$BRANCH" \
+              --title "chore: update image tags (${SHORT})" \
+              --body "Automated by the update-versions-env job after a successful build of ${SHORT}. Records the image tags now deployed, so k8s/versions.env (used by envsubst for the manifests) and the repo Argo template match production. Bookkeeping only -- the images are already built and rolled out."
+          fi
