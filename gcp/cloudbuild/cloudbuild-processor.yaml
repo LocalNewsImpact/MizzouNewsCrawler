@@ -122,12 +122,17 @@ steps:
     args:
       - '-c'
       - |
-        if [ "${BRANCH_NAME}" = "main" ]; then
-          echo "🔄 Updating Argo WorkflowTemplate with processor:${SHORT_SHA}..."
-          bash gcp/cloudbuild/update-workflow-template.sh processor "${SHORT_SHA}" "${_REGISTRY}"
-        else
-          echo "ℹ️  Skipping Argo WorkflowTemplate update - not on main branch (${BRANCH_NAME})"
-        fi
+        # NOT gated on BRANCH_NAME. CI/CD invokes this trigger as
+        # `gcloud builds triggers run build-processor-manual --sha=<sha>`, and a
+        # run started by SHA leaves BRANCH_NAME empty -- so this step took the
+        # "not on main" path on EVERY deploy and the WorkflowTemplate silently
+        # never updated. Live proof 2026-07-28: Deployments were on 60872f7
+        # while the template still ran 2bc05a2, i.e. extraction would have kept
+        # using the previous image. Every other deploy step in this file
+        # (update-work-queue, the cronjob) is ungated and repoints production
+        # already; this one was the odd one out.
+        echo "🔄 Updating Argo WorkflowTemplate with processor:${SHORT_SHA}..."
+        bash gcp/cloudbuild/update-workflow-template.sh processor "${SHORT_SHA}" "${_REGISTRY}"
     waitFor: ['get-gke-credentials']
 
 images:
