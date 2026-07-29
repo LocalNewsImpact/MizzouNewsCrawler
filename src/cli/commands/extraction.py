@@ -33,7 +33,12 @@ from src.models.database import (
 # crawler image, which carries no ML dependencies.
 from src.pipeline.text_cleaning import decode_rot47_segments
 from src.services.wire_detection import resolve_api_token
-from src.utils.boilerplate import looks_like_furniture, looks_like_paywall
+from src.utils.boilerplate import (
+    PAYWALL,
+    excise_furniture_lines,
+    looks_like_furniture,
+    looks_like_paywall,
+)
 
 # Lazy import: entity_extraction only needed for entity-extraction command
 # Importing at top level causes ModuleNotFoundError in crawler image (no rapidfuzz)
@@ -1845,6 +1850,49 @@ def _process_batch(
                         decoded_text = ""
                         stripped_content = ""
 
+                    # SECOND CLEANING PASS, chained onto the first.
+                    #
+                    # The pattern cleaner above removes what it has LEARNED for
+                    # this source (persistent_boilerplate_patterns). That is
+                    # per-source and needs a pattern to already exist, so on a
+                    # host it has not learned yet it removes nothing: measured
+                    # 2026-07-28 over a 3-hour production run, 120 cleaning
+                    # sessions ran and recorded ZERO removed segments.
+                    #
+                    # strip_furniture is the vendor-independent half -- it needs
+                    # no prior knowledge of the site. Without this the semantic
+                    # detector only ever GATED (decided paywall vs not_article)
+                    # and never shaped the body that gets stored, so a capture
+                    # whose host had no learned pattern was saved with its
+                    # furniture intact.
+                    #
+                    # CHAINED, never substituted: this runs ON the pattern
+                    # cleaner's output, so both passes' removals survive and
+                    # neither overwrites the other. Each stage only ever removes
+                    # more, and `content` is untouched by both.
+                    # excise_furniture_lines, NOT strip_furniture: the latter
+                    # is the detection-side function and is too destructive to
+                    # edit a stored body with. Measured over the 161 bodies this
+                    # pipeline stored on 2026-07-28, it rewrote 149 of them by
+                    # collapsing newlines and it deleted a maconhomepress.com
+                    # honor roll as a "menu run". The write path removes only
+                    # what vocabulary and concepts positively identify, and
+                    # leaves every other byte alone.
+                    furniture_kinds: frozenset[str] = frozenset()
+                    if stripped_content:
+                        deboned, furniture_kinds = excise_furniture_lines(
+                            stripped_content
+                        )
+                        if deboned != stripped_content:
+                            logger.info(
+                                "Furniture pass removed %d chars (%s) that no "
+                                "learned pattern covered: %s",
+                                len(stripped_content) - len(deboned),
+                                ",".join(sorted(furniture_kinds)) or "-",
+                                url,
+                            )
+                            stripped_content = deboned
+
                     # CLASSIFICATION -- read the canonical, not the cleaned
                     # text. The marker list already covers these walls: the
                     # Sedalia prompt matches "otherwise, click here to view
@@ -1858,6 +1906,15 @@ def _process_batch(
                     has_paywall_patterns = (
                         gate_says_paywall
                         or paywall_marker is not None
+                        # The KIND the furniture pass found selects the status.
+                        # This is the point of returning a kind at all: a wall
+                        # it excised means content exists and is withheld
+                        # (retryable with credentials), while a cookie table or
+                        # nav bar it excised means the opposite. Without this
+                        # the pass would silently empty a walled body and the
+                        # gate would call the result not_article -- the exact
+                        # mislabel this work exists to stop.
+                        or PAYWALL in furniture_kinds
                         or any(
                             pattern in cleaning_metadata.get("patterns_matched", [])
                             for pattern in ["subscription", "paywall"]

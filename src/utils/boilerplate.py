@@ -727,6 +727,82 @@ def classify_furniture(text: str | None) -> Furniture | None:
     return None
 
 
+# A furniture line longer than this is edited sentence-by-sentence rather than
+# dropped whole, because at that length it is likely to be an extractor's
+# unbroken run of banner-plus-story rather than a banner alone. Set from the
+# stltoday captures, whose consent notices run ~300 chars while the mixed
+# banner-and-story lines run 1,500-2,200.
+MAX_WHOLE_LINE_DROP = 400
+
+
+def excise_furniture_lines(body: str | None) -> tuple[str, frozenset[str]]:
+    """Drop whole LINES that are furniture, leaving everything else byte-exact.
+
+    The write-path variant, and deliberately much more conservative than
+    strip_furniture(). It differs in exactly two ways, both of which were
+    forced by measuring strip_furniture against 161 real stored bodies:
+
+    1. **Layout is preserved.** strip_furniture rejoins with " ", which
+       collapses every newline in the body. On those 161 bodies that alone
+       rewrote 149 of them -- 90% -- for no editorial gain. Storing a
+       reformatted body is a destructive edit even when no words are lost.
+
+    2. **No menu-run removal.** _drop_menu_runs is a RUN heuristic tuned for
+       nav bars, and on stored bodies it eats agate: it removed a
+       maconhomepress.com honor roll ("Class 1 Macey Harrington Team GPA: 3.55
+       Jordan Harrington Jessalyn Parks ...") as though it were a menu. This
+       module's own thresholds already name that risk -- "the known false
+       positive is agate: sports scores, election returns, real estate
+       transfers, legitimate local copy carrying almost no function words".
+       Detecting furniture can afford that; editing a stored article cannot.
+
+    So this removes only what VOCABULARY and CONCEPTS positively identify --
+    consent notices, walls, comment policies, nav chrome -- and never anything
+    judged on shape alone. Returns the kept text and the kinds removed, so the
+    caller can let the kind pick the status.
+    """
+    if not body or not body.strip():
+        return "", frozenset()
+    kept_lines: list[str] = []
+    kinds: set[str] = set()
+    for line in body.splitlines():
+        if not line.strip():
+            kept_lines.append(line)
+            continue
+        found = classify_furniture(line)
+        if found is None or found.kind not in _SEGMENT_REMOVABLE:
+            kept_lines.append(line)
+            continue
+        if len(line) <= MAX_WHOLE_LINE_DROP:
+            kinds.add(found.kind)
+            continue
+        # A LONG line judged furniture is not necessarily furniture all the way
+        # through -- extractors that emit no paragraph breaks put the banner and
+        # the story on one line. Dropping it whole is the all-or-nothing bug in
+        # miniature: one stltoday.com capture carries its consent notice and
+        # "ST. LOUIS COUNTY -- A worker hired to paint the KSDK television
+        # transmission tower helped save a man who climbed it" in a single
+        # 2,177-char line, and dropping the line lost the story.
+        #
+        # So go a level finer INSIDE the line and keep what survives. The line
+        # boundary itself is preserved either way, so layout never changes.
+        inner = [s for s in segments(line) if _keeps(s, kinds)]
+        if inner:
+            kept_lines.append(" ".join(inner))
+        else:
+            kinds.add(found.kind)
+    return "\n".join(kept_lines).strip(), frozenset(kinds)
+
+
+def _keeps(segment: str, kinds: set[str]) -> bool:
+    """Whether a sentence survives, recording the kind when it does not."""
+    found = classify_furniture(segment)
+    if found is not None and found.kind in _SEGMENT_REMOVABLE:
+        kinds.add(found.kind)
+        return False
+    return True
+
+
 # Minimum characters of unbroken clean text to be believed as body copy inside a
 # block already condemned as a disclosure table.
 #
