@@ -30,6 +30,30 @@ class FingerprintProfile:
     screen_size: tuple[int, int] | None
     script: str | None
 
+    # selenium-stealth takes these as arguments and defaults them to Windows /
+    # Intel values. Passing them from the profile is what stops a macOS
+    # User-Agent shipping with navigator.platform == "Win32" -- measured live
+    # in a crawler pod on 2026-07-29, on BOTH driver paths, before this existed.
+
+    @property
+    def navigator_platform(self) -> str | None:
+        """navigator.platform, e.g. "MacIntel"."""
+        navigator = self.raw.get("navigator") or {}
+        platform = navigator.get("platform")
+        return str(platform) if platform else None
+
+    @property
+    def webgl_vendor(self) -> str | None:
+        webgl = self.raw.get("webgl") or {}
+        vendor = webgl.get("webglVendor") if isinstance(webgl, dict) else None
+        return str(vendor) if vendor else None
+
+    @property
+    def webgl_renderer(self) -> str | None:
+        webgl = self.raw.get("webgl") or {}
+        renderer = webgl.get("webglRenderer") if isinstance(webgl, dict) else None
+        return str(renderer) if renderer else None
+
 
 def load_fingerprint_profile(
     path: str | Path | None = None,
