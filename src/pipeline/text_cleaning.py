@@ -144,6 +144,18 @@ def _decode_segment(segment: str) -> str | None:
     return cleaned
 
 
+def _marker_density(s: str) -> float:
+    """Share of *s* that is a ROT47-marker punctuation character.
+
+    ROT47 shifts common English letters into this exact punctuation set, so
+    genuine ciphertext is saturated with it and genuine English essentially
+    never is. Comparing this before and after decoding is what tells a real
+    decode apart from a paragraph that merely didn't need one — see the
+    validation note below.
+    """
+    return sum(1 for ch in s if ch in _ROT47_MARKERS) / len(s) if s else 0.0
+
+
 def _decode_rot47_by_markers(text: str) -> str | None:
     """Decode ROT47 text using paragraph markers (kAm/k^Am).
 
@@ -174,9 +186,25 @@ def _decode_rot47_by_markers(text: str) -> str | None:
         segment = match.group(0)
         decoded = _decode_rot47_text(segment)
 
-        # Basic validation: decoded should have reasonable letter ratio
-        letters = sum(1 for ch in decoded if ch.isalpha())
-        if len(decoded) > 0 and letters / len(decoded) >= 0.3:
+        # Validation is RELATIVE, not absolute: accept a decode when it
+        # measurably reduced ROT47-marker saturation relative to its own
+        # ciphertext, rather than requiring the decoded text alone to clear a
+        # fixed "looks like prose" bar.
+        #
+        # An absolute floor on decoded letter-ratio (this used to require
+        # >= 0.3) rejects a genuinely correct decode whenever the recovered
+        # text is naturally letter-sparse -- a box score is the case that
+        # exposed it: "NC - 0 - 14 - 0 - 10 = 24" decodes perfectly and scores
+        # 0.23, so the ciphertext was left in place mid-article while every
+        # surrounding prose paragraph decoded fine. Its RAW ciphertext scores
+        # even fewer letters by coincidence (ROT47 shifts digits and
+        # punctuation too), which is exactly why an absolute floor on the
+        # OUTPUT is the wrong measure and a relative one is not.
+        #
+        # Verified against every one of the 44 kAm/k^Am paragraphs in the
+        # production row that surfaced this (2026-07-28): marker density drops
+        # after decoding in all 44, including the 2 the old floor rejected.
+        if _marker_density(decoded) < _marker_density(segment):
             # Clean up HTML tags
             cleaned = _DECODED_TAG_RE.sub(" ", decoded)
             replacements.append((match.start(), match.end(), cleaned))

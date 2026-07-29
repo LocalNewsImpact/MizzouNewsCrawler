@@ -148,6 +148,96 @@ class TestCanonicalUrlCrossDomainDetection:
         assert any("wcvb.com" in svc.lower() for svc in result["wire_services"])
 
 
+class TestCanonicalCrossDomainSameSiteAlias:
+    """An unknown-domain cross-domain canonical is not automatically wire.
+
+    Found 2026-07-28: emissourian.com's canonical points to missourian.com with
+    an IDENTICAL slug, and the page's own TownNews CDN path is
+    bloximages.chicago2.vip.townnews.com/missourian.com/shared-content/... --
+    missourian.com is this paper's own CMS site-key, not a wire source. Two
+    hyper-local prep-sports recaps (real reporting, no byline, box scores) were
+    filed `wire` because of it and dropped out of CIN classification entirely.
+
+    Validated against all 549 distinct (article_domain, wire_service) pairs
+    carrying status='wire' in production: suppresses exactly 5, all confirmed
+    same-site, and preserves all 544 genuine cross-organization pairs.
+    """
+
+    def test_emissourian_missourian_is_not_wire(self, extractor):
+        """The exact case that surfaced this."""
+        html = """
+        <html><head>
+        <link rel="canonical" href="https://www.missourian.com/sports/bulldogs-fall-to-north-county-in-thursday-tilt/article_8b5f4600.html"/>
+        </head><body></body></html>
+        """
+        result = extractor._detect_structured_metadata_wire_from_html(
+            html,
+            article_url="https://www.emissourian.com/sports/bulldogs-fall-to-north-county-in-thursday-tilt/article_8b5f4600.html",
+        )
+        assert result is None
+
+    def test_nwaonline_subdomain_variant_is_not_wire(self, extractor):
+        """Same registrable domain, different subdomain -- same publisher."""
+        html = """
+        <html><head>
+        <link rel="canonical" href="https://bvwv.nwaonline.com/news/2026/story"/>
+        </head><body></body></html>
+        """
+        result = extractor._detect_structured_metadata_wire_from_html(
+            html, article_url="https://mdcp.nwaonline.com/news/2026/story"
+        )
+        assert result is None
+
+    def test_kmbc_storystudio_subdomain_is_not_wire(self, extractor):
+        html = """
+        <html><head>
+        <link rel="canonical" href="https://storystudio.kmbc.com/feature/123"/>
+        </head><body></body></html>
+        """
+        result = extractor._detect_structured_metadata_wire_from_html(
+            html, article_url="https://www.kmbc.com/feature/123"
+        )
+        assert result is None
+
+    def test_kansascity_kansas_is_still_real_syndication(self, extractor):
+        """The case that killed a broader substring-based first draft.
+
+        kansascity.com and kansas.com are genuinely different newsrooms in
+        different cities -- the Kansas City Star and the Wichita Eagle. A raw
+        substring check (`"kansas" in "kansascity.com"`) wrongly caught this
+        as a same-site alias; it is real syndication and must stay detected.
+        """
+        html = """
+        <html><head>
+        <link rel="canonical" href="https://www.kansas.com/news/state/article123.html"/>
+        </head><body></body></html>
+        """
+        result = extractor._detect_structured_metadata_wire_from_html(
+            html, article_url="https://www.kansascity.com/news/state/article123.html"
+        )
+        assert result is not None
+        assert "canonical_cross_domain" in result["detected_by"]
+        assert any("kansas.com" in svc.lower() for svc in result["wire_services"])
+
+    def test_unrelated_cross_affiliate_syndication_still_detected(self, extractor):
+        """Guard against over-correcting: genuinely different domains stay wire.
+
+        Same fixture as test_canonical_cross_domain_unknown_service above --
+        kmbc.com and wcvb.com share no name or registrable domain at all, the
+        real Hearst-TV-affiliate case the original fallback was written for.
+        """
+        html = """
+        <html><head>
+        <link rel="canonical" href="https://www.wcvb.com/article/xyz/123"/>
+        </head><body></body></html>
+        """
+        result = extractor._detect_structured_metadata_wire_from_html(
+            html, article_url="https://www.kmbc.com/article/xyz/123"
+        )
+        assert result is not None
+        assert any("wcvb.com" in svc.lower() for svc in result["wire_services"])
+
+
 class TestJsonLdAuthorDetection:
     """Test detection via JSON-LD author field containing wire service names."""
 
