@@ -4770,6 +4770,80 @@ class ContentExtractor:
             except Exception as exc:
                 logger.debug("Fingerprint init script registration failed: %s", exc)
 
+            # Also apply it to the CURRENT document. addScriptToEvaluateOnNewDocument
+            # only fires on subsequent navigations, so without this the page the
+            # driver is already sitting on keeps the container's real values --
+            # and any detector reading them before the first navigation sees
+            # straight through the profile.
+            try:
+                driver.execute_script(profile.script)
+            except Exception as exc:
+                logger.debug(
+                    "Fingerprint script eval on current document failed: %s", exc
+                )
+
+    def _apply_selenium_stealth(self, driver) -> None:
+        """Apply selenium-stealth using the loaded fingerprint, not Windows defaults.
+
+        selenium-stealth defaults to platform=None/webgl_vendor="Intel Inc."/
+        renderer="Intel Iris OpenGL Engine", and both driver paths used to pass
+        a hardcoded platform="Win32" on top of that. Because stealth() runs
+        AFTER _apply_fingerprint_profile, those values won -- measured live in a
+        crawler pod on 2026-07-29, on both `_create_undetected_driver` and
+        `_create_stealth_driver`:
+
+            userAgent      Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) ...
+            platform       Win32          <- contradicts the UA outright
+            webgl_vendor   no-webgl
+
+        A macOS User-Agent reporting navigator.platform "Win32" is a
+        self-contradiction no real browser produces, and PerimeterX (fox2now.com,
+        fox4kc.com and the other Nexstar stations) exists to catch exactly that.
+
+        Driving the arguments from the profile keeps one identity end to end.
+        With no profile loaded the previous Win32 defaults are kept, so
+        randomized-fingerprint behaviour is unchanged.
+        """
+        if not SELENIUM_STEALTH_AVAILABLE:
+            return
+
+        profile = self._fingerprint_profile
+        languages = (
+            profile.languages if profile and profile.languages else ["en-US", "en"]
+        )
+        kwargs: dict[str, Any] = {
+            "languages": languages,
+            "vendor": "Google Inc.",
+            "fix_hairline": True,
+        }
+        if profile:
+            if profile.user_agent:
+                kwargs["user_agent"] = profile.user_agent
+            if profile.navigator_platform:
+                kwargs["platform"] = profile.navigator_platform
+            if profile.webgl_vendor:
+                kwargs["webgl_vendor"] = profile.webgl_vendor
+            if profile.webgl_renderer:
+                kwargs["renderer"] = profile.webgl_renderer
+        else:
+            # No profile: preserve the prior hardcoded identity rather than
+            # letting stealth's own defaults drift the behaviour.
+            kwargs.update(
+                platform="Win32",
+                webgl_vendor="Intel Inc.",
+                renderer="Intel Iris OpenGL Engine",
+            )
+
+        try:
+            stealth(driver, **kwargs)
+            logger.debug(
+                "Applied selenium-stealth (platform=%s, webgl_vendor=%s)",
+                kwargs.get("platform"),
+                kwargs.get("webgl_vendor"),
+            )
+        except Exception as exc:
+            logger.debug("selenium-stealth application failed (non-fatal): %s", exc)
+
     def _set_user_agent_override(self, driver, user_agent: str) -> None:
         """Set User-Agent and client-hints with robust fallbacks across CDP versions.
 
@@ -5009,6 +5083,13 @@ class ContentExtractor:
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-gpu")  # CRITICAL: Prevents GPU crash in K8s
+        # Software GL, so a WebGL context exists at all. Without it there is no
+        # GPU in the pod, getContext('webgl') returns null, and the fingerprint
+        # profile's WebGL strings can never be applied -- a browser claiming
+        # macOS with zero WebGL is itself an anti-bot signal. Measured 2026-07-29:
+        # the deprecated --use-gl=swiftshader form does NOTHING on Chrome 143;
+        # this is the flag that actually restores the context.
+        options.add_argument("--enable-unsafe-swiftshader")
         options.add_argument("--no-first-run")
         options.add_argument("--no-default-browser-check")
         options.add_argument("--disable-plugins")
@@ -5115,6 +5196,9 @@ class ContentExtractor:
                     "--no-sandbox",
                     "--disable-dev-shm-usage",
                     "--disable-gpu",
+                    # See the note on the primary path: without software GL the
+                    # profile's WebGL identity cannot be applied at all.
+                    "--enable-unsafe-swiftshader",
                     "--disable-web-security",
                     "--disable-features=VizDisplayCompositor",
                     "--remote-allow-origins=*",
@@ -5189,8 +5273,6 @@ class ContentExtractor:
         except Exception:
             pass
 
-        self._apply_fingerprint_profile(driver)
-
         # CRITICAL: Override User-Agent via CDP to hide headless indicator
         # The command-line arg doesn't always take effect, CDP is more reliable
         try:
@@ -5199,21 +5281,10 @@ class ContentExtractor:
             logger.debug(f"CDP UA override failed (non-fatal): {e}")
 
         # Apply additional selenium-stealth for maximum anti-detection
-        # undetected-chromedriver handles basic stealth, but PerimeterX needs more
-        if SELENIUM_STEALTH_AVAILABLE:
-            try:
-                stealth(
-                    driver,
-                    languages=["en-US", "en"],
-                    vendor="Google Inc.",
-                    platform="Win32",
-                    webgl_vendor="Intel Inc.",
-                    renderer="Intel Iris OpenGL Engine",
-                    fix_hairline=True,
-                )
-                logger.debug("Applied selenium-stealth to undetected driver")
-            except Exception as e:
-                logger.debug(f"selenium-stealth application failed (non-fatal): {e}")
+        # undetected-chromedriver handles basic stealth, but PerimeterX needs more.
+        # Driven by the loaded fingerprint rather than hardcoded Windows values --
+        # see _apply_selenium_stealth for the measurement that forced this.
+        self._apply_selenium_stealth(driver)
 
         # Manual stealth enhancements for PerimeterX bypass
         try:
@@ -5242,6 +5313,12 @@ class ContentExtractor:
         except Exception as e:
             logger.debug(f"Manual stealth enhancements failed (non-fatal): {e}")
 
+        # LAST, deliberately. Every stage above (stealth, the manual overrides)
+        # redefines navigator properties, so whichever runs last wins. The
+        # profile is the single source of truth for this browser's identity, so
+        # it goes last and nothing overwrites it.
+        self._apply_fingerprint_profile(driver)
+
         # CRITICAL FIX: Set command executor timeout to prevent 147s delays
         # Default timeout is 120s, but Selenium waits an additional ~27s
         # somewhere, resulting in consistent 147s extractions. Setting to 30s
@@ -5269,6 +5346,9 @@ class ContentExtractor:
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--disable-gpu")
+        # See the note on _create_undetected_driver: software GL is what makes a
+        # WebGL context exist, so the profile's WebGL identity can be applied.
+        chrome_options.add_argument("--enable-unsafe-swiftshader")
         chrome_options.add_argument("--disable-blink-features=AutomationControlled")
         chrome_options.add_argument("--disable-extensions")
         chrome_options.add_argument("--disable-web-security")
@@ -5350,37 +5430,25 @@ class ContentExtractor:
         else:
             driver = webdriver.Chrome(options=chrome_options)
 
-        # Apply selenium-stealth if available
-        if SELENIUM_STEALTH_AVAILABLE:
-            stealth(
-                driver,
-                languages=["en-US", "en"],
-                vendor="Google Inc.",
-                platform="Win32",
-                webgl_vendor="Intel Inc.",
-                renderer="Intel Iris OpenGL Engine",
-                fix_hairline=True,
-            )
+        # Apply selenium-stealth if available, driven by the loaded fingerprint
+        # rather than hardcoded Windows values.
+        self._apply_selenium_stealth(driver)
 
         # Manual stealth enhancements
         driver.execute_script(
             "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
         )
 
+        # NOTE: this block deliberately no longer forces navigator.platform to
+        # 'Win32'. It was the third place a hardcoded Windows platform was
+        # applied on top of a macOS fingerprint, and being the last writer it
+        # won outright -- so a macOS User-Agent shipped with platform "Win32"
+        # on this path too. platform now comes from the profile alone, applied
+        # after this block.
         driver.execute_script("""
             // Override plugins
             Object.defineProperty(navigator, 'plugins', {
                 get: () => [1, 2, 3, 4, 5]
-            });
-
-            // Override languages
-            Object.defineProperty(navigator, 'languages', {
-                get: () => ['en-US', 'en']
-            });
-
-            // Override platform
-            Object.defineProperty(navigator, 'platform', {
-                get: () => 'Win32'
             });
 
             // Override permission API
