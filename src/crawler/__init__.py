@@ -273,6 +273,77 @@ _WIRE_SERVICE_DOMAINS = {
     "latimes.com": "Los Angeles Times",
 }
 
+# A canonical URL on a domain OTHER than the article's own is not automatically
+# syndication -- it can be the SAME publisher under a second name. Found
+# 2026-07-28: emissourian.com's canonical points to missourian.com with an
+# IDENTICAL slug, and the page's own TownNews CDN path is
+# bloximages.chicago2.vip.townnews.com/missourian.com/shared-content/... --
+# missourian.com is this paper's CMS site-key, not a wire source. Two
+# hyper-local prep-sports recaps were filed `wire` and excluded from CIN
+# classification because of it.
+#
+# Deliberately NOT raw substring containment. An early draft checked
+# `label in domain` and wrongly caught kansascity.com / kansas.com, which is
+# real syndication between two different newsrooms in different cities --
+# the "match" was coincidental (Kansas City happens to start with the word
+# "Kansas"). Real US city/state/country names collide with compound domain
+# names constantly, so this only allows an EXACT label match after removing
+# one of a short, explicit list of cosmetic affixes, or an identical
+# registrable domain (a subdomain variant of the same site).
+#
+# Validated against all 549 distinct (article_domain, wire_service) pairs
+# carrying status='wire' in production on 2026-07-28: suppresses exactly 5,
+# all confirmed same-site (emissourian.com/missourian.com, the
+# mdcp.nwaonline.com subdomain cluster, kmbc.com/storystudio.kmbc.com), and
+# preserves all 544 genuine cross-organization pairs, including
+# kansascity.com/kansas.com.
+_COSMETIC_DOMAIN_PREFIXES = ("e", "the", "my", "live", "new", "www")
+
+
+def _registrable_domain(domain: str) -> str:
+    parts = domain.split(".")
+    return ".".join(parts[-2:]) if len(parts) >= 2 else domain
+
+
+def _domain_base_label(domain: str) -> str:
+    parts = domain.split(".")
+    return parts[-2] if len(parts) >= 2 else domain
+
+
+def _is_same_site_domain_alias(article_domain: str, canonical_domain: str) -> bool:
+    """Whether two cross-domain URLs are plausibly the SAME publisher.
+
+    Two checks, both narrow on purpose:
+
+    1. Identical registrable domain -- a subdomain variant of one site
+       (mdcp.nwaonline.com vs nwaonline.com).
+    2. The two domains' base labels become EXACTLY equal once one of a short,
+       fixed set of cosmetic prefixes is stripped (emissourian -> missourian).
+       Never a substring/containment check -- see the module comment above
+       for why that specific looser version is unsafe here.
+    """
+    if _registrable_domain(article_domain) == _registrable_domain(canonical_domain):
+        return True
+
+    article_label = _domain_base_label(article_domain)
+    canonical_label = _domain_base_label(canonical_domain)
+    if article_label == canonical_label:
+        return True
+
+    def variants(label: str) -> set[str]:
+        out = {label}
+        for prefix in _COSMETIC_DOMAIN_PREFIXES:
+            if (
+                label.startswith(prefix)
+                and len(label) - len(prefix) >= 5
+                and label[len(prefix) :].isalpha()
+            ):
+                out.add(label[len(prefix) :])
+        return out
+
+    return bool(variants(article_label) & variants(canonical_label))
+
+
 # CMS-specific JavaScript data object patterns for content metadata extraction
 # These capture title, author, and other fields from CMS JavaScript objects
 
@@ -7144,9 +7215,13 @@ class ContentExtractor:
                             normalized = self._normalize_wire_service_name(wire_name)
                             if normalized and normalized not in wire_services:
                                 wire_services.append(normalized)
-                        else:
+                        elif not _is_same_site_domain_alias(
+                            article_domain, canonical_domain
+                        ):
                             # Unknown domain but cross-domain canonical indicates syndication
-                            # (e.g., Hearst TV stations syndicating between each other)
+                            # (e.g., Hearst TV stations syndicating between each other).
+                            # The same-site check above rules out a domain alias for
+                            # the SAME publisher first -- see _is_same_site_domain_alias.
                             detection_methods.append("canonical_cross_domain")
                             raw_sources.append(canonical_domain)
                             evidence.append(
