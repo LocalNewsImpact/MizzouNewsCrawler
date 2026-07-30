@@ -1,4 +1,4 @@
-"""from_html() strips <form>/<select> markup before any extractor runs.
+"""strip_form_widgets(): <form>/<select> markup can never become article body.
 
 Found 2026-07-29 on real emissourian.com/missourian.com (TownNews) captures:
 a swim-meet recap's real body was two lede sentences plus a JS-required
@@ -7,36 +7,51 @@ paywall notice (~170 chars, itself below MINIMUM_CONTENT_LENGTH), while a
 subscription-checkout modal elsewhere on the page held 5,308 chars of
 concatenated country names. trafilatura's "pick the largest/densest text
 block" heuristic chose the dropdown. All four <select> elements on that page
-were subscription-form fields -- zero were legitimate content -- and the
-same widget, byte-identical, was the stored body for at least three
-different articles across two domains (clayton-wins-home-swim-dual,
+were subscription-form fields -- zero were legitimate content -- and the same
+widget, byte-identical, was the stored body for at least three different
+articles across two domains (clayton-wins-home-swim-dual,
 pumpkin-palooza-set-for-saturday, st-clair-man-pleads-guilty-to-kidnapping).
+
+The module is loaded BY FILE PATH rather than as src.mcmetadata.form_widgets,
+and that is deliberate. src/mcmetadata/__init__.py does
+`from . import content, ...`, and content.py imports the whole extraction
+stack at module level (dateparser, trafilatura, newspaper, goose3, boilerpy3,
+readability) -- none of which is in the CI base image these jobs run in. So
+ANY normal import from the package triggers that chain: a module-level
+`from src.mcmetadata import content` here took down three CI jobs with
+ModuleNotFoundError.
+
+Guarding with importorskip was the wrong fix: it would make these tests skip
+in CI and never run in the image either, since the PR image check mounts only
+tests/dependency_contracts/ -- they would have been dead. Loading the file
+directly bypasses the package __init__, and form_widgets itself imports only
+lxml (which IS in the base image), so this file genuinely runs on every PR.
+
+The alternative -- moving the helper into src/utils/ -- was rejected because
+vendored mcmetadata code currently imports nothing from src/, and that
+boundary is worth keeping.
 """
 
-import pytest
+import importlib.util
+from pathlib import Path
 
-# src.mcmetadata.content imports the whole extraction stack (dateparser,
-# trafilatura, newspaper, goose3, boilerpy3, readability) at module level.
-# Those live in the crawler/processor images, not in the lighter CI test venv,
-# so import them the way tests/dependency_contracts does -- skip cleanly rather
-# than erroring the whole collection with ModuleNotFoundError.
-pytest.importorskip("dateparser")
-pytest.importorskip("trafilatura")
-
-from src.mcmetadata import content as mc_content  # noqa: E402
-from src.mcmetadata import extract  # noqa: E402
+_MODULE_PATH = (
+    Path(__file__).resolve().parents[2] / "src" / "mcmetadata" / "form_widgets.py"
+)
+_spec = importlib.util.spec_from_file_location("_form_widgets_under_test", _MODULE_PATH)
+_form_widgets = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_form_widgets)
+strip_form_widgets = _form_widgets.strip_form_widgets
 
 
 class TestStripFormWidgets:
-    """The narrow cleaner itself."""
-
     def test_select_options_are_removed(self):
         html = (
             "<html><body><p>Real article text goes here.</p>"
             '<form><select id="country"><option>United States</option>'
             "<option>Canada</option></select></form></body></html>"
         )
-        cleaned = mc_content._strip_form_widgets(html)
+        cleaned = strip_form_widgets(html)
         assert "United States" not in cleaned
         assert "Canada" not in cleaned
         assert "Real article text goes here." in cleaned
@@ -49,97 +64,60 @@ class TestStripFormWidgets:
             '<select id="bare"><option>Option A</option></select>'
             "</body></html>"
         )
-        cleaned = mc_content._strip_form_widgets(html)
+        cleaned = strip_form_widgets(html)
         assert "Option A" not in cleaned
         assert "Real article text." in cleaned
 
+    def test_the_real_country_dropdown_shape_is_removed(self):
+        """The actual production case: a long option list that outweighs a
+        short real article body under a largest-block heuristic."""
+        options = "".join(
+            f"<option value='{i}'>Country Name {i}, Republic of</option>"
+            for i in range(150)
+        )
+        html = (
+            "<html><body>"
+            "<article><p>Clayton's Greyhounds turned away the challenge "
+            "from the swimming Blue Jays Tuesday.</p></article>"
+            '<div class="subscription-modal"><form>'
+            f'<select id="field-postal-country-super-purchase">{options}</select>'
+            "</form></div></body></html>"
+        )
+        cleaned = strip_form_widgets(html)
+        assert "Country Name" not in cleaned
+        assert "Clayton" in cleaned
+        # The dropdown was the overwhelming majority of the raw text; after
+        # stripping, what remains must be dominated by the real article.
+        assert len(cleaned) < len(html) / 2
+
     def test_meta_and_script_tags_survive(self):
-        """Deliberately narrow: unlike everything_cleaner, this must not
-        touch meta/script/style/link tags other extractors depend on."""
+        """Deliberately narrow: unlike content.py's everything_cleaner, this
+        must not touch meta/script/style/link tags other extractors depend on
+        (structured-data authorship, JSON-LD, canonical URLs)."""
         html = (
             '<html><head><meta name="author" content="Jane Smith">'
+            '<link rel="canonical" href="https://example.com/x">'
             "<script>var x = 1;</script></head>"
             '<body><p>Real text.</p><form><input type="text"></form>'
             "</body></html>"
         )
-        cleaned = mc_content._strip_form_widgets(html)
+        cleaned = strip_form_widgets(html)
         assert 'content="Jane Smith"' in cleaned
         assert "var x = 1;" in cleaned
+        assert "canonical" in cleaned
 
     def test_html_with_no_form_or_select_is_returned_unchanged(self):
-        """The cheap short-circuit: no lxml round-trip when there's nothing
-        to strip."""
+        """The cheap short-circuit: no lxml round-trip when there is nothing
+        to strip, which is the common case."""
         html = "<html><body><p>Just an ordinary article.</p></body></html>"
-        assert mc_content._strip_form_widgets(html) == html
+        assert strip_form_widgets(html) == html
 
     def test_malformed_html_falls_through_safely(self):
-        """A defensive cleanup pass must never be the reason extraction
-        fails outright on a document lxml can't parse."""
-        html = "<not even <valid <html at all"
-        result = mc_content._strip_form_widgets(html)
+        """A defensive cleanup pass must never be the reason extraction fails
+        outright on a document lxml cannot parse."""
+        result = strip_form_widgets("<not even <valid <html at all")
         assert result is not None
 
     def test_empty_and_none_input(self):
-        assert mc_content._strip_form_widgets("") == ""
-        assert mc_content._strip_form_widgets(None) is None
-
-
-class TestFromHtmlEndToEnd:
-    """The actual bug: a subscription-form country dropdown beats a short
-    real article body under trafilatura's largest-block heuristic."""
-
-    # Trimmed, real shape of the emissourian.com capture: a genuine short
-    # lede, a JS-required paywall notice (an existing BOILERPLATE_MARKERS
-    # phrase), and a subscription-checkout country <select> holding far more
-    # raw text than the real content.
-    REAL_LEDE = (
-        "Clayton's Greyhounds turned away the challenge from the swimming "
-        "Blue Jays Tuesday. Clayton picked up a dual victory in its home "
-        "pool against Washington, 117-34."
-    )
-    PAYWALL_NOTICE = (
-        "Javascript is required for you to be able to read premium "
-        "content. Please enable it in your browser settings."
-    )
-
-    def _country_options(self, n=150):
-        return "".join(
-            f"<option>Country Name {i}, Republic of</option>" for i in range(n)
-        )
-
-    def _page(self):
-        return f"""
-        <html><head><title>Clayton wins home swim dual over Washington</title>
-        <meta name="author" content="Arron Hustead"></head>
-        <body>
-        <article>
-        <p>{self.REAL_LEDE}</p>
-        <p>{self.PAYWALL_NOTICE}</p>
-        </article>
-        <div class="subscription-modal">
-          <form>
-            <select id="field-postal-country-super-purchase">
-              {self._country_options()}
-            </select>
-          </form>
-        </div>
-        </body></html>
-        """
-
-    def test_dropdown_no_longer_wins_over_the_real_article(self):
-        """The actual mechanism was verified directly against the real
-        emissourian.com capture (raw HTML pulled from the archive), where
-        disabling _strip_form_widgets reproduces production's exact bad
-        output -- text_content becomes the 5,308-char country list. That
-        real-HTML repro isn't included here (trafilatura's density scoring on
-        a hand-built synthetic page doesn't reliably replicate its behavior
-        on real production markup, and pinning to that exact behavior would
-        make this test as fragile as the bug it guards against). This test
-        instead pins the property that must hold regardless of the
-        underlying library's internals: once the dropdown is stripped before
-        extraction, its content cannot appear in the result."""
-        html = self._page()
-        result = extract("https://www.emissourian.com/sports/x.html", html)
-        text = result.get("text_content") or ""
-        assert "Country Name" not in text
-        assert "Clayton" in text
+        assert strip_form_widgets("") == ""
+        assert strip_form_widgets(None) is None
