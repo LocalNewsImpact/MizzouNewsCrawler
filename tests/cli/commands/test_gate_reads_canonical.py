@@ -80,9 +80,18 @@ class TestDetectionWasNeverTheProblem:
         intent AND the gate action -- which is what a thorough cleaner does --
         and nothing is left to detect. Classification must therefore still read
         the canonical capture rather than the cleaned text.
+
+        "log in" (not just "log into") is gutted too: _gated() was fixed
+        2026-07-29 to search BOTH directions around an access-intent match,
+        not just forward, and the widened search reaches "please log in below
+        to access this article" once "log into" alone is removed -- a real
+        improvement (see the maryvilleforum.com case in
+        project_wire_misattribution_bug.md's sibling paywall-detector notes),
+        but it means gutting this phrase more thoroughly is what it now takes
+        to demonstrate the concept detector's genuine limit.
         """
         gutted = SEDALIA_WALL.lower()
-        for phrase in ("continue reading", "log into", "subscri", "purchase"):
+        for phrase in ("continue reading", "log into", "log in", "subscri", "purchase"):
             gutted = gutted.replace(phrase, "")
         assert looks_like_paywall(gutted) is None
 

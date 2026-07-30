@@ -658,13 +658,26 @@ def _consent_dump(text: str, lowered: str) -> str | None:
 
 
 def _gated(lowered: str) -> str | None:
-    """A wall: something withheld, and the thing you must do to get it."""
+    """A wall: something withheld, and the thing you must do to get it.
+
+    Searches BOTH directions around the access-intent match. Found 2026-07-29
+    on a real maryvilleforum.com wall this missed entirely:
+
+        "Your current subscription does not provide access to this content."
+
+    The gate action ("subscription") sits BEFORE the access-intent phrase
+    ("access to this content") in that sentence -- a forward-only window never
+    sees it. Real walls order these both ways ("please log in to access this
+    article" vs "your subscription does not provide access to this content"),
+    so the search has to be symmetric, not just extended.
+    """
     entitle = _ENTITLEMENT.search(lowered)
     if entitle:
         return entitle.group(0).strip()
     for m in _ACCESS_INTENT.finditer(lowered):
-        window = lowered[m.start() : m.end() + _GATE_WINDOW]
-        action = _GATE_ACTION.search(window)
+        forward = lowered[m.start() : m.end() + _GATE_WINDOW]
+        backward = lowered[max(0, m.start() - _GATE_WINDOW) : m.end()]
+        action = _GATE_ACTION.search(forward) or _GATE_ACTION.search(backward)
         if action:
             return f"{m.group(0).strip()} ... {action.group(0).strip()}"
     return None
