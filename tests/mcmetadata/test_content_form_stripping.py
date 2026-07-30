@@ -13,8 +13,18 @@ different articles across two domains (clayton-wins-home-swim-dual,
 pumpkin-palooza-set-for-saturday, st-clair-man-pleads-guilty-to-kidnapping).
 """
 
-from src.mcmetadata import content as mc_content
-from src.mcmetadata import extract
+import pytest
+
+# src.mcmetadata.content imports the whole extraction stack (dateparser,
+# trafilatura, newspaper, goose3, boilerpy3, readability) at module level.
+# Those live in the crawler/processor images, not in the lighter CI test venv,
+# so import them the way tests/dependency_contracts does -- skip cleanly rather
+# than erroring the whole collection with ModuleNotFoundError.
+pytest.importorskip("dateparser")
+pytest.importorskip("trafilatura")
+
+from src.mcmetadata import content as mc_content  # noqa: E402
+from src.mcmetadata import extract  # noqa: E402
 
 
 class TestStripFormWidgets:
