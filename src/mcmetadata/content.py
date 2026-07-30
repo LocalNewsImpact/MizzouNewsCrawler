@@ -22,6 +22,66 @@ logger = logging.getLogger(__name__)
 
 MINIMUM_CONTENT_LENGTH = 200  # less than this and it doesn't count as working extraction (experimentally determined)
 
+# Strip <form>/<select> markup before ANY extractor sees the HTML. Dropdown
+# option lists are never real article prose in any legitimate page -- a
+# country/state selector inside a subscription-purchase widget is pure form
+# furniture -- but trafilatura's (and others') "pick the largest/densest text
+# block" heuristic has no way to know that, and a long option list easily
+# outweighs a real but short article body in raw text volume.
+#
+# Confirmed live on emissourian.com/missourian.com (TownNews): a swim-meet
+# recap's actual body was two lede sentences plus a JS-required paywall
+# notice (~170 chars total, itself below MINIMUM_CONTENT_LENGTH), while a
+# `<select id="field-postal-country-super-purchase">` from an unrelated
+# subscription-checkout modal elsewhere on the page held 5,308 chars of
+# concatenated country names. trafilatura picked the dropdown. All four
+# <select> elements on that page were subscription-form fields
+# (*-super-purchase ids) -- zero were legitimate content.
+#
+# Deliberately narrow: only forms/selects are removed. meta/script/style/link
+# tags are left untouched so extractors that read them (structured-data
+# authorship, JSON-LD, canonical links) are unaffected -- this is NOT the
+# same as `everything_cleaner` below, which is far more aggressive and is
+# wired only to the readability path.
+_form_stripping_cleaner = Cleaner(
+    scripts=False,
+    javascript=False,
+    comments=False,
+    style=False,
+    links=False,
+    meta=False,
+    page_structure=False,
+    processing_instructions=False,
+    embedded=False,
+    frames=False,
+    forms=True,
+    annoying_tags=False,
+    remove_unknown_tags=False,
+    safe_attrs_only=False,
+    kill_tags=["select"],  # belt-and-suspenders: catches a <select> with no
+    # enclosing <form>, which forms=True alone would miss.
+)
+
+
+def _strip_form_widgets(html_text: str) -> str:
+    """Remove <form>/<select> markup so it can never be mistaken for article
+    content. Returns the input unchanged if it isn't parseable HTML -- this is
+    a defensive cleanup pass, not a required one, so a malformed document
+    should fall through to the extractors exactly as before this existed."""
+    if (
+        not html_text
+        or "<select" not in html_text.lower()
+        and "<form" not in html_text.lower()
+    ):
+        # Cheap short-circuit: skip the lxml round-trip entirely when there is
+        # nothing for this pass to do, which is the common case.
+        return html_text
+    try:
+        return _form_stripping_cleaner.clean_html(html_text)
+    except Exception:
+        return html_text
+
+
 # customize readability to remove all tags
 everything_cleaner = Cleaner(
     scripts=True,
@@ -70,6 +130,11 @@ def from_html(
                              create a notable performance hit
     :return: a dict of with url, text, title, publish_date, top_image_url, authors, and extraction_method keys
     """
+    # Strip form/select widgets ONCE, before any extractor sees the HTML --
+    # see _strip_form_widgets for why. Applied here rather than per-extractor
+    # so every extraction method in the fallback chain gets it uniformly.
+    html_text = _strip_form_widgets(html_text)
+
     # now try each extractor against the same HTML
     for extractor_info in extractors:
 
