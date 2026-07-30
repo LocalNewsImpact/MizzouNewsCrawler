@@ -436,6 +436,17 @@ CONSENT = "consent"
 PROMO = "promotion"
 POLICY = "comment_policy"
 NAV = "navigation"
+#: Matched one of BOILERPLATE_MARKERS -- the list DERIVED by diffing 15,656
+#: hand-cleaned articles and keeping only segments a human cleaner removed on
+#: four or more distinct hosts. That provenance is why this is its own kind and
+#: not UNKNOWN: it is VOCABULARY evidence (precise, local, human-validated),
+#: not a shape estimate, so a segment carrying one may be removed. Before this
+#: existed such matches fell through to UNKNOWN, which is deliberately
+#: NOT segment-removable, so the best-evidenced list in the module could not
+#: actually remove anything -- the TownNews "Javascript is required ... premium
+#: content" notice survived excision on real joplinglobe.com articles even
+#: though its exact sentence is the FIRST entry in BOILERPLATE_MARKERS.
+BOILERPLATE = "boilerplate"
 UNKNOWN = "furniture"
 
 #: Kinds that mean "the page has a story we did not get", as opposed to "this
@@ -458,7 +469,9 @@ RECOVERABLE_KINDS: frozenset[str] = frozenset({PAYWALL})
 #: (via looks_like_furniture at the capture gate). Menus are the exception that
 #: proves it -- they are structural, so _drop_menu_runs handles them by RUN
 #: rather than by per-segment shape.
-_SEGMENT_REMOVABLE: frozenset[str] = frozenset({PAYWALL, CONSENT, PROMO, POLICY, NAV})
+_SEGMENT_REMOVABLE: frozenset[str] = frozenset(
+    {PAYWALL, CONSENT, PROMO, POLICY, NAV, BOILERPLATE}
+)
 
 
 class Furniture(NamedTuple):
@@ -517,7 +530,7 @@ _ENTITLEMENT = re.compile(
     r"(?:subscribers?|members?|premium)[- ]only"
     r"|only\s+(?:available\s+)?(?:to|for)\s+subscribers"
     r"|available\s+in\s+full\s+to\s+subscribers"
-    r"|premium\s+content|subscriber\s+account"
+    r"|subscriber\s+account"
     # Stands alone rather than needing a gate action beside it. "Unlimited
     # access" is subscription marketing and essentially never news prose --
     # 0 hits across 180 real stories in the 2026-07-28 export. It was an
@@ -527,6 +540,30 @@ _ENTITLEMENT = re.compile(
     r"|unlimited\s+(?:digital\s+)?access",
     re.IGNORECASE,
 )
+
+# Bare "premium content" is NOT an entitlement on its own. Removed from
+# _ENTITLEMENT on 2026-07-30 after it condemned four legitimate joplinglobe.com
+# articles: TownNews injects "Javascript is required for you to be able to read
+# premium content. Please enable it in your browser settings." INLINE, mid-body,
+# with the story continuing around it --
+#
+#     "...deft hands at displaying unique things in creative ways. x Javascript
+#      is required for you to be able to read premium content. Please enable it
+#      in your browser settings. So did I see something I would buy? Yep, but I
+#      resisted temptation."
+#
+# so classify_furniture() returned PAYWALL for the whole article. That is the
+# all-or-nothing failure this module exists to avoid: the notice is one
+# sentence of furniture inside real reporting, and the correct response is to
+# excise that sentence, not condemn the body.
+#
+# The phrase still earns a PAYWALL verdict when it appears in an actual
+# entitlement claim ("this is premium content for subscribers"), which the
+# access-intent/gate-action pairing in _gated() already catches, and the full
+# JS-notice sentence is ALREADY the first entry in BOILERPLATE_MARKERS, so
+# segment-level removal is unaffected. What changed is only that the bare
+# phrase can no longer, by itself, condemn a whole body.
+_PREMIUM_CONTENT_PHRASE = re.compile(r"premium\s+content", re.IGNORECASE)
 # How close the two halves must sit. A story that mentions reading in one
 # paragraph and a subscription in another is not a wall; a prompt puts them in
 # the same breath.
@@ -727,7 +764,7 @@ def classify_furniture(text: str | None) -> Furniture | None:
             return Furniture(kind, m.group(0).strip())
 
     if is_boilerplate_segment(text):
-        return Furniture(UNKNOWN, "boilerplate marker")
+        return Furniture(BOILERPLATE, "boilerplate marker")
     if utility_word_rate(text) > MAX_UTILITY_WORD_RATE:
         return Furniture(UNKNOWN, f"utility words {utility_word_rate(text):.1f}/100w")
     repetition = _max_token_share(text)

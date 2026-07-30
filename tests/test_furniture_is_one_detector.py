@@ -23,6 +23,7 @@ from src.utils.boilerplate import (
     PAYWALL,
     PROMO,
     classify_furniture,
+    excise_furniture_lines,
     looks_like_furniture,
     strip_furniture,
 )
@@ -201,3 +202,94 @@ class TestShapeIsNotAppliedToSingleSentences:
         )
         body = STORY + " " + sentence
         assert "mail ballots" in strip_furniture(body).text
+
+
+class TestInlineNoticeDoesNotCondemnTheArticle:
+    """A furniture SENTENCE inside real reporting is not a walled page.
+
+    Found 2026-07-30 measuring the detector against 21 real archived captures.
+    TownNews injects its JS/paywall notice INLINE, mid-body, with the story
+    continuing around it:
+
+        "...deft hands at displaying unique things in creative ways. x
+         Javascript is required for you to be able to read premium content.
+         Please enable it in your browser settings. So did I see something I
+         would buy? Yep, but I resisted temptation."
+
+    Bare "premium content" was in _ENTITLEMENT, which stands alone without
+    needing a paired gate action, so classify_furniture returned PAYWALL for
+    the WHOLE body on four legitimate joplinglobe.com articles. That is the
+    all-or-nothing failure this module exists to prevent: the correct response
+    is to excise the notice, not condemn the article.
+    """
+
+    ARTICLE_WITH_INLINE_NOTICE = (
+        "A new antique mall with small to large booths featuring all kinds of "
+        "collectibles opened this week in the former convention hall. The "
+        "owners spent four months renovating the space and show deft hands at "
+        "displaying unique things in creative ways.\n"
+        "Javascript is required for you to be able to read premium content. "
+        "Please enable it in your browser settings.\n"
+        "So did I see something I would buy? Yep, but I resisted temptation. "
+        "The mall opens at nine each morning and the booths rotate monthly."
+    )
+
+    def test_the_article_is_not_classified_as_a_paywall(self):
+        found = classify_furniture(self.ARTICLE_WITH_INLINE_NOTICE)
+        assert found is None or found.kind != PAYWALL
+
+    def test_a_genuine_entitlement_claim_is_still_a_paywall(self):
+        """The phrase still counts when it IS an entitlement claim -- what
+        changed is only that the bare phrase cannot condemn a body by itself."""
+        assert (
+            classify_furniture("This is premium content for subscribers only.").kind
+            == PAYWALL
+        )
+
+    def test_the_notice_is_excised_and_the_story_survives(self):
+        """The whole point: remove the sentence, keep the reporting."""
+        kept, kinds = excise_furniture_lines(self.ARTICLE_WITH_INLINE_NOTICE)
+        assert "premium content" not in kept.lower()
+        assert "antique mall" in kept
+        assert "I resisted temptation" in kept
+        assert kinds  # something was recorded as removed
+
+
+class TestBoilerplateMarkersCanActuallyRemove:
+    """BOILERPLATE_MARKERS is the best-evidenced list in this module and for a
+    while it could not remove anything.
+
+    The list is DERIVED -- 15,656 hand-cleaned articles diffed against their
+    raw form, keeping only segments a human cleaner removed on four or more
+    distinct hosts. But a marker match returned kind UNKNOWN, and UNKNOWN is
+    deliberately excluded from _SEGMENT_REMOVABLE because it is the SHAPE
+    verdict (whole-body statistics that misfire on a single sentence). So the
+    vocabulary evidence inherited the shape rule's restriction and the TownNews
+    notice survived excision even though its exact sentence is the FIRST entry
+    in BOILERPLATE_MARKERS.
+    """
+
+    def test_a_marker_match_is_its_own_removable_kind(self):
+        from src.utils.boilerplate import BOILERPLATE, BOILERPLATE_MARKERS
+
+        found = classify_furniture(BOILERPLATE_MARKERS[0])
+        assert found is not None
+        assert found.kind == BOILERPLATE
+
+    def test_shape_verdicts_are_still_not_segment_removable(self):
+        """The distinction that makes this safe: vocabulary may remove a
+        segment, shape may not."""
+        from src.utils.boilerplate import _SEGMENT_REMOVABLE, UNKNOWN
+
+        assert UNKNOWN not in _SEGMENT_REMOVABLE
+
+    def test_a_marker_line_is_removed_but_surrounding_prose_is_kept(self):
+        body = (
+            "The council approved the budget on a five to two vote Tuesday.\n"
+            "Please enable it in your browser settings.\n"
+            "The measure takes effect in July, the clerk confirmed."
+        )
+        kept, _ = excise_furniture_lines(body)
+        assert "browser settings" not in kept
+        assert "council approved the budget" in kept
+        assert "takes effect in July" in kept
