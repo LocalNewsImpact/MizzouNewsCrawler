@@ -2619,10 +2619,17 @@ class ContentExtractor:
             logger.error(f"Error parsing HTML for {url}: {e}")
             return {}
 
+        author, author_source = self._extract_author_with_source(soup)
         data = {
             "url": url,
             "title": self._extract_title(soup),
-            "author": self._extract_author(soup),
+            "author": author,
+            # additive key, so existing callers of this public method are
+            # unaffected; _parse_with_beautifulsoup reads it to give telemetry
+            # visibility into WHICH strategy found the byline (meta tag, CSS
+            # selector, or a body-text "By {Name}" pattern) instead of the
+            # flat "beautifulsoup" label every field used to share.
+            "author_source": author_source,
             # legacy name `published_date` kept for internal use; callers
             # expect `publish_date` so we expose both below when returning
             "published_date": self._extract_published_date(soup, html),
@@ -2833,8 +2840,25 @@ class ContentExtractor:
                 )
 
                 if mcmetadata_result:
+                    # mcmetadata already knows WHERE the author came from --
+                    # structured JSON-LD, a meta tag, or the article body --
+                    # and returns it as author_extraction_method. Without this
+                    # every mcmetadata field, author included, was stamped
+                    # with the flat label "mcmetadata", which is the dominant
+                    # success path in production and so left telemetry with
+                    # no visibility into byline provenance for the common case.
+                    author_method = (mcmetadata_result.get("metadata", {}) or {}).get(
+                        "author_extraction_method"
+                    )
                     self._merge_extraction_results(
-                        result, mcmetadata_result, "mcmetadata", None, metrics
+                        result,
+                        mcmetadata_result,
+                        "mcmetadata",
+                        None,
+                        metrics,
+                        field_methods=(
+                            {"author": author_method} if author_method else None
+                        ),
                     )
                     logger.info(f"mcmetadata extraction completed for {url}")
                     if metrics:
@@ -2965,9 +2989,23 @@ class ContentExtractor:
                 bs_result = self._parse_with_beautifulsoup(url, html_for_methods)
 
                 if bs_result:
+                    # Same reasoning as mcmetadata: _extract_author_with_source
+                    # tells us whether the byline came from a meta tag, a CSS
+                    # byline selector, or a body-text "By {Name}" pattern --
+                    # use that instead of the flat "beautifulsoup" label.
+                    bs_author_method = (bs_result.get("metadata", {}) or {}).get(
+                        "author_extraction_method"
+                    )
                     # Only copy missing fields
                     self._merge_extraction_results(
-                        result, bs_result, "beautifulsoup", missing_fields, metrics
+                        result,
+                        bs_result,
+                        "beautifulsoup",
+                        missing_fields,
+                        metrics,
+                        field_methods=(
+                            {"author": bs_author_method} if bs_author_method else None
+                        ),
                     )
                     logger.info(f"BeautifulSoup extraction completed for {url}")
                     if metrics:
@@ -3336,6 +3374,7 @@ class ContentExtractor:
         fields_to_copy: Optional[List[str]] = None,
         metrics: Optional[object] = None,
         allow_overwrite: bool = False,
+        field_methods: Optional[Dict[str, str]] = None,
     ) -> None:
         """Merge source extraction results into target, tracking methods.
 
@@ -3348,6 +3387,14 @@ class ContentExtractor:
             metrics: Optional ExtractionMetrics for tracking alternatives
             allow_overwrite: When True, overwrite existing meaningful values
                              with the new method's results
+            field_methods: Optional per-field override of `method`, for
+                sources that know MORE than "which extractor won" -- e.g.
+                mcmetadata already tells us whether an author came from
+                structured JSON-LD, a meta tag, or the article body
+                (`article["authors"]`), but every field it supplied was being
+                stamped with the flat label "mcmetadata", discarding that.
+                Only overrides fields present in this dict; every other field
+                keeps the plain `method` label as before.
         """
         if not source:
             return
@@ -3368,7 +3415,9 @@ class ContentExtractor:
 
             if not has_current_value or allow_overwrite:
                 target[field] = source_value
-                target["extraction_methods"][field] = method
+                target["extraction_methods"][field] = (
+                    field_methods.get(field, method) if field_methods else method
+                )
                 if field == "publish_date":
                     self._merge_publish_date_fallback_metadata(target, source)
                 logger.debug(
@@ -3396,29 +3445,42 @@ class ContentExtractor:
             metadata = {}
             result["metadata"] = metadata
 
+        # cms_source is a single label for whichever stage (json_ld, meta_tags,
+        # datalayer, nexstar, window_data) supplied ANY field first -- it does
+        # NOT mean every field came from that stage. A page whose JSON-LD had a
+        # title but no author, filled by a later meta-tag stage, stamped BOTH
+        # title and author "cms_json_ld": the author's true source (meta_tags)
+        # was overwritten by title's. title_source/author_source/
+        # publish_date_source are set at the exact point each field is
+        # assigned in _extract_cms_metadata_from_html, so they cannot drift
+        # this way. cms_source is kept as the fallback for older callers/tests
+        # and as a last resort if a per-field source is somehow missing.
         cms_source = cms_meta.get("cms_source", "unknown")
 
         if not result.get("title") and cms_meta.get("title"):
             result["title"] = cms_meta["title"]
-            result["extraction_methods"]["title"] = f"cms_{cms_source}"
+            title_source = cms_meta.get("title_source", cms_source)
+            result["extraction_methods"]["title"] = f"cms_{title_source}"
             logger.info(
                 "Title filled from CMS metadata (%s): %s",
-                cms_meta.get("cms_source"),
+                title_source,
                 cms_meta["title"][:50] if cms_meta["title"] else None,
             )
 
         if not result.get("author") and cms_meta.get("author"):
             result["author"] = cms_meta["author"]
-            result["extraction_methods"]["author"] = f"cms_{cms_source}"
+            author_source = cms_meta.get("author_source", cms_source)
+            result["extraction_methods"]["author"] = f"cms_{author_source}"
             logger.info(
                 "Author filled from CMS metadata (%s): %s",
-                cms_meta.get("cms_source"),
+                author_source,
                 cms_meta["author"],
             )
 
         if not result.get("publish_date") and cms_meta.get("publish_date"):
             result["publish_date"] = cms_meta["publish_date"]
-            result["extraction_methods"]["publish_date"] = f"cms_{cms_source}"
+            publish_date_source = cms_meta.get("publish_date_source", cms_source)
+            result["extraction_methods"]["publish_date"] = f"cms_{publish_date_source}"
 
         metadata["cms_metadata_source"] = cms_meta.get("cms_source")
         if cms_meta.get("category"):
@@ -4121,6 +4183,7 @@ class ContentExtractor:
             "metadata": {
                 "meta_description": raw.get("meta_description"),
                 "extraction_method": "beautifulsoup",
+                "author_extraction_method": raw.get("author_source"),
                 "cloudscraper_used": (
                     CLOUDSCRAPER_AVAILABLE and cloudscraper is not None
                 ),
@@ -4487,15 +4550,20 @@ class ContentExtractor:
 
             soup = BeautifulSoup(html, "html.parser")
 
+            author, author_source = self._extract_author_with_source(soup)
             result: Dict[str, Any] = {
                 "url": url,
                 "title": self._extract_title(soup),
-                "author": self._extract_author(soup),
+                "author": author,
                 "publish_date": self._extract_published_date(soup, html),
                 "content": self._extract_content(soup),
                 "metadata": {
                     "meta_description": self._extract_meta_description(soup),
                     "extraction_method": "selenium",
+                    # Which of the three strategies found the byline (meta
+                    # tag, CSS selector, body-text pattern), not just the flat
+                    # "selenium" label every field on this path used to share.
+                    "author_extraction_method": author_source,
                     "stealth_mode": True,
                     "stealth_method": stealth_method,
                     "page_source_length": len(html),
@@ -4643,12 +4711,23 @@ class ContentExtractor:
                 try:
                     capture_result = self._parse_with_mcmetadata(url, capture)
                     if capture_result:
+                        # Same reasoning as the primary mcmetadata call: use
+                        # mcmetadata's own author_extraction_method instead of
+                        # the flat "mcmetadata" label, so telemetry can tell a
+                        # structured (JSON-LD / meta tag) byline apart from one
+                        # found in the rendered page's body.
+                        author_method = (capture_result.get("metadata", {}) or {}).get(
+                            "author_extraction_method"
+                        )
                         self._merge_extraction_results(
                             result,
                             capture_result,
                             "mcmetadata",
                             metrics=metrics,
                             allow_overwrite=http_attempt_suspect,
+                            field_methods=(
+                                {"author": author_method} if author_method else None
+                            ),
                         )
                         logger.info(
                             "Parsed the Selenium capture with mcmetadata for %s", url
@@ -4673,6 +4752,13 @@ class ContentExtractor:
                 # It also made telemetry credit Selenium for fields it had
                 # merely overwritten.
                 still_missing = self._get_missing_fields(result)
+                # Same reasoning as the mcmetadata/beautifulsoup merges above:
+                # _extract_author_with_source tells us whether the byline came
+                # from a meta tag, a CSS byline selector, or a body-text
+                # pattern -- use that instead of the flat "selenium" label.
+                selenium_author_method = (
+                    selenium_result.get("metadata", {}) or {}
+                ).get("author_extraction_method")
                 self._merge_extraction_results(
                     result,
                     selenium_result,
@@ -4680,6 +4766,11 @@ class ContentExtractor:
                     fields_to_copy=still_missing,
                     metrics=metrics,
                     allow_overwrite=False,
+                    field_methods=(
+                        {"author": selenium_author_method}
+                        if selenium_author_method
+                        else None
+                    ),
                 )
                 logger.info("✅ Selenium extraction succeeded for %s", url)
                 if dom in self._selenium_failure_counts:
@@ -6544,12 +6635,25 @@ class ContentExtractor:
         return None
 
     def _extract_author(self, soup: BeautifulSoup) -> Optional[str]:
-        """Extract article author from HTML using multiple strategies.
+        """Extract article author from HTML. Thin wrapper -- see
+        _extract_author_with_source for the strategy that succeeded."""
+        author, _source = self._extract_author_with_source(soup)
+        return author
+
+    def _extract_author_with_source(
+        self, soup: BeautifulSoup
+    ) -> tuple[Optional[str], Optional[str]]:
+        """Extract article author from HTML, and report WHICH strategy found it.
 
         Tries in order:
-        1. Meta tags (most reliable)
-        2. CSS selectors for common byline classes
-        3. Text pattern search for "By {Name}" patterns
+        1. Meta tags (most reliable)             -> source "meta_tag"
+        2. CSS selectors for common byline classes -> source "css_selector"
+        3. Text pattern search for "By {Name}"    -> source "body_text_pattern"
+
+        The source is what makes byline provenance visible in telemetry
+        (extraction_methods["author"] / final_field_attribution) instead of a
+        flat "beautifulsoup" or "selenium" label that can't distinguish a
+        structured meta tag from a raw "By Jane Smith" match in the body.
         """
         # Strategy 1: Try common meta tags first (most reliable)
         meta_selectors = [
@@ -6567,7 +6671,7 @@ class ContentExtractor:
                 if author is not None:
                     author_str = self._clean_author_text(str(author))
                     if author_str:
-                        return author_str
+                        return author_str, "meta_tag"
 
         # Strategy 2: CSS selectors for common byline classes/elements
         css_selectors = [
@@ -6596,7 +6700,7 @@ class ContentExtractor:
                 if element:
                     author_txt = self._clean_author_text(element.get_text())
                     if author_txt and len(author_txt) < 200:
-                        return author_txt
+                        return author_txt, "css_selector"
             except Exception:
                 continue
 
@@ -6604,9 +6708,9 @@ class ContentExtractor:
         # Focus on the first part of the page (header/info area)
         author = self._extract_author_by_text_pattern(soup)
         if author:
-            return author
+            return author, "body_text_pattern"
 
-        return None
+        return None, None
 
     def _clean_author_text(self, text: str) -> str:
         """Clean up author/byline text by removing common prefixes and normalizing."""
@@ -6865,6 +6969,7 @@ class ContentExtractor:
                             headline = item.get("headline") or item.get("name")
                             if headline and isinstance(headline, str):
                                 metadata["title"] = headline.strip()
+                                metadata["title_source"] = "json_ld"
 
                         # Get author (various formats)
                         if not metadata.get("author"):
@@ -6872,6 +6977,10 @@ class ContentExtractor:
                             author_name = self._extract_author_from_jsonld(author)
                             if author_name:
                                 metadata["author"] = author_name
+                                # Per-field, alongside the shared cms_source
+                                # below -- see the note on _apply_cms_metadata_fallback
+                                # for why one shared label isn't enough.
+                                metadata["author_source"] = "json_ld"
 
                         # Get datePublished
                         if not metadata.get("publish_date"):
@@ -6880,6 +6989,7 @@ class ContentExtractor:
                             )
                             if pub_date:
                                 metadata["publish_date"] = pub_date
+                                metadata["publish_date_source"] = "json_ld"
 
                         # Get description
                         if not metadata.get("description"):
@@ -6913,6 +7023,7 @@ class ContentExtractor:
                 )
             if og_title_match:
                 metadata["title"] = og_title_match.group(1).strip()
+                metadata["title_source"] = "meta_tags"
                 if not metadata.get("cms_source"):
                     metadata["cms_source"] = "meta_tags"
 
@@ -6931,6 +7042,7 @@ class ContentExtractor:
                 )
             if author_match:
                 metadata["author"] = author_match.group(1).strip()
+                metadata["author_source"] = "meta_tags"
                 if not metadata.get("cms_source"):
                     metadata["cms_source"] = "meta_tags"
 
@@ -6976,6 +7088,7 @@ class ContentExtractor:
                         )
                         if title and isinstance(title, str):
                             metadata["title"] = title.strip()
+                            metadata["title_source"] = "datalayer"
                             metadata["cms_source"] = "datalayer"
                     # Try common author field names
                     if not metadata.get("author"):
@@ -6987,6 +7100,7 @@ class ContentExtractor:
                         )
                         if author and isinstance(author, str):
                             metadata["author"] = author.strip()
+                            metadata["author_source"] = "datalayer"
                             metadata["cms_source"] = "datalayer"
                 except (json.JSONDecodeError, TypeError):
                     continue
@@ -7003,14 +7117,17 @@ class ContentExtractor:
                     if isinstance(data, dict):
                         if not metadata.get("title") and data.get("title"):
                             metadata["title"] = data["title"].strip()
+                            metadata["title_source"] = "nexstar"
                         if not metadata.get("author") and data.get("authorName"):
                             metadata["author"] = data["authorName"].strip()
+                            metadata["author_source"] = "nexstar"
                         if not metadata.get("description") and data.get("description"):
                             metadata["description"] = data["description"].strip()
                         if not metadata.get("publish_date") and data.get(
                             "publicationDate"
                         ):
                             metadata["publish_date"] = data["publicationDate"]
+                            metadata["publish_date_source"] = "nexstar"
                         if not metadata.get("category") and data.get("primaryCategory"):
                             metadata["category"] = data["primaryCategory"]
                         if metadata.get("title") or metadata.get("author"):
@@ -7037,6 +7154,7 @@ class ContentExtractor:
                                 title = content.get("title") or content.get("headline")
                                 if title and isinstance(title, str):
                                     metadata["title"] = title.strip()
+                                    metadata["title_source"] = "window_data"
                             if not metadata.get("author"):
                                 author = (
                                     content.get("author")
@@ -7045,6 +7163,7 @@ class ContentExtractor:
                                 )
                                 if author and isinstance(author, str):
                                     metadata["author"] = author.strip()
+                                    metadata["author_source"] = "window_data"
                             if metadata.get("title") or metadata.get("author"):
                                 metadata["cms_source"] = "window_data"
                 except (json.JSONDecodeError, TypeError):
