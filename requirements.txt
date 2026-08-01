@@ -1,5 +1,5 @@
 # Core dependencies
-pandas>=3.0.3
+pandas>=3.0.5
 numpy>=2.4.6  # Python 3.11+ supports numpy 2.x with all dependencies
 requests>=2.34.2
 beautifulsoup4>=4.15.0
@@ -11,7 +11,7 @@ urllib3>=2.7.0
 sqlalchemy>=2.0.51
 alembic>=1.18.5
 psycopg2-binary>=2.9.12  # PostgreSQL adapter for production
-cloud-sql-python-connector[pg8000]>=1.20.4  # Google Cloud SQL connector (replaces proxy sidecar)
+cloud-sql-python-connector[pg8000]>=1.21.0  # Google Cloud SQL connector (replaces proxy sidecar)
 google-cloud-bigquery[pandas]>=3.42.2  # BigQuery client for analytics export
 google-api-python-client>=2.198.0  # Google API client for Sheets/Docs
 
@@ -34,14 +34,14 @@ undetected-chromedriver>=3.5.5  # Advanced anti-detection
 selenium-stealth>=1.0.6  # Browser fingerprint masking
 newspaper4k>=0.9.6  # Use newspaper4k (modern fork)
 storysniffer>=1.0.9  # Compatible version (skops-based models)
-feedparser>=6.0.12
+feedparser>=6.0.13
 cloudscraper>=1.2.71  # Bypass Cloudflare protection
 
 # Content extraction & processing (mcmetadata dependencies)
 readability-lxml>=0.8.4.1  # Article content extraction
 trafilatura>=2.1.0  # Web content extraction
 boilerpy3>=1.0.7  # Boilerplate removal (1.0.7 is the latest release; >=1.0.8 broke installs)
-goose3>=3.1.21  # Content extraction
+goose3>=3.1.22  # Content extraction
 htmldate>=1.10.0  # HTML date extraction
 py3langid>=0.3.0  # Language detection
 dateparser>=1.4.1  # Flexible date parsing
@@ -50,7 +50,7 @@ furl>=2.1.4  # URL manipulation
 requests-mock
 
 # Development
-pre-commit>=4.6.0
+pre-commit>=4.6.1
 black>=26.5.1
 isort>=8.0.1
 flake8>=7.3.0
@@ -63,7 +63,7 @@ pydantic>=2.13.4
 # Transitive security pins (Dependabot high/critical; floors force patched versions)
 cryptography>=49.0.0
 pillow>=12.3.0
-soupsieve>=2.9
+soupsieve>=2.9.1
 pyasn1>=0.6.4
 Mako>=1.3.12
 starlette>=1.3.1

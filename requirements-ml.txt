@@ -11,7 +11,7 @@ scikit-learn>=1.9.0,<1.10  # Compatible with StorySniffer 1.0.9+ skops models (m
 storysniffer>=1.0.9  # News article classification (skops-based models)
 
 # Crawler dependencies for article extraction (processor CLI imports crawler)
-feedparser>=6.0.12  # RSS/Atom feed parsing
+feedparser>=6.0.13  # RSS/Atom feed parsing
 newspaper4k>=0.9.6  # Article extraction (modern fork of newspaper3k)
 selenium>=4.46.0  # Browser automation for JavaScript sites
 undetected-chromedriver>=3.5.5  # Advanced anti-detection for Selenium

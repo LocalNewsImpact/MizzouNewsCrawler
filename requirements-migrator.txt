@@ -5,7 +5,7 @@
 sqlalchemy>=2.0.51
 alembic>=1.18.5
 psycopg2-binary>=2.9.12  # PostgreSQL adapter
-cloud-sql-python-connector[pg8000]>=1.20.4  # Google Cloud SQL connector
+cloud-sql-python-connector[pg8000]>=1.21.0  # Google Cloud SQL connector
 
 # Configuration
 python-dotenv>=1.2.2

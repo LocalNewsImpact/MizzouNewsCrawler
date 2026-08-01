@@ -2,7 +2,7 @@
 # This file contains ~80% of dependencies shared across API, Processor, and Crawler
 
 # Core data processing
-pandas>=3.0.3
+pandas>=3.0.5
 numpy>=2.4.6  # Python 3.11+ supports numpy 2.x with all dependencies
 pyarrow>=25.0.0  # For Parquet support
 openpyxl>=3.1.5  # Excel export support
@@ -11,7 +11,7 @@ openpyxl>=3.1.5  # Excel export support
 sqlalchemy>=2.0.51
 alembic>=1.18.5
 psycopg2-binary>=2.9.12  # PostgreSQL adapter for production
-cloud-sql-python-connector[pg8000]>=1.20.4  # Google Cloud SQL connector
+cloud-sql-python-connector[pg8000]>=1.21.0  # Google Cloud SQL connector
 
 # HTTP and web utilities
 requests>=2.34.2
@@ -22,7 +22,7 @@ lxml_html_clean>=0.4.5  # Required for newspaper3k HTML cleaning
 storysniffer>=1.0.9  # URL verification service (skops-based models)
 selenium>=4.46.0  # Needed by tests
 newspaper4k>=0.9.6  # Needed by tests
-feedparser>=6.0.12  # Needed by tests
+feedparser>=6.0.13  # Needed by tests
 rapidfuzz>=3.14.5  # Needed by tests
 cloudscraper>=1.2.71  # Needed by tests
 
@@ -39,11 +39,11 @@ pytest>=9.1.1
 pytest-cov>=7.1.0
 pytest-mock
 requests-mock
-fastapi>=0.139.2  # Needed for test fixtures
+fastapi>=0.140.13  # Needed for test fixtures
 httpx  # Needed for FastAPI TestClient
 
 # Development
-pre-commit>=4.6.0
+pre-commit>=4.6.1
 isort>=8.0.1
 flake8>=7.3.0
 
@@ -61,4 +61,4 @@ google-cloud-storage>=3.13.0  # Raw HTML archive (extractor A/B replay)
 # Needed by api, crawler and processor, so it belongs here rather than being
 # repeated in each service's requirements.
 google-cloud-secret-manager>=2.30.0  # Secret retrieval
-google-cloud-firestore>=2.21.0  # Shared proxy/domain health state (proxy_router)
+google-cloud-firestore>=2.28.0  # Shared proxy/domain health state (proxy_router)
