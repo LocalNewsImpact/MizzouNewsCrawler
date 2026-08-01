@@ -2,7 +2,7 @@ google-cloud-storage==3.13.0
 google-cloud-secret-manager==2.30.0
 sqlalchemy==2.0.51
 pg8000==1.31.5
-cloud-sql-python-connector==1.20.4
+cloud-sql-python-connector==1.21.0
 python-dotenv==1.2.2
 
 # Gmail API dependencies for delegated send
