@@ -119,6 +119,7 @@ def test_apply_classification_dry_run_collects_proposed_labels(monkeypatch):
         include_existing,
         excluded,
         excluded_ids=None,
+        dataset_id=None,
     ):
         nonlocal call_count
         if call_count:
@@ -371,6 +372,7 @@ def test_apply_classification_handles_none_statuses(monkeypatch):
         include_existing,
         excluded,
         excluded_ids=None,
+        dataset_id=None,
     ):
         captured.update(
             {
