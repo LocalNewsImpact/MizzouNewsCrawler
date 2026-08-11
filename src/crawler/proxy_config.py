@@ -391,6 +391,31 @@ class ProxyManager:
 
         return _build_proxies_dict(provider), router_proxy, choice.method
 
+    def get_requests_proxies_for_router_proxy(
+        self, router_proxy: RouterProxy
+    ) -> Optional[dict]:
+        """Return the proxies dict for one specific proxy, or None.
+
+        Unlike get_requests_proxies_for_domain(), this asks for a *named*
+        proxy rather than letting the router choose -- callers use it to reach
+        the other Squid after the routed one turned out to be blocked for a
+        domain.
+
+        Returns None rather than falling back to home Squid when the requested
+        proxy isn't configured. The fallback is right for "just get me a
+        proxy" and wrong here: a caller retrying a blocked request needs to
+        know it would be retrying through the same box, so it can skip the
+        pointless second attempt.
+        """
+        provider_by_proxy = {
+            RouterProxy.HOME_SQUID: ProxyProvider.SQUID,
+            RouterProxy.MIZZOU_SQUID: ProxyProvider.MIZZOU_SQUID,
+        }
+        provider = self.configs.get(provider_by_proxy.get(router_proxy))
+        if provider is None or not provider.enabled:
+            return None
+        return _build_proxies_dict(provider)
+
     def report_domain_result(
         self,
         domain: str,
