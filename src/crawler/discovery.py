@@ -81,7 +81,6 @@ from src.utils.url_utils import normalize_url
 
 from ..models.database import DatabaseManager, safe_execute, safe_session_execute
 from .proxy_config import get_proxy_manager
-from .proxy_router import RouterProxy
 
 logger = logging.getLogger(__name__)
 
@@ -644,26 +643,19 @@ class NewsDiscovery:
     def _alternate_proxies_for_domain(self, current, current_proxies: dict | None):
         """The other configured proxy, or (None, None) if there isn't one.
 
-        Compares the resolved proxy URLs rather than the RouterProxy names.
-        get_requests_proxies_for_domain() maps an unconfigured MIZZOU_SQUID
-        back onto home Squid, so two different names can resolve to one box --
-        retrying there would just re-ask the address that was already refused.
+        Delegates to ProxyManager.get_alternate_proxies so discovery and
+        extraction answer "is there somewhere else to try?" identically; the
+        URL-vs-name comparison that matters is documented there.
         """
         proxy_manager = getattr(self, "proxy_manager", None)
         if proxy_manager is None or current is None:
             return None, None
 
-        resolve = getattr(proxy_manager, "get_requests_proxies_for_router_proxy", None)
+        resolve = getattr(proxy_manager, "get_alternate_proxies", None)
         if resolve is None:  # older manager / test double
             return None, None
 
-        for candidate in RouterProxy:
-            if candidate is current:
-                continue
-            proxies = resolve(candidate)
-            if proxies and proxies != current_proxies:
-                return proxies, candidate
-        return None, None
+        return resolve(current, current_proxies)
 
     def _note_capture_diagnosis(self, url: str, html: str | None) -> None:
         """Record WHY a capture might yield nothing, for this source.
