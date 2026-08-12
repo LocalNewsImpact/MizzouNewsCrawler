@@ -246,7 +246,10 @@ def _get_worker_id() -> str:
 
 
 def _get_work_from_queue(
-    worker_id: str, batch_size: int, max_articles_per_domain: int = 3
+    worker_id: str,
+    batch_size: int,
+    max_articles_per_domain: int = 3,
+    dataset: str | None = None,
 ):
     """Request work from centralized queue service with retry logic.
 
@@ -254,6 +257,10 @@ def _get_work_from_queue(
         worker_id: Unique worker identifier
         batch_size: Number of articles to request
         max_articles_per_domain: Maximum articles per domain in this batch
+        dataset: Dataset id to restrict work to. Without this the queue serves
+            candidate links from EVERY dataset, so `extract --dataset X` would
+            silently process other datasets' backlogs -- the direct-DB path
+            applies the filter, the queue path did not.
 
     Returns:
         List of work items (dicts with id, url, source, canonical_name)
@@ -279,6 +286,7 @@ def _get_work_from_queue(
                     "worker_id": worker_id,
                     "batch_size": batch_size,
                     "max_articles_per_domain": max_articles_per_domain,
+                    "dataset": dataset,
                 },
                 timeout=timeout,
             )
@@ -1327,6 +1335,7 @@ def _process_batch(
                 worker_id=worker_id,
                 batch_size=per_batch,
                 max_articles_per_domain=max_articles_per_domain,
+                dataset=getattr(args, "dataset", None),
             )
 
             if not work_items:

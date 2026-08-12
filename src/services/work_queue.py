@@ -64,6 +64,13 @@ class WorkRequest(BaseModel):
     max_articles_per_domain: int = Field(
         3, ge=1, le=20, description="Maximum articles per domain in this batch"
     )
+    dataset: Optional[str] = Field(
+        None,
+        description=(
+            "Restrict work to one dataset (candidate_links.dataset_id). "
+            "Omit to draw from every dataset, which is the historical behaviour."
+        ),
+    )
 
 
 class WorkItem(BaseModel):
@@ -165,11 +172,17 @@ class WorkQueueCoordinator:
             logger.info(f"Removing stale worker: {worker_id}")
             del self.worker_domains[worker_id]
 
-    def _get_available_domains(self, session) -> list[dict[str, Any]]:
+    def _get_available_domains(
+        self, session, dataset: Optional[str] = None
+    ) -> list[dict[str, Any]]:
         """Query database for domains with available candidate links.
 
         Args:
             session: SQLAlchemy session
+            dataset: When given, only domains with work in this dataset are
+                offered. Filtering HERE is what makes the scoping effective:
+                _assign_domains_to_worker picks from whatever this returns, so
+                an out-of-dataset domain is never handed to a worker at all.
 
         Returns:
             List of dicts with keys: source, canonical_name, article_count
@@ -183,6 +196,7 @@ class WorkQueueCoordinator:
             JOIN sources s ON cl.source_id = s.id
             WHERE cl.status = 'article'
             AND s.status = 'active'
+            AND (:dataset IS NULL OR cl.dataset_id = :dataset)
             AND NOT EXISTS (
                 SELECT 1 FROM articles a
                 WHERE a.candidate_link_id = cl.id
@@ -192,7 +206,7 @@ class WorkQueueCoordinator:
             ORDER BY COUNT(*) DESC
         """)
 
-        result = session.execute(query)
+        result = session.execute(query, {"dataset": dataset})
         domains = []
         for row in result:
             domains.append(
@@ -272,7 +286,11 @@ class WorkQueueCoordinator:
         return {selected_domain}
 
     def request_work(
-        self, worker_id: str, batch_size: int, max_articles_per_domain: int
+        self,
+        worker_id: str,
+        batch_size: int,
+        max_articles_per_domain: int,
+        dataset: Optional[str] = None,
     ) -> WorkResponse:
         """Handle work request from a worker.
 
@@ -280,6 +298,7 @@ class WorkQueueCoordinator:
             worker_id: Unique worker identifier
             batch_size: Number of articles requested
             max_articles_per_domain: Max articles per domain in batch
+            dataset: Restrict work to one dataset id; None draws from all.
 
         Returns:
             WorkResponse with items and worker_domains
@@ -290,20 +309,33 @@ class WorkQueueCoordinator:
             # Use test session if provided, otherwise create new one
             if self._test_session is not None:
                 return self._request_work_with_session(
-                    self._test_session, worker_id, batch_size, max_articles_per_domain
+                    self._test_session,
+                    worker_id,
+                    batch_size,
+                    max_articles_per_domain,
+                    dataset,
                 )
             else:
                 with self.db.get_session() as session:
                     return self._request_work_with_session(
-                        session, worker_id, batch_size, max_articles_per_domain
+                        session,
+                        worker_id,
+                        batch_size,
+                        max_articles_per_domain,
+                        dataset,
                     )
 
     def _request_work_with_session(
-        self, session, worker_id: str, batch_size: int, max_articles_per_domain: int
+        self,
+        session,
+        worker_id: str,
+        batch_size: int,
+        max_articles_per_domain: int,
+        dataset: Optional[str] = None,
     ) -> WorkResponse:
         """Internal method to handle work request with a given session."""
         # Get available domains from database
-        available_domains = self._get_available_domains(session)
+        available_domains = self._get_available_domains(session, dataset)
 
         if not available_domains:
             logger.warning("No domains with available work")
@@ -341,6 +373,7 @@ class WorkQueueCoordinator:
             LEFT JOIN articles a ON cl.id = a.candidate_link_id
             WHERE cl.status = 'article'
             AND cl.source = ANY(:domains)
+            AND (:dataset IS NULL OR cl.dataset_id = :dataset)
             AND a.candidate_link_id IS NULL
             ORDER BY RANDOM()
             LIMIT :limit
@@ -355,7 +388,12 @@ class WorkQueueCoordinator:
         )
 
         result = session.execute(
-            query, {"domains": list(assigned_domains), "limit": max_articles}
+            query,
+            {
+                "domains": list(assigned_domains),
+                "limit": max_articles,
+                "dataset": dataset,
+            },
         )
 
         items = [
@@ -523,6 +561,7 @@ async def request_work(request: WorkRequest) -> WorkResponse:
                 request.worker_id,
                 request.batch_size,
                 request.max_articles_per_domain,
+                request.dataset,
             ),
         )
     except Exception as e:
