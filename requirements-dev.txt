@@ -7,7 +7,7 @@ pytest-asyncio>=1.4.0
 
 # Database testing
 pytest-postgresql>=8.1.0  # PostgreSQL test fixtures
-testcontainers>=4.14.2  # Docker container management for tests
+testcontainers>=4.15.0  # Docker container management for tests
 
 # Documentation
 sphinx>=9.0.4
@@ -18,13 +18,13 @@ sphinx-rtd-theme>=3.1.0
 # local black 26.1 disagreed on ~100 files). If something passes locally it
 # must pass in CI and vice-versa; bump these deliberately, in lockstep with a
 # ci-base rebuild.
-ruff==0.15.22  # Fast Python linter
+ruff==0.16.0  # Fast Python linter
 black==26.5.1  # Code formatter
 isort==8.0.1  # Import sorter
 mypy==2.3.0  # Type checker
 bandit>=1.9.4  # Security linting
 safety>=3.8.1  # Dependency vulnerability scanning
-pre-commit>=4.6.0  # Git hooks for code quality
+pre-commit>=4.6.1  # Git hooks for code quality
 
 # Performance profiling
 py-spy>=0.4.2

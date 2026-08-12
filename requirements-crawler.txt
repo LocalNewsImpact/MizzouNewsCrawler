@@ -3,7 +3,7 @@
 # that handles discovery, extraction, and verification
 
 # FastAPI for work queue service
-fastapi>=0.139.2
+fastapi>=0.140.13
 uvicorn[standard]>=0.51.0
 
 # Web scraping and browser automation
@@ -19,13 +19,13 @@ dateparser>=1.4.1
 htmldate>=1.10.0
 trafilatura>=2.1.0
 boilerpy3>=1.0.7
-goose3>=3.1.21
+goose3>=3.1.22
 readability-lxml>=0.8.4.1
 py3langid>=0.3.0
 tldextract>=5.3.1
 url-normalize>=3.0.0
 furl>=2.1.4
-feedparser>=6.0.12
+feedparser>=6.0.13
 
 # MediaCloud integration for headline duplication checks
 mediacloud>=5.1.0
