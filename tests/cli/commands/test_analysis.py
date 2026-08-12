@@ -77,6 +77,7 @@ def _default_args(**overrides) -> Namespace:
         top_k=2,
         dry_run=False,
         force=False,
+        dataset_id=None,
         report_path=None,
     )
     defaults.update(overrides)
@@ -144,7 +145,7 @@ def test_handle_analysis_dry_run_generates_report(
     }
     snapshot_calls: list[tuple[Any, ...]] = []
 
-    def fake_snapshot(session, label_version, statuses):
+    def fake_snapshot(session, label_version, statuses, dataset_id=None):
         snapshot_calls.append((session, label_version, statuses))
         return before_snapshot
 
@@ -202,7 +203,7 @@ def test_handle_analysis_persisted_report_generates_csv(
     snapshots = [before_snapshot, after_snapshot]
     snapshot_calls: list[tuple[Any, str, list[str] | None]] = []
 
-    def fake_snapshot(session, label_version, statuses):
+    def fake_snapshot(session, label_version, statuses, dataset_id=None):
         snapshot_calls.append((session, label_version, statuses))
         return snapshots[len(snapshot_calls) - 1]
 
@@ -500,7 +501,7 @@ def test_handle_analysis_no_label_changes_reports_skip(
     }
     snapshots = [snapshot, snapshot]
 
-    def fake_snapshot(session, label_version, statuses):
+    def fake_snapshot(session, label_version, statuses, dataset_id=None):
         return snapshots.pop(0)
 
     monkeypatch.setattr(analysis, "_snapshot_labels", fake_snapshot)
@@ -523,3 +524,56 @@ def test_handle_analysis_no_label_changes_reports_skip(
     assert exit_code == 0
     stdout = capsys.readouterr().out
     assert "No label changes detected" in stdout
+
+
+def test_dataset_id_reaches_the_service(db_stub, classifier_invocations, service_stub):
+    """--dataset-id must be forwarded, not merely accepted.
+
+    The first cut of this feature added the filter to the service and never
+    passed anything to it, so the flag parsed cleanly and classified the whole
+    corpus anyway.
+    """
+    args = _default_args(dataset_id="vtcni")
+
+    assert analysis.handle_analysis_command(args) == 0
+    assert service_stub.calls.pop()["dataset_id"] == "vtcni"
+
+
+def test_omitted_dataset_id_stays_corpus_wide(
+    db_stub, classifier_invocations, service_stub
+):
+    args = _default_args()
+
+    assert analysis.handle_analysis_command(args) == 0
+    assert service_stub.calls.pop()["dataset_id"] is None
+
+
+def test_blank_dataset_id_is_treated_as_omitted(
+    db_stub, classifier_invocations, service_stub
+):
+    """An empty --dataset-id must not narrow the run to zero articles."""
+    args = _default_args(dataset_id="   ")
+
+    assert analysis.handle_analysis_command(args) == 0
+    assert service_stub.calls.pop()["dataset_id"] is None
+
+
+def test_snapshot_is_scoped_to_the_same_dataset(
+    db_stub, classifier_invocations, service_stub, monkeypatch, tmp_path
+):
+    """Otherwise the diff compares one dataset's run against the whole corpus."""
+    snapshot_calls: list[tuple] = []
+
+    def fake_snapshot(session, label_version, statuses, dataset_id=None):
+        snapshot_calls.append(dataset_id)
+        return {}
+
+    monkeypatch.setattr(analysis, "_snapshot_labels", fake_snapshot)
+
+    args = _default_args(
+        dataset_id="vtcni",
+        report_path=str(tmp_path / "changes.csv"),
+    )
+
+    assert analysis.handle_analysis_command(args) == 0
+    assert snapshot_calls == ["vtcni", "vtcni"]
