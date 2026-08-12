@@ -92,6 +92,22 @@ RSS_MISSING_THRESHOLD = 3
 RSS_TRANSIENT_THRESHOLD = 5
 RSS_TRANSIENT_WINDOW_DAYS = 7
 
+# Statuses that mean "this egress is not welcome here", as opposed to "this
+# page is not here". A 403 from Cloudflare (error 1006 is literally "the owner
+# of this website has banned your IP address") or a 406 from mod_security is a
+# property of the address the request came from: the identical request from
+# the other Squid usually returns 200. Those are worth reporting to the proxy
+# router as a failure and retrying elsewhere.
+#
+# Deliberately excluded:
+#   404/410 -- the page is gone from every address; retrying is pure waste.
+#   503     -- normally an origin under strain. Retrying through a second
+#              proxy would add load to a server already failing, and it is
+#              not an address-level judgement.
+#   407     -- OUR proxy rejected OUR credentials. Switching proxies would
+#              mask a misconfiguration that should be loud.
+BLOCKED_STATUS_CODES = frozenset({403, 406, 429, 451})
+
 
 class RawFeedEntry(TypedDict, total=False):
     link: str
@@ -502,9 +518,15 @@ class NewsDiscovery:
         # Try primary session first (cloudscraper or requests)
         try:
             response = self.session.get(url, timeout=timeout, proxies=router_proxies)
-            self._report_router_result(domain, router_proxy, success=True)
-            self._note_capture_diagnosis(url, getattr(response, "text", None))
-            return response
+            return self._settle_response(
+                url,
+                domain,
+                router_proxy,
+                router_proxies,
+                response,
+                timeout,
+                self.session,
+            )
         except requests.exceptions.SSLError as e:
             logger.warning(
                 "SSL error with primary session for %s, trying fallback: %s",
@@ -525,14 +547,115 @@ class NewsDiscovery:
             response = self._fallback_session.get(
                 url, timeout=timeout, proxies=router_proxies
             )
-            self._report_router_result(domain, router_proxy, success=True)
-            self._note_capture_diagnosis(url, getattr(response, "text", None))
-            return response
+            return self._settle_response(
+                url,
+                domain,
+                router_proxy,
+                router_proxies,
+                response,
+                timeout,
+                self._fallback_session,
+            )
         except requests.exceptions.RequestException as e:
             self._report_router_result(
                 domain, router_proxy, success=False, reason=str(e)[:200]
             )
             raise
+
+    def _settle_response(
+        self,
+        url: str,
+        domain: str,
+        router_proxy,
+        router_proxies: dict | None,
+        response: requests.Response,
+        timeout: int,
+        session,
+    ) -> requests.Response:
+        """Report the attempt to the router, retrying elsewhere if IP-blocked.
+
+        This used to be one unconditional ``success=True``. `requests` does not
+        raise on 4xx, so a Cloudflare 403 -- "the owner of this website has
+        banned your IP address" -- was reported to the router as a SUCCESS and
+        handed back as a normal response. Three things followed: the router
+        never backed the proxy off for that domain, so it never failed over;
+        its health data recorded the blocked proxy as healthy for exactly the
+        domains where it was banned; and discovery reported "no articles" for
+        sites that were merely being refused at one address.
+
+        Measured on 20 VTCNI sources that discovery had found nothing for:
+        re-running them through the second Squid alone produced 535 candidate
+        URLs from 11 of them. Nothing about those sites had changed.
+        """
+        if response.status_code not in BLOCKED_STATUS_CODES:
+            self._report_router_result(domain, router_proxy, success=True)
+            self._note_capture_diagnosis(url, getattr(response, "text", None))
+            return response
+
+        reason = f"HTTP {response.status_code}"
+        logger.warning(
+            "%s blocked at %s via %s -- treating as a proxy failure, not a fetch",
+            reason,
+            url,
+            getattr(router_proxy, "value", router_proxy),
+        )
+        self._report_router_result(domain, router_proxy, success=False, reason=reason)
+
+        alt_proxies, alt_proxy = self._alternate_proxies_for_domain(
+            router_proxy, router_proxies
+        )
+        if alt_proxies is None:
+            self._note_capture_diagnosis(url, getattr(response, "text", None))
+            return response
+
+        logger.info(
+            "Retrying %s via %s after %s",
+            url,
+            getattr(alt_proxy, "value", alt_proxy),
+            reason,
+        )
+        try:
+            retry = session.get(url, timeout=timeout, proxies=alt_proxies)
+        except requests.exceptions.RequestException as exc:
+            # The alternate failed too. Keep the original response rather than
+            # raising: the caller asked for a fetch, and one bad proxy should
+            # not turn a 403 into an exception it never had to handle before.
+            self._report_router_result(
+                domain, alt_proxy, success=False, reason=str(exc)[:200]
+            )
+            self._note_capture_diagnosis(url, getattr(response, "text", None))
+            return response
+
+        blocked_again = retry.status_code in BLOCKED_STATUS_CODES
+        self._report_router_result(
+            domain,
+            alt_proxy,
+            success=not blocked_again,
+            reason=f"HTTP {retry.status_code}" if blocked_again else None,
+        )
+        if blocked_again:
+            self._note_capture_diagnosis(url, getattr(response, "text", None))
+            return response
+
+        self._note_capture_diagnosis(url, getattr(retry, "text", None))
+        return retry
+
+    def _alternate_proxies_for_domain(self, current, current_proxies: dict | None):
+        """The other configured proxy, or (None, None) if there isn't one.
+
+        Delegates to ProxyManager.get_alternate_proxies so discovery and
+        extraction answer "is there somewhere else to try?" identically; the
+        URL-vs-name comparison that matters is documented there.
+        """
+        proxy_manager = getattr(self, "proxy_manager", None)
+        if proxy_manager is None or current is None:
+            return None, None
+
+        resolve = getattr(proxy_manager, "get_alternate_proxies", None)
+        if resolve is None:  # older manager / test double
+            return None, None
+
+        return resolve(current, current_proxies)
 
     def _note_capture_diagnosis(self, url: str, html: str | None) -> None:
         """Record WHY a capture might yield nothing, for this source.
