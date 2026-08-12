@@ -391,6 +391,55 @@ class ProxyManager:
 
         return _build_proxies_dict(provider), router_proxy, choice.method
 
+    def get_requests_proxies_for_router_proxy(
+        self, router_proxy: RouterProxy
+    ) -> Optional[dict]:
+        """Return the proxies dict for one specific proxy, or None.
+
+        Unlike get_requests_proxies_for_domain(), this asks for a *named*
+        proxy rather than letting the router choose -- callers use it to reach
+        the other Squid after the routed one turned out to be blocked for a
+        domain.
+
+        Returns None rather than falling back to home Squid when the requested
+        proxy isn't configured. The fallback is right for "just get me a
+        proxy" and wrong here: a caller retrying a blocked request needs to
+        know it would be retrying through the same box, so it can skip the
+        pointless second attempt.
+        """
+        provider_by_proxy = {
+            RouterProxy.HOME_SQUID: ProxyProvider.SQUID,
+            RouterProxy.MIZZOU_SQUID: ProxyProvider.MIZZOU_SQUID,
+        }
+        provider = self.configs.get(provider_by_proxy.get(router_proxy))
+        if provider is None or not provider.enabled:
+            return None
+        return _build_proxies_dict(provider)
+
+    def get_alternate_proxies(
+        self, current: Optional[RouterProxy], current_proxies: Optional[dict]
+    ) -> tuple[Optional[dict], Optional[RouterProxy]]:
+        """The other configured proxy, or (None, None) if there isn't one.
+
+        Compares the resolved proxy URLs rather than the RouterProxy names.
+        get_requests_proxies_for_domain() maps an unconfigured MIZZOU_SQUID
+        back onto home Squid, so two different names can resolve to the same
+        box -- retrying there would re-ask the address that just refused us,
+        which costs a request and teaches the router nothing.
+
+        Shared by discovery's fetch path and extraction's unblock rung so both
+        answer "is there somewhere else to try?" the same way.
+        """
+        if current is None:
+            return None, None
+        for candidate in RouterProxy:
+            if candidate is current:
+                continue
+            proxies = self.get_requests_proxies_for_router_proxy(candidate)
+            if proxies and proxies != current_proxies:
+                return proxies, candidate
+        return None, None
+
     def report_domain_result(
         self,
         domain: str,
