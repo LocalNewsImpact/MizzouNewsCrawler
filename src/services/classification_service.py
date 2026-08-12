@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.ml.article_classifier import Prediction
-from src.models import Article, ArticleLabel
+from src.models import Article, ArticleLabel, CandidateLink
 from src.models.database import save_article_classification
 
 logger = logging.getLogger(__name__)
@@ -58,6 +58,7 @@ class ArticleClassificationService:
         include_existing: bool,
         excluded_statuses: Sequence[str] | None = None,
         excluded_article_ids: Sequence[str] | None = None,
+        dataset_id: str | None = None,
     ) -> list[Article]:
         stmt = select(Article)
 
@@ -66,6 +67,20 @@ class ArticleClassificationService:
 
         if excluded_statuses:
             stmt = stmt.where(Article.status.notin_(list(excluded_statuses)))
+
+        # Articles carry no dataset of their own; the dataset is a property of
+        # the candidate link they were discovered through. EXISTS rather than a
+        # join so the FOR UPDATE SKIP LOCKED below keeps locking articles only.
+        if dataset_id:
+            in_dataset = (
+                select(CandidateLink.id)
+                .where(
+                    CandidateLink.id == Article.candidate_link_id,
+                    CandidateLink.dataset_id == dataset_id,
+                )
+                .exists()
+            )
+            stmt = stmt.where(in_dataset)
 
         if not include_existing:
             label_exists = (
@@ -148,6 +163,7 @@ class ArticleClassificationService:
         top_k: int = 2,
         dry_run: bool = False,
         include_existing: bool = False,
+        dataset_id: str | None = None,
     ) -> ClassificationStats:
         """Classify eligible articles and persist results.
 
@@ -210,6 +226,7 @@ class ArticleClassificationService:
                 include_existing,
                 list(excluded_statuses),
                 excluded_ids,
+                dataset_id,
             )
 
             if not articles:
