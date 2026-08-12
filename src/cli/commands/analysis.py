@@ -10,7 +10,7 @@ from pathlib import Path
 from sqlalchemy import select
 
 from src.ml.article_classifier import ArticleClassifier
-from src.models import Article, ArticleLabel
+from src.models import Article, ArticleLabel, CandidateLink
 from src.models.database import DatabaseManager, safe_session_execute
 from src.services.classification_service import ArticleClassificationService
 
@@ -67,6 +67,7 @@ def _snapshot_labels(
     session,
     label_version: str,
     statuses: Sequence[str] | None,
+    dataset_id: str | None = None,
 ) -> dict[str, dict[str, str | None]]:
     stmt = select(
         Article.id,
@@ -78,6 +79,19 @@ def _snapshot_labels(
         (ArticleLabel.article_id == Article.id)
         & (ArticleLabel.label_version == label_version),
     )
+
+    # Scoped to the same dataset the run classifies, or the diff compares a
+    # one-dataset run against a corpus-wide snapshot. The dataset lives on the
+    # candidate link, not the article -- see _select_articles.
+    if dataset_id:
+        stmt = stmt.where(
+            select(CandidateLink.id)
+            .where(
+                CandidateLink.id == Article.candidate_link_id,
+                CandidateLink.dataset_id == dataset_id,
+            )
+            .exists()
+        )
 
     if statuses is None:
         stmt = stmt.where(Article.status.notin_(list(EXCLUDED_STATUSES)))
@@ -274,6 +288,13 @@ def add_analysis_parser(subparsers) -> None:
         ),
     )
     parser.add_argument(
+        "--dataset-id",
+        help=(
+            "Classify only articles belonging to this dataset id. Omit to "
+            "classify across every dataset."
+        ),
+    )
+    parser.add_argument(
         "--report-path",
         help=(
             "Optional CSV path for label-change report. If omitted, a "
@@ -300,6 +321,7 @@ def handle_analysis_command(args) -> int:
         args.model_path or os.getenv("MODEL_PATH") or "models"
     ).expanduser()
     collect_diff = bool(args.report_path)
+    dataset_id = (getattr(args, "dataset_id", None) or "").strip() or None
 
     try:
         classifier = ArticleClassifier(model_path=model_path)
@@ -317,6 +339,7 @@ def handle_analysis_command(args) -> int:
                 db.session,
                 label_version,
                 filtered_statuses,
+                dataset_id,
             )
 
         stats = service.apply_classification(
@@ -330,6 +353,7 @@ def handle_analysis_command(args) -> int:
             top_k=top_k,
             dry_run=args.dry_run,
             include_existing=args.force,
+            dataset_id=dataset_id,
         )
 
         print("\n=== Classification Summary ===")
@@ -360,6 +384,7 @@ def handle_analysis_command(args) -> int:
                     db.session,
                     label_version,
                     filtered_statuses,
+                    dataset_id,
                 )
                 changes = _compute_label_changes(
                     before_snapshot,
