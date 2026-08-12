@@ -2236,6 +2236,7 @@ class ContentExtractor:
                 reason=error_msg[:200],
                 service="newscrawler",
             )
+            self._forget_domain_session(domain)
 
         return {
             "url": url,
@@ -2249,6 +2250,135 @@ class ContentExtractor:
             "error": error_msg,
             "metadata": metadata or {},
         }
+
+    def _retry_unblock_via_alternate_proxy(
+        self,
+        url: str,
+        domain: Optional[str],
+        metrics: Optional["ExtractionMetrics"] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Re-run the unblock rung through the other Squid. None if there isn't one.
+
+        Never raises: a second ProxyChallengeError here means both addresses
+        were refused, which is the caller's existing "fall through to Selenium"
+        case, not a new failure mode to handle.
+        """
+        if domain is None:
+            return None
+
+        # Defensive reads: test doubles built via ContentExtractor.__new__()
+        # skip __init__ entirely, so neither attribute is guaranteed. A retry
+        # that cannot look up routing is simply not available -- it must not
+        # turn a challenge into an AttributeError and abort the extraction.
+        router_map = getattr(self, "domain_router_proxy", None)
+        proxy_manager = getattr(self, "proxy_manager", None)
+        if router_map is None or proxy_manager is None:
+            return None
+
+        current = router_map.get(domain)
+        if current is None:
+            # No recorded choice for this domain, so there is nothing to be the
+            # alternate *of*. Same reasoning as the unresolvable-URL case below:
+            # a retry we cannot show is going somewhere else is guesswork.
+            logger.info(
+                "No routed proxy recorded for %s; skipping alternate retry", domain
+            )
+            return None
+
+        try:
+            current_proxies = proxy_manager.get_requests_proxies_for_router_proxy(
+                current
+            )
+            alt_proxies, alt_proxy = proxy_manager.get_alternate_proxies(
+                current, current_proxies
+            )
+        except Exception as exc:  # routing must never break extraction
+            logger.warning("alternate-proxy lookup failed for %s: %s", domain, exc)
+            return None
+
+        if current_proxies is None:
+            # Without the current proxy's URL there is nothing to compare the
+            # alternate against, so "different box" cannot be established --
+            # and retrying through the address that was just refused costs a
+            # request and teaches the router nothing.
+            logger.info(
+                "Current proxy for %s is unresolvable; skipping alternate retry",
+                domain,
+            )
+            return None
+
+        if not alt_proxies:
+            logger.info(
+                "No alternate proxy configured; %s stays refused at %s",
+                domain,
+                getattr(current, "value", current),
+            )
+            return None
+
+        logger.info(
+            "🔁 Retrying %s through %s after a challenge on %s",
+            url,
+            getattr(alt_proxy, "value", alt_proxy),
+            getattr(current, "value", current),
+        )
+        try:
+            result = self._extract_with_unblock_proxy(
+                url, None, metrics, domain=domain, proxy_override=alt_proxies
+            )
+        except ProxyChallengeError as exc:
+            logger.info("Alternate proxy also refused %s: %s", url, exc)
+            self._report_proxy_outcome(
+                domain, alt_proxy, success=False, reason=str(exc)
+            )
+            return None
+        except Exception as exc:  # noqa: BLE001 - retry is best-effort
+            logger.warning("Alternate-proxy retry errored for %s: %s", url, exc)
+            return None
+
+        if result and result.get("content"):
+            self._report_proxy_outcome(domain, alt_proxy, success=True)
+            # The alternate worked, so let the next request for this domain
+            # re-pick rather than reusing the session built for the refused box.
+            self._forget_domain_session(domain)
+        return result
+
+    def _report_proxy_outcome(
+        self, domain: str, router_proxy, success: bool, reason: Optional[str] = None
+    ) -> None:
+        """Tell the router how a specific proxy fared, without ever raising."""
+        try:
+            self.proxy_manager.report_domain_result(
+                domain,
+                router_proxy,
+                success=success,
+                reason=(reason or "")[:200] or None,
+                service="newscrawler",
+            )
+        except Exception as exc:  # pragma: no cover - telemetry must not fail a fetch
+            logger.debug("report_domain_result failed for %s: %s", domain, exc)
+
+    def _forget_domain_session(self, domain: str) -> None:
+        """Drop the cached session for a domain after its proxy was blocked.
+
+        The proxy is chosen once, when the domain's session is built, and then
+        baked into ``session.proxies``; every later request for that domain
+        reuses the cached session without asking the router again. So when a
+        challenge causes the router to back this proxy off for the domain, the
+        router has learned and extraction has not -- it keeps sending through
+        the refused address until an unrelated user-agent rotation happens to
+        rebuild the session.
+
+        Forgetting the session is what makes the router's decision take
+        effect: the next request for this domain builds a fresh session and
+        calls get_requests_proxies_for_domain() again, which now returns the
+        other Squid because the first one is backed off.
+        """
+        self.domain_sessions.pop(domain, None)
+        self.domain_router_proxy.pop(domain, None)
+        logger.info(
+            "🔁 Dropped cached session for %s so the next request re-picks a proxy",
+            domain,
+        )
 
     def clear_all_sessions(self):
         """Clear all domain sessions and reset rotation state."""
@@ -3119,18 +3249,40 @@ class ContentExtractor:
                 logger.warning(f"❌ Proxy challenge for {url}: {e}")
                 if metrics:
                     metrics.end_method("unblock_proxy", False, str(e), {})
-                if domain_requires_unblock:
+
+                # A challenge is a statement about the ADDRESS the request came
+                # from, not about the page. Try the other Squid before giving up
+                # on HTTP: the same URL routinely returns 200 from the second
+                # box. Doing this here matters because the challenge also puts
+                # the domain into CAPTCHA backoff, and that backoff then makes
+                # _run_selenium_extraction skip the browser -- so without this
+                # retry a single block costs the article twice, on the fetch and
+                # on the fallback that was supposed to rescue it.
+                retry_result = self._retry_unblock_via_alternate_proxy(
+                    url, domain, metrics
+                )
+                if retry_result and retry_result.get("content"):
+                    self._merge_extraction_results(
+                        result, retry_result, "unblock_proxy", missing_fields, metrics
+                    )
+                    logger.info(
+                        "✅ Unblock proxy succeeded for %s via the alternate proxy",
+                        url,
+                    )
+                    if metrics:
+                        metrics.end_method("unblock_proxy", True, None, retry_result)
+                elif domain_requires_unblock:
                     # Flagged domains treat a challenge as terminal and mark the
                     # article for retry — Selenium won't help where the site has
                     # already refused this route.
                     raise
-                # As a general rung this is advisory: the disguise was refused,
-                # which says nothing about whether a real browser would be. Fall
-                # through so Selenium still gets its turn, exactly as before this
-                # rung existed for unflagged domains.
-                logger.info(
-                    "tls_client capture refused for %s; continuing to Selenium", url
-                )
+                else:
+                    # As a general rung this is advisory: the disguise was
+                    # refused, which says nothing about whether a real browser
+                    # would be. Fall through so Selenium still gets its turn.
+                    logger.info(
+                        "tls_client capture refused for %s; continuing to Selenium", url
+                    )
 
             except Exception as e:
                 logger.error(f"❌ Unblock proxy extraction failed for {url}: {e}")
@@ -4201,6 +4353,7 @@ class ContentExtractor:
         browser_actions: Optional[list] = None,
         metrics: Optional[ExtractionMetrics] = None,
         domain: Optional[str] = None,
+        proxy_override: Optional[dict] = None,
     ) -> Dict[str, Any]:
         """Extract content using Squid proxy for strong bot protection.
 
@@ -4231,7 +4384,12 @@ class ContentExtractor:
             # something unconfigured, so this can never end up direct.
             router_proxies = None
             router_proxy = None
-            if domain is not None:
+            if proxy_override:
+                # A caller retrying after a challenge already knows which box
+                # to use; asking the router again would just return the one
+                # that was refused, since backoff is not instantaneous.
+                router_proxies = proxy_override
+            elif domain is not None:
                 try:
                     router_proxies, router_proxy, _method = (
                         self.proxy_manager.get_requests_proxies_for_domain(

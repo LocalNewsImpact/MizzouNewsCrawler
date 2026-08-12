@@ -416,6 +416,30 @@ class ProxyManager:
             return None
         return _build_proxies_dict(provider)
 
+    def get_alternate_proxies(
+        self, current: Optional[RouterProxy], current_proxies: Optional[dict]
+    ) -> tuple[Optional[dict], Optional[RouterProxy]]:
+        """The other configured proxy, or (None, None) if there isn't one.
+
+        Compares the resolved proxy URLs rather than the RouterProxy names.
+        get_requests_proxies_for_domain() maps an unconfigured MIZZOU_SQUID
+        back onto home Squid, so two different names can resolve to the same
+        box -- retrying there would re-ask the address that just refused us,
+        which costs a request and teaches the router nothing.
+
+        Shared by discovery's fetch path and extraction's unblock rung so both
+        answer "is there somewhere else to try?" the same way.
+        """
+        if current is None:
+            return None, None
+        for candidate in RouterProxy:
+            if candidate is current:
+                continue
+            proxies = self.get_requests_proxies_for_router_proxy(candidate)
+            if proxies and proxies != current_proxies:
+                return proxies, candidate
+        return None, None
+
     def report_domain_result(
         self,
         domain: str,

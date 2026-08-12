@@ -23,6 +23,7 @@ import pytest
 import requests
 
 from src.crawler.discovery import BLOCKED_STATUS_CODES, NewsDiscovery
+from src.crawler.proxy_config import ProxyManager
 from src.crawler.proxy_router import RouterProxy
 
 HOME = {"http": "http://home:3128", "https": "http://home:3128"}
@@ -51,6 +52,15 @@ class _Session:
 
 
 class _ProxyManager:
+    """Stubs only the config lookup; the selection logic is the real one.
+
+    get_alternate_proxies is bound straight off ProxyManager so these tests
+    exercise production's "is the other proxy actually different?" rule rather
+    than a reimplementation of it that could drift.
+    """
+
+    get_alternate_proxies = ProxyManager.get_alternate_proxies
+
     def __init__(self, resolvable=None):
         # RouterProxy -> proxies dict
         self._resolvable = resolvable or {
