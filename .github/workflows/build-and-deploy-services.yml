@@ -139,7 +139,14 @@ jobs:
           # src/reporting/ ships in the processor image — both were MISSING here,
           # so #423 (which touched only src/cli/ and src/reporting/) built
           # nothing at all and shipped no image. See 2026-07-26.
-          if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.processor|requirements-processor\.txt|src/(models|pipeline|utils|services|ml|cli|reporting)/|pyproject\.toml|orchestration/|alembic/versions/'; then
+          #
+          # src/crawler/ was missing for the same reason and cost a deploy on
+          # 2026-08-12: #453 changed only src/crawler/ files, so this filter
+          # said "no processor change", only the crawler image was built, and
+          # the processor image — which the dataset-discovery jobs run via
+          # PROCESSOR_IMAGE — stayed on the previous commit's crawler code
+          # while the deploy reported success.
+          if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.processor|requirements-processor\.txt|src/(models|pipeline|utils|services|ml|cli|reporting|crawler)/|pyproject\.toml|orchestration/|alembic/versions/'; then
             PROCESSOR=true
             echo "✅ Processor changed (processor code or migrations)"
           fi
