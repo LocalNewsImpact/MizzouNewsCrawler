@@ -21,8 +21,11 @@ discover → extract → clean → wire check → CIN label → ENRICH → Datas
 ```
 
 **The export criterion changes.** Today BigQuery takes
-`status='labeled' AND wire_check_status='complete'`. It will instead take
-`status='enriched'`, applied only after this stage completes successfully.
+`status='labeled' AND wire_check_status='complete'`. It will instead take:
+
+```sql
+status IN ('enriched', 'enrichment_skipped')
+```
 
 Enrichment stops being an optional trailer on the pipeline and becomes the last
 required step. `labeled` becomes a candidate state, not an exportable one.
@@ -33,16 +36,39 @@ The stage selects its work as:
 status = 'labeled' AND wire_check_status = 'complete'
 ```
 
-and on success sets `status = 'enriched'`.
+### Status vocabulary
 
-`enriched` means **every step configured for that article's dataset has
-completed** — not that every possible step ran. See §7.
+`enriched` means backfield ran. It does not mean "eligible for export", because
+conflating those two makes the corpus unable to answer "which articles were
+actually enriched?" — a question that matters as soon as profiles differ between
+datasets.
+
+| Status | Set when | Exports | Terminal |
+|---|---|---|---|
+| `labeled` | Candidate, or enrichment failed and will retry | No | No |
+| `enriched` | Backfield ran every step the dataset's profile asked for | **Yes** | Yes |
+| `enrichment_skipped` | No backfield call was made — see `skip_reason` | **Yes** | Yes |
+| `not_article`, `paywall` | Content gate rejected the text | No | Yes |
+
+A dataset running *some* enrichments still yields `enriched`; the steps actually
+applied are recorded on the row (§7). Only a complete absence of backfield work
+yields `enrichment_skipped`, with the reason recorded:
+
+| `skip_reason` | Meaning |
+|---|---|
+| `profile_none` | The dataset asked for no enrichment |
+| `dataset_disabled` | Enrichment is off for this dataset entirely |
+| `operator_bypass` | Promoted by hand during an outage — see §9 |
+
+Distinguishing these matters because two of them are policy and one is an
+incident. A month of `operator_bypass` articles is a gap in the data that someone
+should be able to find later without reading deploy logs.
 
 Three consequences worth being explicit about:
 
-- **Junk cannot export.** An article rejected by the content gate in §3 never
-  becomes `enriched`, so it never reaches BigQuery, whatever CIN label it was
-  given. The cookie-text defect closes by construction rather than by adding a
+- **Junk cannot export.** An article rejected by the content gate in §3 takes a
+  terminal `not_article` or `paywall` status, which is in neither exportable
+  state, whatever CIN label it was given. The cookie-text defect closes by construction rather than by adding a
   check earlier in the pipeline.
 - **Enrichment failure withholds export.** An article that errors stays at
   `labeled` and does not appear in BigQuery until it succeeds. This is the
@@ -383,11 +409,15 @@ The profile is held on the dataset, defaulted, and versioned:
 |---|---|
 | **All** | Every step in §3 runs |
 | **Some** | Only the named steps run; the rest are skipped, not failed |
-| **None** | No backfield call is made; the article is marked `enriched` immediately and exports |
+| **None** | No backfield call is made; the article is marked `enrichment_skipped` with `skip_reason='profile_none'` and exports |
 
 A `none` profile still produces an `article_enrichment` row, recording that the
 profile was empty. An article must never be stranded at `labeled` because its
 dataset asked for nothing.
+
+Note the asymmetry: *some* yields `enriched`, *none* yields `enrichment_skipped`.
+The line is whether backfield was called at all, so that `enriched` always means
+the same thing regardless of which dataset an article came from.
 
 ### Absent and disabled are not the same
 
@@ -426,7 +456,7 @@ registration.
 
 | Table | Grain |
 |---|---|
-| `article_enrichment` | One row per article: scope, subject, topic, format, timeframe, user need, resolved point, **profile version and steps applied**, model and prompt versions, cost, `enriched_at` |
+| `article_enrichment` | One row per article: scope, subject, topic, format, timeframe, user need, resolved point, **profile version, steps applied, `skip_reason` where relevant**, model and prompt versions, cost, `enriched_at` |
 | `article_places` | One row per extracted location, with components, resolution method, and coordinates when resolved |
 | `article_people` | One row per person mention, with quotes |
 | `article_organizations` | One row per organization mention |
@@ -434,9 +464,8 @@ registration.
 Every row records the model id, the backfield commit, and the prompt preset
 version, so a reprocessing decision can be scoped to exactly what changed.
 
-`status='enriched'` is both the export criterion and the idempotency key.
-Re-running the job never re-bills an article that has already succeeded, because
-enriched articles are no longer candidates. `enriched_at` records when, and the
+Idempotency comes from the candidate query: only `labeled` articles are picked
+up, so anything already `enriched` or `enrichment_skipped` is never re-billed. `enriched_at` records when, and the
 recorded model and prompt versions scope any future reprocessing.
 
 ## 9. Failure handling
@@ -462,9 +491,10 @@ modes.
   a rate-limit change or an expired key now stops the export feed, which was not
   true before.
 - **A bypass is required.** If enrichment is broken or too expensive to run,
-  there must be a supported way to promote `labeled` articles to `enriched`
-  without enrichment, so a vendor problem cannot indefinitely withhold the
-  corpus.
+  there must be a supported way to release `labeled` articles without enriching
+  them. That path sets `enrichment_skipped` with
+  `skip_reason='operator_bypass'`, never `enriched`, so an outage is later
+  distinguishable from a policy decision and from real enrichment.
 
 ## 10. Open decisions
 
