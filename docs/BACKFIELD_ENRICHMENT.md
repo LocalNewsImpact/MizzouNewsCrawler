@@ -106,7 +106,7 @@ one. Measured on the 100-article sample.
 | 2. `place_extract` | point-scope articles only (46%) | 1 | Mentions, with parsed components |
 | 3. Resolve the point | point-scope articles | 0 | Single city, else the publication's city — see below |
 | 4. `geocode_agent` | unresolved POI-level only (~8%) | many | Backfield's agentic geocoder |
-| 5. Remaining metadata presets | every article | 5–6 | subject, topic, format, timeframe, user need, and CIN if adopted |
+| 5. Remaining metadata presets | every article | 5 | subject, topic, format, timeframe, user need |
 | 6. `person_extract`, `organization_extract` | every article | 2 | People with quotes; organizations |
 
 **Step 1 before step 2 is the main saving.** Scope costs one call and excludes
@@ -173,26 +173,29 @@ cost per call             $0.00078   (DeepSeek V3.1 rates: $0.25/M in, $0.95/M o
 
 | | Per article |
 |---|---|
-| Metadata, 6 presets | $0.0047 |
-| Metadata, 7 presets (with CIN) | $0.0055 |
+| `geographic_scope` | $0.0008 |
+| Metadata, 5 remaining presets | $0.0039 |
 | `place_extract` on 46% of articles | $0.0004 |
 | `person_extract` + `organization_extract` | $0.0016 |
 | Geocoding on ~8% | <$0.0002 |
-| **Total** | **≈$0.007–0.008** |
+| **Total** | **≈$0.0067–0.0075** |
+
+`information_needs` is **not** in this total. Our CIN classifier remains
+authoritative and backfield's runs only in development — see §9.
 
 | | |
 |---|---|
-| Backfill 99,418 | **$700–795** one-time |
-| Ongoing, busy month (12,000–17,500) | **$84–140** |
-| Ongoing, slow month (1,000–5,300) | **$7–42** |
+| Backfill 99,418 | **$666–745** one-time |
+| Ongoing, busy month (12,000–17,500) | **$80–131** |
+| Ongoing, slow month (1,000–5,300) | **$7–40** |
 
 Two levers not yet applied, each worth measuring before the backfill:
 
-- **Prompt caching.** The preset prompts total ~11,000 tokens and are identical
+- **Prompt caching.** The six production prompts total ~9,000 tokens and are identical
   across every article; roughly 74% of each call's input is this stable prefix.
   DeepSeek bills cache reads at $0.13/M against $0.25/M. Putting the article last
   in the message should cut input cost materially.
-- **Preset consolidation.** Seven presets send the article seven times. Combining
+- **Preset consolidation.** Six presets send the article six times. Combining
   them into fewer calls would send it once, at some risk to per-category quality.
   Worth an A/B on 100 articles before adopting.
 
@@ -265,15 +268,29 @@ re-bills an article that has already succeeded.
 
 ## 9. Open decisions
 
-**Whether backfield's CIN replaces ours.** Tested on 100 articles: 51% exact
-agreement, 65% allowing our alternate label or their multi-label set. The
-disagreements are mostly ours being wrong — "Civic Life" is a catch-all that
-absorbed a movie review, a holiday store-hours listing and a real-estate promo.
-A control run that showed the model deliberately wrong labels had it uphold only
-5 of 100, and it reached the same verdict regardless of the label it was shown in
-92 of 100 cases, so it is not merely ratifying whatever it is given. Adopting it
-costs one extra call per article; running both and storing them side by side
-costs the same and defers the decision.
+**Backfield's CIN does not replace ours. Decided.** Our classifier stays
+authoritative. The `information_needs` preset is excluded from the production
+path, which is why the step table lists five remaining presets rather than six
+and why the cost figures above do not include it.
+
+It stays available for development and testing behind a flag, run on samples
+rather than the corpus. What the 100-article test established, and why it is
+worth keeping for that purpose:
+
+| | |
+|---|---|
+| Exact agreement with our primary label | 51% |
+| Allowing our alternate or their 1–3 set | 65% |
+| Upheld a deliberately wrong label (control) | 5 of 100 |
+| Same verdict regardless of the label shown | 92 of 100 |
+
+The disagreements are mostly ours: "Civic Life" absorbed a movie review, a
+holiday store-hours listing and a real-estate promo. The control run matters more
+than the agreement rate — a model that ratifies whatever it is shown would be
+useless as a check, and this one does not.
+
+Used this way it is an audit instrument for our taxonomy, not a replacement
+classifier. Cost is negligible: one call per sampled article, $0.00078.
 
 **"Civic Life" versus "Civic information".** Both exist in our taxonomy, both map
 to the same concept, and six of the 37 disagreements are churn between them. This
