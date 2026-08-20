@@ -112,7 +112,9 @@ one. Measured on the 100-article sample.
 
 | Step | Runs on | Calls | Purpose |
 |---|---|---|---|
-| 1. `geographic_scope` | every article | 1 | Decides whether a point location is meaningful at all |
+| 0a. Boilerplate heuristic | every article | 0 | Free; rejects text that is plainly not a story |
+| 0b. Content gate | survivors | 1 (truncated) | Rejects what the heuristic misses |
+| 1. `geographic_scope` | real stories only | 1 | Decides whether a point location is meaningful at all |
 | 2. `place_extract` | point-scope articles only (46%) | 1 | Mentions, with parsed components |
 | 3. Resolve the point | point-scope articles | 0 | Single city, else the publication's city — see below |
 | 4. `geocode_agent` | unresolved POI-level only (~8%) | many | Backfield's agentic geocoder |
@@ -121,6 +123,53 @@ one. Measured on the 100-article sample.
 
 **Step 1 before step 2 is the main saving.** Scope costs one call and excludes
 54% of articles from place extraction entirely.
+
+### Step 0: reject text that is not a story
+
+Articles that are entirely cookie notices, consent tables or paywall furniture
+still reach `status='labeled'` despite the boilerplate work already done. One
+appeared in the 100-article sample:
+
+```
+"Taylor Crouse" — 27,372 characters
+  "The provided text is not a news article; it is a list of website
+   cookie descriptions and technical settings."   — backfield's rationale
+  locations extracted: 0
+  cost to process: $0.018, or 2.6x a typical article
+```
+
+That article carries a CIN label and exports to BigQuery today.
+
+Two layers, cheapest first:
+
+**0a. A deterministic heuristic, free.** Density of cookie, consent, privacy
+policy, vendor list and advertising-partner terms. Five or more occurrences
+identified exactly the one junk article in the sample and nothing else. This runs
+in Python with no API call and should be tuned against known-bad articles before
+it is trusted to reject anything.
+
+**0b. A truncated LLM gate for what the heuristic misses.** Cookie and paywall
+text is identifiable from the opening few hundred characters, so this call sends
+**the first ~800 characters, not the article** — roughly 250 input and 30 output
+tokens, about $0.0001. It answers one question: is this the text of a news story?
+
+Rejected articles are flagged and skip every subsequent step.
+
+**Be clear about what this is worth.** The frequency measured was 1 in 100, and
+the sample was drawn from articles at or above median length — junk of this kind
+is long, so the true corpus rate is probably lower. The cost saving is real but
+small: the gate costs about $1.50 per 15,000 articles and saves a comparable
+amount. The reasons to do it are the other two:
+
+- **Corpus quality.** A cookie table should not carry a CIN label, contribute to
+  county coverage statistics, or reach BigQuery as a story.
+- **Regression detection.** The rejection rate is a monitor on the boilerplate
+  stripping. A sudden rise means cleaning has broken upstream, and that is worth
+  knowing on the day it happens rather than in a quarterly review.
+
+This overlaps existing statuses — `not_article` (1,051) and `paywall` (2,161)
+already exist — so the gate should feed the same vocabulary rather than invent a
+parallel one.
 
 ```
 city_municipality        40      regional      17      statewide     12
@@ -183,6 +232,7 @@ cost per call             $0.00078   (DeepSeek V3.1 rates: $0.25/M in, $0.95/M o
 
 | | Per article |
 |---|---|
+| Content gate, truncated input | $0.0001 |
 | `geographic_scope` | $0.0008 |
 | Metadata, 5 remaining presets | $0.0039 |
 | `place_extract` on 46% of articles | $0.0004 |
@@ -333,14 +383,17 @@ them wrongly. Worth reading before the backfill.
 
 ## 10. Suggested sequence
 
-1. Confirm the resolved points on the 100-article sample are actually correct.
+1. Tune the boilerplate heuristic and the content gate against known-bad
+   articles, and measure the rejection rate on a fresh sample drawn without the
+   length bias in this one.
+2. Confirm the resolved points on the 100-article sample are actually correct.
    The rule is validated; the output is not.
-2. Measure prompt caching and preset consolidation on 100 articles.
-3. Build the adapter and the four tables; run 1,000 articles end to end.
-4. Backfill March, rate-limited, with the spend ceiling armed — one overnight run,
+3. Measure prompt caching and preset consolidation on 100 articles.
+4. Build the adapter and the four tables; run 1,000 articles end to end.
+5. Backfill March, rate-limited, with the spend ceiling armed — one overnight run,
    ~$100.
-5. Enable the `CronJob` for incremental articles.
-6. Decide later whether to widen the window beyond March. Nothing in the design
+6. Enable the `CronJob` for incremental articles.
+7. Decide later whether to widen the window beyond March. Nothing in the design
    forecloses it.
 
-Steps 1 and 2 cost a few cents each and should gate the rest.
+Steps 1 to 3 cost a few cents each and should gate the rest.
