@@ -35,6 +35,9 @@ status = 'labeled' AND wire_check_status = 'complete'
 
 and on success sets `status = 'enriched'`.
 
+`enriched` means **every step configured for that article's dataset has
+completed** — not that every possible step ran. See §7.
+
 Three consequences worth being explicit about:
 
 - **Junk cannot export.** An article rejected by the content gate in §3 never
@@ -44,7 +47,7 @@ Three consequences worth being explicit about:
 - **Enrichment failure withholds export.** An article that errors stays at
   `labeled` and does not appear in BigQuery until it succeeds. This is the
   intended behaviour, and it makes the enrichment backlog an export backlog —
-  see §8.
+  see §9.
 - **The existing gate stays as the entry condition.** Nothing that fails wire
   checking or labelling becomes a candidate in the first place.
 
@@ -353,7 +356,69 @@ Backfield is pre-1.0 and its own documentation says self-hosting is unsupported.
 Pin an exact commit, treat upgrades as deliberate work, and keep the node calls
 behind a thin adapter so a breaking change touches one module.
 
-## 7. Data written
+## 7. Per-dataset enrichment profiles
+
+Datasets differ in what they are for. A dataset must be able to run all of the
+enrichments, some of them, or none — and reach BigQuery either way. Enrichment is
+a required *step*, not a required *result*.
+
+The profile is held on the dataset, defaulted, and versioned:
+
+```jsonc
+// datasets.metadata -> "enrichment_profile"
+{
+  "version": 1,
+  "content_gate": true,          // independently switchable, on by default
+  "scope": true,
+  "places": true,
+  "geocode": false,              // needs a geocoder key
+  "people": true,
+  "organizations": true,
+  "metadata_presets": ["subject", "topic", "format",
+                       "temporal_orientation", "user_need"]
+}
+```
+
+| Profile | Behaviour |
+|---|---|
+| **All** | Every step in §3 runs |
+| **Some** | Only the named steps run; the rest are skipped, not failed |
+| **None** | No backfield call is made; the article is marked `enriched` immediately and exports |
+
+A `none` profile still produces an `article_enrichment` row, recording that the
+profile was empty. An article must never be stranded at `labeled` because its
+dataset asked for nothing.
+
+### Absent and disabled are not the same
+
+This is the part that will bite downstream if it is not carried into the data. A
+missing place list can mean three different things:
+
+| | Meaning |
+|---|---|
+| Step disabled for the dataset | Not attempted; absence carries no information |
+| Step ran, found nothing | A real, negative finding |
+| Step failed | Unknown; the article should not be `enriched` at all |
+
+So every enrichment row records the profile version and the steps actually
+applied, and BigQuery consumers filter on those rather than on `NULL`. Without
+it, "no people were found" and "we did not look for people" are the same query
+result, and any analysis over a mixed-profile corpus is wrong in a way nobody
+will notice.
+
+### The content gate is switchable, and that has a cost
+
+`content_gate` is listed separately because it is the one step whose absence
+changes what reaches BigQuery rather than how much is known about it. A dataset
+running `none` exports its cookie-text articles, as happens today. That may be
+the right call for a dataset being ingested for volume rather than analysis, but
+it should be a decision recorded in the profile, not a side effect of turning
+enrichment off.
+
+Recommended default for a new dataset: `content_gate` on, everything else off.
+Cheap, and it stops the known defect without committing to any spend.
+
+## 8. Data written
 
 New tables in the crawler database, all keyed on `article_id`. Datastream
 replicates them to BigQuery automatically — no export code, no schema
@@ -361,7 +426,7 @@ registration.
 
 | Table | Grain |
 |---|---|
-| `article_enrichment` | One row per article: scope, subject, topic, format, timeframe, user need, resolved point, model and prompt versions, cost, `enriched_at` |
+| `article_enrichment` | One row per article: scope, subject, topic, format, timeframe, user need, resolved point, **profile version and steps applied**, model and prompt versions, cost, `enriched_at` |
 | `article_places` | One row per extracted location, with components, resolution method, and coordinates when resolved |
 | `article_people` | One row per person mention, with quotes |
 | `article_organizations` | One row per organization mention |
@@ -374,7 +439,7 @@ Re-running the job never re-bills an article that has already succeeded, because
 enriched articles are no longer candidates. `enriched_at` records when, and the
 recorded model and prompt versions scope any future reprocessing.
 
-## 8. Failure handling
+## 9. Failure handling
 
 Because export now depends on this stage, its failure modes are export failure
 modes.
@@ -401,7 +466,7 @@ modes.
   without enrichment, so a vendor problem cannot indefinitely withhold the
   corpus.
 
-## 9. Open decisions
+## 10. Open decisions
 
 **Backfield's CIN does not replace ours. Decided.** Our classifier stays
 authoritative. The `information_needs` preset is excluded from the production
@@ -446,7 +511,7 @@ the h3 finding in §2 starts to matter. Deferrable, expensive to retrofit.
 Some are legitimate — a Branson paper covering Springfield. Rule 2 would place
 them wrongly. Worth reading before the backfill.
 
-## 10. Suggested sequence
+## 11. Suggested sequence
 
 1. Tune the boilerplate heuristic and the content gate against known-bad
    articles, and measure the rejection rate on a fresh sample drawn without the
