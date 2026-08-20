@@ -54,6 +54,16 @@ Qualifying articles per month, by publish date:
 The spread is crawler throughput, not seasonality — extraction has been stopped
 for parts of this period. Plan against the busy months: **12,000–17,500**.
 
+### The backfill is March only
+
+**Scope of the initial backfill is roughly 15,000 articles from March 2026**, not
+the 99,418 historical total. March has 17,441 qualifying articles, so the target
+is a subset of one month.
+
+The remaining ~82,000 historical articles are deliberately out of scope. They can
+be added later without rework: `enriched_at` is the idempotency key, so widening
+the window is a query change, and nothing already enriched is re-billed.
+
 Enrichment adds no new qualification rule. If an article is fit to export, it is
 fit to enrich.
 
@@ -185,9 +195,14 @@ authoritative and backfield's runs only in development — see §9.
 
 | | |
 |---|---|
-| Backfill 99,418 | **$666–745** one-time |
+| **Backfill, ~15,000 from March** | **$100–113** one-time |
 | Ongoing, busy month (12,000–17,500) | **$80–131** |
 | Ongoing, slow month (1,000–5,300) | **$7–40** |
+| For reference: all 99,418 historical | $666–745, not planned |
+
+At this size the backfill costs about the same as one busy month of ongoing
+enrichment. The recurring figure, not the backfill, is the number that matters
+for the decision.
 
 Two levers not yet applied, each worth measuring before the backfill:
 
@@ -212,8 +227,13 @@ A full 9–10 call pipeline is roughly 3 seconds per article at that concurrency
 
 | | At 10 workers | At 50 workers |
 |---|---|---|
-| Backfill 99,418 | ~3.2 days | ~15 hours |
+| **Backfill, ~15,000 from March** | **~12 hours** | **~2.5 hours** |
 | Busy month, incremental (~580/day) | ~27 minutes/day | — |
+| For reference: all 99,418 | ~3.2 days | ~15 hours |
+
+A March-only backfill is a single overnight run at modest concurrency. It does not
+need the higher concurrency tier, and it does not need to survive a multi-day
+window — which removes most of the operational risk from the first real run.
 
 The job is I/O-bound on the API, not CPU-bound, so one or two existing spot nodes
 are sufficient. Concurrency is limited by OpenRouter rate limits, not by us.
@@ -317,7 +337,10 @@ them wrongly. Worth reading before the backfill.
    The rule is validated; the output is not.
 2. Measure prompt caching and preset consolidation on 100 articles.
 3. Build the adapter and the four tables; run 1,000 articles end to end.
-4. Backfill, rate-limited, with the spend ceiling armed.
+4. Backfill March, rate-limited, with the spend ceiling armed — one overnight run,
+   ~$100.
 5. Enable the `CronJob` for incremental articles.
+6. Decide later whether to widen the window beyond March. Nothing in the design
+   forecloses it.
 
 Steps 1 and 2 cost a few cents each and should gate the rest.
