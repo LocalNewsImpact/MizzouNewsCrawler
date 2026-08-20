@@ -14,20 +14,39 @@ a vendor claim or an estimate where a measurement was possible.
 ## 1. Where it fits
 
 ```
-discover → extract → clean → wire check → CIN label → [ENRICH] → Datastream → BigQuery
-                                              ↓
-                                    status = 'labeled'
+discover → extract → clean → wire check → CIN label → ENRICH → Datastream → BigQuery
+                                              ↓                    ↓
+                                     status='labeled'      status='enriched'
+                                     (candidate)           (exportable)
 ```
 
-The stage runs on articles that already satisfy the export gate and have not yet
-been enriched:
+**The export criterion changes.** Today BigQuery takes
+`status='labeled' AND wire_check_status='complete'`. It will instead take
+`status='enriched'`, applied only after this stage completes successfully.
+
+Enrichment stops being an optional trailer on the pipeline and becomes the last
+required step. `labeled` becomes a candidate state, not an exportable one.
+
+The stage selects its work as:
 
 ```sql
-status = 'labeled' AND wire_check_status = 'complete' AND enriched_at IS NULL
+status = 'labeled' AND wire_check_status = 'complete'
 ```
 
-That gate is the existing one — `src/cli/commands/extraction.py` documents
-BigQuery as exporting `status='labeled' AND wire_check_status='complete'`.
+and on success sets `status = 'enriched'`.
+
+Three consequences worth being explicit about:
+
+- **Junk cannot export.** An article rejected by the content gate in §3 never
+  becomes `enriched`, so it never reaches BigQuery, whatever CIN label it was
+  given. The cookie-text defect closes by construction rather than by adding a
+  check earlier in the pipeline.
+- **Enrichment failure withholds export.** An article that errors stays at
+  `labeled` and does not appear in BigQuery until it succeeds. This is the
+  intended behaviour, and it makes the enrichment backlog an export backlog —
+  see §8.
+- **The existing gate stays as the entry condition.** Nothing that fails wire
+  checking or labelling becomes a candidate in the first place.
 
 **Scope is the `Mizzou-Missouri-State` dataset.** The other datasets in the
 database (VT Community News, WSU Washington State) are out of scope for this
@@ -64,8 +83,9 @@ The remaining ~82,000 historical articles are deliberately out of scope. They ca
 be added later without rework: `enriched_at` is the idempotency key, so widening
 the window is a query change, and nothing already enriched is re-billed.
 
-Enrichment adds no new qualification rule. If an article is fit to export, it is
-fit to enrich.
+Enrichment adds no new *entry* rule — everything that qualifies today becomes a
+candidate. What it adds is an exit rule: an article exports when it has been
+enriched, or not at all.
 
 ## 2. Why backfield runs as a library, not a platform
 
@@ -187,15 +207,17 @@ This overlaps existing statuses — `not_article` (1,051) and `paywall` (2,161)
 already exist — so the gate should feed the same vocabulary rather than invent a
 parallel one.
 
-### Two changes this implies outside this proposal
+### Where the gate belongs, given the new export criterion
 
-Neither is enrichment work, and both should be considered on their own:
+Inside this stage. Because export requires `enriched`, an article the gate
+rejects never exports regardless of the label it carries, so the defect is closed
+without touching the labelling step.
 
-1. **Run the content gate before CIN labelling.** It is described here because
-   this is where the evidence turned up, but its correct position is earlier.
-2. **Apply a confidence floor when promoting to `status='labeled'`.** A 0.43
-   primary label on 27KB of cookie text became exportable with nothing objecting.
-   Whatever the right threshold is, it is not "none".
+One related change remains worth considering separately: **a confidence floor on
+CIN labelling**. The cookie article was labelled `Civic information` at 0.429 and
+promoted to `labeled` with nothing objecting. That wrong label will no longer
+reach BigQuery, but it is still wrong, still stored, and still visible to anyone
+reading the database directly.
 
 ```
 city_municipality        40      regional      17      statewide     12
@@ -347,20 +369,37 @@ registration.
 Every row records the model id, the backfield commit, and the prompt preset
 version, so a reprocessing decision can be scoped to exactly what changed.
 
-`enriched_at` on `articles` is the idempotency key. Re-running the job never
-re-bills an article that has already succeeded.
+`status='enriched'` is both the export criterion and the idempotency key.
+Re-running the job never re-bills an article that has already succeeded, because
+enriched articles are no longer candidates. `enriched_at` records when, and the
+recorded model and prompt versions scope any future reprocessing.
 
 ## 8. Failure handling
 
+Because export now depends on this stage, its failure modes are export failure
+modes.
+
 - One article failing must not fail a batch. Errors are recorded per article with
-  the exception type and the step that failed; the article stays unenriched and
+  the exception type and the step that failed; the article stays at `labeled` and
   is retried on the next run.
 - A batch is committed per article, not per run, so a job killed mid-way loses
   nothing already paid for.
 - Cost is recorded per article. A daily spend ceiling stops the job rather than
   discovering the overrun on an invoice.
-- Enrichment failure never blocks export. An article with `enriched_at IS NULL`
-  still replicates to BigQuery with its existing fields.
+- **Failure and rejection must be distinguishable.** An article rejected as not
+  being a story is terminal and should take the existing `not_article` or
+  `paywall` status. An article that failed a call is transient and stays at
+  `labeled` for retry. Collapsing the two either loses junk into the retry queue
+  forever or silently discards real stories.
+- **The backlog is now visible or it is invisible.** Articles stuck at `labeled`
+  are articles missing from BigQuery. This needs an alert on the age of the
+  oldest unenriched candidate, not a dashboard nobody opens. An OpenRouter outage,
+  a rate-limit change or an expired key now stops the export feed, which was not
+  true before.
+- **A bypass is required.** If enrichment is broken or too expensive to run,
+  there must be a supported way to promote `labeled` articles to `enriched`
+  without enrichment, so a vendor problem cannot indefinitely withhold the
+  corpus.
 
 ## 9. Open decisions
 
