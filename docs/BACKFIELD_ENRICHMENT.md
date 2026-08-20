@@ -102,15 +102,35 @@ Qualifying articles per month, by publish date:
 The spread is crawler throughput, not seasonality — extraction has been stopped
 for parts of this period. Plan against the busy months: **12,000–17,500**.
 
-### The backfill is March only
+### Two input modes
 
-**Scope of the initial backfill is roughly 15,000 articles from March 2026**, not
-the 99,418 historical total. March has 17,441 qualifying articles, so the target
-is a subset of one month.
+**Steady state is the primary mode.** Every article collected from here on passes
+through this stage before export. The recurring figures in §4 and §5 are the ones
+that govern the decision; the backfill is a one-off.
 
-The remaining ~82,000 historical articles are deliberately out of scope. They can
-be added later without rework: `enriched_at` is the idempotency key, so widening
-the window is a query change, and nothing already enriched is re-billed.
+**Backfill takes an explicit article list.** The set is supplied as article ids,
+not derived from a date range. March 2026 is the working scale — 17,441 articles
+qualify, and the list is expected to be roughly 15,000 — but selection is not a
+`publish_date` predicate and should not be implemented as one.
+
+| Mode | Selection |
+|---|---|
+| Steady state | The candidate query, on a schedule |
+| Backfill | A supplied list of article ids |
+
+A supplied list is a selection, not an override. Listed articles pass through the
+same content gate and the same dataset profile as any other: an article on the
+list that is cookie text is still rejected, and one whose dataset profile is
+`none` is still skipped. The list decides *which* articles are considered, not
+*what happens to them*.
+
+Ids on the list that are not candidates — already enriched, never labelled, wire
+— are reported and skipped rather than silently dropped, so a list of 15,000 that
+processes 12,000 says why.
+
+The remaining historical articles are out of scope for now and require no rework
+to add later: candidacy is the version comparison in §8, and nothing already
+processed is re-billed.
 
 Enrichment adds no new *entry* rule — everything that qualifies today becomes a
 candidate. What it adds is an exit rule: an article exports when it has been
@@ -315,14 +335,14 @@ authoritative and backfield's runs only in development — see §9.
 
 | | |
 |---|---|
-| **Backfill, ~15,000 from March** | **$100–113** one-time |
+| **Backfill, a ~15,000-article list** | **$100–113** one-time |
 | Ongoing, busy month (12,000–17,500) | **$80–131** |
 | Ongoing, slow month (1,000–5,300) | **$7–40** |
 | For reference: all 99,418 historical | $666–745, not planned |
 
-At this size the backfill costs about the same as one busy month of ongoing
-enrichment. The recurring figure, not the backfill, is the number that matters
-for the decision.
+The backfill costs about the same as one busy month. Since every article
+collected from here on passes through this stage, the recurring figure is the one
+that governs the decision.
 
 Two levers not yet applied, each worth measuring before the backfill:
 
@@ -347,7 +367,7 @@ A full 9–10 call pipeline is roughly 3 seconds per article at that concurrency
 
 | | At 10 workers | At 50 workers |
 |---|---|---|
-| **Backfill, ~15,000 from March** | **~12 hours** | **~2.5 hours** |
+| **Backfill, a ~15,000-article list** | **~12 hours** | **~2.5 hours** |
 | Busy month, incremental (~580/day) | ~27 minutes/day | — |
 | For reference: all 99,418 | ~3.2 days | ~15 hours |
 
@@ -596,10 +616,10 @@ them wrongly. Worth reading before the backfill.
    The rule is validated; the output is not.
 3. Measure prompt caching and preset consolidation on 100 articles.
 4. Build the adapter and the four tables; run 1,000 articles end to end.
-5. Backfill March, rate-limited, with the spend ceiling armed — one overnight run,
-   ~$100.
-6. Enable the `CronJob` for incremental articles.
-7. Decide later whether to widen the window beyond March. Nothing in the design
-   forecloses it.
+5. Enable the `CronJob` for new collection. This is the steady state and the
+   reason for the work.
+6. Run the supplied backfill list, rate-limited, with the spend ceiling armed —
+   one overnight run, ~$100.
+7. Decide later whether to process the remaining history. Nothing forecloses it.
 
 Steps 1 to 3 cost a few cents each and should gate the rest.
