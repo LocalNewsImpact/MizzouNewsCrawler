@@ -58,7 +58,8 @@ yields `enrichment_skipped`, with the reason recorded:
 |---|---|
 | `profile_none` | The dataset asked for no enrichment |
 | `dataset_disabled` | Enrichment is off for this dataset entirely |
-| `operator_bypass` | Promoted by hand during an outage — see §9 |
+| `operator_bypass` | Released by hand during an outage — see §10 |
+| `failed_max_attempts` | Enrichment failed repeatedly; released so it still exports |
 
 Distinguishing these matters because two of them are policy and one is an
 incident. A month of `operator_bypass` articles is a gap in the data that someone
@@ -73,7 +74,7 @@ Three consequences worth being explicit about:
 - **Enrichment failure withholds export.** An article that errors stays at
   `labeled` and does not appear in BigQuery until it succeeds. This is the
   intended behaviour, and it makes the enrichment backlog an export backlog —
-  see §9.
+  see §10.
 - **The existing gate stays as the entry condition.** Nothing that fails wire
   checking or labelling becomes a candidate in the first place.
 
@@ -448,7 +449,59 @@ enrichment off.
 Recommended default for a new dataset: `content_gate` on, everything else off.
 Cheap, and it stops the known defect without committing to any spend.
 
-## 8. Data written
+## 8. Reprocessing: turning enrichment on later
+
+A dataset set to `none` today must be enrichable in a month by changing the
+profile, and the same must hold for articles that were bypassed during an outage
+or that failed. This is a first-class requirement, not a migration script.
+
+### Candidacy is a version comparison, not a status change
+
+**Do not re-queue by setting articles back to `labeled`.** They would stop
+matching the export criterion, and Datastream would withdraw them from BigQuery
+while they waited — briefly removing already-published rows because we decided to
+add a field to them.
+
+Instead the profile carries a version, each enrichment row records the version it
+was produced under, and candidacy is the comparison:
+
+```sql
+-- never processed
+status = 'labeled'
+-- or processed under an older profile than the dataset now asks for
+OR (status IN ('enriched', 'enrichment_skipped')
+    AND e.profile_version < d.profile_version)
+```
+
+Status is untouched throughout. An article stays exportable while it waits, while
+it is reprocessed, and afterwards. Enabling `people` on a dataset in October does
+not remove September's articles from BigQuery for an afternoon.
+
+### Only the delta is paid for
+
+The enrichment row records the steps actually applied. When a profile gains a
+step, the job runs **only the steps missing from that article**, not the profile
+from scratch. Turning on `people` for 15,000 already-enriched articles costs one
+call each, not ten.
+
+`operator_bypass` articles are the exception: nothing ran, so everything runs.
+
+### Cost of a change is knowable before it is made
+
+Because steps applied are recorded per article, the delta for a proposed profile
+change is a query, not a guess:
+
+```sql
+-- how many articles would a newly enabled step cost?
+SELECT count(*) FROM article_enrichment e
+JOIN articles a ON a.id = e.article_id
+WHERE NOT ('people' = ANY(e.steps_applied))
+```
+
+A profile change should report its estimated cost and article count before it is
+applied, for the same reason the job carries a spend ceiling.
+
+## 9. Data written
 
 New tables in the crawler database, all keyed on `article_id`. Datastream
 replicates them to BigQuery automatically — no export code, no schema
@@ -456,7 +509,7 @@ registration.
 
 | Table | Grain |
 |---|---|
-| `article_enrichment` | One row per article: scope, subject, topic, format, timeframe, user need, resolved point, **profile version, steps applied, `skip_reason` where relevant**, model and prompt versions, cost, `enriched_at` |
+| `article_enrichment` | One row per article: scope, subject, topic, format, timeframe, user need, resolved point, **`profile_version`, `steps_applied` (array, indexed), `skip_reason`**, model and prompt versions, cost, `enriched_at` |
 | `article_places` | One row per extracted location, with components, resolution method, and coordinates when resolved |
 | `article_people` | One row per person mention, with quotes |
 | `article_organizations` | One row per organization mention |
@@ -468,7 +521,7 @@ Idempotency comes from the candidate query: only `labeled` articles are picked
 up, so anything already `enriched` or `enrichment_skipped` is never re-billed. `enriched_at` records when, and the
 recorded model and prompt versions scope any future reprocessing.
 
-## 9. Failure handling
+## 10. Failure handling
 
 Because export now depends on this stage, its failure modes are export failure
 modes.
@@ -490,13 +543,18 @@ modes.
   oldest unenriched candidate, not a dashboard nobody opens. An OpenRouter outage,
   a rate-limit change or an expired key now stops the export feed, which was not
   true before.
+- **A permanently failing article must not be withheld forever.** After a bounded
+  number of attempts it takes `enrichment_skipped` with
+  `skip_reason='failed_max_attempts'`, so it exports and remains a candidate for
+  reprocessing under §8. Without this, one article backfield cannot parse is one
+  article BigQuery never sees, and nobody finds out.
 - **A bypass is required.** If enrichment is broken or too expensive to run,
   there must be a supported way to release `labeled` articles without enriching
   them. That path sets `enrichment_skipped` with
   `skip_reason='operator_bypass'`, never `enriched`, so an outage is later
   distinguishable from a policy decision and from real enrichment.
 
-## 10. Open decisions
+## 11. Open decisions
 
 **Backfield's CIN does not replace ours. Decided.** Our classifier stays
 authoritative. The `information_needs` preset is excluded from the production
@@ -541,7 +599,7 @@ the h3 finding in §2 starts to matter. Deferrable, expensive to retrofit.
 Some are legitimate — a Branson paper covering Springfield. Rule 2 would place
 them wrongly. Worth reading before the backfill.
 
-## 11. Suggested sequence
+## 12. Suggested sequence
 
 1. Tune the boilerplate heuristic and the content gate against known-bad
    articles, and measure the rejection rate on a fresh sample drawn without the
