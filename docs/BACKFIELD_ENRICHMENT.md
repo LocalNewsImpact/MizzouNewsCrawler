@@ -38,10 +38,9 @@ status = 'labeled' AND wire_check_status = 'complete'
 
 ### Status vocabulary
 
-`enriched` means backfield ran. It does not mean "eligible for export", because
-conflating those two makes the corpus unable to answer "which articles were
-actually enriched?" — a question that matters as soon as profiles differ between
-datasets.
+`enriched` means backfield ran; it does not mean eligible for export. Conflating
+the two leaves the corpus unable to distinguish enriched articles from skipped
+ones once dataset profiles differ.
 
 | Status | Set when | Exports | Terminal |
 |---|---|---|---|
@@ -61,11 +60,11 @@ yields `enrichment_skipped`, with the reason recorded:
 | `operator_bypass` | Released by hand during an outage — see §10 |
 | `failed_max_attempts` | Enrichment failed repeatedly; released so it still exports |
 
-Distinguishing these matters because two of them are policy and one is an
-incident. A month of `operator_bypass` articles is a gap in the data that someone
-should be able to find later without reading deploy logs.
+Two of these are policy and two are incidents. The distinction must survive in
+the data: a period of `operator_bypass` articles is a gap that has to be
+identifiable later without reference to deploy logs.
 
-Three consequences worth being explicit about:
+Consequences:
 
 - **Junk cannot export.** An article rejected by the content gate in §3 takes a
   terminal `not_article` or `paywall` status, which is in neither exportable
@@ -194,16 +193,10 @@ KQTV — "Taylor Crouse", 27,372 characters of cookie descriptions
    cookie descriptions and technical settings."
 ```
 
-**This is a labelling defect, not a nuisance.** There is no story in that text,
-so there is nothing for a CIN label to describe. The classifier produced one
-anyway, at 0.43 confidence, and that low confidence stopped nothing: the article
-was promoted to `status='labeled'` and is exportable today. Two gaps meet here —
-no check that the text is a story, and no confidence floor on the promotion.
-
-Both belong **before CIN labelling**, not before enrichment. If junk never gets
-labelled it never reaches `status='labeled'`, never exports, and never costs an
-enrichment call. Placing the gate in this stage would catch it one step too late:
-the wrong label would already exist and would already have replicated.
+This is a labelling defect. The text contains no story, so no CIN label
+describes it. The classifier produced one at 0.429 confidence and the article was
+promoted to `status='labeled'`. Two gaps produce this: no check that the text is
+a story, and no confidence floor on the promotion.
 
 Two layers, cheapest first:
 
@@ -220,11 +213,10 @@ tokens, about $0.0001. It answers one question: is this the text of a news story
 
 Rejected articles are flagged and skip every subsequent step.
 
-**Be clear about what this is worth.** The frequency measured was 1 in 100, and
-the sample was drawn from articles at or above median length — junk of this kind
-is long, so the true corpus rate is probably lower. The cost saving is real but
-small: the gate costs about $1.50 per 15,000 articles and saves a comparable
-amount. The reasons to do it are the other two:
+Measured frequency was 1 in 100, on a sample drawn from articles at or above
+median length. Junk of this kind is long, so the corpus rate is likely lower. The
+gate costs roughly $1.50 per 15,000 articles and saves a comparable amount; the
+cost case is neutral. The two operative reasons:
 
 - **Label correctness.** A CIN label on text containing no story is wrong, and it
   is currently indistinguishable in BigQuery from a label on a real article. It
@@ -416,14 +408,13 @@ A `none` profile still produces an `article_enrichment` row, recording that the
 profile was empty. An article must never be stranded at `labeled` because its
 dataset asked for nothing.
 
-Note the asymmetry: *some* yields `enriched`, *none* yields `enrichment_skipped`.
-The line is whether backfield was called at all, so that `enriched` always means
-the same thing regardless of which dataset an article came from.
+A partial profile yields `enriched`; only the absence of any backfield call
+yields `enrichment_skipped`. The criterion is whether backfield was called, so
+`enriched` carries the same meaning across datasets.
 
 ### Absent and disabled are not the same
 
-This is the part that will bite downstream if it is not carried into the data. A
-missing place list can mean three different things:
+A missing place list has three possible meanings:
 
 | | Meaning |
 |---|---|
@@ -431,20 +422,19 @@ missing place list can mean three different things:
 | Step ran, found nothing | A real, negative finding |
 | Step failed | Unknown; the article should not be `enriched` at all |
 
-So every enrichment row records the profile version and the steps actually
-applied, and BigQuery consumers filter on those rather than on `NULL`. Without
-it, "no people were found" and "we did not look for people" are the same query
-result, and any analysis over a mixed-profile corpus is wrong in a way nobody
-will notice.
+Every enrichment row therefore records the profile version and the steps
+actually applied, and BigQuery consumers filter on those rather than on `NULL`.
+Without this, "no people were found" and "people were not extracted" are the same
+query result, and any analysis spanning datasets with different profiles is
+incorrect.
 
-### The content gate is switchable, and that has a cost
+### The content gate is switchable
 
-`content_gate` is listed separately because it is the one step whose absence
-changes what reaches BigQuery rather than how much is known about it. A dataset
-running `none` exports its cookie-text articles, as happens today. That may be
-the right call for a dataset being ingested for volume rather than analysis, but
-it should be a decision recorded in the profile, not a side effect of turning
-enrichment off.
+`content_gate` is separately switchable because it changes what reaches BigQuery
+rather than what is known about it. A dataset running `none` exports cookie-text
+articles, as happens today. That may be correct for a dataset ingested for volume
+rather than analysis, but it is recorded in the profile rather than implied by
+disabling enrichment.
 
 Recommended default for a new dataset: `content_gate` on, everything else off.
 Cheap, and it stops the known defect without committing to any spend.
@@ -457,13 +447,12 @@ or that failed. This is a first-class requirement, not a migration script.
 
 ### Candidacy is a version comparison, not a status change
 
-**Do not re-queue by setting articles back to `labeled`.** They would stop
-matching the export criterion, and Datastream would withdraw them from BigQuery
-while they waited — briefly removing already-published rows because we decided to
-add a field to them.
+Re-queuing by setting articles back to `labeled` would stop them matching the
+export criterion, and Datastream would withdraw already-published rows from
+BigQuery for the duration of reprocessing.
 
-Instead the profile carries a version, each enrichment row records the version it
-was produced under, and candidacy is the comparison:
+The profile therefore carries a version, each enrichment row records the version
+it was produced under, and candidacy is a comparison:
 
 ```sql
 -- never processed
@@ -473,9 +462,8 @@ OR (status IN ('enriched', 'enrichment_skipped')
     AND e.profile_version < d.profile_version)
 ```
 
-Status is untouched throughout. An article stays exportable while it waits, while
-it is reprocessed, and afterwards. Enabling `people` on a dataset in October does
-not remove September's articles from BigQuery for an afternoon.
+Status is unchanged throughout. An article remains exportable while queued,
+during reprocessing, and afterwards.
 
 ### Only the delta is paid for
 
@@ -572,13 +560,13 @@ worth keeping for that purpose:
 | Upheld a deliberately wrong label (control) | 5 of 100 |
 | Same verdict regardless of the label shown | 92 of 100 |
 
-The disagreements are mostly ours: "Civic Life" absorbed a movie review, a
-holiday store-hours listing and a real-estate promo. The control run matters more
-than the agreement rate — a model that ratifies whatever it is shown would be
-useless as a check, and this one does not.
+Most disagreements are errors in our labels: "Civic Life" was applied to a movie
+review, a holiday store-hours listing and a real-estate promotion. The control
+run establishes that the model does not ratify the label it is shown, which is
+the property required of an audit.
 
-Used this way it is an audit instrument for our taxonomy, not a replacement
-classifier. Cost is negligible: one call per sampled article, $0.00078.
+Used this way it is an audit instrument for our taxonomy rather than a
+replacement classifier. Cost is one call per sampled article, $0.00078.
 
 **"Civic Life" versus "Civic information".** Both exist in our taxonomy, both map
 to the same concept, and six of the 37 disagreements are churn between them. This
