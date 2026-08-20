@@ -131,14 +131,29 @@ still reach `status='labeled'` despite the boilerplate work already done. One
 appeared in the 100-article sample:
 
 ```
-"Taylor Crouse" — 27,372 characters
-  "The provided text is not a news article; it is a list of website
-   cookie descriptions and technical settings."   — backfield's rationale
-  locations extracted: 0
+KQTV — "Taylor Crouse", 27,372 characters of cookie descriptions
+
+  our label       Civic information      confidence 0.429
+  our alternate   Economic Development   confidence 0.228
+  status          labeled  -> exportable to BigQuery
+  locations extracted by backfield: 0
   cost to process: $0.018, or 2.6x a typical article
+
+  backfield's rationale, unprompted:
+  "The provided text is not a news article; it is a list of website
+   cookie descriptions and technical settings."
 ```
 
-That article carries a CIN label and exports to BigQuery today.
+**This is a labelling defect, not a nuisance.** There is no story in that text,
+so there is nothing for a CIN label to describe. The classifier produced one
+anyway, at 0.43 confidence, and that low confidence stopped nothing: the article
+was promoted to `status='labeled'` and is exportable today. Two gaps meet here —
+no check that the text is a story, and no confidence floor on the promotion.
+
+Both belong **before CIN labelling**, not before enrichment. If junk never gets
+labelled it never reaches `status='labeled'`, never exports, and never costs an
+enrichment call. Placing the gate in this stage would catch it one step too late:
+the wrong label would already exist and would already have replicated.
 
 Two layers, cheapest first:
 
@@ -161,8 +176,9 @@ is long, so the true corpus rate is probably lower. The cost saving is real but
 small: the gate costs about $1.50 per 15,000 articles and saves a comparable
 amount. The reasons to do it are the other two:
 
-- **Corpus quality.** A cookie table should not carry a CIN label, contribute to
-  county coverage statistics, or reach BigQuery as a story.
+- **Label correctness.** A CIN label on text containing no story is wrong, and it
+  is currently indistinguishable in BigQuery from a label on a real article. It
+  contaminates coverage statistics and any analysis built on them.
 - **Regression detection.** The rejection rate is a monitor on the boilerplate
   stripping. A sudden rise means cleaning has broken upstream, and that is worth
   knowing on the day it happens rather than in a quarterly review.
@@ -170,6 +186,16 @@ amount. The reasons to do it are the other two:
 This overlaps existing statuses — `not_article` (1,051) and `paywall` (2,161)
 already exist — so the gate should feed the same vocabulary rather than invent a
 parallel one.
+
+### Two changes this implies outside this proposal
+
+Neither is enrichment work, and both should be considered on their own:
+
+1. **Run the content gate before CIN labelling.** It is described here because
+   this is where the evidence turned up, but its correct position is earlier.
+2. **Apply a confidence floor when promoting to `status='labeled'`.** A 0.43
+   primary label on 27KB of cookie text became exportable with nothing objecting.
+   Whatever the right threshold is, it is not "none".
 
 ```
 city_municipality        40      regional      17      statewide     12
