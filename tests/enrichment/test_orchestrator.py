@@ -338,3 +338,90 @@ class TestCost:
             (r.cost_usd for r in result.results), Decimal("0")
         )
         assert result.total_cost_usd > 0
+
+
+# ---- dataset-specific export exclusion by scope -----------------------------
+
+EXCLUDING = Profile(
+    version=3,
+    content_gate=True,
+    scope=True,
+    places=True,
+    people=True,
+    organizations=True,
+    metadata_presets=("subject", "topic"),
+    export_exclude_scopes=("international", "national"),
+)
+
+
+class TestScopeExportExclusion:
+    def test_excluded_scope_is_terminal_out_of_scope(self):
+        result, stub = run(EXCLUDING, scope=ok("scope", meta("international")))
+        assert result.status == "out_of_scope"
+        assert result.skip_reason is None
+        assert result.steps_applied == ["content_gate", "scope"]
+
+    def test_exclusion_skips_every_remaining_step(self):
+        _, stub = run(EXCLUDING, scope=ok("scope", meta("national")))
+        for step in ("places", "subject", "topic", "people", "organizations"):
+            assert step not in stub.calls, f"{step} ran on an excluded article"
+
+    def test_non_excluded_broad_scope_still_enriches(self):
+        result, _ = run(EXCLUDING, scope=ok("scope", meta("statewide")))
+        assert result.status == "enriched"  # statewide not in this dataset's list
+
+    def test_point_scope_unaffected_by_the_flag(self):
+        result, stub = run(EXCLUDING, scope=ok("scope", meta("city_municipality")))
+        assert result.status == "enriched"
+        assert "places" in stub.calls
+
+    def test_default_profile_excludes_nothing(self):
+        result, _ = run(FULL, scope=ok("scope", meta("international")))
+        assert result.status == "enriched"
+
+    @pytest.mark.parametrize(
+        "raw,fragment",
+        [
+            (
+                {
+                    "version": 1,
+                    "scope": True,
+                    "export_exclude_scopes": ["city_municipality"],
+                },
+                "not excludable",
+            ),
+            (
+                {"version": 1, "scope": True, "export_exclude_scopes": ["galactic"]},
+                "not excludable",
+            ),
+            (
+                {"version": 1, "export_exclude_scopes": ["international"]},
+                "requires scope",
+            ),
+            (
+                {
+                    "version": 1,
+                    "scope": True,
+                    "export_exclude_scopes": ["national", "national"],
+                },
+                "duplicates",
+            ),
+            (
+                {"version": 1, "scope": True, "export_exclude_scopes": "national"},
+                "list of strings",
+            ),
+        ],
+    )
+    def test_invalid_exclusion_flags_are_rejected(self, raw, fragment):
+        with pytest.raises(ConfigurationError, match=fragment):
+            parse_profile(raw)
+
+    def test_parse_accepts_the_flag(self):
+        profile = parse_profile(
+            {
+                "version": 2,
+                "scope": True,
+                "export_exclude_scopes": ["international", "national"],
+            }
+        )
+        assert profile.export_exclude_scopes == ("international", "national")

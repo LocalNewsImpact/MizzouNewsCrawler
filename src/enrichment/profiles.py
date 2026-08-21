@@ -19,8 +19,23 @@ from dataclasses import dataclass
 # decision (proposal §12).
 PRODUCTION_PRESETS = ("subject", "topic", "format", "temporal_orientation", "user_need")
 
+# Scope categories a dataset may exclude from export. The two point scopes are
+# not excludable: local coverage is the product. elsewhere_to_local is
+# excludable but note it means "external events with direct local impact" —
+# excluding it drops localized national stories, which is rarely intended.
+EXCLUDABLE_SCOPES = (
+    "international",
+    "national",
+    "statewide",
+    "regional",
+    "other",
+    "elsewhere_to_local",
+    "local_to_elsewhere",
+)
+
 _KNOWN_KEYS = {
     "version",
+    "export_exclude_scopes",
     "content_gate",
     "scope",
     "places",
@@ -47,6 +62,9 @@ class Profile:
     people: bool = False
     organizations: bool = False
     metadata_presets: tuple[str, ...] = ()
+    # Scope categories whose articles take status 'out_of_scope' and do not
+    # export. Dataset-specific; default empty = exclude nothing.
+    export_exclude_scopes: tuple[str, ...] = ()
 
 
 DEFAULT_PROFILE = Profile(version=1)
@@ -94,6 +112,20 @@ def parse_profile(raw: dict | None) -> Profile:
     if len(set(presets)) != len(presets):
         raise ConfigurationError("metadata_presets contains duplicates")
 
+    exclude = raw.get("export_exclude_scopes", [])
+    if not isinstance(exclude, (list, tuple)) or not all(
+        isinstance(x, str) for x in exclude
+    ):
+        raise ConfigurationError("export_exclude_scopes must be a list of strings")
+    bad_scopes = [x for x in exclude if x not in EXCLUDABLE_SCOPES]
+    if bad_scopes:
+        raise ConfigurationError(
+            f"not excludable: {bad_scopes}; allowed: {list(EXCLUDABLE_SCOPES)} "
+            "(point scopes are the product and cannot be excluded)"
+        )
+    if len(set(exclude)) != len(exclude):
+        raise ConfigurationError("export_exclude_scopes contains duplicates")
+
     profile = Profile(
         version=version,
         content_gate=raw.get("content_gate", True),
@@ -103,8 +135,14 @@ def parse_profile(raw: dict | None) -> Profile:
         people=raw.get("people", False),
         organizations=raw.get("organizations", False),
         metadata_presets=tuple(presets),
+        export_exclude_scopes=tuple(exclude),
     )
 
+    if profile.export_exclude_scopes and not profile.scope:
+        raise ConfigurationError(
+            "export_exclude_scopes requires scope: exclusion is decided by the "
+            "scope classification"
+        )
     if profile.geocode and not profile.places:
         raise ConfigurationError(
             "geocode requires places: geocoding needs extracted places"

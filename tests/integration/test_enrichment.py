@@ -585,3 +585,62 @@ class TestRepository:
             assert (
                 status == "enriched"
             ), "the committed article survives a later failure"
+
+    def test_out_of_scope_does_not_export_but_reprocesses(self, db):
+        """A dataset flag change (profile bump) must bring excluded articles
+        back as candidates — toggling the flag is reversible."""
+        with db() as s:
+            articles = select_candidates(s, "Mizzou-Missouri-State", 10, 3)
+            excluded = _outcome(
+                articles[0].id,
+                "out_of_scope",
+                ["content_gate", "scope"],
+                [
+                    _ok("content_gate", {"verdict": "news", "reason": "story"}),
+                    _ok(
+                        "scope",
+                        {
+                            "article_metadata": {
+                                "category": "international",
+                                "confidence": 0.9,
+                                "rationale": "global affairs",
+                            }
+                        },
+                    ),
+                ],
+            )
+            persist_outcome(
+                s,
+                articles[0],
+                excluded,
+                profile=PROFILE,
+                model="m",
+                backfield_commit="c",
+                prompt_versions={},
+            )
+        with db() as s:
+            status = s.execute(
+                sa.text("SELECT status FROM articles WHERE id=:id"),
+                {"id": articles[0].id},
+            ).scalar()
+            assert status == "out_of_scope"
+            exported = s.execute(
+                sa.text(
+                    f"SELECT count(*) FROM articles WHERE id=:id AND {EXPORT_PREDICATE}"
+                ),
+                {"id": articles[0].id},
+            ).scalar()
+            assert exported == 0, "out_of_scope must not export"
+            scope = s.execute(
+                sa.text("SELECT scope FROM article_enrichment WHERE article_id=:id"),
+                {"id": articles[0].id},
+            ).scalar()
+            assert scope == "international", "the classification is still recorded"
+            # not a plain candidate...
+            plain = select_candidates(s, "Mizzou-Missouri-State", 10, 3)
+            assert articles[0].id not in {c.id for c in plain}
+            # ...but a profile bump brings it back
+            bumped = select_reprocess_candidates(
+                s, "Mizzou-Missouri-State", profile_version=2, batch=10, max_attempts=3
+            )
+            assert articles[0].id in {c.id for c in bumped}

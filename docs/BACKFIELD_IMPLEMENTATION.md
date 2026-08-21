@@ -129,6 +129,7 @@ Validation rules, enforced on read:
 | `information_needs` present | Reject — excluded from production (§12) |
 | `geocode` true while `places` false | Reject — geocoding needs extracted places |
 | `version` missing or not an integer | Reject |
+| `export_exclude_scopes` outside the seven non-point categories, or set without `scope` | Reject |
 
 Environment:
 
@@ -385,6 +386,8 @@ enrich_article(article, profile):
   if profile.scope:
       r = run_scope(article);  fail -> outcome(labeled)
       scope = r.payload["category"]; steps += [scope]
+      if scope in profile.export_exclude_scopes:
+          return outcome(out_of_scope)          # terminal; skips all remaining steps
   if profile.places and scope in POINT_SCOPES:               # never without scope
       r = run_places(article); fail -> outcome(labeled)
       steps += [places]

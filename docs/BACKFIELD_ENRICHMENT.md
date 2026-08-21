@@ -51,6 +51,7 @@ ones once dataset profiles differ.
 | `enriched` | Backfield ran every step the dataset's profile asked for | **Yes** | Yes |
 | `enrichment_skipped` | No backfield call was made — see `skip_reason` | **Yes** | Yes |
 | `not_article`, `paywall` | Content gate rejected the text | No | Yes |
+| `out_of_scope` | Scope is in the dataset's `export_exclude_scopes` | No | Yes — reprocessable on a profile bump |
 
 A dataset running *some* enrichments still yields `enriched`; the steps actually
 applied are recorded on the row (§7). Only a complete absence of backfield work
@@ -547,7 +548,31 @@ incorrect.
 ### The content gate is switchable
 
 `content_gate` is separately switchable because it changes what reaches BigQuery
-rather than what is known about it. A dataset running `none` exports cookie-text
+rather than what is known about it.
+
+### Scope-based export exclusion, per dataset
+
+`export_exclude_scopes` names scope categories whose articles take the terminal
+status `out_of_scope` and do not export. Decided immediately after the scope
+classification, so every remaining step is skipped — on the 100-article sample,
+excluding `international` and `national` removes 12% of articles from both the
+export and the remaining enrichment spend.
+
+```jsonc
+"export_exclude_scopes": ["international"]        // or ["international","national"]
+```
+
+Rules:
+
+- Requires `scope`: exclusion is decided by the classification.
+- The two point scopes are not excludable — local coverage is the product.
+- `elsewhere_to_local` is excludable but means "external events with direct
+  local impact"; excluding it drops localized national stories.
+- Default is empty. A dataset that says nothing excludes nothing.
+- The enrichment row still records the scope and its rationale, so the
+  exclusion is auditable per article.
+- Reversible: `out_of_scope` articles are reprocessing candidates on a profile
+  version bump, status untouched until they are re-enriched under the new flag. A dataset running `none` exports cookie-text
 articles, as happens today. That may be correct for a dataset ingested for volume
 rather than analysis, but it is recorded in the profile rather than implied by
 disabling enrichment.

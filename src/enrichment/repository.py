@@ -20,7 +20,8 @@ from src.enrichment.profiles import Profile, parse_profile
 from src.enrichment.resolve import norm, resolve_point
 from src.enrichment.types import ArticleInput, EnrichmentOutcome
 
-TERMINAL_STATUSES = ("enriched", "enrichment_skipped")
+TERMINAL_STATUSES = ("enriched", "enrichment_skipped", "out_of_scope")
+EXPORTABLE_STATUSES = ("enriched", "enrichment_skipped")
 
 _CANDIDATE_SQL = text("""
     SELECT a.id, a.title, a.content, d.slug AS dataset_slug, s.city AS publication_city
@@ -50,7 +51,7 @@ _REPROCESS_SQL = text("""
       AND a.wire_check_status = 'complete'
       AND (
         (a.status = 'labeled' AND a.enrichment_attempts < :max_attempts)
-        OR (a.status IN ('enriched', 'enrichment_skipped')
+        OR (a.status IN ('enriched', 'enrichment_skipped', 'out_of_scope')
             AND e.profile_version < :profile_version)
       )
     ORDER BY a.created_at

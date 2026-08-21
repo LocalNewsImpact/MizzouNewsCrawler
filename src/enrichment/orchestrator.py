@@ -99,6 +99,12 @@ def enrich_article(
             return transient_failure()
         scope_category = scope.payload["article_metadata"]["category"]
         steps.append("scope")
+        if scope_category in profile.export_exclude_scopes:
+            # Dataset-level exclusion (proposal §7): terminal, does not export,
+            # and skips every remaining step — the saving is the point. The
+            # enrichment row still records the scope and its rationale, and a
+            # profile change makes these articles reprocessing candidates.
+            return outcome("out_of_scope")
 
     # ---- steps 2–3: places and point resolution ------------------------------
     if profile.places and scope_category in POINT_SCOPES:
