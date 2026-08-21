@@ -150,15 +150,15 @@ not when the code is written.
 
 No production code. Answers the questions §4 and §3 leave open.
 
-| Task | Output |
+| Task | Result (measured 2026-08-21) |
 |---|---|
-| Prompt caching | Cost per article with the article last in the message, against the $0.0067–0.0075 baseline |
-| Preset consolidation | Agreement between six separate calls and one combined call on 100 articles, per category |
-| Content gate tuning | Heuristic threshold and gate accuracy on a sample drawn **without** the length bias in the existing 100 |
-| Point resolution accuracy | Human verification of the 38 resolved points |
+| Prompt caching | **Active with no code change** — presets already put `{text}` last; warm calls report 1,856–1,920 cached tokens, $0.0002–0.0004 vs $0.00078 cold, ~80% hit rate in a burst |
+| Preset consolidation | **Dropped** — combined vs separate agreement only 71–84% per dimension on 100 articles; a different classifier, not an optimisation |
+| Content gate tuning | Threshold 5 confirmed on an unbiased 300 (no article ≥5; Oreo/consent stories score 4); corpus junk rate <0.3%; gate resampled to **head+middle windows** after head-only misclassified a good article; 10/11 on the adversarial set |
+| Point resolution accuracy | **Open — human task.** The verification file is `backfield-cin-test/scope_geocode_report.csv` (38 resolved points, `suggested_point` column) |
 
-**Exit:** each measured and written into §4/§3. If consolidation degrades any
-category, it is dropped and not revisited.
+**Exit:** met for the three measured tasks; point verification remains with the
+reviewer and gates Phase 6's dataset enablement, not Phases 1–5.
 
 **Rollback:** none; nothing ships.
 
@@ -461,11 +461,17 @@ Heuristic: count of case-insensitive matches for `cookie(s)`, `consent`,
 at 5 it selects exactly the one known-bad article in the sample and nothing
 else.
 
-Gate call: `custom` preset, first 800 characters, `meta_type="content_gate"`
-(`information_needs` and the six production names are reserved). Prompt returns
-one of `news`, `paywall`, `not_news`, mapped to pass / `paywall` /
-`not_article`. The prompt file lives in `src/enrichment/prompts/` and is
-versioned in `prompt_versions` like the presets.
+Gate call: direct completion (not the `custom` preset), JSON response, sending
+**two 800-character windows — head and middle** of
+`f"Headline: {title}\n\n{content}"`. Head-only was tested and rejected in Phase
+0: cleaning residue concentrates at the top and a known-good article whose text
+opens with a cookie banner was misclassified. The prompt's decision rule is
+"is a story present in either window" — furniture around a story does not change
+the verdict, and the prompt says so explicitly. Verdicts `news` / `paywall` /
+`not_news` map to pass / `paywall` / `not_article`. The prompt file lives in
+`src/enrichment/prompts/content_gate.md`, versioned in `prompt_versions`.
+Measured accuracy on the adversarial 11-article set: 10 of 11, with the vox-pop
+limitation recorded in the proposal §3.
 
 ### 5.7 Cost accounting
 

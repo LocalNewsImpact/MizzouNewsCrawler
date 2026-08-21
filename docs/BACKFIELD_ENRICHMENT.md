@@ -229,14 +229,26 @@ Two layers, cheapest first:
 
 **0a. A deterministic heuristic, free.** Density of cookie, consent, privacy
 policy, vendor list and advertising-partner terms. Five or more occurrences
-identified exactly the one junk article in the sample and nothing else. This runs
-in Python with no API call and should be tuned against known-bad articles before
-it is trusted to reject anything.
+identified exactly the one junk article in the sample and nothing else. Tuned in
+Phase 0 on an unbiased 300-article sample: **no article scored ≥5** (290 scored
+zero), and the gray zone proves the threshold — *"Oreo bringing zero-sugar
+cookies to US"* and a donor-consent bill each score 4 on literal term matches. A
+lower threshold rejects real news; 5 stands. Corpus junk rate is **under 0.3%**,
+confirming the length-biased 1-in-100 overstated it.
 
-**0b. A truncated LLM gate for what the heuristic misses.** Cookie and paywall
-text is identifiable from the opening few hundred characters, so this call sends
-**the first ~800 characters, not the article** — roughly 250 input and 30 output
-tokens, about $0.0001. It answers one question: is this the text of a news story?
+**0b. A truncated LLM gate for what the heuristic misses.** The call sends **two
+800-character windows — the head and the middle of the document** — not the whole
+article (~550 input tokens, ~$0.0002). Head-only sampling was tested first and
+rejected: cleaning residue concentrates at the top, and a head-only gate
+misclassified a known-good article whose stored text opens with a cookie banner.
+
+The verdict is **"is a story present in either window?"**, stated in the prompt
+explicitly: furniture around a story does not change the verdict. Measured on an
+adversarial 11-article set (8 heuristic gray-zone, the known-bad cookie article,
+2 clean controls): 10 of 11 correct, including *"Oreo bringing zero-sugar
+cookies"* passed and the cookie-text article rejected. The one miss is the known
+limitation: a vox-pop piece that is mostly furniture with a fragment of quotes
+read as paywall.
 
 Rejected articles are flagged and skip every subsequent step.
 
@@ -351,15 +363,20 @@ The backfill costs about the same as one busy month. Since every article
 collected from here on passes through this stage, the recurring figure is the one
 that governs the decision.
 
-Two levers not yet applied, each worth measuring before the backfill:
+Both levers were measured in Phase 0 (2026-08-21):
 
-- **Prompt caching.** The six production prompts total ~9,000 tokens and are identical
-  across every article; roughly 74% of each call's input is this stable prefix.
-  DeepSeek bills cache reads at $0.13/M against $0.25/M. Putting the article last
-  in the message should cut input cost materially.
-- **Preset consolidation.** Six presets send the article six times. Combining
-  them into fewer calls would send it once, at some risk to per-category quality.
-  Worth an A/B on 100 articles before adopting.
+- **Prompt caching: active with no code change.** The presets already place
+  `{text}` last, and DeepSeek caches the ~1,900-token prefix automatically
+  through OpenRouter. Measured: warm calls report `cached_tokens=1856–1920` and
+  cost **$0.0002–0.0004 against the $0.00078 cold baseline**; hit rate ~80%
+  within a burst (a call routed to a cold replica misses). Effective per-article
+  cost is therefore below the table above, which stands as the no-cache bound.
+- **Preset consolidation: dropped.** One combined call against six separate
+  calls on the same 100 articles agreed only **71–84% per dimension**
+  (subject 75%, topic 78%, format 84%, temporal 76%, user_need 71%, scope 72%).
+  That is a different classifier, not a cost optimisation. Per the phase rule it
+  is dropped and not revisited. For reference, the combined call cost
+  $0.0006/article.
 
 ## 5. Time
 
