@@ -289,6 +289,88 @@ class TestGeoSkipReason:
         )
 
 
+class TestPointScopeNeverTakesStateRung:
+    """A city/neighborhood story whose point city misses the gazetteer must
+    fall back to the publication place — never to the resolve ladder's state
+    rung (found live 2026-08-21: "Webster" for Webster Groves coded a city
+    story to the whole state)."""
+
+    def test_unresolvable_point_city_falls_back_to_publication_place(self):
+        from decimal import Decimal
+        from unittest.mock import MagicMock
+
+        from src.enrichment import repository
+        from src.enrichment.profiles import Profile
+        from src.enrichment.types import ArticleInput, EnrichmentOutcome, StepResult
+
+        article = ArticleInput("x", "T", "body", "ds", "Columbia", "MO")
+        session = MagicMock()
+        captured = {}
+
+        def capture(stmt, params=None):
+            if params and "point_geoid" in (params or {}):
+                captured.update(params)
+            return session
+
+        session.execute = capture
+        outcome = EnrichmentOutcome(
+            article_id="x",
+            status="enriched",
+            skip_reason=None,
+            steps_applied=["content_gate", "scope", "places"],
+            results=[
+                StepResult(
+                    "scope",
+                    True,
+                    {
+                        "article_metadata": {
+                            "category": "city_municipality",
+                            "confidence": 0.9,
+                        }
+                    },
+                    None,
+                    10,
+                    5,
+                    Decimal("0.001"),
+                ),
+                StepResult(
+                    "places",
+                    True,
+                    {
+                        "locations": [
+                            {
+                                "location": {
+                                    "components": {
+                                        "city": "Websterville Nowhere",
+                                        "state": "MO",
+                                    }
+                                },
+                                "mention_count": 3,
+                            }
+                        ]
+                    },
+                    None,
+                    10,
+                    5,
+                    Decimal("0.001"),
+                ),
+            ],
+            total_cost_usd=Decimal("0.002"),
+        )
+        repository.persist_outcome(
+            session,
+            article,
+            outcome,
+            profile=Profile(version=3, scope=True, places=True),
+            model="m",
+            backfield_commit="c",
+            prompt_versions={},
+        )
+        assert captured.get("point_geoid_level") != "state"
+        assert captured.get("point_geoid") == "2915670"  # Columbia city
+        assert captured.get("point_method") == "publication_place_assumed"
+
+
 class TestFullStateNames:
     """Extracted components carry 'Missouri' as often as 'MO'."""
 

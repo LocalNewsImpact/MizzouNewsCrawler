@@ -234,28 +234,61 @@ def build_story_geoids(
     place_rows: list[tuple[str | None, str | None]],  # (geoid, level) per mention
     scope_category: str | None,
     state_code: str | None,
+    point_place_name: str | None = None,
+    place_row_names: list[str | None] | None = None,
 ) -> list[tuple[str, str, bool, str]]:
     """The distinct story-to-FIPS set: (geoid, level, is_primary, source).
 
     News geography is one-to-many. The point (when resolved) is primary;
     every distinct mention GEOID joins the set; a statewide story contributes
     its state code. Order: primary first, then mentions by first appearance.
+
+    One rung per location (decided 2026-08-21): the Census hierarchy is
+    already declared by the codes themselves, so ancestors of a more specific
+    code are dropped. Only genuine prefix relations apply — state prefixes
+    everything, county prefixes tract/block. Place codes do NOT nest by
+    prefix, so a place is dropped only when the point resolved below place
+    level at that same named place.
     """
     out: list[tuple[str, str, bool, str]] = []
     seen: set[str] = set()
+    names = place_row_names or [None] * len(place_rows)
     if point_geoid is not None:
         out.append((point_geoid.geoid, point_geoid.level, True, "point"))
         seen.add(point_geoid.geoid)
-    for geoid, level in place_rows:
-        if geoid and geoid not in seen:
-            out.append((geoid, level or "place", False, "mention"))
-            seen.add(geoid)
+    for (geoid, level), name in zip(place_rows, names, strict=False):
+        if not geoid or geoid in seen:
+            continue
+        lvl = level or "place"
+        if (
+            point_geoid is not None
+            and point_geoid.level in ("tract", "block")
+            and lvl == "place"
+            and point_place_name
+            and name
+            and norm(name) == norm(point_place_name)
+        ):
+            continue  # same place, point already carries the lower rung
+        out.append((geoid, lvl, False, "mention"))
+        seen.add(geoid)
     if scope_category == "statewide" and state_code and state_code not in seen:
         out.append(
             (state_code, "state", point_geoid is None and not out, "scope_state")
         )
         seen.add(state_code)
-    return out
+    # Drop hierarchy ancestors: a state code when anything longer shares its
+    # 2-digit prefix; a county code when a tract/block carries its 5 digits.
+    specific = [g for g, _, _, _ in out]
+    kept = []
+    for g, lvl, primary, src in out:
+        if lvl == "state" and any(o != g and o.startswith(g) for o in specific):
+            continue
+        if lvl == "county" and any(
+            len(o) in (11, 15) and o.startswith(g) for o in specific
+        ):
+            continue
+        kept.append((g, lvl, primary, src))
+    return kept
 
 
 def _confidence(meta: dict) -> float | None:
@@ -321,6 +354,14 @@ def persist_outcome(
         if scope_category in ("city_municipality", "neighborhood_community"):
             point = resolve_point(places_payload, article.publication_city)
             geoid = _geoid_for(places_payload, point)
+            # A point-scope story must never take the ladder's state rung —
+            # that rung exists for statewide scope. A state-level result here
+            # means the point city missed the gazetteer (e.g. "Webster" for
+            # Webster Groves): treat as unresolved so the publication-place
+            # fallback below applies instead of coding the whole state.
+            if geoid is not None and geoid.level == "state":
+                geoid = None
+                point = None
     # Story-level fallbacks (decided 2026-08-21). regional gets NO story-level
     # code: its geography is the per-place GEOIDs on its mentions — a state
     # championship matters to the two teams' cities, not to the state.
@@ -549,6 +590,7 @@ def persist_outcome(
     # The story-to-FIPS set (one row per distinct GEOID; news geography is
     # one-to-many). Rebuilt whole on every persist.
     mention_geoids: list[tuple[str | None, str | None]] = []
+    mention_names: list[str | None] = []
     if places_payload:
         for location in places_payload.get("locations") or []:
             components = (location.get("location") or {}).get("components") or {}
@@ -561,11 +603,19 @@ def persist_outcome(
             if g is None and components.get("county") and loc_state:
                 g = county_geoid(components["county"], loc_state)
             mention_geoids.append((g.geoid if g else None, g.level if g else None))
+            mention_names.append(city)
     state_code = None
     if article.publication_state:
         sg = state_geoid(article.publication_state)
         state_code = sg.geoid if sg else None
-    story_geoids = build_story_geoids(geoid, mention_geoids, scope_category, state_code)
+    story_geoids = build_story_geoids(
+        geoid,
+        mention_geoids,
+        scope_category,
+        state_code,
+        point_place_name=point[0] if point else None,
+        place_row_names=mention_names,
+    )
     geoids_json = json.dumps([g for g, *_ in story_geoids]) if story_geoids else None
     session.execute(
         text("DELETE FROM article_geoids WHERE article_id = :id"), {"id": article.id}
