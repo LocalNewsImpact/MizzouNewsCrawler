@@ -2,8 +2,8 @@
 
 Proposal for a final pipeline stage that extracts places, people, organizations
 and article metadata using [backfield](https://github.com/localangle/backfield),
-writing to the crawler's own database so the results replicate to BigQuery
-through the existing Datastream CDC.
+writing to the crawler's own database. Results reach BigQuery through per-table
+scheduled queries, alongside the four that exist today.
 
 Every figure below was measured on 20 August 2026 — against the production
 database, and by running backfield's nodes on 100 real articles. Nothing here is
@@ -14,14 +14,17 @@ a vendor claim or an estimate where a measurement was possible.
 ## 1. Where it fits
 
 ```
-discover → extract → clean → wire check → CIN label → ENRICH → Datastream → BigQuery
+discover → extract → clean → wire check → CIN label → ENRICH → scheduled sync → BigQuery
                                               ↓                    ↓
                                      status='labeled'      status='enriched'
                                      (candidate)           (exportable)
 ```
 
-**The export criterion changes.** Today BigQuery takes
-`status='labeled' AND wire_check_status='complete'`. It will instead take:
+**The export criterion changes.** The deployed mechanism (verified 2026-08-20)
+is a BigQuery scheduled query, "Sync Articles from Cloud SQL", running daily at
+07:00 UTC as a full refresh with the filter `status = 'labeled'` — the
+`wire_check_status` condition appearing in code comments is not in the deployed
+query. The filter becomes:
 
 ```sql
 status IN ('enriched', 'enrichment_skipped')
@@ -68,7 +71,11 @@ Consequences:
 
 - **Junk cannot export.** An article rejected by the content gate in §3 takes a
   terminal `not_article` or `paywall` status, which is in neither exportable
-  state, whatever CIN label it was given. The cookie-text defect closes by construction rather than by adding a
+  state, whatever CIN label it was given.
+- **The sync is a full refresh**, so a status change takes effect at the next
+  07:00 run — including removal. This is why reprocessing must never reset
+  status (§8), and why the criterion is widened before the first enrichment run
+  (implementation spec, Phase 2). The cookie-text defect closes by construction rather than by adding a
   check earlier in the pipeline.
 - **Enrichment failure withholds export.** An article that errors stays at
   `labeled` and does not appear in BigQuery until it succeeds. This is the
@@ -540,7 +547,7 @@ or that failed. This is a first-class requirement, not a migration script.
 ### Candidacy is a version comparison, not a status change
 
 Re-queuing by setting articles back to `labeled` would stop them matching the
-export criterion, and Datastream would withdraw already-published rows from
+export filter, and the next daily full refresh would drop those rows from
 BigQuery for the duration of reprocessing.
 
 The profile therefore carries a version, each enrichment row records the version
@@ -583,9 +590,9 @@ applied, for the same reason the job carries a spend ceiling.
 
 ## 9. Schema
 
-New tables in the crawler database, all keyed on `article_id`. Datastream
-replicates them to BigQuery automatically — no export code, no schema
-registration.
+New tables in the crawler database, all keyed on `article_id`. Each is synced
+to BigQuery by its own scheduled query, following the four that exist — the
+sync is per-table and explicit, not automatic.
 
 All samples below are real output from
 `openrouter/deepseek/deepseek-v3.2` on one article: *"Meet Diane Grimes,
