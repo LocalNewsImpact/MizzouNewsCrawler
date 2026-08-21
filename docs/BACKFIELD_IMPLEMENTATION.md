@@ -318,7 +318,187 @@ In this order:
 **Rollback:** revert to the superset criterion. Enrichment data is additive and
 need not be removed.
 
-## 5. Delivery mechanics, verified against the repo
+## 5. Detailed contracts
+
+The subsections below are the decisions an implementer would otherwise have to
+make alone. They are part of the specification: departures are review findings,
+not style choices.
+
+### 5.1 Candidate queries
+
+Steady state:
+
+```sql
+SELECT a.id, a.title, a.content, d.slug, s.city
+FROM articles a
+JOIN candidate_links cl ON cl.id = a.candidate_link_id
+JOIN dataset_sources ds ON ds.source_id = cl.source_id
+JOIN datasets d          ON d.id = ds.dataset_id
+LEFT JOIN sources s      ON s.id = cl.source_id
+WHERE d.slug = :dataset
+  AND a.status = 'labeled'
+  AND a.wire_check_status = 'complete'
+  AND a.enrichment_attempts < :max_attempts
+ORDER BY a.created_at
+LIMIT :batch
+FOR UPDATE OF a SKIP LOCKED
+```
+
+`FOR UPDATE SKIP LOCKED` follows the direct extraction path's pattern and makes
+concurrent runs safe. Reprocessing adds the §8 version comparison as an `OR`
+branch and drops the status filter for the two terminal statuses.
+
+Backfill replaces the status predicate with `a.id = ANY(:ids)` and reports each
+id that fails the remaining predicates, with which predicate failed.
+
+### 5.2 Orchestrator algorithm
+
+```
+enrich_article(article, profile):
+  steps = []
+  if profile.content_gate:
+      heuristic = boilerplate_score(article.content)          # free
+      if heuristic >= HEURISTIC_REJECT:  return outcome(not_article, gate="heuristic")
+      gate = run_content_gate(article)                        # truncated call
+      if not gate.ok:                    return outcome(labeled)   # transient
+      if gate.payload["verdict"] == "paywall":  return outcome(paywall)
+      if not gate.payload["is_news"]:    return outcome(not_article)
+      steps += [content_gate]
+  scope = None
+  if profile.scope:
+      r = run_scope(article);  fail -> outcome(labeled)
+      scope = r.payload["category"]; steps += [scope]
+  if profile.places and scope in POINT_SCOPES:               # never without scope
+      r = run_places(article); fail -> outcome(labeled)
+      steps += [places]
+      point = resolve_point(r.payload, article.publication_city)
+      if profile.geocode and point is None: ...               # §3 step 4
+  for preset in profile.metadata_presets:
+      r = run_preset(article, preset); fail -> outcome(labeled)
+      steps += [preset]
+  if profile.people:        run_people; fail -> outcome(labeled); steps += [people]
+  if profile.organizations: run_organizations; likewise
+  return outcome(enriched if steps else enrichment_skipped(profile_none))
+```
+
+Rules the pseudocode encodes, stated once:
+
+- **Any transient failure aborts the article, not the batch**, leaves status
+  `labeled`, increments `enrichment_attempts`, and discards partial results.
+  Steps are cheap ($0.0008); partial-resume bookkeeping is not worth its bugs.
+- **Gate rejection is terminal** and does not increment attempts.
+- `POINT_SCOPES = {city_municipality, neighborhood_community}`.
+- `places` without `scope` in a profile is a validation error (§3), because the
+  gate on 54% of articles is the cost model.
+
+### 5.3 Transient versus terminal
+
+| Class | Examples | Effect |
+|---|---|---|
+| Transient | timeout, HTTP 429/5xx, malformed JSON, connection error | `labeled`, attempts += 1 |
+| Terminal — content | gate verdicts | `not_article` / `paywall` |
+| Terminal — exhausted | attempts == `ENRICHMENT_MAX_ATTEMPTS` | `enrichment_skipped` / `failed_max_attempts` |
+| Configuration | invalid profile, missing key, unknown preset | **run fails at startup; no article is touched** |
+
+Configuration errors must not burn attempts: a typo in a profile would otherwise
+march every candidate to `failed_max_attempts`.
+
+### 5.4 Field mappings, node payload → schema
+
+Keys verified against real node output on 2026-08-20.
+
+`place_extract` location → `article_places`:
+
+| Payload | Column |
+|---|---|
+| `location.full` | `full_name` |
+| `location.type` | `place_type` |
+| `location.components.city` | `city` |
+| `location.components.county` | `county` |
+| `location.components.state.abbr` (dict) else the string | `state` |
+| `location.components.address` | `address` |
+| `description` | `description` |
+| `original_text` | `mention_text` |
+
+`person_extract` person → `article_people`:
+
+| Payload | Column |
+|---|---|
+| `name`, `sort_key`, `title`, `affiliation` | same names |
+| `type` | `person_type` |
+| `role_in_story`, `nature`, `public_figure` | same names |
+| `len(mentions)` | `mention_count` |
+| `[m.text for m in mentions if m.quote]` | `quotes` (jsonb) |
+
+`organization_extract` → `article_organizations`: `name`, `type → org_type`,
+`organization_boundary → boundary`, `role_in_story`, `nature`,
+`len(mentions) → mention_count`.
+
+Payload fields not listed (`needs_review`, `review_*`, `nature_secondary_tags`,
+`geocode_hints`) are dropped, deliberately: they serve backfield's review UI,
+which is not deployed.
+
+### 5.5 Point resolution
+
+```
+resolve_point(locations, publication_city):
+  cities = unique normalized city components
+  if len(cities) == 1:                        return (city, "single_city")
+  if norm(publication_city) in cities:        return (publication_city, "publication_city")
+  return None
+```
+
+`norm()` = lowercase, collapse whitespace, strip punctuation except internal
+apostrophes ("Lee's Summit"), strip a leading "the". Coordinates come from a
+GNIS lookup keyed on (place name, state); a miss leaves `lat/lon` null with the
+place name still recorded.
+
+### 5.6 Content gate
+
+Heuristic: count of case-insensitive matches for `cookie(s)`, `consent`,
+`privacy policy`, `advertising partner(s)`, `vendor list`, `manage preferences`,
+`opt out` over the full text. `HEURISTIC_REJECT = 5`, pending Phase 0 tuning —
+at 5 it selects exactly the one known-bad article in the sample and nothing
+else.
+
+Gate call: `custom` preset, first 800 characters, `meta_type="content_gate"`
+(`information_needs` and the six production names are reserved). Prompt returns
+one of `news`, `paywall`, `not_news`, mapped to pass / `paywall` /
+`not_article`. The prompt file lives in `src/enrichment/prompts/` and is
+versioned in `prompt_versions` like the presets.
+
+### 5.7 Cost accounting
+
+`litellm`'s response `usage` supplies `prompt_tokens` and `completion_tokens`
+per call; rates come from a config dict keyed by model id, not hardcoded
+(`{"openrouter/deepseek/deepseek-v3.2": {"in": 0.25e-6, "out": 0.95e-6}}`).
+`StepResult` carries tokens and cost; `article_enrichment.cost_usd` is their
+sum. The ceiling check runs between articles, not between steps — an article is
+never half-billed.
+
+### 5.8 Scheduled queries for the new tables
+
+One per table, following the existing four. Template:
+
+```sql
+SELECT * FROM EXTERNAL_QUERY(
+  "mizzou-news-crawler.us.cloudsql_connection",
+  "SELECT * FROM article_enrichment;");
+```
+
+Same for `article_places`, `article_people`, `article_organizations`. Full
+refresh daily at 07:00 UTC, matching the articles sync so the joined state is
+consistent within a day. No status filter: presence in these tables already
+implies the article was processed.
+
+### 5.9 CronJob schedule
+
+`schedule: "30 */4 * * *"` — every four hours at :30, six runs a day, first
+candidate enriched at most ~4h after labelling. Offset from the 07:00 UTC sync
+so a run is not writing while the sync reads. `concurrencyPolicy: Forbid` plus
+`SKIP LOCKED` makes an overrun harmless.
+
+## 6. Delivery mechanics, verified against the repo
 
 | Concern | Mechanism |
 |---|---|
@@ -328,7 +508,7 @@ need not be removed.
 | Namespace | `production`, as all existing CronJobs |
 | BigQuery sync | Transfer configs live in project `mizzou-news-crawler`, location `us`; the four existing ids are listed by `bq ls --transfer_config` |
 
-## 6. Cross-cutting requirements
+## 7. Cross-cutting requirements
 
 | Requirement | Where |
 |---|---|
@@ -340,7 +520,7 @@ need not be removed.
 | `operator_bypass` path exists and is used in drills | Phase 6 |
 | Structured logs carry `article_id`, `step`, `dataset` | all |
 
-## 7. Risks
+## 8. Risks
 
 | Risk | Mitigation | Phase |
 |---|---|---|
@@ -351,7 +531,7 @@ need not be removed.
 | Profile drift between datasets corrupts analysis | `steps_applied` recorded; consumers filter on it | 4 |
 | Cost overrun | Per-run ceiling, `--dry-run` projection | 5 |
 
-## 8. Not in scope
+## 9. Not in scope
 
 Entity canonicalization, embeddings, backfield's Stylebook or APIs, replacing our
 CIN classifier, and the ~82,000 historical articles outside the supplied backfill
