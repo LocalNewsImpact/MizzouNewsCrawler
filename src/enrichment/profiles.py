@@ -185,6 +185,9 @@ def configured_steps(profile: Profile) -> list[str]:
         steps.append("scope")
     if profile.places:
         steps.append("places")
+        # The central-geography claim runs with places at point scope; it is
+        # part of what a places-enabled profile asks for.
+        steps.append("focus")
     steps.extend(profile.metadata_presets)
     if profile.people:
         steps.append("people")

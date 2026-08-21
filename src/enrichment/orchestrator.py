@@ -120,6 +120,15 @@ def enrich_article(
         resolve_point(places.payload, article.publication_city)
         # The resolved point rides in the places StepResult payload for the
         # repository to persist; geocode (step 4) is validated off in profiles.
+        if scope_category in POINT_SCOPES:
+            # The central-geography claim (decided 2026-08-21): the model
+            # designates the one city the story is about; the repository
+            # prefers it over the name-match heuristic for the point. A focus
+            # failure is not fatal — resolution falls back down the chain.
+            focus = adapter.run_focus(article, model)
+            results.append(focus)
+            if focus.ok:
+                steps.append("focus")
 
     # ---- step 5: remaining metadata presets ----------------------------------
     for preset in profile.metadata_presets:

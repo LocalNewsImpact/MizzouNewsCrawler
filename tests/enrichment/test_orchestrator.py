@@ -81,6 +81,19 @@ class StubAdapter:
     def run_places(self, article, model):
         return self._result("places", ok("places", {"locations": []}))
 
+    def run_focus(self, article, model):
+        return self._result(
+            "focus",
+            ok(
+                "focus",
+                {
+                    "central": {"city": "Columbia", "state": "MO"},
+                    "mentions": [],
+                    "rationale": "",
+                },
+            ),
+        )
+
     def run_people(self, article, model):
         return self._result("people", ok("people", {"people": []}))
 
@@ -115,6 +128,7 @@ class TestProfiles:
             "content_gate",
             "scope",
             "places",
+            "focus",
             "subject",
             "topic",
             "format",
@@ -316,6 +330,7 @@ class TestReprocessingDelta:
         applied = ["content_gate", "scope", "subject"]
         assert missing_steps(FULL, applied) == [
             "places",
+            "focus",
             "topic",
             "format",
             "temporal_orientation",

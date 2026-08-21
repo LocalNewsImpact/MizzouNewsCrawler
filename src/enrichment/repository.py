@@ -352,16 +352,32 @@ def persist_outcome(
         # A point is resolved only at point scope. Regional keeps its places
         # rows (each with a per-place GEOID) and no story-level point.
         if scope_category in ("city_municipality", "neighborhood_community"):
-            point = resolve_point(places_payload, article.publication_city)
-            geoid = _geoid_for(places_payload, point)
-            # A point-scope story must never take the ladder's state rung —
-            # that rung exists for statewide scope. A state-level result here
-            # means the point city missed the gazetteer (e.g. "Webster" for
-            # Webster Groves): treat as unresolved so the publication-place
-            # fallback below applies instead of coding the whole state.
-            if geoid is not None and geoid.level == "state":
-                geoid = None
-                point = None
+            # The claim chain (decided 2026-08-21): the model's central-
+            # geography designation first, the name-match heuristic second,
+            # the publication place (below) last. point_method records which
+            # rung made the claim.
+            focus = step_payloads.get("focus") or {}
+            central = focus.get("central") or {}
+            if central.get("city"):
+                c_state = central.get("state") or article.publication_state
+                hit = place_geoid(central["city"], c_state) if c_state else None
+                if hit is None and c_state:
+                    hit = county_geoid(central["city"], c_state)
+                if hit is not None and hit.level != "state":
+                    point = (central["city"], "focus_model")
+                    geoid = hit
+            if geoid is None:
+                point = resolve_point(places_payload, article.publication_city)
+                geoid = _geoid_for(places_payload, point)
+                # A point-scope story must never take the ladder's state rung —
+                # that rung exists for statewide scope. A state-level result
+                # here means the point city missed the gazetteer (e.g.
+                # "Webster" for Webster Groves): treat as unresolved so the
+                # publication-place fallback below applies instead of coding
+                # the whole state.
+                if geoid is not None and geoid.level == "state":
+                    geoid = None
+                    point = None
     # Story-level fallbacks (decided 2026-08-21). regional gets NO story-level
     # code: its geography is the per-place GEOIDs on its mentions — a state
     # championship matters to the two teams' cities, not to the state.
@@ -616,7 +632,12 @@ def persist_outcome(
         point_place_name=point[0] if point else None,
         place_row_names=mention_names,
     )
-    geoids_json = json.dumps([g for g, *_ in story_geoids]) if story_geoids else None
+    # Two columns (decided 2026-08-21): point_geoid is the central-location
+    # claim; the flat geoids column carries ONLY the mentioned FIPS — the
+    # claim is never repeated there. article_geoids keeps the superset with
+    # is_primary flags.
+    mention_set = [g for g, _lvl, primary, _src in story_geoids if not primary]
+    geoids_json = json.dumps(mention_set) if mention_set else json.dumps([])
     session.execute(
         text("DELETE FROM article_geoids WHERE article_id = :id"), {"id": article.id}
     )

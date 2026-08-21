@@ -27,6 +27,8 @@ from src.enrichment.types import ArticleInput, StepResult
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 GATE_PROMPT_VERSION = "content_gate-v1"
 GATE_WINDOW_CHARS = 800
+FOCUS_PROMPT_VERSION = "focus-v1"
+FOCUS_MAX_CHARS = 20000
 DEFAULT_TIMEOUT_S = 300
 
 _USAGE_ACC: ContextVar[list | None] = ContextVar("enrichment_usage_acc", default=None)
@@ -224,6 +226,74 @@ def run_content_gate(
     except Exception as exc:
         return StepResult(
             step="content_gate",
+            ok=False,
+            payload=None,
+            error=f"{type(exc).__name__}: {exc}"[:500],
+            input_tokens=0,
+            output_tokens=0,
+            cost_usd=Decimal("0"),
+        )
+
+
+def run_focus(article: ArticleInput, model: str) -> StepResult:
+    """The central-geography claim: which one city/town is this story about.
+
+    Direct litellm call like the gate. Instructions lead and the article text
+    trails so the shared prefix caches across articles. The model's central
+    answer feeds point resolution; its mention list is advisory (place_extract
+    remains the mention source of record). Validated 5-for-5 against stories
+    where the name-match heuristic failed (2026-08-21)."""
+    try:
+        import litellm
+
+        text = (
+            f"Headline: {article.title}\n\n{(article.content or '')[:FOCUS_MAX_CHARS]}"
+        )
+        prompt = (PROMPTS_DIR / "focus.md").read_text().replace("{text}", text)
+        response = litellm.completion(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=300,
+            timeout=DEFAULT_TIMEOUT_S,
+            temperature=0,
+            response_format={"type": "json_object"},
+        )
+        raw = response.choices[0].message.content or ""
+        raw = re.sub(r"^```(json)?|```$", "", raw.strip(), flags=re.M).strip()
+        parsed = json.loads(raw)
+        central = parsed.get("central") or {}
+        if not central.get("city"):
+            raise ValueError("no central city in focus response")
+        usage = response.usage
+        tokens_in = int(getattr(usage, "prompt_tokens", 0) or 0)
+        tokens_out = int(getattr(usage, "completion_tokens", 0) or 0)
+        return StepResult(
+            step="focus",
+            ok=True,
+            payload={
+                "central": {
+                    "city": str(central.get("city"))[:120],
+                    "state": str(central.get("state") or "")[:40] or None,
+                },
+                "mentions": [
+                    {
+                        "city": str(m.get("city"))[:120],
+                        "state": str(m.get("state") or "")[:40] or None,
+                    }
+                    for m in (parsed.get("mentions") or [])
+                    if isinstance(m, dict) and m.get("city")
+                ][:25],
+                "rationale": str(parsed.get("rationale", ""))[:300],
+                "prompt_version": FOCUS_PROMPT_VERSION,
+            },
+            error=None,
+            input_tokens=tokens_in,
+            output_tokens=tokens_out,
+            cost_usd=call_cost(model, tokens_in, tokens_out),
+        )
+    except Exception as exc:
+        return StepResult(
+            step="focus",
             ok=False,
             payload=None,
             error=f"{type(exc).__name__}: {exc}"[:500],
