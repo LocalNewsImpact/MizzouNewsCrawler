@@ -15,8 +15,8 @@ def test_due_only_defaults_to_false():
     subparsers = parser.add_subparsers()
     add_discovery_parser(subparsers)
 
-    # Parse with no arguments
-    args = parser.parse_args(["discover-urls"])
+    # Parse with only the required dataset
+    args = parser.parse_args(["discover-urls", "--dataset", "Mizzou-Missouri-State"])
 
     # Should default to False to allow first run
     assert hasattr(args, "due_only")
@@ -34,7 +34,9 @@ def test_force_all_flag_exists():
     add_discovery_parser(subparsers)
 
     # Parse with --force-all
-    args = parser.parse_args(["discover-urls", "--force-all"])
+    args = parser.parse_args(
+        ["discover-urls", "--dataset", "Mizzou-Missouri-State", "--force-all"]
+    )
 
     assert hasattr(args, "force_all")
     assert args.force_all is True
@@ -49,7 +51,9 @@ def test_due_only_can_be_enabled():
     add_discovery_parser(subparsers)
 
     # Parse with --due-only
-    args = parser.parse_args(["discover-urls", "--due-only"])
+    args = parser.parse_args(
+        ["discover-urls", "--dataset", "Mizzou-Missouri-State", "--due-only"]
+    )
 
     assert args.due_only is True
 
@@ -69,6 +73,20 @@ def test_dataset_filter_works():
     assert args.dataset == "Mizzou-Missouri-State"
 
 
+def test_dataset_is_required():
+    """A discovery run without a dataset must refuse to start: collection is
+    always dataset-scoped, and an unscoped run would crawl every source in
+    every dataset (decided 2026-08-21)."""
+    from src.cli.commands.discovery import add_discovery_parser
+
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers()
+    add_discovery_parser(subparsers)
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["discover-urls"])
+
+
 def test_source_limit_works():
     """Verify --source-limit argument works."""
     from src.cli.commands.discovery import add_discovery_parser
@@ -78,7 +96,9 @@ def test_source_limit_works():
     add_discovery_parser(subparsers)
 
     # Parse with --source-limit
-    args = parser.parse_args(["discover-urls", "--source-limit", "10"])
+    args = parser.parse_args(
+        ["discover-urls", "--dataset", "Mizzou-Missouri-State", "--source-limit", "10"]
+    )
 
     assert hasattr(args, "source_limit")
     assert args.source_limit == 10

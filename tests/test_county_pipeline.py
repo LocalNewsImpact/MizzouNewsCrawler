@@ -37,7 +37,7 @@ def test_orchestrate_pipeline_forces_verification_batch_size(monkeypatch):
 
     county_pipeline.orchestrate_pipeline(
         counties=["Boone"],
-        dataset=None,
+        dataset="test-dataset",
         source_limit=None,
         max_articles=10,
         days_back=7,
@@ -90,7 +90,7 @@ def test_orchestrate_pipeline_raises_on_multi_county_failure(monkeypatch):
     with pytest.raises(county_pipeline.PipelineError):
         county_pipeline.orchestrate_pipeline(
             counties=["Boone", "Osage"],
-            dataset=None,
+            dataset="test-dataset",
             source_limit=None,
             max_articles=5,
             days_back=7,
@@ -144,7 +144,7 @@ def test_orchestrate_pipeline_skips_extraction_when_verification_exhausted(
 
     county_pipeline.orchestrate_pipeline(
         counties=["Boone"],
-        dataset=None,
+        dataset="test-dataset",
         source_limit=None,
         max_articles=5,
         days_back=7,
@@ -186,7 +186,7 @@ def test_orchestrate_pipeline_logs_skip_when_queue_empty(monkeypatch, caplog):
 
     county_pipeline.orchestrate_pipeline(
         counties=["Boone"],
-        dataset=None,
+        dataset="test-dataset",
         source_limit=None,
         max_articles=5,
         days_back=7,
@@ -239,7 +239,7 @@ def test_orchestrate_pipeline_bubbles_verification_failure(monkeypatch):
     with pytest.raises(county_pipeline.PipelineError):
         county_pipeline.orchestrate_pipeline(
             counties=["Boone"],
-            dataset=None,
+            dataset="test-dataset",
             source_limit=None,
             max_articles=5,
             days_back=7,
@@ -296,7 +296,7 @@ def test_orchestrate_pipeline_bubbles_extraction_failure(monkeypatch):
     with pytest.raises(county_pipeline.PipelineError):
         county_pipeline.orchestrate_pipeline(
             counties=["Boone"],
-            dataset=None,
+            dataset="test-dataset",
             source_limit=None,
             max_articles=5,
             days_back=7,
@@ -354,7 +354,7 @@ def test_orchestrate_pipeline_bubbles_analysis_failure(monkeypatch):
     with pytest.raises(county_pipeline.PipelineError):
         county_pipeline.orchestrate_pipeline(
             counties=["Boone"],
-            dataset=None,
+            dataset="test-dataset",
             source_limit=None,
             max_articles=5,
             days_back=7,
@@ -694,6 +694,8 @@ def test_main_returns_zero_with_legacy_cli(monkeypatch):
         [
             "--counties",
             "Boone",
+            "--dataset",
+            "test-dataset",
             "--legacy-cli",
             "--dry-run",
             "--log-level",
@@ -716,7 +718,9 @@ def test_main_returns_one_on_pipeline_error(monkeypatch):
         fake_orchestrate_pipeline,
     )
 
-    exit_code = county_pipeline.main(["--counties", "Boone", "--dry-run"])
+    exit_code = county_pipeline.main(
+        ["--counties", "Boone", "--dataset", "test-dataset", "--dry-run"]
+    )
 
     assert exit_code == 1
 
@@ -731,7 +735,9 @@ def test_main_returns_one_on_keyboard_interrupt(monkeypatch):
         fake_orchestrate_pipeline,
     )
 
-    exit_code = county_pipeline.main(["--counties", "Boone", "--dry-run"])
+    exit_code = county_pipeline.main(
+        ["--counties", "Boone", "--dataset", "test-dataset", "--dry-run"]
+    )
 
     assert exit_code == 1
 
@@ -769,6 +775,8 @@ def test_module_entrypoint_executes_main(monkeypatch):
             "county_pipeline.py",
             "--counties",
             "Boone",
+            "--dataset",
+            "test-dataset",
             "--dry-run",
             "--skip-verification",
             "--skip-extraction",

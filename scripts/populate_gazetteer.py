@@ -173,6 +173,17 @@ class GazetteerTelemetry:
 telemetry = GazetteerTelemetry()
 
 
+# OSM services require an identifiable User-Agent with a real point of
+# contact. Nominatim 403-blocks placeholder contacts outright; Overpass
+# answers the default python-requests agent with HTTP 406 and fail2bans the
+# IP after roughly a dozen of them (observed from three different egress IPs
+# on 2026-08-21 — thirteen 406s, then connection refusals, every time).
+OSM_USER_AGENT = (
+    "MizzouNewsCrawler-gazetteer/1.0 "
+    "(+https://github.com/LocalNewsImpact/MizzouNewsCrawler)"
+)
+
+
 def geocode_address_nominatim(address: str) -> dict[str, float] | None:
     """Geocode an address string with Nominatim (OpenStreetMap).
 
@@ -180,14 +191,7 @@ def geocode_address_nominatim(address: str) -> dict[str, float] | None:
     """
     url = "https://nominatim.openstreetmap.org/search"
     params = {"q": address, "format": "jsonv2", "limit": 1}
-    # Nominatim's usage policy requires an identifiable User-Agent with a real
-    # point of contact; placeholder addresses get the whole client 403-blocked.
-    headers = {
-        "User-Agent": (
-            "MizzouNewsCrawler-gazetteer/1.0 "
-            "(+https://github.com/LocalNewsImpact/MizzouNewsCrawler)"
-        )
-    }
+    headers = {"User-Agent": OSM_USER_AGENT}
 
     try:
         r = requests.get(url, params=params, headers=headers, timeout=10)
@@ -215,6 +219,96 @@ __all__ = ["create_engine"]
 # Keep a reference to the original SQLAlchemy create_engine so we can
 # detect when tests have monkeypatched the module-level name.
 ORIGINAL_CREATE_ENGINE = create_engine
+
+
+# Canonical POI category -> OSM tag filters, shared by the Overpass path,
+# the local-extract path, and scripts/build_osm_poi_extract.py. Both former
+# inline copies were identical; keep exactly one.
+CATEGORY_FILTER_MAP = {
+    "schools": [
+        "amenity=school",
+        "amenity=university",
+        "amenity=college",
+        "amenity=kindergarten",
+    ],
+    "government": [
+        "amenity=townhall",
+        "amenity=courthouse",
+        "amenity=police",
+        "amenity=fire_station",
+        "amenity=post_office",
+        "office=government",
+    ],
+    "healthcare": [
+        "amenity=hospital",
+        "amenity=clinic",
+        "amenity=pharmacy",
+        "amenity=dentist",
+        "amenity=veterinary",
+    ],
+    "businesses": [
+        "shop=supermarket",
+        "shop=department_store",
+        "amenity=restaurant",
+        "amenity=bank",
+        "shop=mall",
+        "amenity=fuel",
+    ],
+    "landmarks": [
+        "amenity=library",
+        "leisure=park",
+        "tourism=attraction",
+        "amenity=community_centre",
+        "historic=building",
+        "historic=monument",
+        "historic=memorial",
+        "historic=ruins",
+        "historic=archaeological_site",
+    ],
+    "sports": [
+        "leisure=sports_centre",
+        "leisure=stadium",
+        "leisure=pitch",
+        "leisure=golf_course",
+        "sport=american_football",
+        "sport=baseball",
+        "sport=basketball",
+    ],
+    "transportation": [
+        "railway=station",
+        "aeroway=aerodrome",
+        "highway=motorway_junction",
+        "amenity=parking",
+        "man_made=bridge",
+        "public_transport=station",
+    ],
+    "religious": [
+        "amenity=place_of_worship",
+        "building=church",
+        "building=cathedral",
+    ],
+    "entertainment": [
+        "amenity=theatre",
+        "amenity=cinema",
+        "amenity=bar",
+        "amenity=pub",
+        "leisure=fitness_centre",
+        "tourism=hotel",
+    ],
+    "economic": [
+        "landuse=industrial",
+        "landuse=commercial",
+        "landuse=construction",
+        "office=company",
+        "amenity=marketplace",
+        "shop=car",
+    ],
+    "emergency": [
+        "amenity=social_facility",
+        "emergency=phone",
+        "amenity=shelter",
+    ],
+}
 
 
 def zippopotamus_zip_lookup(zip5: str) -> dict[str, float] | None:
@@ -448,91 +542,7 @@ def _process_single_source_osm(session, src, dataset_id, radius_miles, dry_run=F
             return True
 
         # Get the category map (same as in bulk processing)
-        category_map = {
-            "schools": [
-                "amenity=school",
-                "amenity=university",
-                "amenity=college",
-                "amenity=kindergarten",
-            ],
-            "government": [
-                "amenity=townhall",
-                "amenity=courthouse",
-                "amenity=police",
-                "amenity=fire_station",
-                "amenity=post_office",
-                "office=government",
-            ],
-            "healthcare": [
-                "amenity=hospital",
-                "amenity=clinic",
-                "amenity=pharmacy",
-                "amenity=dentist",
-                "amenity=veterinary",
-            ],
-            "businesses": [
-                "shop=supermarket",
-                "shop=department_store",
-                "amenity=restaurant",
-                "amenity=bank",
-                "shop=mall",
-                "amenity=fuel",
-            ],
-            "landmarks": [
-                "amenity=library",
-                "leisure=park",
-                "tourism=attraction",
-                "amenity=community_centre",
-                "historic=building",
-                "historic=monument",
-                "historic=memorial",
-                "historic=ruins",
-                "historic=archaeological_site",
-            ],
-            "sports": [
-                "leisure=sports_centre",
-                "leisure=stadium",
-                "leisure=pitch",
-                "leisure=golf_course",
-                "sport=american_football",
-                "sport=baseball",
-                "sport=basketball",
-            ],
-            "transportation": [
-                "railway=station",
-                "aeroway=aerodrome",
-                "highway=motorway_junction",
-                "amenity=parking",
-                "man_made=bridge",
-                "public_transport=station",
-            ],
-            "religious": [
-                "amenity=place_of_worship",
-                "building=church",
-                "building=cathedral",
-            ],
-            "entertainment": [
-                "amenity=theatre",
-                "amenity=cinema",
-                "amenity=bar",
-                "amenity=pub",
-                "leisure=fitness_centre",
-                "tourism=hotel",
-            ],
-            "economic": [
-                "landuse=industrial",
-                "landuse=commercial",
-                "landuse=construction",
-                "office=company",
-                "amenity=marketplace",
-                "shop=car",
-            ],
-            "emergency": [
-                "amenity=social_facility",
-                "emergency=phone",
-                "amenity=shelter",
-            ],
-        }
+        category_map = CATEGORY_FILTER_MAP
 
         # Determine centroid: prefer full address, then ZIP, then city
         latlon = None
@@ -987,6 +997,62 @@ def haversine_miles(lat1: float, lon1: float, lat2: float, lon2: float) -> float
     return c * r
 
 
+# Local POI extract (scripts/build_osm_poi_extract.py output), loaded once.
+# When OSM_POI_CSV is set, query_overpass serves from this file instead of
+# any Overpass instance — no network, no rate limits, no bans.
+_LOCAL_POIS: list[dict] | None = None
+
+
+def _load_local_pois(path: str) -> list[dict]:
+    global _LOCAL_POIS
+    if _LOCAL_POIS is None:
+        import csv as _csv
+
+        rows = []
+        with open(path, newline="", encoding="utf-8") as fh:
+            for row in _csv.DictReader(fh):
+                rows.append(
+                    {
+                        "type": row["osm_type"],
+                        "id": int(row["osm_id"]),
+                        "lat": float(row["lat"]),
+                        "lon": float(row["lon"]),
+                        "tags": json.loads(row["tags"]),
+                    }
+                )
+        _LOCAL_POIS = rows
+        print(f"    Loaded {len(rows)} local POIs from {path}")
+    return _LOCAL_POIS
+
+
+def _query_local_pois(
+    lat: float, lon: float, radius_m: int, filters: list[str], path: str
+) -> list[dict]:
+    """Serve a query from the local extract, shaped like Overpass elements."""
+    wanted: dict[str, set[str]] = {}
+    for f in filters:
+        if "=" not in f:
+            continue
+        key, value = f.split("=", 1)
+        wanted.setdefault(key, set()).add(value)
+    radius_miles = radius_m / 1609.344
+    out = []
+    for el in _load_local_pois(path):
+        tags = el["tags"]
+        hit = any(
+            (v := tags.get(k)) is not None and ("*" in vals or v in vals)
+            for k, vals in wanted.items()
+        )
+        if not hit:
+            continue
+        try:
+            if haversine_miles(lat, lon, el["lat"], el["lon"]) <= radius_miles:
+                out.append(el)
+        except Exception:
+            continue
+    return out
+
+
 def query_overpass(
     lat: float, lon: float, radius_m: int, filters: list[str]
 ) -> list[dict]:
@@ -994,14 +1060,15 @@ def query_overpass(
 
     Returns list of elements (dicts) each with tags and center coordinates.
     """
+    local_csv = os.getenv("OSM_POI_CSV")
+    if local_csv:
+        return _query_local_pois(lat, lon, radius_m, filters, local_csv)
     # Endpoint and pacing are configurable because Overpass fail2bans an IP
     # that sends bulk traffic at the old 1-2.5s cadence (both crawler egress
     # IPs were banned mid-run on 2026-08-21, each within ~15 queries). The
     # default delay is what the main instance tolerates for a bulk run;
     # OVERPASS_URL allows pointing a run at a mirror with laxer limits.
-    overpass_url = os.getenv(
-        "OVERPASS_URL", "https://overpass-api.de/api/interpreter"
-    )
+    overpass_url = os.getenv("OVERPASS_URL", "https://overpass-api.de/api/interpreter")
     delay_s = float(os.getenv("OVERPASS_DELAY_S", "10"))
     # Build query parts
     parts = []
@@ -1021,7 +1088,12 @@ def query_overpass(
     time.sleep(delay_s + random.random() * 1.5)
 
     try:
-        r = requests.post(overpass_url, data={"data": q}, timeout=60)
+        r = requests.post(
+            overpass_url,
+            data={"data": q},
+            headers={"User-Agent": OSM_USER_AGENT},
+            timeout=60,
+        )
         if r.status_code == 200:
             return r.json().get("elements", [])
         # A non-200 is a failed query, not an empty area. Say so, or a
@@ -1181,7 +1253,12 @@ def query_overpass_all_categories(
         print(f"    First few filters: {unique_filters[:5]}")
 
     try:
-        r = requests.post(overpass_url, data={"data": q}, timeout=60)
+        r = requests.post(
+            overpass_url,
+            data={"data": q},
+            headers={"User-Agent": OSM_USER_AGENT},
+            timeout=60,
+        )
         if r.status_code != 200:
             print(f"    Overpass API returned status {r.status_code}")
             if r.status_code == 400:
@@ -1442,91 +1519,7 @@ def main(
     datasets = session.execute(ds_q).scalars().all()
 
     # Overpass categories to fetch (map to our internal category label)
-    category_map = {
-        "schools": [
-            "amenity=school",
-            "amenity=university",
-            "amenity=college",
-            "amenity=kindergarten",
-        ],
-        "government": [
-            "amenity=townhall",
-            "amenity=courthouse",
-            "amenity=police",
-            "amenity=fire_station",
-            "amenity=post_office",
-            "office=government",
-        ],
-        "healthcare": [
-            "amenity=hospital",
-            "amenity=clinic",
-            "amenity=pharmacy",
-            "amenity=dentist",
-            "amenity=veterinary",
-        ],
-        "businesses": [
-            "shop=supermarket",
-            "shop=department_store",
-            "amenity=restaurant",
-            "amenity=bank",
-            "shop=mall",
-            "amenity=fuel",
-        ],
-        "landmarks": [
-            "amenity=library",
-            "leisure=park",
-            "tourism=attraction",
-            "amenity=community_centre",
-            "historic=building",
-            "historic=monument",
-            "historic=memorial",
-            "historic=ruins",
-            "historic=archaeological_site",
-        ],
-        "sports": [
-            "leisure=sports_centre",
-            "leisure=stadium",
-            "leisure=pitch",
-            "leisure=golf_course",
-            "sport=american_football",
-            "sport=baseball",
-            "sport=basketball",
-        ],
-        "transportation": [
-            "railway=station",
-            "aeroway=aerodrome",
-            "highway=motorway_junction",
-            "amenity=parking",
-            "man_made=bridge",
-            "public_transport=station",
-        ],
-        "religious": [
-            "amenity=place_of_worship",
-            "building=church",
-            "building=cathedral",
-        ],
-        "entertainment": [
-            "amenity=theatre",
-            "amenity=cinema",
-            "amenity=bar",
-            "amenity=pub",
-            "leisure=fitness_centre",
-            "tourism=hotel",
-        ],
-        "economic": [
-            "landuse=industrial",
-            "landuse=commercial",
-            "landuse=construction",
-            "office=company",
-            "amenity=marketplace",
-            "shop=car",
-        ],
-        "emergency": [
-            "amenity=social_facility",
-            "emergency=phone",
-            "amenity=shelter",
-        ],
-    }
+    category_map = CATEGORY_FILTER_MAP
 
     # Quick single-address mode: geocode the provided address and run
     # Overpass queries for each category, printing results. This is a
@@ -1726,7 +1719,13 @@ def main(
                 lat, lon, miles_to_meters(coverage_miles), category_map
             )
 
-            # Process results for each category and insert into database
+            # Process results for each category and insert into database.
+            # One OSM element can match several categories (a school tagged
+            # community_centre matches both), but the table's unique key is
+            # (source, dataset, osm id) — a repeat in a later category used
+            # to fail that category's ENTIRE insert batch. First matching
+            # category wins; repeats are skipped before they reach the batch.
+            seen_osm: set[tuple[str, str]] = set()
             for cat in category_map.keys():
                 elements = all_results.get(cat, [])
                 print(f"    Processing category: {cat}")
@@ -1738,6 +1737,9 @@ def main(
                         continue
                     osm_type = el.get("type")
                     osm_id = str(el.get("id"))
+                    if (osm_type, osm_id) in seen_osm:
+                        continue
+                    seen_osm.add((osm_type, osm_id))
                     # center may be present for ways; otherwise use lat/lon
                     # on node
                     if "center" in el and el["center"]:
