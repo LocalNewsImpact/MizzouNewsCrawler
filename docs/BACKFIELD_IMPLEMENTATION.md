@@ -203,22 +203,39 @@ Consequences that shape this phase:
   **Each new table in Phase 1 needs its own scheduled query**, created alongside
   the migration (four `EXTERNAL_QUERY` transfers, following the existing ones).
 
-Work:
+**Executed 2026-08-21.** The Phase 1 migration was applied to production first
+(head `e7a1c2b3d4f5` → `f8b2d3c4e5a6`), because the new syncs would otherwise
+fail daily against tables that did not exist.
 
-1. Edit the transfer config's inner query to
-   `SELECT * FROM articles WHERE status IN ('labeled','enriched','enrichment_skipped')`
-2. Add the four scheduled queries for the new tables (they return zero rows
-   until Phase 5 writes)
-3. Record the transfer-config ids in this document
+Transfer configs, project 145096615031, location `us`
+(prefix `projects/145096615031/locations/us/transferConfigs/`):
 
-**Exit:**
-- The widened query is live; the next scheduled run produces an identical row
-  count (no article yet carries a new status)
-- Four new transfers exist and succeed, each currently syncing zero rows
-- The two-status form is scheduled for Phase 7, not now
+| Table | Config id | Status |
+|---|---|---|
+| articles (widened) | `693ab8dd-0000-2226-891c-582429a83fdc` | pre-existing, filter now the three-status superset |
+| article_enrichment | `6b11c241-0000-22e6-a83a-9898fbb3bd65` | created |
+| article_places | `6b0c4aac-0000-2631-afe8-34c7e91d569b` | created |
+| article_people | `6b11c263-0000-22e6-a83a-9898fbb3bd65` | created |
+| article_organizations | `6abb5da1-0000-2369-ac2e-34c7e91a181b` | created |
+
+All five daily at 07:00 UTC, `WRITE_TRUNCATE`, same connection.
+
+**Trap, hit during execution: `bq update --transfer_config --params` REPLACES
+the whole params object.** Passing only `query` silently dropped
+`destination_table_name_template` and `write_disposition`, and the next run
+failed with "A destination table must be set with SELECT statements." Any params
+update must carry all three keys. The same replace-not-merge behaviour as
+`gcloud run deploy --set-env-vars`.
+
+**Exit — verified by manual runs:**
+- Widened articles sync SUCCEEDED with **104,521 rows — identical** to the
+  pre-change count and to production's superset count, queried the same day (the
+  superset predicate equals `labeled` while no article carries a new status)
+- All four new syncs SUCCEEDED, each landing **0 rows**
+- The two-status form remains scheduled for Phase 7
 
 **Rollback:** restore the previous inner query; correct while no article carries
-a new status.
+a new status. The four new configs can simply be deleted.
 
 ### Phase 3 — Adapter and node wrappers
 
