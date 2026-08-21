@@ -1,0 +1,417 @@
+{
+ "scope": {
+  "step": "scope",
+  "ok": true,
+  "payload": {
+   "text": "Headline: Meet Diane Grimes, candidate for Warren County Ambulance District Board of Directors - Warren County Record\n\nWe use cookies to help our site function properly, understand how readers use our content, and support our journalism. Reject non-essential My preferences Accept all 32\u00b0 F Clear Advanced search Log in Subscribe Election 2026 Meet Diane Grimes, candidate for Warren County Ambulance District Board of Directors Posted Monday, March 16, 2026 1:52 pm Name: Diane Grimes Age: 59 Hometown: Warrenton Occupation: Finance administrator/business owner Position sought: Warren County Ambulance District Board of Aldermen, subdistrict 1 Previous political experience: 8 years, Warren County Ambulance District Board of Directors (held vice chair and treasurer positions) Why are you running and why should people vote for you? As a 20+ year resident of Warren County with deep roots to the community and an 8 year incumbent of the Warren County Ambulance District Board of Directors, I have a proven track record and I know I can best serve my community in the position I have held for the last 8 years. Being a successful business owner for 11 years in Warrenton, and with over 30 plus years of management experience, I support all staff while ensuring judicious use of taxpayer dollars. The residents of Warren County should vote for me because of my proven track record and that I am not beholden to any special interest groups and believe in full transparency for the residents and staff of the Warren County Ambulance District. What are your goals if elected? When I am elected, I will continue to ensure the safety of the residents of Warren County and the judicious and transparent use of county funds. I fully support the planning on expansion of the Warren County Ambulance District and the continued upgrading of equipment and training standards. Being married to a First Responder for 30 years, I know the challenges the First Responder Community faces and will continue to fully support all staff to include EMT and Paramedics, Command and Support Staff. What issues are most pressing for your constituency? We must persist to provide continuing education for our personnel that will allow us the best care for the residents and visitors to Warren County. Providing quality service, quick and safe response time to the community is the ultimate goal. I believe that a cohesive relationship among the Board Members provides better representation for the residents of Warren County. Keywords election, Warren County Ambulance District, board of directors, Diane Grimes, candidate Other items that may interest you Warrenton woman injured in I-70 crash As state\u2019s bear population grows, MU Extension  \u2026 Warrior Ridge Elementary WOW winners Warren County Historical Society to host Easter Tea  \u2026 Featured Local Savings Featured Local Savings \u00a9 Copyright 2026 Warren County Record | Copyright/Terms of Use Powered by Creative Circle Media Solutions X",
+   "article_metadata": {
+    "meta_type": "geographic_scope",
+    "category": "regional",
+    "rationale": "The article is about a candidate for a county-level ambulance district board, focusing on issues and services that impact the residents of Warren County. This represents a multi-community or county-level scope, fitting the regional definition.",
+    "confidence": 0.9,
+    "prompt_preset": "geographic_scope"
+   }
+  },
+  "error": null,
+  "input_tokens": 1969,
+  "output_tokens": 68,
+  "cost_usd": "0.00055685"
+ },
+ "subject": {
+  "step": "subject",
+  "ok": true,
+  "payload": {
+   "text": "Headline: Meet Diane Grimes, candidate for Warren County Ambulance District Board of Directors - Warren County Record\n\nWe use cookies to help our site function properly, understand how readers use our content, and support our journalism. Reject non-essential My preferences Accept all 32\u00b0 F Clear Advanced search Log in Subscribe Election 2026 Meet Diane Grimes, candidate for Warren County Ambulance District Board of Directors Posted Monday, March 16, 2026 1:52 pm Name: Diane Grimes Age: 59 Hometown: Warrenton Occupation: Finance administrator/business owner Position sought: Warren County Ambulance District Board of Aldermen, subdistrict 1 Previous political experience: 8 years, Warren County Ambulance District Board of Directors (held vice chair and treasurer positions) Why are you running and why should people vote for you? As a 20+ year resident of Warren County with deep roots to the community and an 8 year incumbent of the Warren County Ambulance District Board of Directors, I have a proven track record and I know I can best serve my community in the position I have held for the last 8 years. Being a successful business owner for 11 years in Warrenton, and with over 30 plus years of management experience, I support all staff while ensuring judicious use of taxpayer dollars. The residents of Warren County should vote for me because of my proven track record and that I am not beholden to any special interest groups and believe in full transparency for the residents and staff of the Warren County Ambulance District. What are your goals if elected? When I am elected, I will continue to ensure the safety of the residents of Warren County and the judicious and transparent use of county funds. I fully support the planning on expansion of the Warren County Ambulance District and the continued upgrading of equipment and training standards. Being married to a First Responder for 30 years, I know the challenges the First Responder Community faces and will continue to fully support all staff to include EMT and Paramedics, Command and Support Staff. What issues are most pressing for your constituency? We must persist to provide continuing education for our personnel that will allow us the best care for the residents and visitors to Warren County. Providing quality service, quick and safe response time to the community is the ultimate goal. I believe that a cohesive relationship among the Board Members provides better representation for the residents of Warren County. Keywords election, Warren County Ambulance District, board of directors, Diane Grimes, candidate Other items that may interest you Warrenton woman injured in I-70 crash As state\u2019s bear population grows, MU Extension  \u2026 Warrior Ridge Elementary WOW winners Warren County Historical Society to host Easter Tea  \u2026 Featured Local Savings Featured Local Savings \u00a9 Copyright 2026 Warren County Record | Copyright/Terms of Use Powered by Creative Circle Media Solutions X",
+   "article_metadata": {
+    "meta_type": "subject",
+    "category": "election",
+    "rationale": "The article is a candidate profile for a local board election.",
+    "confidence": 0.95,
+    "prompt_preset": "subject",
+    "subject": "election"
+   }
+  },
+  "error": null,
+  "input_tokens": 3161,
+  "output_tokens": 38,
+  "cost_usd": "0.00082635"
+ },
+ "places": {
+  "step": "places",
+  "ok": true,
+  "payload": {
+   "text": "Headline: Meet Diane Grimes, candidate for Warren County Ambulance District Board of Directors - Warren County Record\n\nWe use cookies to help our site function properly, understand how readers use our content, and support our journalism. Reject non-essential My preferences Accept all 32\u00b0 F Clear Advanced search Log in Subscribe Election 2026 Meet Diane Grimes, candidate for Warren County Ambulance District Board of Directors Posted Monday, March 16, 2026 1:52 pm Name: Diane Grimes Age: 59 Hometown: Warrenton Occupation: Finance administrator/business owner Position sought: Warren County Ambulance District Board of Aldermen, subdistrict 1 Previous political experience: 8 years, Warren County Ambulance District Board of Directors (held vice chair and treasurer positions) Why are you running and why should people vote for you? As a 20+ year resident of Warren County with deep roots to the community and an 8 year incumbent of the Warren County Ambulance District Board of Directors, I have a proven track record and I know I can best serve my community in the position I have held for the last 8 years. Being a successful business owner for 11 years in Warrenton, and with over 30 plus years of management experience, I support all staff while ensuring judicious use of taxpayer dollars. The residents of Warren County should vote for me because of my proven track record and that I am not beholden to any special interest groups and believe in full transparency for the residents and staff of the Warren County Ambulance District. What are your goals if elected? When I am elected, I will continue to ensure the safety of the residents of Warren County and the judicious and transparent use of county funds. I fully support the planning on expansion of the Warren County Ambulance District and the continued upgrading of equipment and training standards. Being married to a First Responder for 30 years, I know the challenges the First Responder Community faces and will continue to fully support all staff to include EMT and Paramedics, Command and Support Staff. What issues are most pressing for your constituency? We must persist to provide continuing education for our personnel that will allow us the best care for the residents and visitors to Warren County. Providing quality service, quick and safe response time to the community is the ultimate goal. I believe that a cohesive relationship among the Board Members provides better representation for the residents of Warren County. Keywords election, Warren County Ambulance District, board of directors, Diane Grimes, candidate Other items that may interest you Warrenton woman injured in I-70 crash As state\u2019s bear population grows, MU Extension  \u2026 Warrior Ridge Elementary WOW winners Warren County Historical Society to host Easter Tea  \u2026 Featured Local Savings Featured Local Savings \u00a9 Copyright 2026 Warren County Record | Copyright/Terms of Use Powered by Creative Circle Media Solutions X",
+   "locations": [
+    {
+     "original_text": "Reject non-essential My preferences Accept all 32\u00b0 F Clear Advanced search Log in Subscribe Election 2026 Meet Diane Grimes, candidate for Warren County Ambulance District Board of Directors Posted Monday, March 16, 2026 1:52 pm Name: Diane Grimes Age: 59 Hometown: Warrenton Occupation: Finance administrator/business owner Position sought: Warren County Ambulance District Board of Aldermen, subdistrict 1 Previous political experience: 8 years, Warren County Ambulance District Board of Directors (held vice chair and treasurer positions) Why are you running and why should people vote for you?",
+     "mentions": [
+      {
+       "text": "Reject non-essential My preferences Accept all 32\u00b0 F Clear Advanced search Log in Subscribe Election 2026 Meet Diane Grimes, candidate for Warren County Ambulance District Board of Directors Posted Monday, March 16, 2026 1:52 pm Name: Diane Grimes Age: 59 Hometown: Warrenton Occupation: Finance administrator/business owner Position sought: Warren County Ambulance District Board of Aldermen, subdistrict 1 Previous political experience: 8 years, Warren County Ambulance District Board of Directors (held vice chair and treasurer positions) Why are you running and why should people vote for you?"
+      }
+     ],
+     "description": "Hometown of candidate Diane Grimes.",
+     "geocode_hints": "",
+     "location": {
+      "full": "Warrenton, MO",
+      "type": "city",
+      "components": {
+       "place": null,
+       "street_road": null,
+       "span": null,
+       "address": "",
+       "neighborhood": "",
+       "city": "Warrenton",
+       "county": "",
+       "postal_code": "",
+       "state": {
+        "name": "Missouri",
+        "abbr": "MO"
+       },
+       "country": {
+        "name": "United States",
+        "abbr": "US"
+       }
+      }
+     },
+     "nature": "person",
+     "nature_secondary_tags": []
+    },
+    {
+     "original_text": "Headline: Meet Diane Grimes, candidate for Warren County Ambulance District Board of Directors - Warren County Record",
+     "mentions": [
+      {
+       "text": "Headline: Meet Diane Grimes, candidate for Warren County Ambulance District Board of Directors - Warren County Record"
+      }
+     ],
+     "description": "Jurisdiction of the Warren County Ambulance District Board of Directors election.",
+     "geocode_hints": "",
+     "location": {
+      "full": "Warren County, MO",
+      "type": "county",
+      "components": {
+       "place": null,
+       "street_road": null,
+       "span": null,
+       "address": "",
+       "neighborhood": "",
+       "city": "",
+       "county": "Warren County",
+       "postal_code": "",
+       "state": {
+        "name": "Missouri",
+        "abbr": "MO"
+       },
+       "country": {
+        "name": "United States",
+        "abbr": "US"
+       }
+      }
+     },
+     "nature": "context",
+     "nature_secondary_tags": []
+    },
+    {
+     "original_text": "Keywords election, Warren County Ambulance District, board of directors, Diane Grimes, candidate Other items that may interest you Warrenton woman injured in I-70 crash As state\u2019s bear population grows, MU Extension  \u2026 Warrior Ridge Elementary WOW winners Warren County Historical Society to host Easter Tea  \u2026 Featured Local Savings Featured Local Savings \u00a9 Copyright 2026 Warren County Record | Copyright/Terms of Use Powered by Creative Circle Media Solutions X",
+     "mentions": [
+      {
+       "text": "Keywords election, Warren County Ambulance District, board of directors, Diane Grimes, candidate Other items that may interest you Warrenton woman injured in I-70 crash As state\u2019s bear population grows, MU Extension  \u2026 Warrior Ridge Elementary WOW winners Warren County Historical Society to host Easter Tea  \u2026 Featured Local Savings Featured Local Savings \u00a9 Copyright 2026 Warren County Record | Copyright/Terms of Use Powered by Creative Circle Media Solutions X"
+      }
+     ],
+     "description": "Site of a crash mentioned in a related news item.",
+     "geocode_hints": "Interstate 70 in Missouri.",
+     "location": {
+      "full": "I-70, MO",
+      "type": "street_road",
+      "components": {
+       "place": null,
+       "street_road": {
+        "name": "I-70",
+        "boundary": "I-70, MO"
+       },
+       "span": null,
+       "address": "I-70",
+       "neighborhood": "",
+       "city": "I-70",
+       "county": "",
+       "postal_code": "",
+       "state": {
+        "name": "Missouri",
+        "abbr": "MO"
+       },
+       "country": {
+        "name": "United States",
+        "abbr": "US"
+       }
+      }
+     },
+     "nature": "secondary",
+     "nature_secondary_tags": [],
+     "address_place_kind": "private_residence"
+    },
+    {
+     "original_text": "Keywords election, Warren County Ambulance District, board of directors, Diane Grimes, candidate Other items that may interest you Warrenton woman injured in I-70 crash As state\u2019s bear population grows, MU Extension  \u2026 Warrior Ridge Elementary WOW winners Warren County Historical Society to host Easter Tea  \u2026 Featured Local Savings Featured Local Savings \u00a9 Copyright 2026 Warren County Record | Copyright/Terms of Use Powered by Creative Circle Media Solutions X",
+     "mentions": [
+      {
+       "text": "Keywords election, Warren County Ambulance District, board of directors, Diane Grimes, candidate Other items that may interest you Warrenton woman injured in I-70 crash As state\u2019s bear population grows, MU Extension  \u2026 Warrior Ridge Elementary WOW winners Warren County Historical Society to host Easter Tea  \u2026 Featured Local Savings Featured Local Savings \u00a9 Copyright 2026 Warren County Record | Copyright/Terms of Use Powered by Creative Circle Media Solutions X"
+      }
+     ],
+     "description": "School mentioned in a related news item about WOW winners.",
+     "geocode_hints": "",
+     "location": {
+      "full": "Warrior Ridge Elementary, Warrenton, MO",
+      "type": "place",
+      "components": {
+       "place": {
+        "name": "Warrior Ridge Elementary",
+        "addressable": true,
+        "natural": false
+       },
+       "street_road": null,
+       "span": null,
+       "address": "",
+       "neighborhood": "",
+       "city": "Warrenton",
+       "county": "",
+       "postal_code": "",
+       "state": {
+        "name": "Missouri",
+        "abbr": "MO"
+       },
+       "country": {
+        "name": "United States",
+        "abbr": "US"
+       }
+      }
+     },
+     "nature": "context",
+     "nature_secondary_tags": []
+    }
+   ]
+  },
+  "error": null,
+  "input_tokens": 7978,
+  "output_tokens": 159,
+  "cost_usd": "0.00214555"
+ },
+ "people": {
+  "step": "people",
+  "ok": true,
+  "payload": {
+   "text": "Headline: Meet Diane Grimes, candidate for Warren County Ambulance District Board of Directors - Warren County Record\n\nWe use cookies to help our site function properly, understand how readers use our content, and support our journalism. Reject non-essential My preferences Accept all 32\u00b0 F Clear Advanced search Log in Subscribe Election 2026 Meet Diane Grimes, candidate for Warren County Ambulance District Board of Directors Posted Monday, March 16, 2026 1:52 pm Name: Diane Grimes Age: 59 Hometown: Warrenton Occupation: Finance administrator/business owner Position sought: Warren County Ambulance District Board of Aldermen, subdistrict 1 Previous political experience: 8 years, Warren County Ambulance District Board of Directors (held vice chair and treasurer positions) Why are you running and why should people vote for you? As a 20+ year resident of Warren County with deep roots to the community and an 8 year incumbent of the Warren County Ambulance District Board of Directors, I have a proven track record and I know I can best serve my community in the position I have held for the last 8 years. Being a successful business owner for 11 years in Warrenton, and with over 30 plus years of management experience, I support all staff while ensuring judicious use of taxpayer dollars. The residents of Warren County should vote for me because of my proven track record and that I am not beholden to any special interest groups and believe in full transparency for the residents and staff of the Warren County Ambulance District. What are your goals if elected? When I am elected, I will continue to ensure the safety of the residents of Warren County and the judicious and transparent use of county funds. I fully support the planning on expansion of the Warren County Ambulance District and the continued upgrading of equipment and training standards. Being married to a First Responder for 30 years, I know the challenges the First Responder Community faces and will continue to fully support all staff to include EMT and Paramedics, Command and Support Staff. What issues are most pressing for your constituency? We must persist to provide continuing education for our personnel that will allow us the best care for the residents and visitors to Warren County. Providing quality service, quick and safe response time to the community is the ultimate goal. I believe that a cohesive relationship among the Board Members provides better representation for the residents of Warren County. Keywords election, Warren County Ambulance District, board of directors, Diane Grimes, candidate Other items that may interest you Warrenton woman injured in I-70 crash As state\u2019s bear population grows, MU Extension  \u2026 Warrior Ridge Elementary WOW winners Warren County Historical Society to host Easter Tea  \u2026 Featured Local Savings Featured Local Savings \u00a9 Copyright 2026 Warren County Record | Copyright/Terms of Use Powered by Creative Circle Media Solutions X",
+   "people": [
+    {
+     "name": "Diane Grimes",
+     "title": "Finance administrator/business owner",
+     "affiliation": null,
+     "public_figure": false,
+     "type": "elected_official",
+     "sort_key": "grimes",
+     "role_in_story": "Candidate for Warren County Ambulance District Board of Directors",
+     "nature": "subject",
+     "nature_secondary_tags": [],
+     "mentions": [
+      {
+       "text": "Meet Diane Grimes, candidate for Warren County Ambulance District Board of Directors",
+       "quote": false
+      },
+      {
+       "text": "Name: Diane Grimes",
+       "quote": false
+      },
+      {
+       "text": "Why are you running and why should people vote for you? As a 20+ year resident of Warren County with deep roots to the community and an 8 year incumbent of the Warren County Ambulance District Board of Directors, I have a proven track record and I know I can best serve my community in the position I have held for the last 8 years.",
+       "quote": true
+      },
+      {
+       "text": "Being a successful business owner for 11 years in Warrenton, and with over 30 plus years of management experience, I support all staff while ensuring judicious use of taxpayer dollars.",
+       "quote": true
+      },
+      {
+       "text": "The residents of Warren County should vote for me because of my proven track record and that I am not beholden to any special interest groups and believe in full transparency for the residents and staff of the Warren County Ambulance District.",
+       "quote": true
+      },
+      {
+       "text": "What are your goals if elected? When I am elected, I will continue to ensure the safety of the residents of Warren County and the judicious and transparent use of county funds.",
+       "quote": true
+      },
+      {
+       "text": "I fully support the planning on expansion of the Warren County Ambulance District and the continued upgrading of equipment and training standards.",
+       "quote": true
+      },
+      {
+       "text": "Being married to a First Responder for 30 years, I know the challenges the First Responder Community faces and will continue to fully support all staff to include EMT and Paramedics, Command and Support Staff.",
+       "quote": true
+      },
+      {
+       "text": "What issues are most pressing for your constituency? We must persist to provide continuing education for our personnel that will allow us the best care for the residents and visitors to Warren County.",
+       "quote": true
+      },
+      {
+       "text": "Providing quality service, quick and safe response time to the community is the ultimate goal.",
+       "quote": true
+      },
+      {
+       "text": "I believe that a cohesive relationship among the Board Members provides better representation for the residents of Warren County.",
+       "quote": true
+      }
+     ],
+     "review_handling": "none",
+     "review_reason_code": null,
+     "review_message": null,
+     "needs_review": false
+    }
+   ]
+  },
+  "error": null,
+  "input_tokens": 4569,
+  "output_tokens": 499,
+  "cost_usd": "0.00161630"
+ },
+ "organizations": {
+  "step": "organizations",
+  "ok": true,
+  "payload": {
+   "text": "Headline: Meet Diane Grimes, candidate for Warren County Ambulance District Board of Directors - Warren County Record\n\nWe use cookies to help our site function properly, understand how readers use our content, and support our journalism. Reject non-essential My preferences Accept all 32\u00b0 F Clear Advanced search Log in Subscribe Election 2026 Meet Diane Grimes, candidate for Warren County Ambulance District Board of Directors Posted Monday, March 16, 2026 1:52 pm Name: Diane Grimes Age: 59 Hometown: Warrenton Occupation: Finance administrator/business owner Position sought: Warren County Ambulance District Board of Aldermen, subdistrict 1 Previous political experience: 8 years, Warren County Ambulance District Board of Directors (held vice chair and treasurer positions) Why are you running and why should people vote for you? As a 20+ year resident of Warren County with deep roots to the community and an 8 year incumbent of the Warren County Ambulance District Board of Directors, I have a proven track record and I know I can best serve my community in the position I have held for the last 8 years. Being a successful business owner for 11 years in Warrenton, and with over 30 plus years of management experience, I support all staff while ensuring judicious use of taxpayer dollars. The residents of Warren County should vote for me because of my proven track record and that I am not beholden to any special interest groups and believe in full transparency for the residents and staff of the Warren County Ambulance District. What are your goals if elected? When I am elected, I will continue to ensure the safety of the residents of Warren County and the judicious and transparent use of county funds. I fully support the planning on expansion of the Warren County Ambulance District and the continued upgrading of equipment and training standards. Being married to a First Responder for 30 years, I know the challenges the First Responder Community faces and will continue to fully support all staff to include EMT and Paramedics, Command and Support Staff. What issues are most pressing for your constituency? We must persist to provide continuing education for our personnel that will allow us the best care for the residents and visitors to Warren County. Providing quality service, quick and safe response time to the community is the ultimate goal. I believe that a cohesive relationship among the Board Members provides better representation for the residents of Warren County. Keywords election, Warren County Ambulance District, board of directors, Diane Grimes, candidate Other items that may interest you Warrenton woman injured in I-70 crash As state\u2019s bear population grows, MU Extension  \u2026 Warrior Ridge Elementary WOW winners Warren County Historical Society to host Easter Tea  \u2026 Featured Local Savings Featured Local Savings \u00a9 Copyright 2026 Warren County Record | Copyright/Terms of Use Powered by Creative Circle Media Solutions X",
+   "organizations": [
+    {
+     "name": "Warren County Ambulance District",
+     "type": "public_services",
+     "organization_boundary": null,
+     "role_in_story": "Governing body for ambulance services in the county",
+     "nature": "subject",
+     "nature_secondary_tags": [],
+     "mentions": [
+      {
+       "text": "Meet Diane Grimes, candidate for Warren County Ambulance District Board of Directors",
+       "quote": false
+      },
+      {
+       "text": "Position sought: Warren County Ambulance District Board of Aldermen, subdistrict 1",
+       "quote": false
+      },
+      {
+       "text": "Previous political experience: 8 years, Warren County Ambulance District Board of Directors (held vice chair and treasurer positions)",
+       "quote": false
+      },
+      {
+       "text": "I have a proven track record and I know I can best serve my community in the position I have held for the last 8 years.",
+       "quote": false
+      },
+      {
+       "text": "I support all staff while ensuring judicious use of taxpayer dollars.",
+       "quote": false
+      },
+      {
+       "text": "I believe in full transparency for the residents and staff of the Warren County Ambulance District.",
+       "quote": false
+      },
+      {
+       "text": "I fully support the planning on expansion of the Warren County Ambulance District and the continued upgrading of equipment and training standards.",
+       "quote": false
+      }
+     ]
+    },
+    {
+     "name": "Warren County Historical Society",
+     "type": "community_group",
+     "organization_boundary": null,
+     "role_in_story": "Hosting a community event",
+     "nature": "context",
+     "nature_secondary_tags": [],
+     "mentions": [
+      {
+       "text": "Warren County Historical Society to host Easter Tea",
+       "quote": false
+      }
+     ]
+    },
+    {
+     "name": "MU Extension",
+     "type": "university",
+     "organization_boundary": null,
+     "role_in_story": "Providing information on bear population",
+     "nature": "context",
+     "nature_secondary_tags": [],
+     "mentions": [
+      {
+       "text": "As state\u2019s bear population grows, MU Extension \u2026",
+       "quote": false
+      }
+     ]
+    },
+    {
+     "name": "Warrior Ridge Elementary",
+     "type": "school",
+     "organization_boundary": null,
+     "role_in_story": "School with student winners",
+     "nature": "context",
+     "nature_secondary_tags": [],
+     "mentions": [
+      {
+       "text": "Warrior Ridge Elementary WOW winners",
+       "quote": false
+      }
+     ]
+    },
+    {
+     "name": "Warren County Record",
+     "type": "media",
+     "organization_boundary": null,
+     "role_in_story": "Publishing the article",
+     "nature": "context",
+     "nature_secondary_tags": [],
+     "mentions": [
+      {
+       "text": "\u00a9 Copyright 2026 Warren County Record | Copyright/Terms of Use",
+       "quote": false
+      }
+     ]
+    },
+    {
+     "name": "Creative Circle Media Solutions",
+     "type": "company",
+     "organization_boundary": null,
+     "role_in_story": "Powering the website",
+     "nature": "context",
+     "nature_secondary_tags": [],
+     "mentions": [
+      {
+       "text": "Powered by Creative Circle Media Solutions",
+       "quote": false
+      }
+     ]
+    }
+   ]
+  },
+  "error": null,
+  "input_tokens": 3227,
+  "output_tokens": 462,
+  "cost_usd": "0.00124565"
+ },
+ "content_gate_news": {
+  "step": "content_gate",
+  "ok": true,
+  "payload": {
+   "verdict": "news",
+   "reason": "Story content present in both samples",
+   "prompt_version": "content_gate-v1"
+  },
+  "error": null,
+  "input_tokens": 571,
+  "output_tokens": 19,
+  "cost_usd": "0.00016080"
+ },
+ "content_gate_junk": {
+  "step": "content_gate",
+  "ok": true,
+  "payload": {
+   "verdict": "not_news",
+   "reason": "Only cookie/consent boilerplate and vendor lists.",
+   "prompt_version": "content_gate-v1"
+  },
+  "error": null,
+  "input_tokens": 549,
+  "output_tokens": 26,
+  "cost_usd": "0.00016195"
+ }
+}
