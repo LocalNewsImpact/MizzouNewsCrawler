@@ -378,22 +378,94 @@ window — which removes most of the operational risk from the first real run.
 The job is I/O-bound on the API, not CPU-bound, so one or two existing spot nodes
 are sufficient. Concurrency is limited by OpenRouter rate limits, not by us.
 
-## 6. Running it on GCP
+## 6. Containerisation and resource footprint
 
 | | |
 |---|---|
 | Compute | Kubernetes `CronJob` on the existing `mizzou-cluster`, spot pool |
 | Database | The crawler's existing Cloud SQL — new tables, no new instance |
-| Image | Crawler base plus backfield's packages, pinned to a backfield commit |
-| Secrets | OpenRouter key, and a geocoder key if step 4 is enabled |
+| Secrets | OpenRouter key; a geocoder key only if step 4 is enabled |
 | Redis, Celery, backfield APIs | Not used |
 
-Incremental infrastructure cost is a few dollars per month of spot compute plus
-storage. There is no new managed service.
+### Base image alignment
 
-Backfield is pre-1.0 and its own documentation says self-hosting is unsupported.
-Pin an exact commit, treat upgrades as deliberate work, and keep the node calls
-behind a thin adapter so a breaking change touches one module.
+Backfield requires Python 3.11. `Dockerfile.base` is
+`python:3.11-slim-bookworm`. They align, and the enrichment image builds from the
+crawler base.
+
+**Not from `Dockerfile.processor`.** The processor derives from the ML base and
+carries spacy, transformers, scikit-learn and their model weights. Enrichment
+performs no local inference — it makes HTTP calls to OpenRouter — so none of that
+is reachable code. Building from the processor image would multiply the image for
+no benefit.
+
+Measured: importing the four extraction nodes pulls in `backfield_db`,
+`backfield_entities`, `sqlalchemy` and `litellm`, and does **not** pull in
+`torch` or `transformers`.
+
+### What is shared and what is added
+
+Already present in the crawler base and reused unchanged:
+
+`sqlalchemy`, `requests`, `pydantic`, `structlog`, `psycopg2-binary`,
+`cloud-sql-python-connector` — plus the crawler's own session handling, config
+loading, telemetry and the `articles` model.
+
+Added by backfield, measured from site-packages:
+
+| Package | Size | Needed for |
+|---|---|---|
+| `litellm` | 84 MB | Every model call |
+| `pycountry` | 22 MB | Place normalisation |
+| `openai` | 10 MB | litellm provider shim |
+| `anthropic` | 9 MB | litellm provider shim |
+| `shapely` | 6 MB | Geometry |
+| `h3`, `langgraph` | 3 MB each | Cell index; agent graph |
+| `geopy`, `usaddress`, `overpy`, `us`, `duckduckgo-search`, `boto3` | 1–2 MB each | Geocoding paths |
+
+Roughly **150 MB added** over the crawler base.
+
+`boto3` and `duckduckgo-search` are declared dependencies of `backfield-agate`
+but are reachable only from the S3 input/output nodes and web-search fallback,
+which this design does not call. They are installed because they are hard
+dependencies, not because they are used.
+
+### Minimising the footprint
+
+1. **Build from `Dockerfile.base`, not `Dockerfile.processor`.** This is the
+   single largest saving and requires no other change.
+2. **Multi-stage build**, copying only the finished `site-packages` into the
+   runtime stage, as `Dockerfile.base` already does.
+3. **Do not install `requirements-processor.txt`.** Enrichment needs no ML stack.
+4. **Pin backfield to a commit**, installed as packages rather than a checkout.
+5. **Import lazily where possible.** `litellm` is 84 MB and dominates both image
+   size and import time.
+
+### Runtime resources
+
+Measured: importing the four nodes reaches **306 MB RSS** before any article is
+processed, essentially all of it `litellm` and its provider shims.
+
+| | |
+|---|---|
+| Memory request | 512 Mi |
+| Memory limit | 1 Gi |
+| CPU request | 250 m |
+
+The work is I/O-bound on the OpenRouter API. Concurrency is achieved with threads
+inside one pod rather than more pods, so a single small pod at concurrency 10–50
+is the whole deployment. Scaling out costs memory per replica for no throughput
+gain, since the limit is the API, not the CPU.
+
+Spot nodes are appropriate: the job is interruptible and idempotent, and a killed
+run loses only the articles in flight.
+
+### Version pinning
+
+Backfield is pre-1.0 and its documentation states that self-hosting is
+unsupported. Pin an exact commit, treat upgrades as deliberate work, and keep the
+node calls behind a thin adapter module so a breaking change touches one file.
+The adapter is also the seam the tests in §11 exercise.
 
 ## 7. Per-dataset enrichment profiles
 
@@ -509,11 +581,192 @@ WHERE NOT ('people' = ANY(e.steps_applied))
 A profile change should report its estimated cost and article count before it is
 applied, for the same reason the job carries a spend ceiling.
 
-## 9. Data written
+## 9. Schema
 
 New tables in the crawler database, all keyed on `article_id`. Datastream
 replicates them to BigQuery automatically — no export code, no schema
 registration.
+
+All samples below are real output from
+`openrouter/deepseek/deepseek-v3.2` on one article: *"Meet Diane Grimes,
+candidate for Warren County Ambulance District Board of Directors"*.
+
+### `articles` — two added columns
+
+```sql
+ALTER TABLE articles
+  ADD COLUMN enriched_at        timestamp,
+  ADD COLUMN enrichment_attempts smallint NOT NULL DEFAULT 0;
+```
+
+`status` gains `enriched` and `enrichment_skipped`. `enrichment_attempts` bounds
+retries before `failed_max_attempts` (§10).
+
+### `article_enrichment` — one row per article
+
+```sql
+CREATE TABLE article_enrichment (
+  article_id            text PRIMARY KEY REFERENCES articles(id) ON DELETE CASCADE,
+
+  -- provenance and reprocessing control
+  profile_version       integer NOT NULL,
+  steps_applied         text[]  NOT NULL,
+  skip_reason           text,              -- profile_none | dataset_disabled |
+                                           -- operator_bypass | failed_max_attempts
+  backfield_commit      text    NOT NULL,
+  model                 text    NOT NULL,
+  prompt_versions       jsonb   NOT NULL,
+  cost_usd              numeric(10,6),
+  enriched_at           timestamptz NOT NULL DEFAULT now(),
+
+  -- content gate
+  is_news_content       boolean,
+  content_gate_reason   text,
+
+  -- one column per metadata preset, each with its confidence
+  scope                 text,  scope_confidence      real,
+  subject               text,  subject_confidence    real,
+  topic                 text,  topic_confidence      real,
+  format                text,  format_confidence     real,
+  timeframe             text,  timeframe_confidence  real,
+  user_need             text,  user_need_confidence  real,
+  rationales            jsonb,             -- preset -> rationale text
+
+  -- resolved location, when scope is point-level
+  point_place           text,
+  point_method          text,              -- single_city | publication_city | geocoded
+  point_lat             double precision,
+  point_lon             double precision,
+  point_gnis            text
+);
+CREATE INDEX ON article_enrichment USING gin (steps_applied);
+CREATE INDEX ON article_enrichment (profile_version);
+```
+
+Sample values:
+
+| Column | Value |
+|---|---|
+| `scope` | `city_municipality` |
+| `subject` | `election` (0.95) |
+| `topic` | `local_government_politics` (0.95) |
+| `format` | `profile` (0.95) |
+| `timeframe` | `future` (0.90) |
+| `user_need` | `show_me_the_community` (0.85) |
+| `steps_applied` | `{content_gate,scope,places,people,organizations,subject,topic,format,timeframe,user_need}` |
+| `point_method` | `publication_city` |
+
+### `article_places` — one row per extracted location
+
+```sql
+CREATE TABLE article_places (
+  id            bigserial PRIMARY KEY,
+  article_id    text NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+  full_name     text,
+  place_type    text,          -- city | place | street_road | county | state | ...
+  city          text,
+  county        text,
+  state         text,
+  address       text,
+  description   text,          -- why the place is in the story
+  mention_text  text,          -- the sentence it came from
+  is_point      boolean,       -- did this become the article's resolved point
+  lat           double precision,
+  lon           double precision,
+  geocoder      text
+);
+CREATE INDEX ON article_places (article_id);
+CREATE INDEX ON article_places (city, state);
+```
+
+Sample row:
+
+```json
+{
+  "full_name": "Warrenton, MO",
+  "place_type": "city",
+  "city": "Warrenton",
+  "state": "MO",
+  "description": "City where the Warren County Ambulance District is based.",
+  "mention_text": "Warren County Ambulance District Board of Directors",
+  "is_point": true
+}
+```
+
+A mean of **6.5 rows per article** (648 across the 100-article sample). Most
+articles produce several; 11 of 100 produced none.
+
+### `article_people` — one row per person
+
+```sql
+CREATE TABLE article_people (
+  id            bigserial PRIMARY KEY,
+  article_id    text NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+  name          text NOT NULL,
+  sort_key      text,
+  title         text,
+  affiliation   text,
+  person_type   text,          -- elected_official | resident | expert | ...
+  role_in_story text,
+  nature        text,          -- subject | source | mentioned
+  public_figure boolean,
+  mention_count integer,
+  quotes        jsonb          -- quoted passages attributed to this person
+);
+CREATE INDEX ON article_people (article_id);
+CREATE INDEX ON article_people (sort_key);
+```
+
+Sample row:
+
+```json
+{
+  "name": "Diane Grimes",
+  "sort_key": "grimes",
+  "title": "Finance administrator/business owner",
+  "person_type": "elected_official",
+  "role_in_story": "Candidate for Warren County Ambulance District Board of Directors",
+  "nature": "subject",
+  "public_figure": false
+}
+```
+
+### `article_organizations` — one row per organization
+
+```sql
+CREATE TABLE article_organizations (
+  id            bigserial PRIMARY KEY,
+  article_id    text NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+  name          text NOT NULL,
+  org_type      text,          -- public_services | business | nonprofit | ...
+  boundary      text,
+  role_in_story text,
+  nature        text,
+  mention_count integer
+);
+CREATE INDEX ON article_organizations (article_id);
+```
+
+Sample row:
+
+```json
+{
+  "name": "Warren County Ambulance District",
+  "org_type": "public_services",
+  "role_in_story": "Governing body for ambulance services in the county",
+  "nature": "subject"
+}
+```
+
+### Notes on the shape
+
+- `sort_key` and `name` are the join keys a future canonicalization step would
+  use. Storing them now costs nothing and avoids reprocessing later.
+- `quotes` is `jsonb` rather than a table because quotes are only ever read with
+  their person.
+- Confidence is stored for every classification. Nothing downstream currently
+  filters on it, but the cookie-text defect (§3) is the argument for keeping it.
+- No embeddings. `pgvector` is available on Cloud SQL if that changes.
 
 | Table | Grain |
 |---|---|
@@ -562,7 +815,66 @@ modes.
   `skip_reason='operator_bypass'`, never `enriched`, so an outage is later
   distinguishable from a policy decision and from real enrichment.
 
-## 11. Open decisions
+## 11. Testing
+
+The adapter module is the seam. Backfield's nodes are third-party code and are
+not retested here; what is tested is our use of them, our decisions, and our
+writes.
+
+### Unit tests — no database, no network
+
+Model calls are stubbed with recorded fixtures captured from real runs.
+
+| Area | Assertions |
+|---|---|
+| Profile resolution | All / some / none produce the right step list; unknown keys rejected; missing profile falls back to the default |
+| Status transitions | Full profile → `enriched`; empty profile → `enrichment_skipped` + `profile_none`; gate rejection → `not_article`; call failure → stays `labeled` and increments attempts; attempts exhausted → `enrichment_skipped` + `failed_max_attempts` |
+| Point resolution | One city → that city; several cities + publication city among them → publication city; several cities without it → unresolved; zero cities → unresolved |
+| Scope gating | `regional`, `statewide`, `national`, `international`, `other` never reach place extraction |
+| Content gate | Cookie-text fixture rejected; a normal article passes; the gate reads only the truncated prefix |
+| Reprocessing candidacy | Older `profile_version` selects; equal does not; `steps_applied` yields only the missing steps |
+| Response parsing | Malformed JSON, absent `category`, confidence out of range, and unexpected category values all fail the article rather than writing a bad row |
+| Cost accounting | Recorded cost matches token counts; the ceiling halts the run |
+
+Point resolution and status transitions carry the most consequence and no
+external dependency, so they should be table-driven with the real cases from the
+100-article sample as fixtures.
+
+### Integration tests — real Postgres, stubbed models
+
+Run against the existing test Postgres, in the pattern already used by the
+crawler suite.
+
+| Area | Assertions |
+|---|---|
+| Writes | All four tables populate; `article_places` yields multiple rows for one article; cascade delete removes children |
+| Idempotency | A second run selects nothing and writes nothing |
+| Export criterion | Only `enriched` and `enrichment_skipped` match; `labeled` and `not_article` do not |
+| **Reprocessing does not withdraw rows** | An article exportable before a profile bump is exportable at every point during and after reprocessing. This is the failure mode in §8 and the one test that must never be skipped. |
+| Explicit id list | Non-candidate ids are reported and skipped; the run total accounts for every id supplied |
+| Partial failure | One article failing leaves the others committed |
+| Migration | The migration applies to a copy of the production schema and rolls back |
+
+### Contract tests — real API, run on demand
+
+Not in CI on every branch; on demand and before a backfield version bump.
+
+- Each node returns the fields the adapter reads, against a live model call.
+- A backfield upgrade is validated by re-running the 100-article sample and
+  diffing categories, not merely by the suite passing.
+
+The second is the one that catches a prompt change upstream. Editing a preset's
+few-shot examples changed 2 of 4 classifications in testing (§11), so backfield
+changing its own prompts can move labels without any error surfacing.
+
+### Fixtures worth committing
+
+The 100-article sample already produced the awkward cases: a 27,372-character
+cookie-text article, an article yielding 41 locations, 11 yielding none, and the
+8 point-scope articles that stayed ambiguous. These are the fixtures, and they
+are real rather than invented.
+
+## 12. Open decisions
 
 **Backfield's CIN does not replace ours. Decided.** Our classifier stays
 authoritative. The `information_needs` preset is excluded from the production
@@ -588,6 +900,18 @@ the property required of an audit.
 Used this way it is an audit instrument for our taxonomy rather than a
 replacement classifier. Cost is one call per sampled article, $0.00078.
 
+**Rationale phrasing.** Rationales open with "The article is/describes/profiles"
+in almost every case. Three options, measured:
+
+| Approach | Effect | Cost |
+|---|---|---|
+| `BACKFIELD_PROJECT_SYSTEM_PROMPT` | Shortens rationales; **does not** remove the opening — the preset's few-shot examples anchor it | None |
+| Fork the preset with rewritten examples | Removed the opening in 2 of 4, **and changed 2 of 4 classifications** | Maintaining a copy of the prompt; requires re-validation |
+| Strip the preamble after the fact | Deterministic, cannot affect labels | A regex to maintain |
+
+Forking is not a cosmetic change: it moves labels. Post-processing is the only
+option that alters presentation without altering classification.
+
 **"Civic Life" versus "Civic information".** Both exist in our taxonomy, both map
 to the same concept, and six of the 37 disagreements are churn between them. This
 should be resolved regardless of what happens with backfield.
@@ -607,7 +931,7 @@ the h3 finding in §2 starts to matter. Deferrable, expensive to retrofit.
 Some are legitimate — a Branson paper covering Springfield. Rule 2 would place
 them wrongly. Worth reading before the backfill.
 
-## 12. Suggested sequence
+## 13. Suggested sequence
 
 1. Tune the boilerplate heuristic and the content gate against known-bad
    articles, and measure the rejection rate on a fresh sample drawn without the
