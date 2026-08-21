@@ -18,12 +18,12 @@ transient errors.
 """
 
 import argparse
-import uuid
 import json
 import logging
 import random
 import sys
 import time
+import uuid
 from datetime import datetime, timedelta
 from math import asin, cos, radians, sin, sqrt
 from pathlib import Path
@@ -179,7 +179,14 @@ def geocode_address_nominatim(address: str) -> dict[str, float] | None:
     """
     url = "https://nominatim.openstreetmap.org/search"
     params = {"q": address, "format": "jsonv2", "limit": 1}
-    headers = {"User-Agent": "mizzou-gazetteer/1.0 (contact: dev@example.com)"}
+    # Nominatim's usage policy requires an identifiable User-Agent with a real
+    # point of contact; placeholder addresses get the whole client 403-blocked.
+    headers = {
+        "User-Agent": (
+            "MizzouNewsCrawler-gazetteer/1.0 "
+            "(+https://github.com/LocalNewsImpact/MizzouNewsCrawler)"
+        )
+    }
 
     try:
         r = requests.get(url, params=params, headers=headers, timeout=10)
@@ -196,6 +203,7 @@ def geocode_address_nominatim(address: str) -> dict[str, float] | None:
 
 
 # Import ORM models after ensuring `src` is on sys.path
+from src.enrichment.fips import place_geoid as census_place_geoid  # noqa: E402
 from src.models import Dataset, GeocodeCache  # noqa: E402
 
 # Expose create_engine at module level so tests can monkeypatch/import it
@@ -239,15 +247,13 @@ def has_existing_osm_data(session, dataset_id, source_id, min_categories=3):
         from sqlalchemy import text
 
         # Count distinct categories for this source
-        query = text(
-            """
+        query = text("""
             SELECT COUNT(DISTINCT category) as category_count,
                    COUNT(*) as total_entities
             FROM gazetteer
             WHERE dataset_id = :dataset_id
             AND source_id = :source_id
-        """
-        )
+        """)
 
         result = session.execute(
             query, {"dataset_id": dataset_id, "source_id": source_id}
@@ -301,8 +307,7 @@ def enrich_publisher_by_uuid(
     from sqlalchemy import text
 
     # Find source by UUID and get dataset info through dataset_sources
-    source_query = text(
-        """
+    source_query = text("""
         SELECT s.id as source_id, s.canonical_name, s.city, s.county,
                d.id as dataset_id, d.slug as dataset_slug
         FROM sources s
@@ -310,8 +315,7 @@ def enrich_publisher_by_uuid(
         JOIN datasets d ON ds.dataset_id = d.id
         WHERE s.id = :publisher_uuid
         LIMIT 1
-    """
-    )
+    """)
 
     result = session.execute(
         source_query, {"publisher_uuid": publisher_uuid}
@@ -365,14 +369,12 @@ def enrich_publisher_osm_data(
         return False
 
     # Get source details
-    query = text(
-        """
+    query = text("""
         SELECT s.*, ds.legacy_host_id
         FROM sources s
         JOIN dataset_sources ds ON s.id = ds.source_id
         WHERE s.id = :source_id AND ds.dataset_id = :dataset_id
-    """
-    )
+    """)
 
     result = session.execute(
         query, {"source_id": source_id, "dataset_id": dataset_id}
@@ -1013,7 +1015,11 @@ def query_overpass(
         r = requests.post(overpass_url, data={"data": q}, timeout=60)
         if r.status_code == 200:
             return r.json().get("elements", [])
-    except Exception:
+        # A non-200 is a failed query, not an empty area. Say so, or a
+        # rate-limit ban reads as "no POIs near this publication".
+        print(f"      Overpass HTTP {r.status_code}: {r.text[:120]!r}")
+    except Exception as exc:
+        print(f"      Overpass request failed: {exc}")
         return []
     return []
 
@@ -1583,7 +1589,7 @@ def main(
             )
             .where(ds_src_tbl.c.dataset_id == ds.id)
         )
-        
+
         # Apply state filter if provided
         if state_filter:
             sel = sel.where(sources_tbl.c.state == state_filter)
@@ -1600,7 +1606,7 @@ def main(
             src = dict(row._mapping)
             host_or_name = src.get("canonical_name") or src.get("host")
             print(f"  Source: {host_or_name} ({src.get('id')})")
-            
+
             # Determine radius based on frequency if --radius-by-frequency is set
             coverage_miles = radius_miles  # Default to explicit radius if provided
             if radius_by_frequency:
@@ -1610,7 +1616,9 @@ def main(
                 else:
                     # weekly, monthly, biweekly, or any other frequency
                     coverage_miles = 30.0
-                print(f"    Frequency-based radius: {source_frequency} -> {coverage_miles} miles")
+                print(
+                    f"    Frequency-based radius: {source_frequency} -> {coverage_miles} miles"
+                )
             elif coverage_miles is None:
                 # Fallback to default if no radius specified
                 coverage_miles = 20.0
@@ -1622,8 +1630,17 @@ def main(
                 skipped_count += 1
                 continue
 
-            # Determine centroid: prefer source.city/source.county/zip
+            # Determine centroid: prefer the bundled Census place gazetteer
+            # (offline, deterministic, and the same source our FIPS ladder
+            # uses), then ZIP, then Nominatim as a last resort.
             latlon = None
+            src_state = (
+                src.get("metadata") and src.get("metadata", {}).get("state")
+            ) or "MO"
+            if src.get("city"):
+                census_hit = census_place_geoid(src.get("city"), src_state)
+                if census_hit is not None and census_hit.lat is not None:
+                    latlon = (census_hit.lat, census_hit.lon)
             address_parts = []
             if src.get("city"):
                 address_parts.append(src.get("city"))
@@ -1647,14 +1664,17 @@ def main(
                         latlon = None
 
             if not latlon:
-                # Try geocoding city + state if present in meta; use cache
+                # Try geocoding city + state if present in meta; use cache.
+                # The publication name must stay out of the query: Nominatim
+                # matches place names, and "St. Louis Business Journal,
+                # St. Louis, MO" returns nothing while "St. Louis, MO" works.
                 state = src.get("metadata") and src.get("metadata", {}).get("state")
                 addr = ", ".join(
                     [
                         p
                         for p in (
-                            src.get("canonical_name"),
                             src.get("city"),
+                            src.get("county"),
                             state,
                         )
                         if p
@@ -1687,7 +1707,7 @@ def main(
                 continue
 
             lat, lon = float(latlon[0]), float(latlon[1])
-            
+
             # Coverage radius was already determined above based on frequency or explicit argument
             # (coverage_miles variable is already set)
 
@@ -1871,7 +1891,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--radius-by-frequency",
         action="store_true",
-        help=("Determine radius based on source frequency: 75mi for daily, 30mi for others."),
+        help=(
+            "Determine radius based on source frequency: 75mi for daily, 30mi for others."
+        ),
     )
     parser.add_argument(
         "--state",
