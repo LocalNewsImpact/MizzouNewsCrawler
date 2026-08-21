@@ -229,6 +229,35 @@ def _geoid_for(places_payload: dict, point):
     )
 
 
+def build_story_geoids(
+    point_geoid,  # GeoidResult | None
+    place_rows: list[tuple[str | None, str | None]],  # (geoid, level) per mention
+    scope_category: str | None,
+    state_code: str | None,
+) -> list[tuple[str, str, bool, str]]:
+    """The distinct story-to-FIPS set: (geoid, level, is_primary, source).
+
+    News geography is one-to-many. The point (when resolved) is primary;
+    every distinct mention GEOID joins the set; a statewide story contributes
+    its state code. Order: primary first, then mentions by first appearance.
+    """
+    out: list[tuple[str, str, bool, str]] = []
+    seen: set[str] = set()
+    if point_geoid is not None:
+        out.append((point_geoid.geoid, point_geoid.level, True, "point"))
+        seen.add(point_geoid.geoid)
+    for geoid, level in place_rows:
+        if geoid and geoid not in seen:
+            out.append((geoid, level or "place", False, "mention"))
+            seen.add(geoid)
+    if scope_category == "statewide" and state_code and state_code not in seen:
+        out.append(
+            (state_code, "state", point_geoid is None and not out, "scope_state")
+        )
+        seen.add(state_code)
+    return out
+
+
 def _confidence(meta: dict) -> float | None:
     value = meta.get("confidence")
     try:
@@ -321,7 +350,7 @@ def persist_outcome(
               topic, topic_confidence, format, format_confidence,
               timeframe, timeframe_confidence, user_need, user_need_confidence,
               rationales, point_place, point_method,
-              point_geoid, point_geoid_level, point_lat, point_lon
+              point_geoid, point_geoid_level, point_lat, point_lon, geoids
             ) VALUES (
               :article_id, :profile_version, :steps_applied, :skip_reason,
               :backfield_commit, :model, :prompt_versions, :cost_usd, :enriched_at,
@@ -330,7 +359,7 @@ def persist_outcome(
               :topic, :topic_confidence, :format, :format_confidence,
               :timeframe, :timeframe_confidence, :user_need, :user_need_confidence,
               :rationales, :point_place, :point_method,
-              :point_geoid, :point_geoid_level, :point_lat, :point_lon
+              :point_geoid, :point_geoid_level, :point_lat, :point_lon, :geoids
             )
             ON CONFLICT (article_id) DO UPDATE SET
               profile_version = EXCLUDED.profile_version,
@@ -361,7 +390,8 @@ def persist_outcome(
               point_geoid = COALESCE(EXCLUDED.point_geoid, article_enrichment.point_geoid),
               point_geoid_level = COALESCE(EXCLUDED.point_geoid_level, article_enrichment.point_geoid_level),
               point_lat = COALESCE(EXCLUDED.point_lat, article_enrichment.point_lat),
-              point_lon = COALESCE(EXCLUDED.point_lon, article_enrichment.point_lon)
+              point_lon = COALESCE(EXCLUDED.point_lon, article_enrichment.point_lon),
+              geoids = COALESCE(EXCLUDED.geoids, article_enrichment.geoids)
             """),
         {
             "article_id": article.id,
@@ -382,6 +412,7 @@ def persist_outcome(
             "point_geoid_level": geoid.level if geoid else None,
             "point_lat": geoid.lat if geoid else None,
             "point_lon": geoid.lon if geoid else None,
+            "geoids": None,  # filled below once the story set is built
             **columns,
         },
     )
@@ -491,6 +522,45 @@ def persist_outcome(
                     "mention_count": len(organization.get("mentions") or []),
                 },
             )
+
+    # The story-to-FIPS set (one row per distinct GEOID; news geography is
+    # one-to-many). Rebuilt whole on every persist.
+    mention_geoids: list[tuple[str | None, str | None]] = []
+    if places_payload:
+        for location in places_payload.get("locations") or []:
+            components = (location.get("location") or {}).get("components") or {}
+            loc_state = components.get("state")
+            if isinstance(loc_state, dict):
+                loc_state = loc_state.get("abbr") or loc_state.get("name")
+            loc_state = loc_state or article.publication_state
+            city = components.get("city")
+            g = place_geoid(city, loc_state) if (city and loc_state) else None
+            if g is None and components.get("county") and loc_state:
+                g = county_geoid(components["county"], loc_state)
+            mention_geoids.append((g.geoid if g else None, g.level if g else None))
+    state_code = None
+    if article.publication_state:
+        sg = state_geoid(article.publication_state)
+        state_code = sg.geoid if sg else None
+    story_geoids = build_story_geoids(geoid, mention_geoids, scope_category, state_code)
+    geoids_json = json.dumps([g for g, *_ in story_geoids]) if story_geoids else None
+    session.execute(
+        text("DELETE FROM article_geoids WHERE article_id = :id"), {"id": article.id}
+    )
+    for g_code, g_level, g_primary, g_source in story_geoids:
+        session.execute(
+            text(
+                "INSERT INTO article_geoids "
+                "(article_id, geoid, geoid_level, is_primary, source) "
+                "VALUES (:a, :g, :l, :p, :s) ON CONFLICT DO NOTHING"
+            ),
+            {"a": article.id, "g": g_code, "l": g_level, "p": g_primary, "s": g_source},
+        )
+
+    session.execute(
+        text("UPDATE article_enrichment SET geoids = :g WHERE article_id = :id"),
+        {"g": geoids_json, "id": article.id},
+    )
 
     session.execute(
         text("UPDATE articles SET status = :status, enriched_at = :now WHERE id = :id"),

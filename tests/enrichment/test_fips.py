@@ -214,3 +214,45 @@ class TestFullStateNames:
     def test_unknown_state_name_is_none(self):
         assert place_geoid("Columbia", "Missourah") is None
         assert state_geoid("Missourah") is None
+
+
+class TestStoryGeoidSet:
+    """News geography is one-to-many: the story-to-FIPS set."""
+
+    def test_point_is_primary_and_mentions_dedupe(self):
+        from src.enrichment.fips import GeoidResult
+        from src.enrichment.repository import build_story_geoids
+
+        point = GeoidResult("2915670", "place", 38.9, -92.3)
+        mentions = [
+            ("2915670", "place"),
+            ("2938000", "place"),
+            ("2938000", "place"),
+            (None, None),
+            ("29019", "county"),
+        ]
+        out = build_story_geoids(point, mentions, "city_municipality", "29")
+        assert out[0] == ("2915670", "place", True, "point")
+        assert ("2938000", "place", False, "mention") in out
+        assert ("29019", "county", False, "mention") in out
+        assert len(out) == 3  # deduped, no state row for city scope
+
+    def test_regional_story_is_its_mentions(self):
+        from src.enrichment.repository import build_story_geoids
+
+        out = build_story_geoids(
+            None, [("2970000", "place"), ("2907966", "place")], "regional", "29"
+        )
+        assert [g for g, *_ in out] == ["2970000", "2907966"]
+        assert not any(p for _, _, p, _ in out)  # no primary: no single point
+
+    def test_statewide_contributes_the_state_code(self):
+        from src.enrichment.repository import build_story_geoids
+
+        out = build_story_geoids(None, [], "statewide", "29")
+        assert out == [("29", "state", True, "scope_state")]
+
+    def test_empty_when_nothing_known(self):
+        from src.enrichment.repository import build_story_geoids
+
+        assert build_story_geoids(None, [], "other", None) == []
