@@ -307,7 +307,23 @@ composed from the existing patterns, verified in the repo:
 The OpenRouter key is a new Kubernetes secret in the `production` namespace; the
 existing `cloudsql-db-credentials` pattern is the precedent.
 
-Enable on one dataset with a partial profile — `content_gate` and `scope` only.
+Enable on one dataset with a partial profile — decided 2026-08-21 for
+`Mizzou-Missouri-State`:
+
+```jsonc
+{ "version": 2, "content_gate": true, "scope": true,
+  "export_exclude_scopes": ["international"] }
+```
+
+`national` deliberately stays exportable: its scope label syncs to BigQuery in
+`article_enrichment.scope`, so a later filter is a join, not a reprocess. If it
+is ever excluded, the flag change plus a version bump reprocesses candidates
+under §8.
+
+Note one asymmetry consumers should know: the `article_enrichment` sync carries
+every row, including those of `out_of_scope` articles, whose article rows are
+absent from BigQuery. An enrichment row without an articles row is therefore
+not an error — it documents why the article is absent.
 
 **Exit after seven days:**
 - No article stuck at `labeled` beyond two scheduled runs
