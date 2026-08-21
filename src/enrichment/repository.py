@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from src.enrichment.fips import resolve_geoid
+from src.enrichment.fips import resolve_geoid, state_geoid
 from src.enrichment.profiles import Profile, parse_profile
 from src.enrichment.resolve import norm, resolve_point
 from src.enrichment.types import ArticleInput, EnrichmentOutcome
@@ -25,7 +25,8 @@ TERMINAL_STATUSES = ("enriched", "enrichment_skipped", "out_of_scope")
 EXPORTABLE_STATUSES = ("enriched", "enrichment_skipped")
 
 _CANDIDATE_SQL = text("""
-    SELECT a.id, a.title, a.content, d.slug AS dataset_slug, s.city AS publication_city
+    SELECT a.id, a.title, a.content, d.slug AS dataset_slug, s.city AS publication_city,
+           s.metadata::json->>'state' AS publication_state
     FROM articles a
     JOIN candidate_links cl ON cl.id = a.candidate_link_id
     JOIN dataset_sources ds ON ds.source_id = cl.source_id
@@ -42,7 +43,8 @@ _CANDIDATE_SQL = text("""
     """)
 
 _REPROCESS_SQL = text("""
-    SELECT a.id, a.title, a.content, d.slug AS dataset_slug, s.city AS publication_city
+    SELECT a.id, a.title, a.content, d.slug AS dataset_slug, s.city AS publication_city,
+           s.metadata::json->>'state' AS publication_state
     FROM articles a
     JOIN candidate_links cl ON cl.id = a.candidate_link_id
     JOIN dataset_sources ds ON ds.source_id = cl.source_id
@@ -94,6 +96,7 @@ def _rows_to_articles(rows) -> list[ArticleInput]:
             content=r.content or "",
             dataset_slug=r.dataset_slug,
             publication_city=r.publication_city,
+            publication_state=getattr(r, "publication_state", None),
         )
         for r in rows
     ]
@@ -145,7 +148,8 @@ def select_by_ids(session: Session, ids: list[str], max_attempts: int) -> ListRe
         text("""
             SELECT a.id, a.title, a.content, a.status, a.wire_check_status,
                    a.enrichment_attempts,
-                   d.slug AS dataset_slug, s.city AS publication_city
+                   d.slug AS dataset_slug, s.city AS publication_city,
+           s.metadata::json->>'state' AS publication_state
             FROM articles a
             LEFT JOIN candidate_links cl ON cl.id = a.candidate_link_id
             LEFT JOIN dataset_sources ds ON ds.source_id = cl.source_id
@@ -178,6 +182,7 @@ def select_by_ids(session: Session, ids: list[str], max_attempts: int) -> ListRe
                     row.content or "",
                     row.dataset_slug,
                     row.publication_city,
+                    getattr(row, "publication_state", None),
                 )
             )
     return ListReport(candidates=candidates, rejected=rejected)
@@ -282,6 +287,19 @@ def persist_outcome(
     if places_payload:
         point = resolve_point(places_payload, article.publication_city)
         geoid = _geoid_for(places_payload, point)
+    # The ladder owes the deepest KNOWN level. Whatever ran, a scoped story
+    # that is not national/international/other is at least a story about the
+    # publication's state. Those three stay null: no US-level FIPS exists and
+    # 'other' asserts nothing geographic.
+    if geoid is None:
+        scope_meta = (step_payloads.get("scope") or {}).get("article_metadata") or {}
+        category = scope_meta.get("category")
+        if (
+            category
+            and category not in ("national", "international", "other")
+            and article.publication_state
+        ):
+            geoid = state_geoid(article.publication_state)
 
     session.execute(
         text("""

@@ -98,3 +98,75 @@ class TestLadder:
             fips._HOUSE_NUMBER.match("Haile Street") or None
         assert fips._HOUSE_NUMBER.match("Haile Street") is None
         assert fips._HOUSE_NUMBER.match("221 N 8th St") is not None
+
+
+class TestStateFallbackForNonPointScopes:
+    """A statewide or regional story with no place extraction still records
+    the state GEOID; national/other stay null (no US-level FIPS)."""
+
+    def test_repository_fallback_logic(self):
+        from decimal import Decimal
+        from unittest.mock import MagicMock
+
+        from src.enrichment import repository
+        from src.enrichment.types import ArticleInput, EnrichmentOutcome, StepResult
+
+        article = ArticleInput("x", "T", "body", "ds", "Columbia", "MO")
+        session = MagicMock()
+
+        def outcome_with_scope(category):
+            return EnrichmentOutcome(
+                article_id="x",
+                status="enriched",
+                skip_reason=None,
+                steps_applied=["content_gate", "scope"],
+                results=[
+                    StepResult(
+                        "scope",
+                        True,
+                        {"article_metadata": {"category": category, "confidence": 0.9}},
+                        None,
+                        10,
+                        5,
+                        Decimal("0.001"),
+                    )
+                ],
+                total_cost_usd=Decimal("0.001"),
+            )
+
+        captured = {}
+        original_execute = session.execute
+
+        def capture(stmt, params=None):
+            if params and "point_geoid" in (params or {}):
+                captured.update(params)
+            return original_execute(stmt, params)
+
+        session.execute = capture
+        from src.enrichment.profiles import Profile
+
+        profile = Profile(version=3, scope=True)
+
+        repository.persist_outcome(
+            session,
+            article,
+            outcome_with_scope("statewide"),
+            profile=profile,
+            model="m",
+            backfield_commit="c",
+            prompt_versions={},
+        )
+        assert captured.get("point_geoid") == "29"
+        assert captured.get("point_geoid_level") == "state"
+
+        captured.clear()
+        repository.persist_outcome(
+            session,
+            article,
+            outcome_with_scope("national"),
+            profile=profile,
+            model="m",
+            backfield_commit="c",
+            prompt_versions={},
+        )
+        assert captured.get("point_geoid") is None

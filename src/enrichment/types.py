@@ -17,6 +17,7 @@ class ArticleInput:
     content: str
     dataset_slug: str
     publication_city: str | None
+    publication_state: str | None = None
 
 
 @dataclass(frozen=True)
