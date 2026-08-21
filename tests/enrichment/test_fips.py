@@ -159,6 +159,34 @@ class TestStateFallbackForNonPointScopes:
         assert captured.get("point_geoid") == "29"
         assert captured.get("point_geoid_level") == "state"
 
+        # regional: NO story-level code — its geography is the per-place rows
+        captured.clear()
+        repository.persist_outcome(
+            session,
+            article,
+            outcome_with_scope("regional"),
+            profile=profile,
+            model="m",
+            backfield_commit="c",
+            prompt_versions={},
+        )
+        assert captured.get("point_geoid") is None
+
+        # unresolved city scope: the publication's own place, flagged assumed
+        captured.clear()
+        repository.persist_outcome(
+            session,
+            article,
+            outcome_with_scope("city_municipality"),
+            profile=profile,
+            model="m",
+            backfield_commit="c",
+            prompt_versions={},
+        )
+        assert captured.get("point_geoid") == "2915670"  # Columbia city
+        assert captured.get("point_geoid_level") == "place"
+        assert captured.get("point_method") == "publication_place_assumed"
+
         captured.clear()
         repository.persist_outcome(
             session,

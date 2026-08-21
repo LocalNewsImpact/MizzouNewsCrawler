@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from src.enrichment.fips import resolve_geoid, state_geoid
+from src.enrichment.fips import county_geoid, place_geoid, resolve_geoid, state_geoid
 from src.enrichment.profiles import Profile, parse_profile
 from src.enrichment.resolve import norm, resolve_point
 from src.enrichment.types import ArticleInput, EnrichmentOutcome
@@ -284,22 +284,32 @@ def persist_outcome(
     point = None
     geoid = None
     places_payload = step_payloads.get("places")
+    scope_meta = (step_payloads.get("scope") or {}).get("article_metadata") or {}
+    scope_category = scope_meta.get("category")
     if places_payload:
-        point = resolve_point(places_payload, article.publication_city)
-        geoid = _geoid_for(places_payload, point)
-    # The ladder owes the deepest KNOWN level. Whatever ran, a scoped story
-    # that is not national/international/other is at least a story about the
-    # publication's state. Those three stay null: no US-level FIPS exists and
-    # 'other' asserts nothing geographic.
+        # A point is resolved only at point scope. Regional keeps its places
+        # rows (each with a per-place GEOID) and no story-level point.
+        if scope_category in ("city_municipality", "neighborhood_community"):
+            point = resolve_point(places_payload, article.publication_city)
+            geoid = _geoid_for(places_payload, point)
+    # Story-level fallbacks (decided 2026-08-21). regional gets NO story-level
+    # code: its geography is the per-place GEOIDs on its mentions — a state
+    # championship matters to the two teams' cities, not to the state.
+    # statewide keeps the state code (legislation genuinely is statewide).
+    # Unresolved city/neighborhood stories take the publication's own city as
+    # an assumed place. national/international/other stay null.
     if geoid is None:
-        scope_meta = (step_payloads.get("scope") or {}).get("article_metadata") or {}
-        category = scope_meta.get("category")
-        if (
-            category
-            and category not in ("national", "international", "other")
+        category = scope_category
+        if category == "statewide" and article.publication_state:
+            geoid = state_geoid(article.publication_state)
+        elif (
+            category in ("city_municipality", "neighborhood_community")
+            and article.publication_city
             and article.publication_state
         ):
-            geoid = state_geoid(article.publication_state)
+            geoid = place_geoid(article.publication_city, article.publication_state)
+            if geoid is not None and point is None:
+                point = (article.publication_city, "publication_place_assumed")
 
     session.execute(
         text("""
@@ -389,16 +399,26 @@ def persist_outcome(
             if isinstance(state, dict):
                 state = state.get("abbr") or state.get("name")
             city = components.get("city")
+            row_state = state or article.publication_state
+            row_geoid = None
+            if city and row_state:
+                row_geoid = place_geoid(city, row_state)
+            if row_geoid is None and components.get("county") and row_state:
+                row_geoid = county_geoid(components["county"], row_state)
             session.execute(
                 text("""
                     INSERT INTO article_places
                       (article_id, full_name, place_type, city, county, state,
-                       address, description, mention_text, is_point)
+                       address, description, mention_text, is_point,
+                       geoid, geoid_level)
                     VALUES
                       (:article_id, :full_name, :place_type, :city, :county, :state,
-                       :address, :description, :mention_text, :is_point)
+                       :address, :description, :mention_text, :is_point,
+                       :geoid, :geoid_level)
                     """),
                 {
+                    "geoid": row_geoid.geoid if row_geoid else None,
+                    "geoid_level": row_geoid.level if row_geoid else None,
                     "article_id": article.id,
                     "full_name": loc.get("full"),
                     "place_type": loc.get("type"),

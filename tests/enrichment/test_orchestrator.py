@@ -225,10 +225,13 @@ class TestStatusTransitions:
 
 
 class TestScopeGating:
+    def test_regional_reaches_places_for_per_place_geoids(self):
+        _, stub = run(FULL, scope=ok("scope", meta("regional")))
+        assert "places" in stub.calls
+
     @pytest.mark.parametrize(
         "scope_value",
         [
-            "regional",
             "statewide",
             "national",
             "international",
@@ -237,7 +240,7 @@ class TestScopeGating:
             "local_to_elsewhere",
         ],
     )
-    def test_non_point_scopes_never_reach_places(self, scope_value):
+    def test_non_places_scopes_never_reach_places(self, scope_value):
         result, stub = run(FULL, scope=ok("scope", meta(scope_value)))
         assert result.status == "enriched"
         assert "places" not in stub.calls

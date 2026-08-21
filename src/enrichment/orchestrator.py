@@ -24,6 +24,10 @@ from src.enrichment.resolve import resolve_point
 from src.enrichment.types import ArticleInput, EnrichmentOutcome, StepResult
 
 POINT_SCOPES = frozenset({"city_municipality", "neighborhood_community"})
+# Place extraction also runs for regional: a regional story's geography is its
+# mentioned cities (each gets a per-place GEOID), though no single point is
+# resolved for it. Statewide and broader still skip extraction entirely.
+PLACES_SCOPES = POINT_SCOPES | {"regional"}
 
 _GATE_VERDICT_STATUS = {"paywall": "paywall", "not_news": "not_article"}
 
@@ -107,7 +111,7 @@ def enrich_article(
             return outcome("out_of_scope")
 
     # ---- steps 2–3: places and point resolution ------------------------------
-    if profile.places and scope_category in POINT_SCOPES:
+    if profile.places and scope_category in PLACES_SCOPES:
         places = adapter.run_places(article, model)
         results.append(places)
         if not places.ok or places.payload is None:
