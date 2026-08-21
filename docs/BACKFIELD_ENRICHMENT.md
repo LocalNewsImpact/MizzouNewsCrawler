@@ -318,6 +318,30 @@ model call.** City-level points then resolve to coordinates from a GNIS or Censu
 gazetteer file held locally — exact, free, no rate limit. The same GNIS file is
 already loaded for the LNIC source directory.
 
+### The location target is a GEOID ladder, not coordinates (decided 2026-08-21)
+
+Precise geocoding is not the goal. Each pointed story records the deepest
+available Census GEOID:
+
+```
+state (2) -> county (5) -> place (7) -> tract (11) / block (15)
+```
+
+State, county and place resolve from Census gazetteer files bundled in the
+repository — local, exact, free, no model call. Tract/block are attempted only
+when an extracted address carries a house number, via the free Census geocoder;
+failure leaves the ladder where it was. On the 41-article test slice: 10 place,
+4 block, 1 county, 5 state-only, 1 unresolved.
+
+GEOIDs nest by prefix, so one column serves every rollup
+(`LEFT(point_geoid, 5)` is the county), and joins directly to ACS demographics,
+`geo_us_boundaries` polygons and the rest of the federal statistical system in
+BigQuery.
+
+This removes the paid geocoder and backfield's four-model geocode agent from the
+plan. The `geocode` profile flag remains reserved for a future
+precision-coordinates need.
+
 ### Step 4 is the expensive one, which is why it is last and narrow
 
 Backfield's geocoder runs **four LLM models per location** — evaluation,

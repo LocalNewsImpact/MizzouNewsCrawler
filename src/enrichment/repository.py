@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from src.enrichment.fips import resolve_geoid
 from src.enrichment.profiles import Profile, parse_profile
 from src.enrichment.resolve import norm, resolve_point
 from src.enrichment.types import ArticleInput, EnrichmentOutcome
@@ -185,6 +186,44 @@ def select_by_ids(session: Session, ids: list[str], max_attempts: int) -> ListRe
 # ---- writes -----------------------------------------------------------------
 
 
+def _geoid_for(places_payload: dict, point):
+    """Run the FIPS ladder from the extracted components (§ fips.py)."""
+    point_norm = norm(point[0]) if point else None
+    state = county = street = street_city = None
+    states, counties = {}, {}
+    for location in places_payload.get("locations") or []:
+        components = (location.get("location") or {}).get("components") or {}
+        loc_state = components.get("state")
+        if isinstance(loc_state, dict):
+            loc_state = loc_state.get("abbr") or loc_state.get("name")
+        city = components.get("city")
+        if loc_state:
+            states[loc_state] = states.get(loc_state, 0) + 1
+        if components.get("county"):
+            counties[components["county"]] = counties.get(components["county"], 0) + 1
+        matches_point = bool(point_norm and city and norm(city) == point_norm)
+        if matches_point:
+            if loc_state:
+                state = loc_state
+            if components.get("county"):
+                county = components["county"]
+        address = (components.get("address") or "").strip()
+        if address and street is None and (matches_point or not point_norm):
+            street, street_city = address, city
+    if state is None and states:
+        state = max(states, key=lambda k: states[k])
+    if county is None and counties:
+        county = max(counties, key=lambda k: counties[k])
+    return resolve_geoid(
+        point_city=point[0] if point else None,
+        state=state,
+        county=county,
+        street_address=street,
+        address_city=street_city,
+        census_lookup=True,
+    )
+
+
 def _confidence(meta: dict) -> float | None:
     value = meta.get("confidence")
     try:
@@ -238,9 +277,11 @@ def persist_outcome(
 
     gate = step_payloads.get("content_gate") or {}
     point = None
+    geoid = None
     places_payload = step_payloads.get("places")
     if places_payload:
         point = resolve_point(places_payload, article.publication_city)
+        geoid = _geoid_for(places_payload, point)
 
     session.execute(
         text("""
@@ -251,7 +292,8 @@ def persist_outcome(
               scope, scope_confidence, subject, subject_confidence,
               topic, topic_confidence, format, format_confidence,
               timeframe, timeframe_confidence, user_need, user_need_confidence,
-              rationales, point_place, point_method
+              rationales, point_place, point_method,
+              point_geoid, point_geoid_level, point_lat, point_lon
             ) VALUES (
               :article_id, :profile_version, :steps_applied, :skip_reason,
               :backfield_commit, :model, :prompt_versions, :cost_usd, :enriched_at,
@@ -259,7 +301,8 @@ def persist_outcome(
               :scope, :scope_confidence, :subject, :subject_confidence,
               :topic, :topic_confidence, :format, :format_confidence,
               :timeframe, :timeframe_confidence, :user_need, :user_need_confidence,
-              :rationales, :point_place, :point_method
+              :rationales, :point_place, :point_method,
+              :point_geoid, :point_geoid_level, :point_lat, :point_lon
             )
             ON CONFLICT (article_id) DO UPDATE SET
               profile_version = EXCLUDED.profile_version,
@@ -286,7 +329,11 @@ def persist_outcome(
               user_need_confidence = COALESCE(EXCLUDED.user_need_confidence, article_enrichment.user_need_confidence),
               rationales = COALESCE(EXCLUDED.rationales, article_enrichment.rationales),
               point_place = COALESCE(EXCLUDED.point_place, article_enrichment.point_place),
-              point_method = COALESCE(EXCLUDED.point_method, article_enrichment.point_method)
+              point_method = COALESCE(EXCLUDED.point_method, article_enrichment.point_method),
+              point_geoid = COALESCE(EXCLUDED.point_geoid, article_enrichment.point_geoid),
+              point_geoid_level = COALESCE(EXCLUDED.point_geoid_level, article_enrichment.point_geoid_level),
+              point_lat = COALESCE(EXCLUDED.point_lat, article_enrichment.point_lat),
+              point_lon = COALESCE(EXCLUDED.point_lon, article_enrichment.point_lon)
             """),
         {
             "article_id": article.id,
@@ -303,6 +350,10 @@ def persist_outcome(
             "rationales": json.dumps(rationales) if rationales else None,
             "point_place": point[0] if point else None,
             "point_method": point[1] if point else None,
+            "point_geoid": geoid.geoid if geoid else None,
+            "point_geoid_level": geoid.level if geoid else None,
+            "point_lat": geoid.lat if geoid else None,
+            "point_lon": geoid.lon if geoid else None,
             **columns,
         },
     )
