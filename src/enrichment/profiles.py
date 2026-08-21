@@ -36,6 +36,7 @@ EXCLUDABLE_SCOPES = (
 _KNOWN_KEYS = {
     "version",
     "export_exclude_scopes",
+    "steady_state_since",
     "content_gate",
     "scope",
     "places",
@@ -65,6 +66,10 @@ class Profile:
     # Scope categories whose articles take status 'out_of_scope' and do not
     # export. Dataset-specific; default empty = exclude nothing.
     export_exclude_scopes: tuple[str, ...] = ()
+    # Steady-state floor: the scheduled run selects only articles created on or
+    # after this ISO date. Without it, enabling a dataset would enrich its
+    # entire historical backlog — history is the backfill list's job.
+    steady_state_since: str | None = None
 
 
 DEFAULT_PROFILE = Profile(version=1)
@@ -112,6 +117,17 @@ def parse_profile(raw: dict | None) -> Profile:
     if len(set(presets)) != len(presets):
         raise ConfigurationError("metadata_presets contains duplicates")
 
+    since = raw.get("steady_state_since")
+    if since is not None:
+        import datetime
+
+        try:
+            datetime.date.fromisoformat(str(since))
+        except ValueError:
+            raise ConfigurationError(
+                f"steady_state_since must be an ISO date (YYYY-MM-DD), got {since!r}"
+            ) from None
+
     exclude = raw.get("export_exclude_scopes", [])
     if not isinstance(exclude, (list, tuple)) or not all(
         isinstance(x, str) for x in exclude
@@ -136,6 +152,7 @@ def parse_profile(raw: dict | None) -> Profile:
         organizations=raw.get("organizations", False),
         metadata_presets=tuple(presets),
         export_exclude_scopes=tuple(exclude),
+        steady_state_since=str(since) if since is not None else None,
     )
 
     if profile.export_exclude_scopes and not profile.scope:

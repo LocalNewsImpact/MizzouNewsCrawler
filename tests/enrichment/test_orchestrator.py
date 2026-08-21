@@ -416,6 +416,12 @@ class TestScopeExportExclusion:
         with pytest.raises(ConfigurationError, match=fragment):
             parse_profile(raw)
 
+    def test_since_floor_parses_and_validates(self):
+        profile = parse_profile({"version": 2, "steady_state_since": "2026-08-21"})
+        assert profile.steady_state_since == "2026-08-21"
+        with pytest.raises(ConfigurationError, match="ISO date"):
+            parse_profile({"version": 2, "steady_state_since": "August 21"})
+
     def test_parse_accepts_the_flag(self):
         profile = parse_profile(
             {

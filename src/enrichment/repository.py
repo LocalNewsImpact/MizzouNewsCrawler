@@ -34,6 +34,7 @@ _CANDIDATE_SQL = text("""
       AND a.status = 'labeled'
       AND a.wire_check_status IN ('complete', 'local')
       AND a.enrichment_attempts < :max_attempts
+      AND (CAST(:since AS date) IS NULL OR a.created_at >= CAST(:since AS date))
     ORDER BY a.created_at
     LIMIT :batch
     FOR UPDATE OF a SKIP LOCKED
@@ -98,11 +99,20 @@ def _rows_to_articles(rows) -> list[ArticleInput]:
 
 
 def select_candidates(
-    session: Session, dataset_slug: str, batch: int, max_attempts: int
+    session: Session,
+    dataset_slug: str,
+    batch: int,
+    max_attempts: int,
+    since: str | None = None,
 ) -> list[ArticleInput]:
     rows = session.execute(
         _CANDIDATE_SQL,
-        {"dataset": dataset_slug, "batch": batch, "max_attempts": max_attempts},
+        {
+            "dataset": dataset_slug,
+            "batch": batch,
+            "max_attempts": max_attempts,
+            "since": since,
+        },
     ).fetchall()
     return _rows_to_articles(rows)
 

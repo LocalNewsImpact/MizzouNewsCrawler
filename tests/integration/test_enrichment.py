@@ -569,6 +569,23 @@ class TestRepository:
             s.execute(sa.text("DELETE FROM candidate_links WHERE id='clwl'"))
             s.commit()
 
+    def test_steady_state_since_floors_the_candidates(self, db):
+        """The scheduled run must not eat the historical backlog: history is
+        the backfill list's job."""
+        with db() as s:
+            s.execute(
+                sa.text(
+                    "UPDATE articles SET created_at = '2026-01-01' WHERE id = 'art0'"
+                )
+            )
+            s.commit()
+            with_floor = select_candidates(
+                s, "Mizzou-Missouri-State", 10, 3, since="2026-06-01"
+            )
+            assert "art0" not in {c.id for c in with_floor}
+            without = select_candidates(s, "Mizzou-Missouri-State", 10, 3)
+            assert "art0" in {c.id for c in without}
+
     def test_backfill_list_accounts_for_every_id(self, db):
         with db() as s:
             articles = select_candidates(s, "Mizzou-Missouri-State", 10, 3)
