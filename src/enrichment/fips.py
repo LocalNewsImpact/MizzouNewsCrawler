@@ -92,6 +92,73 @@ STATE_FIPS = {
     "PR": "72",
 }
 
+STATE_NAME_TO_USPS = {
+    "alabama": "AL",
+    "alaska": "AK",
+    "arizona": "AZ",
+    "arkansas": "AR",
+    "california": "CA",
+    "colorado": "CO",
+    "connecticut": "CT",
+    "delaware": "DE",
+    "district of columbia": "DC",
+    "florida": "FL",
+    "georgia": "GA",
+    "hawaii": "HI",
+    "idaho": "ID",
+    "illinois": "IL",
+    "indiana": "IN",
+    "iowa": "IA",
+    "kansas": "KS",
+    "kentucky": "KY",
+    "louisiana": "LA",
+    "maine": "ME",
+    "maryland": "MD",
+    "massachusetts": "MA",
+    "michigan": "MI",
+    "minnesota": "MN",
+    "mississippi": "MS",
+    "missouri": "MO",
+    "montana": "MT",
+    "nebraska": "NE",
+    "nevada": "NV",
+    "new hampshire": "NH",
+    "new jersey": "NJ",
+    "new mexico": "NM",
+    "new york": "NY",
+    "north carolina": "NC",
+    "north dakota": "ND",
+    "ohio": "OH",
+    "oklahoma": "OK",
+    "oregon": "OR",
+    "pennsylvania": "PA",
+    "rhode island": "RI",
+    "south carolina": "SC",
+    "south dakota": "SD",
+    "tennessee": "TN",
+    "texas": "TX",
+    "utah": "UT",
+    "vermont": "VT",
+    "virginia": "VA",
+    "washington": "WA",
+    "west virginia": "WV",
+    "wisconsin": "WI",
+    "wyoming": "WY",
+    "puerto rico": "PR",
+}
+
+
+def _usps(state: str | None) -> str | None:
+    """Accept a USPS code or a full state name; extracted components carry
+    both ("MO" and "Missouri")."""
+    if not state:
+        return None
+    value = state.strip()
+    if len(value) == 2 and value.isalpha():
+        return value.upper()
+    return STATE_NAME_TO_USPS.get(value.lower())
+
+
 _places: dict[tuple[str, str], tuple[str, float, float]] | None = None
 _counties: dict[tuple[str, str], tuple[str, float, float]] | None = None
 
@@ -146,7 +213,16 @@ class GeoidResult:
 def place_geoid(city: str, state: str) -> GeoidResult | None:
     _load()
     assert _places is not None
-    hit = _places.get((state.upper(), norm(_strip_suffix(city))))
+    usps = _usps(state)
+    if usps is None:
+        return None
+    # Look up the name as given first: stripping the LSAD suffix from input
+    # mangles real names ending in a descriptor — "Platte City" is not
+    # "Platte", "Kansas City" is not "Kansas". The stripped form is only a
+    # fallback for inputs that arrive as "Columbia city".
+    hit = _places.get((usps, norm(city))) or _places.get(
+        (usps, norm(_strip_suffix(city)))
+    )
     if hit is None:
         return None
     return GeoidResult(hit[0], "place", hit[1], hit[2])
@@ -155,15 +231,18 @@ def place_geoid(city: str, state: str) -> GeoidResult | None:
 def county_geoid(county: str, state: str) -> GeoidResult | None:
     _load()
     assert _counties is not None
+    usps = _usps(state)
+    if usps is None:
+        return None
     bare = norm(re.sub(r"\s+county$", "", county, flags=re.IGNORECASE))
-    hit = _counties.get((state.upper(), bare))
+    hit = _counties.get((usps, bare))
     if hit is None:
         return None
     return GeoidResult(hit[0], "county", hit[1], hit[2])
 
 
 def state_geoid(state: str) -> GeoidResult | None:
-    fips = STATE_FIPS.get((state or "").upper())
+    fips = STATE_FIPS.get(_usps(state) or "")
     return GeoidResult(fips, "state", None, None) if fips else None
 
 

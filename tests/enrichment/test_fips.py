@@ -198,3 +198,19 @@ class TestStateFallbackForNonPointScopes:
             prompt_versions={},
         )
         assert captured.get("point_geoid") is None
+
+
+class TestFullStateNames:
+    """Extracted components carry 'Missouri' as often as 'MO'."""
+
+    def test_full_name_equals_code(self):
+        assert (
+            place_geoid("Platte City", "Missouri").geoid
+            == place_geoid("Platte City", "MO").geoid
+        )
+        assert county_geoid("Boone", "Missouri").geoid == "29019"
+        assert state_geoid("Missouri").geoid == "29"
+
+    def test_unknown_state_name_is_none(self):
+        assert place_geoid("Columbia", "Missourah") is None
+        assert state_geoid("Missourah") is None
