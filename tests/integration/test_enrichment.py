@@ -194,6 +194,23 @@ def _session_factory(url):
     return engine, sessionmaker(bind=engine)
 
 
+def _seed_wire_local(session):
+    session.execute(
+        sa.text(
+            "INSERT INTO candidate_links (id, url, source, source_id, discovered_at, status, created_at) "
+            "VALUES ('clwl', 'https://example.test/wl', 'seed', 'src1', now(), 'new', now())"
+        )
+    )
+    session.execute(
+        sa.text(
+            "INSERT INTO articles (id, candidate_link_id, status, wire_check_status, "
+            " title, content, created_at, extracted_at) "
+            "VALUES ('art-wl', 'clwl', 'labeled', 'local', 'WL', 'Body. ', now(), now())"
+        )
+    )
+    session.commit()
+
+
 def _seed(session, n=3, dataset="Mizzou-Missouri-State"):
     session.execute(
         sa.text(
@@ -538,6 +555,19 @@ class TestRepository:
                 s, "Mizzou-Missouri-State", profile_version=2, batch=10, max_attempts=3
             )
             assert candidates[0].id not in {c.id for c in remaining}
+
+    def test_legacy_wire_check_local_is_a_candidate(self, db):
+        """512 of the March backfill articles carry the legacy 'local' pass
+        state; requiring 'complete' would drop them at Phase 7."""
+        with db() as s:
+            _seed_wire_local(s)
+            ids = {c.id for c in select_candidates(s, "Mizzou-Missouri-State", 20, 3)}
+            assert "art-wl" in ids
+            report = select_by_ids(s, ["art-wl"], 3)
+            assert [c.id for c in report.candidates] == ["art-wl"]
+            s.execute(sa.text("DELETE FROM articles WHERE id='art-wl'"))
+            s.execute(sa.text("DELETE FROM candidate_links WHERE id='clwl'"))
+            s.commit()
 
     def test_backfill_list_accounts_for_every_id(self, db):
         with db() as s:

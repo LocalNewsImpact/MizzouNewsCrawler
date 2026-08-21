@@ -32,7 +32,7 @@ _CANDIDATE_SQL = text("""
     LEFT JOIN sources s      ON s.id = cl.source_id
     WHERE d.slug = :dataset
       AND a.status = 'labeled'
-      AND a.wire_check_status = 'complete'
+      AND a.wire_check_status IN ('complete', 'local')
       AND a.enrichment_attempts < :max_attempts
     ORDER BY a.created_at
     LIMIT :batch
@@ -48,7 +48,7 @@ _REPROCESS_SQL = text("""
     LEFT JOIN sources s      ON s.id = cl.source_id
     LEFT JOIN article_enrichment e ON e.article_id = a.id
     WHERE d.slug = :dataset
-      AND a.wire_check_status = 'complete'
+      AND a.wire_check_status IN ('complete', 'local')
       AND (
         (a.status = 'labeled' AND a.enrichment_attempts < :max_attempts)
         OR (a.status IN ('enriched', 'enrichment_skipped', 'out_of_scope')
@@ -153,7 +153,7 @@ def select_by_ids(session: Session, ids: list[str], max_attempts: int) -> ListRe
             rejected[article_id] = "not found"
         elif row.status != "labeled":
             rejected[article_id] = f"status is {row.status!r}, not 'labeled'"
-        elif row.wire_check_status != "complete":
+        elif row.wire_check_status not in ("complete", "local"):
             rejected[article_id] = f"wire_check_status is {row.wire_check_status!r}"
         elif row.enrichment_attempts >= max_attempts:
             rejected[article_id] = f"attempts exhausted ({row.enrichment_attempts})"

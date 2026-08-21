@@ -345,7 +345,13 @@ In this order:
    query's inner filter to `status IN ('enriched', 'enrichment_skipped')`
 
 **Exit:**
-- `select count(*) from articles where status='labeled' and wire_check_status='complete'` is zero for the dataset, or every remainder is explained
+- `select count(*) from articles where status='labeled' and wire_check_status IN ('complete','local')` is zero for the dataset, or every remainder is explained
+- **The wire/error/processing residue is dispositioned before tightening.**
+  Measured 2026-08-21: 824 articles at `labeled` with `wire_check_status='wire'`,
+  15 `error` and 3 `processing` are in BigQuery today and are not enrichment
+  candidates; the tightening removes them. For the wire-flagged 824 that removal
+  is arguably correct, but it is a change to current BigQuery contents and must
+  be decided, not discovered
 - BigQuery row count is unchanged across the tightening
 - Backfill totals reconcile against the supplied list
 
@@ -371,12 +377,19 @@ JOIN datasets d          ON d.id = ds.dataset_id
 LEFT JOIN sources s      ON s.id = cl.source_id
 WHERE d.slug = :dataset
   AND a.status = 'labeled'
-  AND a.wire_check_status = 'complete'
+  AND a.wire_check_status IN ('complete', 'local')
   AND a.enrichment_attempts < :max_attempts
 ORDER BY a.created_at
 LIMIT :batch
 FOR UPDATE OF a SKIP LOCKED
 ```
+
+`wire_check_status` accepts `'local'` alongside `'complete'`: no current code
+writes `'local'` — it is a legacy pass state ("checked, is local";
+`wire_check_attempted_at` is NULL on all 596 rows carrying it) — and those
+articles are in BigQuery today under the deployed status-only filter. A
+predicate requiring `'complete'` alone would leave them permanently at
+`labeled` and silently drop them at the Phase 7 tightening.
 
 `FOR UPDATE SKIP LOCKED` follows the direct extraction path's pattern and makes
 concurrent runs safe. Reprocessing adds the §8 version comparison as an `OR`
