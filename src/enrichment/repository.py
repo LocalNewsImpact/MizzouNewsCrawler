@@ -26,7 +26,7 @@ EXPORTABLE_STATUSES = ("enriched", "enrichment_skipped")
 
 _CANDIDATE_SQL = text("""
     SELECT a.id, a.title, a.content, d.slug AS dataset_slug, s.city AS publication_city,
-           s.metadata::json->>'state' AS publication_state
+           coalesce(nullif(s.metadata::json->>'state',''), d.metadata::json->>'default_state') AS publication_state
     FROM articles a
     JOIN candidate_links cl ON cl.id = a.candidate_link_id
     JOIN dataset_sources ds ON ds.source_id = cl.source_id
@@ -44,7 +44,7 @@ _CANDIDATE_SQL = text("""
 
 _REPROCESS_SQL = text("""
     SELECT a.id, a.title, a.content, d.slug AS dataset_slug, s.city AS publication_city,
-           s.metadata::json->>'state' AS publication_state
+           coalesce(nullif(s.metadata::json->>'state',''), d.metadata::json->>'default_state') AS publication_state
     FROM articles a
     JOIN candidate_links cl ON cl.id = a.candidate_link_id
     JOIN dataset_sources ds ON ds.source_id = cl.source_id
@@ -149,7 +149,7 @@ def select_by_ids(session: Session, ids: list[str], max_attempts: int) -> ListRe
             SELECT a.id, a.title, a.content, a.status, a.wire_check_status,
                    a.enrichment_attempts,
                    d.slug AS dataset_slug, s.city AS publication_city,
-           s.metadata::json->>'state' AS publication_state
+           coalesce(nullif(s.metadata::json->>'state',''), d.metadata::json->>'default_state') AS publication_state
             FROM articles a
             LEFT JOIN candidate_links cl ON cl.id = a.candidate_link_id
             LEFT JOIN dataset_sources ds ON ds.source_id = cl.source_id
@@ -327,6 +327,7 @@ def persist_outcome(
     # statewide keeps the state code (legislation genuinely is statewide).
     # Unresolved city/neighborhood stories take the publication's own city as
     # an assumed place. national/international/other stay null.
+    geo_skip_reason = None
     if geoid is None:
         category = scope_category
         if category == "statewide" and article.publication_state:
@@ -340,6 +341,24 @@ def persist_outcome(
             if geoid is not None and point is None:
                 point = (article.publication_city, "publication_place_assumed")
 
+    # An absent point code must carry its cause (decided 2026-08-21).
+    if geoid is None:
+        if scope_category == "regional":
+            geo_skip_reason = "regional_uses_place_set"
+        elif scope_category in ("national", "international", "other"):
+            geo_skip_reason = "no_codeable_geography"
+        elif scope_category is None:
+            geo_skip_reason = "not_scoped"
+        elif scope_category in ("city_municipality", "neighborhood_community"):
+            if not article.publication_state:
+                geo_skip_reason = "publication_state_unknown"
+            elif point is not None:
+                geo_skip_reason = "city_not_in_census_gazetteer"
+            else:
+                geo_skip_reason = "publication_city_not_in_census_gazetteer"
+        elif scope_category == "statewide":
+            geo_skip_reason = "publication_state_unknown"
+
     session.execute(
         text("""
             INSERT INTO article_enrichment (
@@ -350,7 +369,8 @@ def persist_outcome(
               topic, topic_confidence, format, format_confidence,
               timeframe, timeframe_confidence, user_need, user_need_confidence,
               rationales, point_place, point_method,
-              point_geoid, point_geoid_level, point_lat, point_lon, geoids
+              point_geoid, point_geoid_level, point_lat, point_lon, geoids,
+              geo_skip_reason
             ) VALUES (
               :article_id, :profile_version, :steps_applied, :skip_reason,
               :backfield_commit, :model, :prompt_versions, :cost_usd, :enriched_at,
@@ -359,7 +379,8 @@ def persist_outcome(
               :topic, :topic_confidence, :format, :format_confidence,
               :timeframe, :timeframe_confidence, :user_need, :user_need_confidence,
               :rationales, :point_place, :point_method,
-              :point_geoid, :point_geoid_level, :point_lat, :point_lon, :geoids
+              :point_geoid, :point_geoid_level, :point_lat, :point_lon, :geoids,
+              :geo_skip_reason
             )
             ON CONFLICT (article_id) DO UPDATE SET
               profile_version = EXCLUDED.profile_version,
@@ -391,7 +412,8 @@ def persist_outcome(
               point_geoid_level = COALESCE(EXCLUDED.point_geoid_level, article_enrichment.point_geoid_level),
               point_lat = COALESCE(EXCLUDED.point_lat, article_enrichment.point_lat),
               point_lon = COALESCE(EXCLUDED.point_lon, article_enrichment.point_lon),
-              geoids = COALESCE(EXCLUDED.geoids, article_enrichment.geoids)
+              geoids = COALESCE(EXCLUDED.geoids, article_enrichment.geoids),
+              geo_skip_reason = EXCLUDED.geo_skip_reason
             """),
         {
             "article_id": article.id,
@@ -413,6 +435,7 @@ def persist_outcome(
             "point_lat": geoid.lat if geoid else None,
             "point_lon": geoid.lon if geoid else None,
             "geoids": None,  # filled below once the story set is built
+            "geo_skip_reason": geo_skip_reason,
             **columns,
         },
     )
