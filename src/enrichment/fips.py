@@ -208,6 +208,10 @@ class GeoidResult:
     level: str  # state | county | place | tract | block
     lat: float | None
     lon: float | None
+    # ZCTA (the Census's ZIP) rides along on block-level resolutions: it is a
+    # real GEOID that joins to ACS like every other rung, and the block lookup
+    # already pays for the request that carries it (decided 2026-08-21).
+    zcta: str | None = None
 
 
 def place_geoid(city: str, state: str) -> GeoidResult | None:
@@ -265,6 +269,7 @@ def block_geoid(
                 "address": oneline,
                 "benchmark": "Public_AR_Current",
                 "vintage": "Current_Current",
+                "layers": "all",
                 "format": "json",
             }
         )
@@ -284,8 +289,11 @@ def block_geoid(
         if not blocks:
             return None
         geoid = blocks[0]["GEOID"][:15]
+        zcta_key = next((k for k in geographies if "ZIP Code Tabulation" in k), None)
+        zctas = geographies.get(zcta_key) or []
+        zcta = (zctas[0].get("GEOID") or "")[:5] or None if zctas else None
         coords = match.get("coordinates") or {}
-        return GeoidResult(geoid, "block", coords.get("y"), coords.get("x"))
+        return GeoidResult(geoid, "block", coords.get("y"), coords.get("x"), zcta)
     except Exception:
         return None
 

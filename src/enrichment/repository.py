@@ -426,8 +426,8 @@ def persist_outcome(
               topic, topic_confidence, format, format_confidence,
               timeframe, timeframe_confidence, user_need, user_need_confidence,
               rationales, point_place, point_method,
-              point_geoid, point_geoid_level, point_lat, point_lon, geoids,
-              geo_skip_reason
+              point_geoid, point_geoid_level, point_lat, point_lon, point_zcta,
+              geoids, geo_skip_reason
             ) VALUES (
               :article_id, :profile_version, :steps_applied, :skip_reason,
               :backfield_commit, :model, :prompt_versions, :cost_usd, :enriched_at,
@@ -436,8 +436,8 @@ def persist_outcome(
               :topic, :topic_confidence, :format, :format_confidence,
               :timeframe, :timeframe_confidence, :user_need, :user_need_confidence,
               :rationales, :point_place, :point_method,
-              :point_geoid, :point_geoid_level, :point_lat, :point_lon, :geoids,
-              :geo_skip_reason
+              :point_geoid, :point_geoid_level, :point_lat, :point_lon, :point_zcta,
+              :geoids, :geo_skip_reason
             )
             ON CONFLICT (article_id) DO UPDATE SET
               profile_version = EXCLUDED.profile_version,
@@ -468,6 +468,7 @@ def persist_outcome(
               point_geoid = COALESCE(EXCLUDED.point_geoid, article_enrichment.point_geoid),
               point_geoid_level = COALESCE(EXCLUDED.point_geoid_level, article_enrichment.point_geoid_level),
               point_lat = COALESCE(EXCLUDED.point_lat, article_enrichment.point_lat),
+              point_zcta = COALESCE(EXCLUDED.point_zcta, article_enrichment.point_zcta),
               point_lon = COALESCE(EXCLUDED.point_lon, article_enrichment.point_lon),
               geoids = COALESCE(EXCLUDED.geoids, article_enrichment.geoids),
               geo_skip_reason = EXCLUDED.geo_skip_reason
@@ -491,6 +492,7 @@ def persist_outcome(
             "point_geoid_level": geoid.level if geoid else None,
             "point_lat": geoid.lat if geoid else None,
             "point_lon": geoid.lon if geoid else None,
+            "point_zcta": getattr(geoid, "zcta", None) if geoid else None,
             "geoids": None,  # filled below once the story set is built
             "geo_skip_reason": geo_skip_reason,
             **columns,
