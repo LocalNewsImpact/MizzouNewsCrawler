@@ -20,6 +20,7 @@ transient errors.
 import argparse
 import json
 import logging
+import os
 import random
 import sys
 import time
@@ -993,7 +994,15 @@ def query_overpass(
 
     Returns list of elements (dicts) each with tags and center coordinates.
     """
-    overpass_url = "https://overpass-api.de/api/interpreter"
+    # Endpoint and pacing are configurable because Overpass fail2bans an IP
+    # that sends bulk traffic at the old 1-2.5s cadence (both crawler egress
+    # IPs were banned mid-run on 2026-08-21, each within ~15 queries). The
+    # default delay is what the main instance tolerates for a bulk run;
+    # OVERPASS_URL allows pointing a run at a mirror with laxer limits.
+    overpass_url = os.getenv(
+        "OVERPASS_URL", "https://overpass-api.de/api/interpreter"
+    )
+    delay_s = float(os.getenv("OVERPASS_DELAY_S", "10"))
     # Build query parts
     parts = []
     for f in filters:
@@ -1009,7 +1018,7 @@ def query_overpass(
     """ % ("\n".join(parts),)
 
     # Respectful delay
-    time.sleep(1 + random.random() * 1.5)
+    time.sleep(delay_s + random.random() * 1.5)
 
     try:
         r = requests.post(overpass_url, data={"data": q}, timeout=60)

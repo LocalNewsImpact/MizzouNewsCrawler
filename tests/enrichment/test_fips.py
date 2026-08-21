@@ -200,6 +200,95 @@ class TestStateFallbackForNonPointScopes:
         assert captured.get("point_geoid") is None
 
 
+class TestGeoSkipReason:
+    """Every absent point code carries its cause (decided 2026-08-21).
+
+    NULL means a point code is present; regional and national absences are
+    designed; not_scoped means the gate stopped the article before scope;
+    the remaining values are failures to act on.
+    """
+
+    def _run(self, category, publication_city="Columbia", publication_state="MO"):
+        from decimal import Decimal
+        from unittest.mock import MagicMock
+
+        from src.enrichment import repository
+        from src.enrichment.profiles import Profile
+        from src.enrichment.types import ArticleInput, EnrichmentOutcome, StepResult
+
+        article = ArticleInput(
+            "x", "T", "body", "ds", publication_city, publication_state
+        )
+        session = MagicMock()
+        captured = {}
+
+        def capture(stmt, params=None):
+            if params and "geo_skip_reason" in (params or {}):
+                captured.update(params)
+            return session
+
+        session.execute = capture
+        results = []
+        if category is not None:
+            results = [
+                StepResult(
+                    "scope",
+                    True,
+                    {"article_metadata": {"category": category, "confidence": 0.9}},
+                    None,
+                    10,
+                    5,
+                    Decimal("0.001"),
+                )
+            ]
+        outcome = EnrichmentOutcome(
+            article_id="x",
+            status="enriched",
+            skip_reason=None,
+            steps_applied=["content_gate"],
+            results=results,
+            total_cost_usd=Decimal("0.001"),
+        )
+        repository.persist_outcome(
+            session,
+            article,
+            outcome,
+            profile=Profile(version=3, scope=True),
+            model="m",
+            backfield_commit="c",
+            prompt_versions={},
+        )
+        return captured.get("geo_skip_reason"), captured.get("point_geoid")
+
+    def test_point_code_present_means_no_reason(self):
+        reason, geoid = self._run("statewide")
+        assert geoid == "29" and reason is None
+        reason, geoid = self._run("city_municipality")
+        assert geoid == "2915670" and reason is None
+
+    def test_designed_absences(self):
+        assert self._run("regional") == ("regional_uses_place_set", None)
+        assert self._run("national") == ("no_codeable_geography", None)
+        assert self._run("international") == ("no_codeable_geography", None)
+
+    def test_not_scoped(self):
+        assert self._run(None) == ("not_scoped", None)
+
+    def test_failure_reasons(self):
+        assert self._run("city_municipality", publication_state=None) == (
+            "publication_state_unknown",
+            None,
+        )
+        assert self._run("statewide", publication_state=None) == (
+            "publication_state_unknown",
+            None,
+        )
+        assert self._run("city_municipality", publication_city="Nowhereville") == (
+            "publication_city_not_in_census_gazetteer",
+            None,
+        )
+
+
 class TestFullStateNames:
     """Extracted components carry 'Missouri' as often as 'MO'."""
 

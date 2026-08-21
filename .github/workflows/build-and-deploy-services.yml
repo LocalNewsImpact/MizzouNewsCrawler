@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       services:
-        description: 'Services to build (comma-separated: processor,api,crawler,base,ml-base, or "all")'
+        description: 'Services to build (comma-separated: processor,api,crawler,enrichment,base,ml-base, or "all")'
         required: false
         default: 'auto'
         type: string
@@ -34,6 +34,7 @@ jobs:
       processor: ${{ steps.detect.outputs.processor }}
       api: ${{ steps.detect.outputs.api }}
       crawler: ${{ steps.detect.outputs.crawler }}
+      enrichment: ${{ steps.detect.outputs.enrichment }}
       base: ${{ steps.detect.outputs.base }}
       ml_base: ${{ steps.detect.outputs.ml_base }}
       any_changed: ${{ steps.detect.outputs.any_changed }}
@@ -121,6 +122,7 @@ jobs:
           PROCESSOR=false
           API=false
           CRAWLER=false
+          ENRICHMENT=false
 
           # Base image: only for OS/dependency changes
           if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.base|Dockerfile\.ci-base|requirements-base\.txt|requirements-dev\.txt'; then
@@ -158,6 +160,13 @@ jobs:
             echo "✅ Crawler changed (crawler code)"
           fi
 
+          # Enrichment: the image ships all of src/, so shared code rebuilds it
+          # too; vendor/backfield/ is the pinned backfield wheel set it installs.
+          if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.enrichment|vendor/backfield/|src/(enrichment|models|services|utils|cli)/|pyproject\.toml'; then
+            ENRICHMENT=true
+            echo "✅ Enrichment changed (enrichment code or vendored backfield)"
+          fi
+
           # Cascade rebuilds down the image dependency graph so base/dependency/
           # security updates actually reach the running services. Without this, a
           # change to only requirements-base.txt rebuilds base:latest but leaves
@@ -170,7 +179,8 @@ jobs:
             PROCESSOR=true
             API=true
             CRAWLER=true
-            echo "↪️  Base changed — cascading rebuild to ml-base, processor, api, crawler"
+            ENRICHMENT=true
+            echo "↪️  Base changed — cascading rebuild to ml-base, processor, api, crawler, enrichment"
           fi
           if [ "$ML_BASE" = "true" ]; then
             PROCESSOR=true
@@ -183,6 +193,7 @@ jobs:
           echo "processor=$PROCESSOR" >> $GITHUB_OUTPUT
           echo "api=$API" >> $GITHUB_OUTPUT
           echo "crawler=$CRAWLER" >> $GITHUB_OUTPUT
+          echo "enrichment=$ENRICHMENT" >> $GITHUB_OUTPUT
 
           # Check if anything changed
           if [ -n "$CHANGED_FILES" ]; then
@@ -201,6 +212,7 @@ jobs:
           [ "${{ steps.detect.outputs.processor }}" == "true" ] && SERVICES="${SERVICES}processor "
           [ "${{ steps.detect.outputs.api }}" == "true" ] && SERVICES="${SERVICES}api "
           [ "${{ steps.detect.outputs.crawler }}" == "true" ] && SERVICES="${SERVICES}crawler "
+          [ "${{ steps.detect.outputs.enrichment }}" == "true" ] && SERVICES="${SERVICES}enrichment "
 
           if [ -z "$SERVICES" ]; then
             echo "list=none" >> $GITHUB_OUTPUT
@@ -219,6 +231,7 @@ jobs:
           echo "Processor rebuild: ${{ steps.detect.outputs.processor }}"
           echo "API rebuild: ${{ steps.detect.outputs.api }}"
           echo "Crawler rebuild: ${{ steps.detect.outputs.crawler }}"
+          echo "Enrichment rebuild: ${{ steps.detect.outputs.enrichment }}"
           echo "Services to build: ${{ steps.services.outputs.list }}"
           echo "================================"
 
@@ -484,9 +497,52 @@ jobs:
           echo "✅ Crawler build triggered (build ID: $BUILD_ID)"
           echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
 
+  build-enrichment:
+    name: Build Enrichment
+    needs: [detect-changes, build-crawler]
+    runs-on: ubuntu-latest
+    outputs:
+      build_id: ${{ steps.trigger.outputs.build_id }}
+
+    steps:
+      - name: Skip enrichment build (not requested)
+        if: needs.detect-changes.outputs.enrichment != 'true'
+        run: 'echo "Info: Enrichment image not requested; skipping Cloud Build trigger."'
+
+      - uses: actions/checkout@v7
+        if: needs.detect-changes.outputs.enrichment == 'true'
+
+      - name: Authenticate to Google Cloud
+        if: needs.detect-changes.outputs.enrichment == 'true'
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        if: needs.detect-changes.outputs.enrichment == 'true'
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Trigger Cloud Build
+        id: trigger
+        if: needs.detect-changes.outputs.enrichment == 'true'
+        run: |
+          set +e
+          BUILD_ID=$(gcloud builds triggers run build-enrichment-manual \
+            --sha="${{ github.sha }}" \
+            --format="value(metadata.build.id)" 2>&1)
+          EXIT_CODE=$?
+          set -e
+          if [ $EXIT_CODE -ne 0 ] || [ -z "$BUILD_ID" ]; then
+            echo "❌ Failed to trigger enrichment build"
+            echo "$BUILD_ID"
+            exit 1
+          fi
+          echo "✅ Enrichment build triggered (build ID: $BUILD_ID)"
+          echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
+
   wait-for-builds:
     name: Wait for Cloud Builds
-    needs: [detect-changes, build-base, build-ml-base, build-processor, build-api, build-crawler]
+    needs: [detect-changes, build-base, build-ml-base, build-processor, build-api, build-crawler, build-enrichment]
     if: needs.detect-changes.outputs.any_changed == 'true'
     runs-on: ubuntu-latest
 
@@ -508,6 +564,7 @@ jobs:
           PROCESSOR_BUILD_ID: ${{ needs.build-processor.outputs.build_id }}
           API_BUILD_ID: ${{ needs.build-api.outputs.build_id }}
           CRAWLER_BUILD_ID: ${{ needs.build-crawler.outputs.build_id }}
+          ENRICHMENT_BUILD_ID: ${{ needs.build-enrichment.outputs.build_id }}
         run: |
           echo "⏳ Waiting for Cloud Build jobs to complete..."
           echo ""
@@ -537,6 +594,7 @@ jobs:
           add_build "$PROCESSOR_BUILD_ID" "processor"
           add_build "$API_BUILD_ID" "api"
           add_build "$CRAWLER_BUILD_ID" "crawler"
+          add_build "$ENRICHMENT_BUILD_ID" "enrichment"
 
           TOTAL_BUILDS=${#BUILD_IDS[@]}
           if [ $TOTAL_BUILDS -eq 0 ]; then
@@ -652,6 +710,7 @@ jobs:
         build-processor,
         build-api,
         build-crawler,
+        build-enrichment,
       ]
     if: >-
       github.ref == 'refs/heads/main' &&
@@ -660,7 +719,8 @@ jobs:
         needs.build-ml-base.outputs.build_id != '' ||
         needs.build-processor.outputs.build_id != '' ||
         needs.build-api.outputs.build_id != '' ||
-        needs.build-crawler.outputs.build_id != ''
+        needs.build-crawler.outputs.build_id != '' ||
+        needs.build-enrichment.outputs.build_id != ''
       ) &&
       (needs.wait-for-builds.result == 'success' || needs.wait-for-builds.result == 'skipped')
     runs-on: ubuntu-latest
@@ -689,6 +749,7 @@ jobs:
           PROCESSOR_BUILD_ID: ${{ needs.build-processor.outputs.build_id }}
           API_BUILD_ID: ${{ needs.build-api.outputs.build_id }}
           CRAWLER_BUILD_ID: ${{ needs.build-crawler.outputs.build_id }}
+          ENRICHMENT_BUILD_ID: ${{ needs.build-enrichment.outputs.build_id }}
           # Required by `gh pr create` below.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -697,6 +758,7 @@ jobs:
           if [ -n "$PROCESSOR_BUILD_ID" ]; then ARGS+=(--processor "$SHORT"); fi
           if [ -n "$CRAWLER_BUILD_ID" ]; then ARGS+=(--crawler "$SHORT"); fi
           if [ -n "$API_BUILD_ID" ]; then ARGS+=(--api "$SHORT"); fi
+          if [ -n "$ENRICHMENT_BUILD_ID" ]; then ARGS+=(--enrichment "$SHORT"); fi
           if [ ${#ARGS[@]} -eq 0 ]; then
             # This job's `if:` already established that at least one build ran,
             # so reaching here means the build IDs did not resolve -- the exact

@@ -11,16 +11,18 @@ set -euo pipefail
 #   --processor <sha>   Update PROCESSOR_TAG
 #   --crawler <sha>     Update CRAWLER_TAG
 #   --api <sha>         Update API_TAG
+#   --enrichment <sha>  Update ENRICHMENT_TAG
 #   --file <path>       Override versions file (default: k8s/versions.env)
 
 VERSIONS_FILE="k8s/versions.env"
 PROCESSOR_SHA=""
 CRAWLER_SHA=""
 API_SHA=""
+ENRICHMENT_SHA=""
 
 usage() {
     cat <<'EOF'
-update-versions-env.sh --processor <sha> [--crawler <sha>] [--api <sha>] [--file <path>]
+update-versions-env.sh --processor <sha> [--crawler <sha>] [--api <sha>] [--enrichment <sha>] [--file <path>]
 
 Updates one or more export entries inside k8s/versions.env so other tooling (kubectl apply,
 local scripts, etc.) always reference the latest image tags.
@@ -44,6 +46,11 @@ while [[ $# -gt 0 ]]; do
             API_SHA="$2"
             shift 2
             ;;
+        --enrichment)
+            [[ $# -ge 2 ]] || { echo "❌ --enrichment requires a value" >&2; exit 1; }
+            ENRICHMENT_SHA="$2"
+            shift 2
+            ;;
         --file)
             [[ $# -ge 2 ]] || { echo "❌ --file requires a value" >&2; exit 1; }
             VERSIONS_FILE="$2"
@@ -61,8 +68,8 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [[ -z "$PROCESSOR_SHA" && -z "$CRAWLER_SHA" && -z "$API_SHA" ]]; then
-    echo "❌ At least one of --processor, --crawler, or --api must be provided" >&2
+if [[ -z "$PROCESSOR_SHA" && -z "$CRAWLER_SHA" && -z "$API_SHA" && -z "$ENRICHMENT_SHA" ]]; then
+    echo "❌ At least one of --processor, --crawler, --api, or --enrichment must be provided" >&2
     usage >&2
     exit 1
 fi
@@ -135,4 +142,9 @@ fi
 if [[ -n "$API_SHA" ]]; then
     update_var "API_TAG" "$API_SHA" "$VERSIONS_FILE"
     echo "✅ Updated API_TAG to $API_SHA"
+fi
+
+if [[ -n "$ENRICHMENT_SHA" ]]; then
+    update_var "ENRICHMENT_TAG" "$ENRICHMENT_SHA" "$VERSIONS_FILE"
+    echo "✅ Updated ENRICHMENT_TAG to $ENRICHMENT_SHA"
 fi
