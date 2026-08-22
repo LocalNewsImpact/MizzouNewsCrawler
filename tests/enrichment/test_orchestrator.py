@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src.enrichment import orchestrator
+from src.enrichment import orchestrator, repository
 from src.enrichment.gate import HEURISTIC_REJECT, boilerplate_score
 from src.enrichment.profiles import (
     DEFAULT_PROFILE,
@@ -196,14 +196,19 @@ class TestStatusTransitions:
         )
         assert result.status == "not_article"
 
-    def test_gate_paywall_is_terminal_paywall(self):
+    def test_gate_paywall_exports_unenriched(self):
+        """A paywall stub still carries a CIN label, byline and publication,
+        so it exports with empty enrichment rather than vanishing; its
+        skip_reason names the extraction finding (decided 2026-08-22)."""
         result, _ = run(
             FULL,
             content_gate=ok(
                 "content_gate", {"verdict": "paywall", "reason": "teaser only"}
             ),
         )
-        assert result.status == "paywall"
+        assert result.status == "enrichment_skipped"
+        assert result.status in repository.EXPORTABLE_STATUSES
+        assert result.skip_reason == "paywall_stub"
 
     def test_heuristic_reject_skips_the_gate_call(self):
         junk = ArticleInput(
@@ -373,10 +378,16 @@ EXCLUDING = Profile(
 
 
 class TestScopeExportExclusion:
-    def test_excluded_scope_is_terminal_out_of_scope(self):
+    def test_excluded_scope_still_exports(self):
+        """Scope is filtering metadata, never grounds for withholding an
+        article: an excluded scope skips the remaining steps but the article
+        still reaches export with its scope recorded (decided 2026-08-22,
+        after ~70% of March's scope-excluded internationals proved to be
+        locally bylined stories)."""
         result, stub = run(EXCLUDING, scope=ok("scope", meta("international")))
-        assert result.status == "out_of_scope"
-        assert result.skip_reason is None
+        assert result.status == "enrichment_skipped"
+        assert result.status in repository.EXPORTABLE_STATUSES
+        assert result.skip_reason == "scope_excluded_international"
         assert result.steps_applied == ["content_gate", "scope"]
 
     def test_exclusion_skips_every_remaining_step(self):

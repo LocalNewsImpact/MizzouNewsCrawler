@@ -63,8 +63,12 @@ class Profile:
     people: bool = False
     organizations: bool = False
     metadata_presets: tuple[str, ...] = ()
-    # Scope categories whose articles take status 'out_of_scope' and do not
-    # export. Dataset-specific; default empty = exclude nothing.
+    # Scope categories whose articles stop after the scope step: they skip
+    # every remaining step (the saving is the point) but still EXPORT, as
+    # 'enrichment_skipped' with skip_reason 'scope_excluded_<category>'.
+    # Scope is filtering metadata for downstream consumers, never grounds for
+    # withholding an article (decided 2026-08-22). Dataset-specific; default
+    # empty = no category stops early.
     export_exclude_scopes: tuple[str, ...] = ()
     # Steady-state floor: the scheduled run selects only articles created on or
     # after this ISO date. Without it, enabling a dataset would enrich its

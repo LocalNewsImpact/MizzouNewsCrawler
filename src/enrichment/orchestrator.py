@@ -29,7 +29,17 @@ POINT_SCOPES = frozenset({"city_municipality", "neighborhood_community"})
 # resolved for it. Statewide and broader still skip extraction entirely.
 PLACES_SCOPES = POINT_SCOPES | {"regional"}
 
-_GATE_VERDICT_STATUS = {"paywall": "paywall", "not_news": "not_article"}
+# A gate verdict is an EXTRACTION finding, not a judgment that the article
+# does not exist. A paywall stub still carries a CIN label, a byline, and a
+# publication — valid observations for label counts, byline rates and volume
+# — so it exports unenriched rather than vanishing (decided 2026-08-22 after
+# the March backfill: all 968 March stubs carried a CIN, 639 a byline, median
+# stored text 265 characters). Its skip_reason names the finding, so an
+# operator review can later confirm, re-extract, or discard it.
+# not_news keeps its own terminal status: those captures need a human to
+# separate genuine boilerplate from articles whose text never arrived.
+_GATE_VERDICT_STATUS = {"paywall": "enrichment_skipped", "not_news": "not_article"}
+_GATE_VERDICT_SKIP_REASON = {"paywall": "paywall_stub"}
 
 
 def _metadata_payload_invalid(payload: dict) -> str | None:
@@ -89,7 +99,10 @@ def enrich_article(
             return transient_failure()
         verdict = gate.payload["verdict"]
         if verdict in _GATE_VERDICT_STATUS:
-            return outcome(_GATE_VERDICT_STATUS[verdict], None)
+            return outcome(
+                _GATE_VERDICT_STATUS[verdict],
+                _GATE_VERDICT_SKIP_REASON.get(verdict),
+            )
         steps.append("content_gate")
 
     # ---- step 1: scope -------------------------------------------------------
@@ -104,11 +117,15 @@ def enrich_article(
         scope_category = scope.payload["article_metadata"]["category"]
         steps.append("scope")
         if scope_category in profile.export_exclude_scopes:
-            # Dataset-level exclusion (proposal §7): terminal, does not export,
-            # and skips every remaining step — the saving is the point. The
-            # enrichment row still records the scope and its rationale, and a
-            # profile change makes these articles reprocessing candidates.
-            return outcome("out_of_scope")
+            # Dataset-level exclusion: terminal and skips every remaining step
+            # — the saving is the point — but the article still EXPORTS with
+            # its scope, CIN label and byline recorded. Scope is filtering
+            # metadata, never grounds for withholding an article (decided
+            # 2026-08-22: ~70% of March's 69 scope-excluded internationals
+            # were locally bylined stories that merely referenced
+            # international subjects). Downstream consumers filter on
+            # article_enrichment.scope.
+            return outcome("enrichment_skipped", f"scope_excluded_{scope_category}")
 
     # ---- steps 2–3: places and point resolution ------------------------------
     if profile.places and scope_category in PLACES_SCOPES:
