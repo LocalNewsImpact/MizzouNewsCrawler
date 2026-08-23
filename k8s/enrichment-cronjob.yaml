@@ -1,0 +1,98 @@
+# Backfield enrichment CronJob (docs/BACKFIELD_IMPLEMENTATION.md Phase 6).
+#
+# Runs `enrich run` every four hours against the datasets whose profiles
+# enable enrichment. Composed from the repo's established patterns:
+# concurrencyPolicy/ttl from cleanup-cronjob, spot scheduling from
+# lehigh-extraction-job, Cloud SQL connector env from crawler-cronjob.
+# The OpenRouter key comes from the `openrouter-credentials` secret in the
+# production namespace.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mizzou-enrichment
+  namespace: production
+  labels:
+    app: mizzou-enrichment
+    component: enrichment
+spec:
+  schedule: "30 */4 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 3600
+      # One batch must finish well inside the four-hour cadence; a wedged run
+      # is killed rather than blocking the next (Forbid) indefinitely.
+      activeDeadlineSeconds: 10800
+      template:
+        metadata:
+          labels:
+            app: mizzou-enrichment
+            component: enrichment
+        spec:
+          serviceAccountName: mizzou-app
+          restartPolicy: OnFailure
+          # Prefer spot capacity; fall back to on-demand on stockout rather
+          # than stalling (same rationale as lehigh-extraction-job).
+          tolerations:
+            - key: cloud.google.com/gke-spot
+              operator: Equal
+              value: "true"
+              effect: NoSchedule
+          affinity:
+            nodeAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+                - weight: 100
+                  preference:
+                    matchExpressions:
+                      - key: cloud.google.com/gke-spot
+                        operator: In
+                        values: ["true"]
+          containers:
+            - name: enrichment
+              image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/enrichment:${ENRICHMENT_TAG}
+              args:
+                - python
+                - -m
+                - src.cli.cli_modular
+                - enrich
+                - run
+                - --dataset
+                - Mizzou-Missouri-State
+              env:
+                # Cloud SQL Connector configuration (no proxy sidecar needed)
+                - name: USE_CLOUD_SQL_CONNECTOR
+                  value: "true"
+                - name: CLOUD_SQL_INSTANCE
+                  value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+                - name: DATABASE_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: cloudsql-db-credentials
+                      key: username
+                - name: DATABASE_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: cloudsql-db-credentials
+                      key: password
+                - name: DATABASE_NAME
+                  valueFrom:
+                    secretKeyRef:
+                      name: cloudsql-db-credentials
+                      key: database
+                - name: OPENROUTER_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: openrouter-credentials
+                      key: OPENROUTER_API_KEY
+                # Per-run spend ceiling; the orchestrator halts the batch when
+                # accumulated cost reaches it (cost.py).
+                - name: ENRICHMENT_SPEND_CEILING_USD
+                  value: "5.00"
+              resources:
+                requests:
+                  cpu: 250m
+                  memory: 512Mi
+                limits:
+                  memory: 1Gi

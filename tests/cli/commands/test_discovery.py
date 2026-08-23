@@ -69,7 +69,8 @@ def _silence_print(monkeypatch):
 def test_add_discovery_parser_defaults():
     parser = _build_parser()
 
-    args = parser.parse_args(["discover-urls"])  # no extra flags
+    # --dataset is required (collection is always dataset-scoped)
+    args = parser.parse_args(["discover-urls", "--dataset", "Mizzou-Missouri-State"])
 
     assert args.func is discovery.handle_discovery_command
     assert args.max_articles == 50
@@ -88,6 +89,8 @@ def test_add_discovery_parser_aliases():
     args = parser.parse_args(
         [
             "discover-urls",
+            "--dataset",
+            "Mizzou-Missouri-State",
             "--source",
             "gazette",
             "--source-uuids",

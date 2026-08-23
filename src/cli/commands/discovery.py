@@ -11,9 +11,13 @@ def add_discovery_parser(subparsers) -> argparse.ArgumentParser:
         help="Discover article URLs using newspaper4k and StorySniffer",
     )
 
+    # Required: a discovery run without a dataset would crawl every source in
+    # every dataset. Collection is always dataset-scoped (decided 2026-08-21) —
+    # a CronJob or operator must say which dataset they mean.
     discover_parser.add_argument(
         "--dataset",
         type=str,
+        required=True,
         help="Dataset label to filter sources and tag telemetry",
     )
 

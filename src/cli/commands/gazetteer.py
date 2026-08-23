@@ -74,7 +74,9 @@ def handle_gazetteer_command(args: argparse.Namespace) -> int:
     logger.info("Starting gazetteer population")
 
     db = DatabaseManager()
-    database_url = str(db.engine.url)
+    # str(URL) masks the password as '***'; the population script then fails
+    # auth on any password-bearing URL. Render it complete.
+    database_url = db.engine.url.render_as_string(hide_password=False)
 
     metadata: dict[str, object] = {
         "database_url": database_url,

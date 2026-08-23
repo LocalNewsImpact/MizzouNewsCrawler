@@ -3,6 +3,7 @@ import types
 from uuid import uuid4
 
 import pytest
+from sqlalchemy.engine import make_url
 
 from src.cli.commands import gazetteer
 
@@ -41,7 +42,7 @@ def test_handle_gazetteer_command_success(monkeypatch, capsys, _reset_process_co
 
     class FakeDB:
         def __init__(self):
-            self.engine = types.SimpleNamespace(url="sqlite:///fake.db")
+            self.engine = types.SimpleNamespace(url=make_url("sqlite:///fake.db"))
 
     def fake_population(**kwargs):
         called["kwargs"] = kwargs
@@ -110,7 +111,7 @@ def test_handle_gazetteer_command_with_dataset_and_options(
 
     class FakeDB:
         def __init__(self):
-            self.engine = types.SimpleNamespace(url="sqlite:///fixture.db")
+            self.engine = types.SimpleNamespace(url=make_url("sqlite:///fixture.db"))
 
     called = {}
 

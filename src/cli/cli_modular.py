@@ -110,6 +110,7 @@ def _load_command_parser(command: str) -> tuple[Callable, Callable] | None:
         "pipeline-status": "pipeline_status",
         "cleanup-candidates": "cleanup_candidates",
         "housekeeping": "housekeeping",
+        "enrich": "enrichment",
     }
 
     module_name = command_modules.get(command)

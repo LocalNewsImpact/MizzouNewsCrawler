@@ -129,6 +129,7 @@ Validation rules, enforced on read:
 | `information_needs` present | Reject — excluded from production (§12) |
 | `geocode` true while `places` false | Reject — geocoding needs extracted places |
 | `version` missing or not an integer | Reject |
+| `export_exclude_scopes` outside the seven non-point categories, or set without `scope` | Reject |
 
 Environment:
 
@@ -150,15 +151,15 @@ not when the code is written.
 
 No production code. Answers the questions §4 and §3 leave open.
 
-| Task | Output |
+| Task | Result (measured 2026-08-21) |
 |---|---|
-| Prompt caching | Cost per article with the article last in the message, against the $0.0067–0.0075 baseline |
-| Preset consolidation | Agreement between six separate calls and one combined call on 100 articles, per category |
-| Content gate tuning | Heuristic threshold and gate accuracy on a sample drawn **without** the length bias in the existing 100 |
-| Point resolution accuracy | Human verification of the 38 resolved points |
+| Prompt caching | **Active with no code change** — presets already put `{text}` last; warm calls report 1,856–1,920 cached tokens, $0.0002–0.0004 vs $0.00078 cold, ~80% hit rate in a burst |
+| Preset consolidation | **Dropped** — combined vs separate agreement only 71–84% per dimension on 100 articles; a different classifier, not an optimisation |
+| Content gate tuning | Threshold 5 confirmed on an unbiased 300 (no article ≥5; Oreo/consent stories score 4); corpus junk rate <0.3%; gate resampled to **head+middle windows** after head-only misclassified a good article; 10/11 on the adversarial set |
+| Point resolution accuracy | **Open — human task.** The verification file is `backfield-cin-test/scope_geocode_report.csv` (38 resolved points, `suggested_point` column) |
 
-**Exit:** each measured and written into §4/§3. If consolidation degrades any
-category, it is dropped and not revisited.
+**Exit:** met for the three measured tasks; point verification remains with the
+reviewer and gates Phase 6's dataset enablement, not Phases 1–5.
 
 **Rollback:** none; nothing ships.
 
@@ -203,22 +204,39 @@ Consequences that shape this phase:
   **Each new table in Phase 1 needs its own scheduled query**, created alongside
   the migration (four `EXTERNAL_QUERY` transfers, following the existing ones).
 
-Work:
+**Executed 2026-08-21.** The Phase 1 migration was applied to production first
+(head `e7a1c2b3d4f5` → `f8b2d3c4e5a6`), because the new syncs would otherwise
+fail daily against tables that did not exist.
 
-1. Edit the transfer config's inner query to
-   `SELECT * FROM articles WHERE status IN ('labeled','enriched','enrichment_skipped')`
-2. Add the four scheduled queries for the new tables (they return zero rows
-   until Phase 5 writes)
-3. Record the transfer-config ids in this document
+Transfer configs, project 145096615031, location `us`
+(prefix `projects/145096615031/locations/us/transferConfigs/`):
 
-**Exit:**
-- The widened query is live; the next scheduled run produces an identical row
-  count (no article yet carries a new status)
-- Four new transfers exist and succeed, each currently syncing zero rows
-- The two-status form is scheduled for Phase 7, not now
+| Table | Config id | Status |
+|---|---|---|
+| articles (widened) | `693ab8dd-0000-2226-891c-582429a83fdc` | pre-existing, filter now the three-status superset |
+| article_enrichment | `6b11c241-0000-22e6-a83a-9898fbb3bd65` | created |
+| article_places | `6b0c4aac-0000-2631-afe8-34c7e91d569b` | created |
+| article_people | `6b11c263-0000-22e6-a83a-9898fbb3bd65` | created |
+| article_organizations | `6abb5da1-0000-2369-ac2e-34c7e91a181b` | created |
+
+All five daily at 07:00 UTC, `WRITE_TRUNCATE`, same connection.
+
+**Trap, hit during execution: `bq update --transfer_config --params` REPLACES
+the whole params object.** Passing only `query` silently dropped
+`destination_table_name_template` and `write_disposition`, and the next run
+failed with "A destination table must be set with SELECT statements." Any params
+update must carry all three keys. The same replace-not-merge behaviour as
+`gcloud run deploy --set-env-vars`.
+
+**Exit — verified by manual runs:**
+- Widened articles sync SUCCEEDED with **104,521 rows — identical** to the
+  pre-change count and to production's superset count, queried the same day (the
+  superset predicate equals `labeled` while no article carries a new status)
+- All four new syncs SUCCEEDED, each landing **0 rows**
+- The two-status form remains scheduled for Phase 7
 
 **Rollback:** restore the previous inner query; correct while no article carries
-a new status.
+a new status. The four new configs can simply be deleted.
 
 ### Phase 3 — Adapter and node wrappers
 
@@ -289,7 +307,23 @@ composed from the existing patterns, verified in the repo:
 The OpenRouter key is a new Kubernetes secret in the `production` namespace; the
 existing `cloudsql-db-credentials` pattern is the precedent.
 
-Enable on one dataset with a partial profile — `content_gate` and `scope` only.
+Enable on one dataset with a partial profile — decided 2026-08-21 for
+`Mizzou-Missouri-State`:
+
+```jsonc
+{ "version": 2, "content_gate": true, "scope": true,
+  "export_exclude_scopes": ["international"] }
+```
+
+`national` deliberately stays exportable: its scope label syncs to BigQuery in
+`article_enrichment.scope`, so a later filter is a join, not a reprocess. If it
+is ever excluded, the flag change plus a version bump reprocesses candidates
+under §8.
+
+Note one asymmetry consumers should know: the `article_enrichment` sync carries
+every row, including those of `out_of_scope` articles, whose article rows are
+absent from BigQuery. An enrichment row without an articles row is therefore
+not an error — it documents why the article is absent.
 
 **Exit after seven days:**
 - No article stuck at `labeled` beyond two scheduled runs
@@ -311,7 +345,13 @@ In this order:
    query's inner filter to `status IN ('enriched', 'enrichment_skipped')`
 
 **Exit:**
-- `select count(*) from articles where status='labeled' and wire_check_status='complete'` is zero for the dataset, or every remainder is explained
+- `select count(*) from articles where status='labeled' and wire_check_status IN ('complete','local')` is zero for the dataset, or every remainder is explained
+- **The wire/error/processing residue is dispositioned before tightening.**
+  Measured 2026-08-21: 824 articles at `labeled` with `wire_check_status='wire'`,
+  15 `error` and 3 `processing` are in BigQuery today and are not enrichment
+  candidates; the tightening removes them. For the wire-flagged 824 that removal
+  is arguably correct, but it is a change to current BigQuery contents and must
+  be decided, not discovered
 - BigQuery row count is unchanged across the tightening
 - Backfill totals reconcile against the supplied list
 
@@ -337,12 +377,19 @@ JOIN datasets d          ON d.id = ds.dataset_id
 LEFT JOIN sources s      ON s.id = cl.source_id
 WHERE d.slug = :dataset
   AND a.status = 'labeled'
-  AND a.wire_check_status = 'complete'
+  AND a.wire_check_status IN ('complete', 'local')
   AND a.enrichment_attempts < :max_attempts
 ORDER BY a.created_at
 LIMIT :batch
 FOR UPDATE OF a SKIP LOCKED
 ```
+
+`wire_check_status` accepts `'local'` alongside `'complete'`: no current code
+writes `'local'` — it is a legacy pass state ("checked, is local";
+`wire_check_attempted_at` is NULL on all 596 rows carrying it) — and those
+articles are in BigQuery today under the deployed status-only filter. A
+predicate requiring `'complete'` alone would leave them permanently at
+`labeled` and silently drop them at the Phase 7 tightening.
 
 `FOR UPDATE SKIP LOCKED` follows the direct extraction path's pattern and makes
 concurrent runs safe. Reprocessing adds the §8 version comparison as an `OR`
@@ -368,6 +415,8 @@ enrich_article(article, profile):
   if profile.scope:
       r = run_scope(article);  fail -> outcome(labeled)
       scope = r.payload["category"]; steps += [scope]
+      if scope in profile.export_exclude_scopes:
+          return outcome(out_of_scope)          # terminal; skips all remaining steps
   if profile.places and scope in POINT_SCOPES:               # never without scope
       r = run_places(article); fail -> outcome(labeled)
       steps += [places]
@@ -461,11 +510,17 @@ Heuristic: count of case-insensitive matches for `cookie(s)`, `consent`,
 at 5 it selects exactly the one known-bad article in the sample and nothing
 else.
 
-Gate call: `custom` preset, first 800 characters, `meta_type="content_gate"`
-(`information_needs` and the six production names are reserved). Prompt returns
-one of `news`, `paywall`, `not_news`, mapped to pass / `paywall` /
-`not_article`. The prompt file lives in `src/enrichment/prompts/` and is
-versioned in `prompt_versions` like the presets.
+Gate call: direct completion (not the `custom` preset), JSON response, sending
+**two 800-character windows — head and middle** of
+`f"Headline: {title}\n\n{content}"`. Head-only was tested and rejected in Phase
+0: cleaning residue concentrates at the top and a known-good article whose text
+opens with a cookie banner was misclassified. The prompt's decision rule is
+"is a story present in either window" — furniture around a story does not change
+the verdict, and the prompt says so explicitly. Verdicts `news` / `paywall` /
+`not_news` map to pass / `paywall` / `not_article`. The prompt file lives in
+`src/enrichment/prompts/content_gate.md`, versioned in `prompt_versions`.
+Measured accuracy on the adversarial 11-article set: 10 of 11, with the vox-pop
+limitation recorded in the proposal §3.
 
 ### 5.7 Cost accounting
 

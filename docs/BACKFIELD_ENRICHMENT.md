@@ -51,6 +51,7 @@ ones once dataset profiles differ.
 | `enriched` | Backfield ran every step the dataset's profile asked for | **Yes** | Yes |
 | `enrichment_skipped` | No backfield call was made — see `skip_reason` | **Yes** | Yes |
 | `not_article`, `paywall` | Content gate rejected the text | No | Yes |
+| `out_of_scope` | Scope is in the dataset's `export_exclude_scopes` | No | Yes — reprocessable on a profile bump |
 
 A dataset running *some* enrichments still yields `enriched`; the steps actually
 applied are recorded on the row (§7). Only a complete absence of backfield work
@@ -229,14 +230,26 @@ Two layers, cheapest first:
 
 **0a. A deterministic heuristic, free.** Density of cookie, consent, privacy
 policy, vendor list and advertising-partner terms. Five or more occurrences
-identified exactly the one junk article in the sample and nothing else. This runs
-in Python with no API call and should be tuned against known-bad articles before
-it is trusted to reject anything.
+identified exactly the one junk article in the sample and nothing else. Tuned in
+Phase 0 on an unbiased 300-article sample: **no article scored ≥5** (290 scored
+zero), and the gray zone proves the threshold — *"Oreo bringing zero-sugar
+cookies to US"* and a donor-consent bill each score 4 on literal term matches. A
+lower threshold rejects real news; 5 stands. Corpus junk rate is **under 0.3%**,
+confirming the length-biased 1-in-100 overstated it.
 
-**0b. A truncated LLM gate for what the heuristic misses.** Cookie and paywall
-text is identifiable from the opening few hundred characters, so this call sends
-**the first ~800 characters, not the article** — roughly 250 input and 30 output
-tokens, about $0.0001. It answers one question: is this the text of a news story?
+**0b. A truncated LLM gate for what the heuristic misses.** The call sends **two
+800-character windows — the head and the middle of the document** — not the whole
+article (~550 input tokens, ~$0.0002). Head-only sampling was tested first and
+rejected: cleaning residue concentrates at the top, and a head-only gate
+misclassified a known-good article whose stored text opens with a cookie banner.
+
+The verdict is **"is a story present in either window?"**, stated in the prompt
+explicitly: furniture around a story does not change the verdict. Measured on an
+adversarial 11-article set (8 heuristic gray-zone, the known-bad cookie article,
+2 clean controls): 10 of 11 correct, including *"Oreo bringing zero-sugar
+cookies"* passed and the cookie-text article rejected. The one miss is the known
+limitation: a vox-pop piece that is mostly furniture with a fragment of quotes
+read as paywall.
 
 Rejected articles are flagged and skip every subsequent step.
 
@@ -305,6 +318,30 @@ model call.** City-level points then resolve to coordinates from a GNIS or Censu
 gazetteer file held locally — exact, free, no rate limit. The same GNIS file is
 already loaded for the LNIC source directory.
 
+### The location target is a GEOID ladder, not coordinates (decided 2026-08-21)
+
+Precise geocoding is not the goal. Each pointed story records the deepest
+available Census GEOID:
+
+```
+state (2) -> county (5) -> place (7) -> tract (11) / block (15)
+```
+
+State, county and place resolve from Census gazetteer files bundled in the
+repository — local, exact, free, no model call. Tract/block are attempted only
+when an extracted address carries a house number, via the free Census geocoder;
+failure leaves the ladder where it was. On the 41-article test slice: 10 place,
+4 block, 1 county, 5 state-only, 1 unresolved.
+
+GEOIDs nest by prefix, so one column serves every rollup
+(`LEFT(point_geoid, 5)` is the county), and joins directly to ACS demographics,
+`geo_us_boundaries` polygons and the rest of the federal statistical system in
+BigQuery.
+
+This removes the paid geocoder and backfield's four-model geocode agent from the
+plan. The `geocode` profile flag remains reserved for a future
+precision-coordinates need.
+
 ### Step 4 is the expensive one, which is why it is last and narrow
 
 Backfield's geocoder runs **four LLM models per location** — evaluation,
@@ -351,15 +388,20 @@ The backfill costs about the same as one busy month. Since every article
 collected from here on passes through this stage, the recurring figure is the one
 that governs the decision.
 
-Two levers not yet applied, each worth measuring before the backfill:
+Both levers were measured in Phase 0 (2026-08-21):
 
-- **Prompt caching.** The six production prompts total ~9,000 tokens and are identical
-  across every article; roughly 74% of each call's input is this stable prefix.
-  DeepSeek bills cache reads at $0.13/M against $0.25/M. Putting the article last
-  in the message should cut input cost materially.
-- **Preset consolidation.** Six presets send the article six times. Combining
-  them into fewer calls would send it once, at some risk to per-category quality.
-  Worth an A/B on 100 articles before adopting.
+- **Prompt caching: active with no code change.** The presets already place
+  `{text}` last, and DeepSeek caches the ~1,900-token prefix automatically
+  through OpenRouter. Measured: warm calls report `cached_tokens=1856–1920` and
+  cost **$0.0002–0.0004 against the $0.00078 cold baseline**; hit rate ~80%
+  within a burst (a call routed to a cold replica misses). Effective per-article
+  cost is therefore below the table above, which stands as the no-cache bound.
+- **Preset consolidation: dropped.** One combined call against six separate
+  calls on the same 100 articles agreed only **71–84% per dimension**
+  (subject 75%, topic 78%, format 84%, temporal 76%, user_need 71%, scope 72%).
+  That is a different classifier, not a cost optimisation. Per the phase rule it
+  is dropped and not revisited. For reference, the combined call cost
+  $0.0006/article.
 
 ## 5. Time
 
@@ -530,7 +572,31 @@ incorrect.
 ### The content gate is switchable
 
 `content_gate` is separately switchable because it changes what reaches BigQuery
-rather than what is known about it. A dataset running `none` exports cookie-text
+rather than what is known about it.
+
+### Scope-based export exclusion, per dataset
+
+`export_exclude_scopes` names scope categories whose articles take the terminal
+status `out_of_scope` and do not export. Decided immediately after the scope
+classification, so every remaining step is skipped — on the 100-article sample,
+excluding `international` and `national` removes 12% of articles from both the
+export and the remaining enrichment spend.
+
+```jsonc
+"export_exclude_scopes": ["international"]        // or ["international","national"]
+```
+
+Rules:
+
+- Requires `scope`: exclusion is decided by the classification.
+- The two point scopes are not excludable — local coverage is the product.
+- `elsewhere_to_local` is excludable but means "external events with direct
+  local impact"; excluding it drops localized national stories.
+- Default is empty. A dataset that says nothing excludes nothing.
+- The enrichment row still records the scope and its rationale, so the
+  exclusion is auditable per article.
+- Reversible: `out_of_scope` articles are reprocessing candidates on a profile
+  version bump, status untouched until they are re-enriched under the new flag. A dataset running `none` exports cookie-text
 articles, as happens today. That may be correct for a dataset ingested for volume
 rather than analysis, but it is recorded in the profile rather than implied by
 disabling enrichment.

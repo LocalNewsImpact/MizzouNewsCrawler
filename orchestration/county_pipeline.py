@@ -152,8 +152,11 @@ def orchestrate_pipeline(
         if force_all:
             discover_args.append("--force-all")
         _add_optional(discover_args, "--source-limit", source_limit)
-        if dataset:
-            discover_args.extend(["--dataset", dataset])
+        if not dataset:
+            # discover-urls now refuses to run without one; fail here, before
+            # any earlier pipeline steps have already done work.
+            raise ValueError("dataset is required: collection is always dataset-scoped")
+        discover_args.extend(["--dataset", dataset])
 
         label = f"Discovery for county {county}"
         _run_cli_step(
@@ -291,7 +294,8 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--dataset",
-        help="Optional dataset label to tag discovery telemetry",
+        required=True,
+        help="Dataset label scoping the run (collection is always dataset-scoped)",
     )
     parser.add_argument(
         "--source-limit",

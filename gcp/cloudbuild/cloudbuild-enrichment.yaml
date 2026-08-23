@@ -1,0 +1,100 @@
+substitutions:
+  _BASE_IMAGE: us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/base:latest
+  _REGISTRY: us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler
+  _RELEASE_VERSION: '1.3.1'
+
+steps:
+  # Warm build cache from the last pushed image (non-fatal if missing)
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'warm-cache'
+    entrypoint: 'bash'
+    args:
+      - '-lc'
+      - |
+        docker pull ${_REGISTRY}/enrichment:latest || true
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-enrichment'
+    env:
+      - 'DOCKER_BUILDKIT=1'
+    args:
+      - 'build'
+      - '--build-arg'
+      - 'BASE_IMAGE=${_BASE_IMAGE}'
+      - '--build-arg'
+      - 'BUILDKIT_INLINE_CACHE=1'
+      - '--cache-from'
+      - '${_REGISTRY}/enrichment:latest'
+      - '-f'
+      - 'Dockerfile.enrichment'
+      - '-t'
+      - '${_REGISTRY}/enrichment:${SHORT_SHA}'
+      - '-t'
+      - '${_REGISTRY}/enrichment:latest'
+      - '-t'
+      - '${_REGISTRY}/enrichment:v${_RELEASE_VERSION}'
+      - '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-enrichment'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGISTRY}/enrichment'
+    waitFor:
+      - 'build-enrichment'
+
+  # The backfield adapter is the load-bearing import: the wheels are vendored,
+  # so a missing sibling wheel fails here rather than in the CronJob at 02:30.
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'verify-dependencies'
+    entrypoint: 'bash'
+    waitFor:
+      - 'build-enrichment'
+    args:
+      - '-c'
+      - |
+        docker run --rm '${_REGISTRY}/enrichment:${SHORT_SHA}' \
+          python -c "
+        from src.enrichment.adapter import _load
+        for node in ('article_metadata', 'place_extract', 'person_extract', 'organization_extract'):
+            _load(node)
+        import litellm  # noqa: F401
+        print('enrichment image dependency check passed')
+        "
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'get-gke-credentials'
+    args:
+      - 'container'
+      - 'clusters'
+      - 'get-credentials'
+      - 'mizzou-cluster'
+      - '--zone=us-central1-a'
+    waitFor: ['push-enrichment']
+
+  # Update CronJob image in production. The CronJob object itself is applied
+  # from k8s/enrichment-cronjob.yaml (one-time / on manifest change); this
+  # repoints it at the new build, matching the crawler CronJob pattern.
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'update-enrichment-cronjob'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=us-central1-a'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=mizzou-cluster'
+    args:
+      - 'set'
+      - 'image'
+      - 'cronjob/mizzou-enrichment'
+      - 'enrichment=${_REGISTRY}/enrichment:${SHORT_SHA}'
+      - '--namespace=production'
+    waitFor: ['get-gke-credentials']
+
+images:
+  - '${_REGISTRY}/enrichment:${SHORT_SHA}'
+  - '${_REGISTRY}/enrichment:v${_RELEASE_VERSION}'
+timeout: 1800s
+options:
+  machineType: 'N1_HIGHCPU_8'
+  diskSizeGb: 100
+  logging: CLOUD_LOGGING_ONLY
+  substitutionOption: 'ALLOW_LOOSE'

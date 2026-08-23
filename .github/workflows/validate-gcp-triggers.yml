@@ -59,6 +59,7 @@ jobs:
             "build-processor-manual"
             "build-api-manual"
             "build-crawler-manual"
+            "build-enrichment-manual"
           )
 
           # Get list of all triggers (requires less permissions than describe)
