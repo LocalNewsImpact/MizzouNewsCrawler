@@ -34,6 +34,7 @@ jobs:
       processor: ${{ steps.detect.outputs.processor }}
       api: ${{ steps.detect.outputs.api }}
       crawler: ${{ steps.detect.outputs.crawler }}
+      migrator: ${{ steps.detect.outputs.migrator }}
       base: ${{ steps.detect.outputs.base }}
       ml_base: ${{ steps.detect.outputs.ml_base }}
       any_changed: ${{ steps.detect.outputs.any_changed }}
@@ -121,6 +122,7 @@ jobs:
           PROCESSOR=false
           API=false
           CRAWLER=false
+          MIGRATOR=false
 
           # Base image: only for OS/dependency changes
           if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.base|Dockerfile\.ci-base|requirements-base\.txt|requirements-dev\.txt'; then
@@ -158,6 +160,18 @@ jobs:
             echo "✅ Crawler changed (crawler code)"
           fi
 
+          # Migrator: the image run-migrations.yml runs against production.
+          # A merged migration rebuilt the processor and api images (both
+          # list alembic/versions/ above) but never the image that applies
+          # it, so the migration job could only run at a SHA where the
+          # Dockerfile or its requirements had changed. Between 2026-07-26
+          # and 2026-08-23 the newest migrator image was a month old while
+          # production's schema drifted ahead of its recorded revision.
+          if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.migrator|requirements-migrator\.txt|alembic/'; then
+            MIGRATOR=true
+            echo "✅ Migrator changed (migrations or migrator image)"
+          fi
+
           # Cascade rebuilds down the image dependency graph so base/dependency/
           # security updates actually reach the running services. Without this, a
           # change to only requirements-base.txt rebuilds base:latest but leaves
@@ -183,6 +197,7 @@ jobs:
           echo "processor=$PROCESSOR" >> $GITHUB_OUTPUT
           echo "api=$API" >> $GITHUB_OUTPUT
           echo "crawler=$CRAWLER" >> $GITHUB_OUTPUT
+          echo "migrator=$MIGRATOR" >> $GITHUB_OUTPUT
 
           # Check if anything changed
           if [ -n "$CHANGED_FILES" ]; then
@@ -201,6 +216,7 @@ jobs:
           [ "${{ steps.detect.outputs.processor }}" == "true" ] && SERVICES="${SERVICES}processor "
           [ "${{ steps.detect.outputs.api }}" == "true" ] && SERVICES="${SERVICES}api "
           [ "${{ steps.detect.outputs.crawler }}" == "true" ] && SERVICES="${SERVICES}crawler "
+          [ "${{ steps.detect.outputs.migrator }}" == "true" ] && SERVICES="${SERVICES}migrator "
 
           if [ -z "$SERVICES" ]; then
             echo "list=none" >> $GITHUB_OUTPUT
@@ -219,6 +235,7 @@ jobs:
           echo "Processor rebuild: ${{ steps.detect.outputs.processor }}"
           echo "API rebuild: ${{ steps.detect.outputs.api }}"
           echo "Crawler rebuild: ${{ steps.detect.outputs.crawler }}"
+          echo "Migrator rebuild: ${{ steps.detect.outputs.migrator }}"
           echo "Services to build: ${{ steps.services.outputs.list }}"
           echo "================================"
 
@@ -484,9 +501,55 @@ jobs:
           echo "✅ Crawler build triggered (build ID: $BUILD_ID)"
           echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
 
+  build-migrator:
+    name: Build Migrator
+    # Not in the base -> ml-base -> processor -> api -> crawler chain: the
+    # migrator is FROM python:3.11-slim directly, so it depends on none of
+    # them and runs alongside.
+    needs: [detect-changes]
+    runs-on: ubuntu-latest
+    outputs:
+      build_id: ${{ steps.trigger.outputs.build_id }}
+
+    steps:
+      - name: Skip migrator build (not requested)
+        if: needs.detect-changes.outputs.migrator != 'true'
+        run: 'echo "Info: migrator image not requested; skipping Cloud Build trigger."'
+
+      - uses: actions/checkout@v7
+        if: needs.detect-changes.outputs.migrator == 'true'
+
+      - name: Authenticate to Google Cloud
+        if: needs.detect-changes.outputs.migrator == 'true'
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        if: needs.detect-changes.outputs.migrator == 'true'
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Trigger Cloud Build
+        id: trigger
+        if: needs.detect-changes.outputs.migrator == 'true'
+        run: |
+          set +e
+          BUILD_ID=$(gcloud builds triggers run build-migrator-manual \
+            --sha="${{ github.sha }}" \
+            --format="value(metadata.build.id)" 2>&1)
+          EXIT_CODE=$?
+          set -e
+          if [ $EXIT_CODE -ne 0 ] || [ -z "$BUILD_ID" ]; then
+            echo "❌ Failed to trigger migrator build"
+            echo "$BUILD_ID"
+            exit 1
+          fi
+          echo "✅ Migrator build triggered (build ID: $BUILD_ID)"
+          echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
+
   wait-for-builds:
     name: Wait for Cloud Builds
-    needs: [detect-changes, build-base, build-ml-base, build-processor, build-api, build-crawler]
+    needs: [detect-changes, build-base, build-ml-base, build-processor, build-api, build-crawler, build-migrator]
     if: needs.detect-changes.outputs.any_changed == 'true'
     runs-on: ubuntu-latest
 
@@ -508,6 +571,7 @@ jobs:
           PROCESSOR_BUILD_ID: ${{ needs.build-processor.outputs.build_id }}
           API_BUILD_ID: ${{ needs.build-api.outputs.build_id }}
           CRAWLER_BUILD_ID: ${{ needs.build-crawler.outputs.build_id }}
+          MIGRATOR_BUILD_ID: ${{ needs.build-migrator.outputs.build_id }}
         run: |
           echo "⏳ Waiting for Cloud Build jobs to complete..."
           echo ""
@@ -537,6 +601,7 @@ jobs:
           add_build "$PROCESSOR_BUILD_ID" "processor"
           add_build "$API_BUILD_ID" "api"
           add_build "$CRAWLER_BUILD_ID" "crawler"
+          add_build "$MIGRATOR_BUILD_ID" "migrator"
 
           TOTAL_BUILDS=${#BUILD_IDS[@]}
           if [ $TOTAL_BUILDS -eq 0 ]; then
