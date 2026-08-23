@@ -7,9 +7,8 @@ import csv
 import os
 from collections import defaultdict
 
-INPUT = os.path.expanduser(
-    "~/Library/Mobile Documents/com~apple~CloudDocs/Documents/Mizzou/CIEP/"
-    "MO MARCH Final 51826.csv"
+INPUT = os.path.join(
+    os.path.dirname(__file__), "..", "exports", "MO_MARCH_Final_CIN_updated_20260731.csv"
 )
 OUTPUT = os.path.join(os.path.dirname(__file__), "ciep_march_publication_report.csv")
 

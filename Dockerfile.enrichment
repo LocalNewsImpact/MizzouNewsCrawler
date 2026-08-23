@@ -1,0 +1,42 @@
+# Enrichment service image (docs/BACKFIELD_IMPLEMENTATION.md §6).
+#
+# Built from the shared base image — not the crawler or processor images:
+# enrichment needs no browser automation and no ML stack. Backfield is
+# installed from wheels vendored in vendor/backfield/, built from
+# github.com/localangle/backfield at the pinned commit recorded below.
+# Vendoring keeps the build free of cross-organization git credentials and
+# makes the pin literal: the wheels in the tree ARE the version that ships.
+# To upgrade backfield: rebuild the wheels from the new commit with
+# `uv build --package <name> --wheel -o vendor/backfield/`, update
+# BACKFIELD_COMMIT, and re-run the 100-article category diff (§8, risk
+# "Backfield upgrade silently moves labels").
+
+# Use ARG to allow override of base image location
+ARG BASE_IMAGE=mizzou-base:latest
+
+FROM ${BASE_IMAGE} AS runtime
+
+WORKDIR /app
+
+# Backfield wheels first: their third-party dependencies (litellm, langgraph,
+# geopy, shapely, ...) resolve from PyPI. This layer changes only on a
+# backfield upgrade, so it caches well ahead of the application code.
+COPY vendor/backfield/ ./vendor/backfield/
+RUN pip install --no-cache-dir vendor/backfield/*.whl
+
+# Application code
+COPY --chown=appuser:appuser src/ ./src/
+COPY --chown=appuser:appuser sitecustomize.py ./sitecustomize.py
+
+RUN chown -R appuser:appuser /app
+
+USER appuser
+
+# The commit the vendored wheels were built from; recorded per article in
+# article_enrichment via the CLI's BACKFIELD_COMMIT lookup.
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    BACKFIELD_COMMIT=c842d044
+
+# Default command; the CronJob overrides args (dataset, limits).
+CMD ["python", "-m", "src.cli.cli_modular", "enrich", "run", "--dataset", "Mizzou-Missouri-State"]

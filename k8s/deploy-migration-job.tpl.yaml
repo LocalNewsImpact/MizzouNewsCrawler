@@ -1,0 +1,67 @@
+# Template for the migration Job the deploy workflow runs after building the
+# migrator image for a commit that changed alembic/.
+#
+# `k8s/migration-job.yaml` beside this file pins an image tag for a manual
+# `kubectl apply`. This one is rendered per run, so the tag is always the
+# commit being deployed. build-and-deploy-services.yml substitutes:
+#
+#   __JOB_NAME__  a name unique to the workflow run and attempt
+#   __IMAGE__     migrator:<the merged commit SHA>
+#   __RUN_ID__    the GitHub Actions run, for tracing a job back to its deploy
+#
+# The env block matches run-migrations.yml so the manual and automatic paths
+# reach the database identically.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: __JOB_NAME__
+  namespace: production
+  labels:
+    app: migrator
+    component: database
+    triggered-by: deploy
+    run-id: "__RUN_ID__"
+spec:
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        app: migrator
+        component: database
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: alembic-migrate
+          image: __IMAGE__
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: USE_CLOUD_SQL_CONNECTOR
+              value: "true"
+            - name: CLOUD_SQL_INSTANCE
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: instance-connection-name
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: username
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: password
+            - name: DATABASE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: database
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+  ttlSecondsAfterFinished: 86400

@@ -27,6 +27,19 @@ spec:
           # Main crawler container
           - name: crawler
             image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:${CRAWLER_TAG}
+            # The dataset is declared HERE, not in the image: collection is
+            # always dataset-scoped (decided 2026-08-21), discover-urls
+            # refuses to run without --dataset, and per-dataset CronJobs are
+            # copies of this manifest with their own name and dataset label.
+            args:
+            - python
+            - -m
+            - src.cli.main
+            - discover-urls
+            - --dataset
+            - Mizzou Missouri State
+            - --source-limit
+            - "50"
             env:
             # Cloud SQL Connector configuration (no proxy sidecar needed)
             - name: USE_CLOUD_SQL_CONNECTOR

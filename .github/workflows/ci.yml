@@ -84,6 +84,7 @@ jobs:
               Dockerfile.crawler|requirements-crawler.txt) add crawler ;;
               Dockerfile.api|requirements-api.txt|backend/*) add api ;;
               Dockerfile.migrator|requirements-migrator.txt) add migrator ;;
+              alembic/*) add migrator ;;
             esac
           done <<< "$changed"
           echo "→ images affected: ${images:-none}"

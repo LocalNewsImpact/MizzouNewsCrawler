@@ -186,7 +186,7 @@ def test_county_pipeline_verification_retry_exhaustion(
 
     county_pipeline.orchestrate_pipeline(
         counties=["Boone", "Cole"],
-        dataset=None,
+        dataset="test-dataset",
         source_limit=None,
         max_articles=2,
         days_back=3,
@@ -371,7 +371,7 @@ def test_county_pipeline_multi_county_stress_drain(
 
     county_pipeline.orchestrate_pipeline(
         counties=counties,
-        dataset=None,
+        dataset="test-dataset",
         source_limit=None,
         max_articles=10,
         days_back=5,
@@ -728,7 +728,7 @@ def test_county_pipeline_golden_path(
 
     county_pipeline.orchestrate_pipeline(
         counties=["Boone"],
-        dataset=None,
+        dataset="test-dataset",
         source_limit=None,
         max_articles=5,
         days_back=7,
