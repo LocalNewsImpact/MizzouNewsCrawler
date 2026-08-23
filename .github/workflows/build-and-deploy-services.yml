@@ -547,6 +547,101 @@ jobs:
           echo "✅ Migrator build triggered (build ID: $BUILD_ID)"
           echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
 
+  run-migrations:
+    name: Run Migrations
+    # Deliberately NOT behind wait-for-builds. The migrator builds in parallel
+    # with base -> ml-base -> processor -> api -> crawler, and the cloudbuild
+    # configs for those images deploy them as their last step. Waiting would
+    # apply the schema change after the code that depends on it was already
+    # serving traffic. This waits only for the migrator's own build.
+    needs: [detect-changes, build-migrator]
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      needs.detect-changes.outputs.migrator == 'true' &&
+      needs.build-migrator.outputs.build_id != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Wait for the migrator image
+        env:
+          BUILD_ID: ${{ needs.build-migrator.outputs.build_id }}
+          PROJECT: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          echo "Waiting for migrator build $BUILD_ID"
+          ELAPSED=0
+          while [ $ELAPSED -lt 900 ]; do
+            STATUS=$(gcloud builds describe "$BUILD_ID" \
+              --project="$PROJECT" --format="value(status)" 2>/dev/null || echo UNKNOWN)
+            case "$STATUS" in
+              SUCCESS)
+                echo "Migrator image built"
+                exit 0
+                ;;
+              FAILURE|TIMEOUT|CANCELLED|EXPIRED|INTERNAL_ERROR)
+                echo "Migrator build finished as $STATUS"
+                echo "https://console.cloud.google.com/cloud-build/builds/$BUILD_ID"
+                exit 1
+                ;;
+            esac
+            sleep 20
+            ELAPSED=$((ELAPSED + 20))
+          done
+          echo "Migrator build did not finish within 15 minutes"
+          exit 1
+
+      - name: Configure kubectl
+        run: |
+          gcloud container clusters get-credentials mizzou-cluster \
+            --zone=us-central1-a \
+            --project=${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Render the migration job
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+          JOB_NAME: alembic-migration-${{ github.run_id }}-${{ github.run_attempt }}
+          PROJECT: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          # Mirrors the manifest in run-migrations.yml, which stays as the
+          # manual path for staging and for replaying a specific SHA.
+          sed \
+            -e "s|__JOB_NAME__|${JOB_NAME}|g" \
+            -e "s|__IMAGE__|us-central1-docker.pkg.dev/${PROJECT}/mizzou-crawler/migrator:${IMAGE_TAG}|g" \
+            -e "s|__RUN_ID__|${{ github.run_id }}|g" \
+            k8s/deploy-migration-job.tpl.yaml > /tmp/migration-job.yaml
+          cat /tmp/migration-job.yaml
+
+      - name: Apply and wait
+        env:
+          JOB_NAME: alembic-migration-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          kubectl apply -f /tmp/migration-job.yaml
+
+          kubectl wait --for=condition=complete --timeout=600s \
+            "job/${JOB_NAME}" -n production && RESULT=0 || RESULT=1
+
+          echo "--- migration log ---"
+          kubectl logs "job/${JOB_NAME}" -n production --tail=200 || true
+
+          if [ $RESULT -ne 0 ]; then
+            echo "::error::Migration job did not complete. The images for this commit are built and deploying; the schema they expect is not in place."
+            kubectl describe "job/${JOB_NAME}" -n production || true
+            exit 1
+          fi
+
+          echo "Migrations applied at ${{ github.sha }}"
+
   wait-for-builds:
     name: Wait for Cloud Builds
     needs: [detect-changes, build-base, build-ml-base, build-processor, build-api, build-crawler, build-migrator]
