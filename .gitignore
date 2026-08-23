@@ -143,6 +143,13 @@ warc_import_progress.json
 !sources/publinks.csv
 !data/samples/*.csv
 !reports/manual_enqueue_template.csv
+# Reference data, not an export. src/enrichment/reference/ holds the Census
+# Gazetteer place and county files that fips.py reads to resolve a place
+# name to a GEOID -- public domain, versioned, and needed by the tests.
+# They lived under src/enrichment/data/ and were caught by `data/` above,
+# so the enrichment tests failed in CI on FileNotFoundError while passing
+# on any machine holding a copy.
+!src/enrichment/reference/*.csv
 
 # JSON exports (except config/schema files)
 newly_detected_*.json

@@ -27,7 +27,11 @@ from pathlib import Path
 
 from src.enrichment.resolve import norm
 
-DATA = Path(__file__).parent / "data"
+# `reference/` rather than `data/`: .gitignore excludes every directory named
+# `data`, so these two files were never committed and the enrichment tests
+# failed in CI on FileNotFoundError while passing on any machine that held a
+# copy. Reference data the code cannot run without belongs in the repository.
+DATA = Path(__file__).parent / "reference"
 
 # LSAD descriptors appearing as name suffixes in the place gazetteer.
 _SUFFIX = re.compile(
