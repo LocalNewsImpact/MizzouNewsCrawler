@@ -45,8 +45,20 @@ jobs:
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v3
-        with:
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      # `secrets.GCP_PROJECT_ID` is not a secret on this repository, so
+      # every reference to it expanded to an empty string and the image
+      # path this workflow checked had no project segment. The auth step
+      # already sets a default project from the service-account key.
+      - name: Resolve the project
+        run: |
+          PROJECT="$(gcloud config get-value project 2>/dev/null)"
+          if [ -z "$PROJECT" ] || [ "$PROJECT" = "(unset)" ]; then
+            echo "::error::gcloud has no default project."
+            exit 1
+          fi
+          echo "PROJECT=$PROJECT" >> "$GITHUB_ENV"
+          echo "project: $PROJECT"
           service_account_key: ${{ secrets.GCP_SA_KEY }}
           export_default_credentials: true
 
@@ -54,7 +66,7 @@ jobs:
         run: |
           gcloud container clusters get-credentials mizzou-cluster \
             --zone=us-central1-a \
-            --project=${{ secrets.GCP_PROJECT_ID }}
+            --project="$PROJECT"
 
       - name: Determine image tag
         id: image-tag
@@ -67,7 +79,7 @@ jobs:
 
       - name: Check migrator image exists
         run: |
-          IMAGE="us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/mizzou-crawler/migrator:${{ steps.image-tag.outputs.tag }}"
+          IMAGE="us-central1-docker.pkg.dev/${PROJECT}/mizzou-crawler/migrator:${{ steps.image-tag.outputs.tag }}"
           echo "Checking if image exists: $IMAGE"
 
           gcloud artifacts docker images describe "$IMAGE" || {
@@ -107,7 +119,7 @@ jobs:
                 restartPolicy: Never
                 containers:
                   - name: alembic-migrate
-                    image: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/mizzou-crawler/migrator:${IMAGE_TAG}
+                    image: us-central1-docker.pkg.dev/${PROJECT}/mizzou-crawler/migrator:${IMAGE_TAG}
                     imagePullPolicy: IfNotPresent
                     env:
                       - name: USE_CLOUD_SQL_CONNECTOR

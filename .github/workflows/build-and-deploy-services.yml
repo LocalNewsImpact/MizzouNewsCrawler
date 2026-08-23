@@ -633,19 +633,51 @@ jobs:
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v3
-        with:
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      # Every other job here reaches Google Cloud on the default project the
+      # auth step derives from the service-account key. This job asked for
+      # `secrets.GCP_PROJECT_ID`, which is not a secret on this repository, so
+      # it expanded to an empty string: `gcloud builds describe --project=`
+      # failed on every poll, the `|| echo UNKNOWN` below swallowed it, and the
+      # loop ran the full fifteen minutes against a build that had already
+      # succeeded. The rendered image reference would have been wrong too.
+      #
+      # Resolve it once, from the credentials, and fail loudly if it is absent
+      # rather than carrying an empty string into a URL.
+      - name: Resolve the project
+        run: |
+          PROJECT="$(gcloud config get-value project 2>/dev/null)"
+          if [ -z "$PROJECT" ] || [ "$PROJECT" = "(unset)" ]; then
+            echo "::error::gcloud has no default project; the service-account" \
+                 "key should supply one."
+            exit 1
+          fi
+          echo "PROJECT=$PROJECT" >> "$GITHUB_ENV"
+          echo "project: $PROJECT"
 
       - name: Wait for the migrator image
         env:
           BUILD_ID: ${{ needs.build-migrator.outputs.build_id }}
-          PROJECT: ${{ secrets.GCP_PROJECT_ID }}
         run: |
-          echo "Waiting for migrator build $BUILD_ID"
+          echo "Waiting for migrator build $BUILD_ID in $PROJECT"
           ELAPSED=0
+          ERRORS=0
           while [ $ELAPSED -lt 900 ]; do
-            STATUS=$(gcloud builds describe "$BUILD_ID" \
-              --project="$PROJECT" --format="value(status)" 2>/dev/null || echo UNKNOWN)
+            # Separate "the poll failed" from "the build is still running".
+            # Conflating them is what turned a broken --project flag into a
+            # fifteen-minute wait instead of an immediate error.
+            if ! STATUS=$(gcloud builds describe "$BUILD_ID" \
+                 --project="$PROJECT" --format="value(status)" 2>/tmp/poll.err); then
+              ERRORS=$((ERRORS + 1))
+              echo "poll failed ($ERRORS): $(tail -1 /tmp/poll.err)"
+              if [ $ERRORS -ge 3 ]; then
+                echo "::error::Could not read the build status three times running."
+                exit 1
+              fi
+              STATUS=UNKNOWN
+            else
+              ERRORS=0
+            fi
             case "$STATUS" in
               SUCCESS)
                 echo "Migrator image built"
@@ -667,13 +699,12 @@ jobs:
         run: |
           gcloud container clusters get-credentials mizzou-cluster \
             --zone=us-central1-a \
-            --project=${{ secrets.GCP_PROJECT_ID }}
+            --project="$PROJECT"
 
       - name: Render the migration job
         env:
           IMAGE_TAG: ${{ github.sha }}
           JOB_NAME: alembic-migration-${{ github.run_id }}-${{ github.run_attempt }}
-          PROJECT: ${{ secrets.GCP_PROJECT_ID }}
         run: |
           # Mirrors the manifest in run-migrations.yml, which stays as the
           # manual path for staging and for replaying a specific SHA.
