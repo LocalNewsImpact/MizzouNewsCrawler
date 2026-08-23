@@ -20,6 +20,15 @@ pytestmark = pytest.mark.integration
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 REVISION = "f8b2d3c4e5a6"
+
+# The revision below REVISION, named rather than reached with `-1`.
+#
+# `-1` is resolved against the graph, and e7a1c2b3d4f5 is a branchpoint: the
+# backfield chain descends from it, and so does a7c3f9e2d481, the articles
+# sort index that landed on main. Alembic refuses to walk onto a branchpoint
+# relatively -- "Ambiguous walk" -- because it cannot tell which branch the
+# walk is meant to end up on. Naming the revision says which.
+DOWN_REVISION = "e7a1c2b3d4f5"
 TABLES = (
     "article_enrichment",
     "article_places",
@@ -139,7 +148,7 @@ def test_migration_roundtrip():
     finally:
         engine.dispose()
 
-    down = _alembic(url, "downgrade", "-1")
+    down = _alembic(url, "downgrade", DOWN_REVISION)
     assert down.returncode == 0, down.stderr[-3000:]
 
     engine = sa.create_engine(url)
