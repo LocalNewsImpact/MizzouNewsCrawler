@@ -151,17 +151,33 @@ def test_migration_roundtrip():
     down = _alembic(url, "downgrade", DOWN_REVISION)
     assert down.returncode == 0, down.stderr[-3000:]
 
-    engine = sa.create_engine(url)
+    # Restore the schema before leaving, whatever the assertions do.
+    #
+    # Every test below shares this database. This one is the only test that
+    # downgrades it, and it used to get away with not putting it back: the
+    # downgrade failed on "Ambiguous walk" and left the schema at head, so
+    # `assert down.returncode == 0` ended the test before it could strip
+    # anything. Fixing the walk made the downgrade work, and the tests after
+    # it started failing on a column this test had just dropped.
     try:
-        insp = sa.inspect(engine)
-        tables = set(insp.get_table_names())
-        for t in TABLES:
-            assert t not in tables, f"{t} survived downgrade"
-        articles = {c["name"] for c in insp.get_columns("articles")}
-        assert "enriched_at" not in articles
-        assert "enrichment_attempts" not in articles
+        engine = sa.create_engine(url)
+        try:
+            insp = sa.inspect(engine)
+            tables = set(insp.get_table_names())
+            for t in TABLES:
+                assert t not in tables, f"{t} survived downgrade"
+            articles = {c["name"] for c in insp.get_columns("articles")}
+            assert "enriched_at" not in articles
+            assert "enrichment_attempts" not in articles
+        finally:
+            engine.dispose()
     finally:
-        engine.dispose()
+        restored = _alembic(url, "upgrade", "head")
+
+    assert restored.returncode == 0, (
+        "the schema was left downgraded for every test after this one:\n"
+        + restored.stderr[-3000:]
+    )
 
 
 # =============================================================================
