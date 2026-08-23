@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       services:
-        description: 'Services to build (comma-separated: processor,api,crawler,enrichment,base,ml-base, or "all")'
+        description: 'Services to build (comma-separated: processor,api,crawler,base,ml-base, or "all")'
         required: false
         default: 'auto'
         type: string
@@ -34,6 +34,7 @@ jobs:
       processor: ${{ steps.detect.outputs.processor }}
       api: ${{ steps.detect.outputs.api }}
       crawler: ${{ steps.detect.outputs.crawler }}
+      migrator: ${{ steps.detect.outputs.migrator }}
       enrichment: ${{ steps.detect.outputs.enrichment }}
       base: ${{ steps.detect.outputs.base }}
       ml_base: ${{ steps.detect.outputs.ml_base }}
@@ -122,6 +123,7 @@ jobs:
           PROCESSOR=false
           API=false
           CRAWLER=false
+          MIGRATOR=false
           ENRICHMENT=false
 
           # Base image: only for OS/dependency changes
@@ -160,6 +162,18 @@ jobs:
             echo "✅ Crawler changed (crawler code)"
           fi
 
+          # Migrator: the image run-migrations.yml runs against production.
+          # A merged migration rebuilt the processor and api images (both
+          # list alembic/versions/ above) but never the image that applies
+          # it, so the migration job could only run at a SHA where the
+          # Dockerfile or its requirements had changed. Between 2026-07-26
+          # and 2026-08-23 the newest migrator image was a month old while
+          # production's schema drifted ahead of its recorded revision.
+          if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.migrator|requirements-migrator\.txt|alembic/'; then
+            MIGRATOR=true
+            echo "✅ Migrator changed (migrations or migrator image)"
+          fi
+
           # Enrichment: the image ships all of src/, so shared code rebuilds it
           # too; vendor/backfield/ is the pinned backfield wheel set it installs.
           if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.enrichment|vendor/backfield/|src/(enrichment|models|services|utils|cli)/|pyproject\.toml'; then
@@ -179,8 +193,7 @@ jobs:
             PROCESSOR=true
             API=true
             CRAWLER=true
-            ENRICHMENT=true
-            echo "↪️  Base changed — cascading rebuild to ml-base, processor, api, crawler, enrichment"
+            echo "↪️  Base changed — cascading rebuild to ml-base, processor, api, crawler"
           fi
           if [ "$ML_BASE" = "true" ]; then
             PROCESSOR=true
@@ -193,6 +206,7 @@ jobs:
           echo "processor=$PROCESSOR" >> $GITHUB_OUTPUT
           echo "api=$API" >> $GITHUB_OUTPUT
           echo "crawler=$CRAWLER" >> $GITHUB_OUTPUT
+          echo "migrator=$MIGRATOR" >> $GITHUB_OUTPUT
           echo "enrichment=$ENRICHMENT" >> $GITHUB_OUTPUT
 
           # Check if anything changed
@@ -212,6 +226,7 @@ jobs:
           [ "${{ steps.detect.outputs.processor }}" == "true" ] && SERVICES="${SERVICES}processor "
           [ "${{ steps.detect.outputs.api }}" == "true" ] && SERVICES="${SERVICES}api "
           [ "${{ steps.detect.outputs.crawler }}" == "true" ] && SERVICES="${SERVICES}crawler "
+          [ "${{ steps.detect.outputs.migrator }}" == "true" ] && SERVICES="${SERVICES}migrator "
           [ "${{ steps.detect.outputs.enrichment }}" == "true" ] && SERVICES="${SERVICES}enrichment "
 
           if [ -z "$SERVICES" ]; then
@@ -231,6 +246,7 @@ jobs:
           echo "Processor rebuild: ${{ steps.detect.outputs.processor }}"
           echo "API rebuild: ${{ steps.detect.outputs.api }}"
           echo "Crawler rebuild: ${{ steps.detect.outputs.crawler }}"
+          echo "Migrator rebuild: ${{ steps.detect.outputs.migrator }}"
           echo "Enrichment rebuild: ${{ steps.detect.outputs.enrichment }}"
           echo "Services to build: ${{ steps.services.outputs.list }}"
           echo "================================"
@@ -497,6 +513,52 @@ jobs:
           echo "✅ Crawler build triggered (build ID: $BUILD_ID)"
           echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
 
+  build-migrator:
+    name: Build Migrator
+    # Not in the base -> ml-base -> processor -> api -> crawler chain: the
+    # migrator is FROM python:3.11-slim directly, so it depends on none of
+    # them and runs alongside.
+    needs: [detect-changes]
+    runs-on: ubuntu-latest
+    outputs:
+      build_id: ${{ steps.trigger.outputs.build_id }}
+
+    steps:
+      - name: Skip migrator build (not requested)
+        if: needs.detect-changes.outputs.migrator != 'true'
+        run: 'echo "Info: migrator image not requested; skipping Cloud Build trigger."'
+
+      - uses: actions/checkout@v7
+        if: needs.detect-changes.outputs.migrator == 'true'
+
+      - name: Authenticate to Google Cloud
+        if: needs.detect-changes.outputs.migrator == 'true'
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        if: needs.detect-changes.outputs.migrator == 'true'
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Trigger Cloud Build
+        id: trigger
+        if: needs.detect-changes.outputs.migrator == 'true'
+        run: |
+          set +e
+          BUILD_ID=$(gcloud builds triggers run build-migrator-manual \
+            --sha="${{ github.sha }}" \
+            --format="value(metadata.build.id)" 2>&1)
+          EXIT_CODE=$?
+          set -e
+          if [ $EXIT_CODE -ne 0 ] || [ -z "$BUILD_ID" ]; then
+            echo "❌ Failed to trigger migrator build"
+            echo "$BUILD_ID"
+            exit 1
+          fi
+          echo "✅ Migrator build triggered (build ID: $BUILD_ID)"
+          echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
+
   build-enrichment:
     name: Build Enrichment
     needs: [detect-changes, build-crawler]
@@ -540,9 +602,114 @@ jobs:
           echo "✅ Enrichment build triggered (build ID: $BUILD_ID)"
           echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
 
+  run-migrations:
+    name: Run Migrations
+    # Deliberately NOT behind wait-for-builds. The migrator builds in parallel
+    # with base -> ml-base -> processor -> api -> crawler, and the cloudbuild
+    # configs for those images deploy them as their last step. Waiting would
+    # apply the schema change after the code that depends on it was already
+    # serving traffic. This waits only for the migrator's own build.
+    needs: [detect-changes, build-migrator]
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      needs.detect-changes.outputs.migrator == 'true' &&
+      needs.build-migrator.outputs.build_id != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Wait for the migrator image
+        env:
+          BUILD_ID: ${{ needs.build-migrator.outputs.build_id }}
+          PROJECT: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          echo "Waiting for migrator build $BUILD_ID"
+          ELAPSED=0
+          while [ $ELAPSED -lt 900 ]; do
+            STATUS=$(gcloud builds describe "$BUILD_ID" \
+              --project="$PROJECT" --format="value(status)" 2>/dev/null || echo UNKNOWN)
+            case "$STATUS" in
+              SUCCESS)
+                echo "Migrator image built"
+                exit 0
+                ;;
+              FAILURE|TIMEOUT|CANCELLED|EXPIRED|INTERNAL_ERROR)
+                echo "Migrator build finished as $STATUS"
+                echo "https://console.cloud.google.com/cloud-build/builds/$BUILD_ID"
+                exit 1
+                ;;
+            esac
+            sleep 20
+            ELAPSED=$((ELAPSED + 20))
+          done
+          echo "Migrator build did not finish within 15 minutes"
+          exit 1
+
+      - name: Configure kubectl
+        run: |
+          gcloud container clusters get-credentials mizzou-cluster \
+            --zone=us-central1-a \
+            --project=${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Render the migration job
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+          JOB_NAME: alembic-migration-${{ github.run_id }}-${{ github.run_attempt }}
+          PROJECT: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          # Mirrors the manifest in run-migrations.yml, which stays as the
+          # manual path for staging and for replaying a specific SHA.
+          sed \
+            -e "s|__JOB_NAME__|${JOB_NAME}|g" \
+            -e "s|__IMAGE__|us-central1-docker.pkg.dev/${PROJECT}/mizzou-crawler/migrator:${IMAGE_TAG}|g" \
+            -e "s|__RUN_ID__|${{ github.run_id }}|g" \
+            k8s/deploy-migration-job.tpl.yaml > /tmp/migration-job.yaml
+          cat /tmp/migration-job.yaml
+
+      - name: Apply and wait
+        env:
+          JOB_NAME: alembic-migration-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          kubectl apply -f /tmp/migration-job.yaml
+
+          kubectl wait --for=condition=complete --timeout=600s \
+            "job/${JOB_NAME}" -n production && RESULT=0 || RESULT=1
+
+          echo "--- migration log ---"
+          kubectl logs "job/${JOB_NAME}" -n production --tail=200 || true
+
+          if [ $RESULT -ne 0 ]; then
+            echo "::error::Migration job did not complete. The images for this commit are built and deploying; the schema they expect is not in place."
+            kubectl describe "job/${JOB_NAME}" -n production || true
+            exit 1
+          fi
+
+          echo "Migrations applied at ${{ github.sha }}"
+
   wait-for-builds:
     name: Wait for Cloud Builds
-    needs: [detect-changes, build-base, build-ml-base, build-processor, build-api, build-crawler, build-enrichment]
+    needs:
+      [
+        detect-changes,
+        build-base,
+        build-ml-base,
+        build-processor,
+        build-api,
+        build-crawler,
+        build-migrator,
+        build-enrichment,
+      ]
     if: needs.detect-changes.outputs.any_changed == 'true'
     runs-on: ubuntu-latest
 
@@ -564,6 +731,7 @@ jobs:
           PROCESSOR_BUILD_ID: ${{ needs.build-processor.outputs.build_id }}
           API_BUILD_ID: ${{ needs.build-api.outputs.build_id }}
           CRAWLER_BUILD_ID: ${{ needs.build-crawler.outputs.build_id }}
+          MIGRATOR_BUILD_ID: ${{ needs.build-migrator.outputs.build_id }}
           ENRICHMENT_BUILD_ID: ${{ needs.build-enrichment.outputs.build_id }}
         run: |
           echo "⏳ Waiting for Cloud Build jobs to complete..."
@@ -594,6 +762,7 @@ jobs:
           add_build "$PROCESSOR_BUILD_ID" "processor"
           add_build "$API_BUILD_ID" "api"
           add_build "$CRAWLER_BUILD_ID" "crawler"
+          add_build "$MIGRATOR_BUILD_ID" "migrator"
           add_build "$ENRICHMENT_BUILD_ID" "enrichment"
 
           TOTAL_BUILDS=${#BUILD_IDS[@]}
@@ -710,7 +879,6 @@ jobs:
         build-processor,
         build-api,
         build-crawler,
-        build-enrichment,
       ]
     if: >-
       github.ref == 'refs/heads/main' &&
@@ -719,8 +887,7 @@ jobs:
         needs.build-ml-base.outputs.build_id != '' ||
         needs.build-processor.outputs.build_id != '' ||
         needs.build-api.outputs.build_id != '' ||
-        needs.build-crawler.outputs.build_id != '' ||
-        needs.build-enrichment.outputs.build_id != ''
+        needs.build-crawler.outputs.build_id != ''
       ) &&
       (needs.wait-for-builds.result == 'success' || needs.wait-for-builds.result == 'skipped')
     runs-on: ubuntu-latest
@@ -749,7 +916,6 @@ jobs:
           PROCESSOR_BUILD_ID: ${{ needs.build-processor.outputs.build_id }}
           API_BUILD_ID: ${{ needs.build-api.outputs.build_id }}
           CRAWLER_BUILD_ID: ${{ needs.build-crawler.outputs.build_id }}
-          ENRICHMENT_BUILD_ID: ${{ needs.build-enrichment.outputs.build_id }}
           # Required by `gh pr create` below.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -758,7 +924,6 @@ jobs:
           if [ -n "$PROCESSOR_BUILD_ID" ]; then ARGS+=(--processor "$SHORT"); fi
           if [ -n "$CRAWLER_BUILD_ID" ]; then ARGS+=(--crawler "$SHORT"); fi
           if [ -n "$API_BUILD_ID" ]; then ARGS+=(--api "$SHORT"); fi
-          if [ -n "$ENRICHMENT_BUILD_ID" ]; then ARGS+=(--enrichment "$SHORT"); fi
           if [ ${#ARGS[@]} -eq 0 ]; then
             # This job's `if:` already established that at least one build ran,
             # so reaching here means the build IDs did not resolve -- the exact
@@ -781,19 +946,36 @@ jobs:
           # last step -- leaving versions.env stale for a permissions reason
           # after the earlier logic bug was fixed. This repo lands changes by
           # PR, so open one.
-          BRANCH="chore/image-tags-${SHORT}"
+          # One branch, not one per commit.
+          #
+          # This was chore/image-tags-${SHORT}, which opened a new PR every
+          # deploy. Each was branched from main as it stood at the time, so
+          # none contained any other's changes and all four rewrote the same
+          # lines. By 2026-08-23 there were four open -- 8c60223, 86a73ec,
+          # d2b5008, db99260 -- mutually conflicting, none of them current,
+          # and versions.env on main a fortnight behind the cluster. The job
+          # meant to prevent that drift was producing it.
+          #
+          # A fixed branch, rebuilt from main each run and force-pushed, means
+          # exactly one open PR that always says what is deployed right now.
+          BRANCH="chore/image-tags"
           git add k8s/versions.env k8s/argo/base-pipeline-workflow.yaml
           git commit -m "chore: update image tags (${SHORT}) [skip ci]"
-          # --force so a re-run of the same SHA updates its branch rather than
-          # failing on a non-fast-forward.
           git push --force origin "HEAD:refs/heads/${BRANCH}"
 
           if gh pr view "$BRANCH" --json number >/dev/null 2>&1; then
-            echo "PR for ${BRANCH} already open; branch updated."
+            gh pr edit "$BRANCH" \
+              --title "chore: update image tags (${SHORT})" \
+              --body "Automated by the update-versions-env job after a successful build of ${SHORT}. Records the image tags now deployed, so k8s/versions.env (used by envsubst for the manifests) and the repo Argo template match production. Bookkeeping only -- the images are already built and rolled out.
+
+            This PR is rewritten by every deploy. Merging it records the tags as of that moment; leaving it open means the next deploy replaces its contents rather than opening a second one."
+            echo "Updated the open PR for ${BRANCH}."
           else
             gh pr create \
               --base main \
               --head "$BRANCH" \
               --title "chore: update image tags (${SHORT})" \
-              --body "Automated by the update-versions-env job after a successful build of ${SHORT}. Records the image tags now deployed, so k8s/versions.env (used by envsubst for the manifests) and the repo Argo template match production. Bookkeeping only -- the images are already built and rolled out."
+              --body "Automated by the update-versions-env job after a successful build of ${SHORT}. Records the image tags now deployed, so k8s/versions.env (used by envsubst for the manifests) and the repo Argo template match production. Bookkeeping only -- the images are already built and rolled out.
+
+            This PR is rewritten by every deploy. Merging it records the tags as of that moment; leaving it open means the next deploy replaces its contents rather than opening a second one."
           fi
