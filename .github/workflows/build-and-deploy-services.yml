@@ -879,19 +879,36 @@ jobs:
           # last step -- leaving versions.env stale for a permissions reason
           # after the earlier logic bug was fixed. This repo lands changes by
           # PR, so open one.
-          BRANCH="chore/image-tags-${SHORT}"
+          # One branch, not one per commit.
+          #
+          # This was chore/image-tags-${SHORT}, which opened a new PR every
+          # deploy. Each was branched from main as it stood at the time, so
+          # none contained any other's changes and all four rewrote the same
+          # lines. By 2026-08-23 there were four open -- 8c60223, 86a73ec,
+          # d2b5008, db99260 -- mutually conflicting, none of them current,
+          # and versions.env on main a fortnight behind the cluster. The job
+          # meant to prevent that drift was producing it.
+          #
+          # A fixed branch, rebuilt from main each run and force-pushed, means
+          # exactly one open PR that always says what is deployed right now.
+          BRANCH="chore/image-tags"
           git add k8s/versions.env k8s/argo/base-pipeline-workflow.yaml
           git commit -m "chore: update image tags (${SHORT}) [skip ci]"
-          # --force so a re-run of the same SHA updates its branch rather than
-          # failing on a non-fast-forward.
           git push --force origin "HEAD:refs/heads/${BRANCH}"
 
           if gh pr view "$BRANCH" --json number >/dev/null 2>&1; then
-            echo "PR for ${BRANCH} already open; branch updated."
+            gh pr edit "$BRANCH" \
+              --title "chore: update image tags (${SHORT})" \
+              --body "Automated by the update-versions-env job after a successful build of ${SHORT}. Records the image tags now deployed, so k8s/versions.env (used by envsubst for the manifests) and the repo Argo template match production. Bookkeeping only -- the images are already built and rolled out.
+
+            This PR is rewritten by every deploy. Merging it records the tags as of that moment; leaving it open means the next deploy replaces its contents rather than opening a second one."
+            echo "Updated the open PR for ${BRANCH}."
           else
             gh pr create \
               --base main \
               --head "$BRANCH" \
               --title "chore: update image tags (${SHORT})" \
-              --body "Automated by the update-versions-env job after a successful build of ${SHORT}. Records the image tags now deployed, so k8s/versions.env (used by envsubst for the manifests) and the repo Argo template match production. Bookkeeping only -- the images are already built and rolled out."
+              --body "Automated by the update-versions-env job after a successful build of ${SHORT}. Records the image tags now deployed, so k8s/versions.env (used by envsubst for the manifests) and the repo Argo template match production. Bookkeeping only -- the images are already built and rolled out.
+
+            This PR is rewritten by every deploy. Merging it records the tags as of that moment; leaving it open means the next deploy replaces its contents rather than opening a second one."
           fi
