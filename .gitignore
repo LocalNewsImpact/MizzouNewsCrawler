@@ -237,3 +237,4 @@ scripts/analyze_canonical_urls.py
 
 # Playwright MCP session artifacts (page snapshots / console logs)
 .playwright-mcp/
+backfield-backfill/openrouter-hmac-credentials.json
