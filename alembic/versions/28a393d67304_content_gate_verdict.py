@@ -13,14 +13,20 @@ with a full stop, "Full story content present", and six thousand more.
 Nothing downstream can ask how many articles a publisher lost to a
 paywall, which is a question the enrichment already answered every time.
 
-Revision ID: c3d4e5f6a7b8
+Revision ID: 28a393d67304
 Revises: 9e4c7a1b2d8f
+
+The identifier is a digest of what this migration does rather than a hand
+picked string. The first attempt invented one that another migration
+already used -- `c3d4e5f6a7b8` belongs to a merge revision -- and alembic
+answered with "present more than once" and two heads where there is one
+chain.
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "c3d4e5f6a7b8"
+revision = "28a393d67304"
 down_revision = "9e4c7a1b2d8f"
 branch_labels = None
 depends_on = None
