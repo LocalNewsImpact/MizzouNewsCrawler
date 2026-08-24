@@ -633,6 +633,13 @@ jobs:
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v3
+        with:
+          # kubectl authenticates with nothing without this, and every command
+          # fails on "Install gke-gcloud-auth-plugin ... exit code 1" -- a message
+          # naming a missing plugin rather than a missing permission, raised after
+          # the images have built. The deploy goes green and the schema does not
+          # move. Two other workflows here already install it; these did not.
+          install_components: 'gke-gcloud-auth-plugin'
 
       # Every other job here reaches Google Cloud on the default project the
       # auth step derives from the service-account key. This job asked for
