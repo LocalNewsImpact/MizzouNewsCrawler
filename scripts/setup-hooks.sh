@@ -52,6 +52,46 @@ fi
 # Ensure Docker is in PATH (for macOS Docker Desktop)
 export PATH="/usr/local/bin:/opt/homebrew/bin:/Applications/Docker.app/Contents/Resources/bin:$PATH"
 
+# Resolve the virtualenv, and put it on PATH for every step and subshell.
+# A linked worktree has no .venv of its own: `git rev-parse --show-toplevel`
+# returns the worktree, the activation below finds nothing, and because each
+# activation is `|| true` the hook carried on under whatever python was on
+# PATH -- pyenv's, typically -- and failed with "No module named ruff" on a
+# push that was fine. The venv lives in the primary checkout, which is the
+# parent of the common git dir.
+VENV_DIR="$REPO_ROOT/.venv"
+if [ ! -x "$VENV_DIR/bin/python" ]; then
+    COMMON_DIR="$(git rev-parse --git-common-dir)"
+    case "$COMMON_DIR" in
+        /*) ;;
+        *) COMMON_DIR="$REPO_ROOT/$COMMON_DIR" ;;
+    esac
+    CANDIDATE="$(cd "$(dirname "$COMMON_DIR")" 2>/dev/null && pwd)/.venv"
+    if [ -x "$CANDIDATE/bin/python" ]; then
+        VENV_DIR="$CANDIDATE"
+        echo "🔗 Worktree detected; using the primary checkout's virtualenv:"
+        echo "   $VENV_DIR"
+    fi
+fi
+
+if [ ! -x "$VENV_DIR/bin/python" ]; then
+    echo "❌ No virtualenv found at $REPO_ROOT/.venv or in the primary checkout."
+    echo "   The hook cannot mirror CI without it. Run: make setup"
+    exit 1
+fi
+
+export VIRTUAL_ENV="$VENV_DIR"
+export PATH="$VENV_DIR/bin:$PATH"
+
+# Fail loudly rather than part-way through: a venv without the tooling
+# produces "No module named ruff" three steps in, which reads as a code
+# problem rather than an environment one.
+if ! python -m ruff --version >/dev/null 2>&1; then
+    echo "❌ ruff is not installed in $VENV_DIR."
+    echo "   The hook cannot mirror CI without it. Run: make setup"
+    exit 1
+fi
+
 # Setup log rotation (keep last 3 logs)
 LOG_DIR="logs/pre-push"
 mkdir -p "$LOG_DIR"
@@ -94,7 +134,7 @@ fi
 echo "🔍 Step 1/4: Running linting checks (ruff, black, isort)..."
 (
     cd "$WORKTREE" || exit 1
-    source "$REPO_ROOT/.venv/bin/activate" 2>/dev/null || true
+    source "$VENV_DIR/bin/activate" 2>/dev/null || true
     echo "  → Running ruff..." &&
     python -m ruff check . &&
     echo "  → Running black..." &&
@@ -122,7 +162,7 @@ echo ""
 echo "🔍 Step 2/4: Running mypy type checking..."
 (
     cd "$WORKTREE" || exit 1
-    source "$REPO_ROOT/.venv/bin/activate" 2>/dev/null || true
+    source "$VENV_DIR/bin/activate" 2>/dev/null || true
     python -m mypy src/ --ignore-missing-imports
 ) 2>&1 | tee -a "$LOGFILE"
 MYPY_EXIT_CODE=${PIPESTATUS[0]}
@@ -170,7 +210,7 @@ echo ""
 # neither suite alone can reach the threshold. Erase stale data first so the
 # run starts clean. addopts is overridden per phase so its single
 # --cov-fail-under=78 doesn't fire mid-succession; the combined check is Step 6.
-(source .venv/bin/activate 2>/dev/null || true; python -m coverage erase) >/dev/null 2>&1
+(source "$VENV_DIR/bin/activate" 2>/dev/null || true; python -m coverage erase) >/dev/null 2>&1
 
 # Step 4: Main test suite (unit + SQLite integration), excluding PostgreSQL.
 # Runs in the working tree because some tests need untracked runtime artifacts
@@ -180,7 +220,7 @@ echo ""
 # Step 5, so the two suites never contend for a single database.
 echo "🚀 Step 4/6: Running main test suite (unit + integration, excluding PostgreSQL)..."
 (
-    source .venv/bin/activate 2>/dev/null || true &&
+    source "$VENV_DIR/bin/activate" 2>/dev/null || true &&
     python -m pytest tests/ -q --tb=short --override-ini="addopts=" \
         -p no:postgresql -m "not postgres and not docker and not local_scripts" \
         --cov=src --cov-append --cov-report=
@@ -280,7 +320,7 @@ else
         # leave its database behind; this drops it on any exit.
         trap '$DOCKER_COMPOSE exec -T postgres dropdb -U mizzou_user --if-exists "$PG_TESTDB" >/dev/null 2>&1' EXIT
         (
-            source .venv/bin/activate 2>/dev/null || true &&
+            source "$VENV_DIR/bin/activate" 2>/dev/null || true &&
             alembic upgrade head &&
             python -m pytest tests/ -q --tb=short --override-ini="addopts=" \
                 -p no:postgresql -m "postgres and not docker" \
@@ -309,7 +349,7 @@ fi  # end SKIP_PG guard
 # which matches CI's coverage job and still clears the threshold.
 echo "📊 Step 6/6: Checking combined coverage (fail-under 78%)..."
 (
-    source .venv/bin/activate 2>/dev/null || true &&
+    source "$VENV_DIR/bin/activate" 2>/dev/null || true &&
     python -m coverage report --fail-under=78
 ) 2>&1 | tee -a "$LOGFILE"
 COV_EXIT_CODE=${PIPESTATUS[0]}
