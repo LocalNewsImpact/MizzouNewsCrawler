@@ -576,6 +576,12 @@ class Dataset(Base):
         server_default=text("CURRENT_TIMESTAMP"),
     )
     ingested_by = Column(String)
+    # Who to credit and who to ask, for a dataset whose charts get embedded
+    # in other people's pages. Deliberately not the console's grants: those
+    # say who may read this, which is access control, and publishing them
+    # as attribution would put staff addresses into a public feed.
+    owner_name = Column(Text)
+    owner_email = Column(Text)
     # `metadata` is a reserved attribute on Declarative classes; store JSON
     # in the DB column named 'metadata' but expose it as `meta` on the model.
     meta = Column("metadata", JSON)
