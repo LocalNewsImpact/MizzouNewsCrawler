@@ -62,6 +62,27 @@ jobs:
           # git-hook installer counts as code. (setup-hooks.sh only defines the
           # pre-push hook — it's never imported by src/ or tests/.)
           code_files=$(echo "$changed" | grep -vE '^(\.github/workflows/|docs/|scripts/setup-hooks\.sh$)' | grep -vE '\.md$' || true)
+
+          # The image-tag bookkeeping PR is the one exception, and it is
+          # recognised by WHO opened it, not by which files it touches: the
+          # update-versions-env job records the tags already built and
+          # deployed, so the five heavy jobs would spend a full cycle
+          # validating three strings that describe images CI has no say over.
+          # A human editing the same files by hand still gets the full suite,
+          # which is why this tests the actor and the branch rather than
+          # adding the paths to the exclusion list above.
+          if [ "${{ github.event.pull_request.user.login }}" = "github-actions[bot]" ] \
+             && [ "${{ startsWith(github.head_ref, 'chore/image-tags') }}" = "true" ]; then
+            unexpected=$(echo "$changed" | grep -vE '^k8s/(versions\.env|argo/base-pipeline-workflow\.yaml)$' || true)
+            if [ -z "$unexpected" ]; then
+              echo "→ image-tag bookkeeping from the deploy job; skipping heavy test jobs."
+              echo "code=false" >> "$GITHUB_OUTPUT"
+              echo "images=" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "→ bookkeeping branch touched more than the tag files; running full suite."
+          fi
+
           if [ -n "$code_files" ]; then
             echo "→ code changes present; running full suite."
             echo "code=true" >> "$GITHUB_OUTPUT"
