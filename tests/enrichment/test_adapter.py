@@ -200,3 +200,41 @@ class TestContentGate:
         assert "START:" in captured["prompt"] and "MIDDLE:" in captured["prompt"]
         assert "HEADTEXT" in captured["prompt"].split("MIDDLE:")[0]
         assert "MIDDLETEXT" in captured["prompt"].split("MIDDLE:")[1]
+
+
+# --- the gate's verdict is countable and its reason is not -------------------
+
+
+def test_the_gate_answers_from_a_fixed_set():
+    """Three verdicts, validated. That is the field a dashboard can group
+    by, and it was the one being discarded."""
+    from src.enrichment.adapter import _VALID_VERDICTS
+
+    assert _VALID_VERDICTS == {"news", "paywall", "not_news"}
+
+
+def test_the_verdict_is_written_and_not_only_the_prose():
+    """15,747 enrichment rows carry 6,280 distinct reasons, because a model
+    wrote each one. Nothing could ask how many articles a publisher lost to
+    a paywall -- a question the gate answered every single time."""
+    from pathlib import Path
+
+    repo = (
+        Path(__file__).resolve().parents[2] / "src/enrichment/repository.py"
+    ).read_text()
+    assert '"content_gate_verdict": gate.get("verdict")' in repo
+    # Present in all three halves of the upsert, or a re-enrichment keeps
+    # the first verdict for ever.
+    assert repo.count("content_gate_verdict") >= 4
+
+
+def test_the_column_exists_in_a_migration():
+    from pathlib import Path
+
+    versions = Path(__file__).resolve().parents[2] / "alembic/versions"
+    added = [
+        f
+        for f in versions.glob("*.py")
+        if "content_gate_verdict" in f.read_text() and "add_column" in f.read_text()
+    ]
+    assert added, "the column is written to and never created"
