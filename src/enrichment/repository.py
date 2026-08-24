@@ -421,7 +421,7 @@ def persist_outcome(
             INSERT INTO article_enrichment (
               article_id, profile_version, steps_applied, skip_reason,
               backfield_commit, model, prompt_versions, cost_usd, enriched_at,
-              is_news_content, content_gate_reason,
+              is_news_content, content_gate_reason, content_gate_verdict,
               scope, scope_confidence, subject, subject_confidence,
               topic, topic_confidence, format, format_confidence,
               timeframe, timeframe_confidence, user_need, user_need_confidence,
@@ -431,7 +431,7 @@ def persist_outcome(
             ) VALUES (
               :article_id, :profile_version, :steps_applied, :skip_reason,
               :backfield_commit, :model, :prompt_versions, :cost_usd, :enriched_at,
-              :is_news_content, :content_gate_reason,
+              :is_news_content, :content_gate_reason, :content_gate_verdict,
               :scope, :scope_confidence, :subject, :subject_confidence,
               :topic, :topic_confidence, :format, :format_confidence,
               :timeframe, :timeframe_confidence, :user_need, :user_need_confidence,
@@ -450,6 +450,7 @@ def persist_outcome(
               enriched_at = EXCLUDED.enriched_at,
               is_news_content = EXCLUDED.is_news_content,
               content_gate_reason = EXCLUDED.content_gate_reason,
+              content_gate_verdict = EXCLUDED.content_gate_verdict,
               scope = COALESCE(EXCLUDED.scope, article_enrichment.scope),
               scope_confidence = COALESCE(EXCLUDED.scope_confidence, article_enrichment.scope_confidence),
               subject = COALESCE(EXCLUDED.subject, article_enrichment.subject),
@@ -485,6 +486,11 @@ def persist_outcome(
             "enriched_at": now,
             "is_news_content": outcome.status == "enriched" or None,
             "content_gate_reason": gate.get("reason"),
+            # The verdict, not only the sentence about it. The gate answers
+            # from a fixed set and validates against it; storing the prose
+            # alone left the countable half on the floor, and 6,280
+            # distinct reasons is what a model writing each one produces.
+            "content_gate_verdict": gate.get("verdict"),
             "rationales": json.dumps(rationales) if rationales else None,
             "point_place": point[0] if point else None,
             "point_method": point[1] if point else None,
