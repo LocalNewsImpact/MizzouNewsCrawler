@@ -220,6 +220,17 @@ elif command -v docker-compose >/dev/null 2>&1; then
     DOCKER_COMPOSE="docker-compose"
 fi
 
+# Every clone of this repo must talk to the SAME compose project. Compose
+# derives its project name from the directory, so a worktree or a clone in
+# another workspace gets its own project -- and because docker-compose.yml
+# pins container_name: mizzou-postgres, that project cannot start a postgres
+# of its own (the name is taken) and cannot exec into the running one (it
+# belongs to another project). The hook then reports "PostgreSQL did not
+# become ready" and aborts a push that had nothing wrong with it. Pinning the
+# name here means any checkout reaches the one container, and nobody has to
+# remember to export this by hand.
+export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-mizzounewscrawler}"
+
 if [ -z "$DOCKER_COMPOSE" ] || ! docker info >/dev/null 2>&1; then
     echo ""
     echo "❌ Docker is not available — the PostgreSQL suite cannot run, so this"
@@ -231,7 +242,13 @@ if [ -z "$DOCKER_COMPOSE" ] || ! docker info >/dev/null 2>&1; then
     echo "📝 Full log saved to: $LOGFILE"
     exit 1
 else
-    PG_TESTDB="mizzou_prepush"
+    # One database per push, not one shared name. Several checkouts of this
+    # repo (worktrees, other sessions) push at overlapping times; with a
+    # fixed name the second push's dropdb/createdb destroys the first push's
+    # database mid-run, and the first push's cleanup then destroys the
+    # second's. Both fail, and the failure looks like a broken test suite
+    # rather than a collision. $$ is the hook's pid, unique per push.
+    PG_TESTDB="mizzou_prepush_$$"
     export TEST_DATABASE_URL="postgresql://mizzou_user:mizzou_pass@127.0.0.1:5432/${PG_TESTDB}"
     export DATABASE_URL="$TEST_DATABASE_URL"
 
@@ -259,6 +276,9 @@ else
         # Fresh throwaway database, migrated to head, then run the suite.
         $DOCKER_COMPOSE exec -T postgres dropdb -U mizzou_user --if-exists "$PG_TESTDB" >>"$LOGFILE" 2>&1
         $DOCKER_COMPOSE exec -T postgres createdb -U mizzou_user "$PG_TESTDB" >>"$LOGFILE" 2>&1
+        # A push that fails a later step, or is interrupted, would otherwise
+        # leave its database behind; this drops it on any exit.
+        trap '$DOCKER_COMPOSE exec -T postgres dropdb -U mizzou_user --if-exists "$PG_TESTDB" >/dev/null 2>&1' EXIT
         (
             source .venv/bin/activate 2>/dev/null || true &&
             alembic upgrade head &&
