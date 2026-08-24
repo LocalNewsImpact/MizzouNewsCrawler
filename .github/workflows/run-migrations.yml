@@ -43,6 +43,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
 
+      # Without this gcloud runs unauthenticated and with no project, so
+      # `Resolve the project` exits 1 before anything reaches the cluster.
+      # The step existed once: #468 removed its `uses:` and left the two
+      # `with:` lines behind, stranded inside the shell script below,
+      # where a YAML key is only a command that fails.
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v3
         with:
@@ -66,8 +76,6 @@ jobs:
           fi
           echo "PROJECT=$PROJECT" >> "$GITHUB_ENV"
           echo "project: $PROJECT"
-          service_account_key: ${{ secrets.GCP_SA_KEY }}
-          export_default_credentials: true
 
       - name: Configure kubectl
         run: |
