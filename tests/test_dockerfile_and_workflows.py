@@ -124,3 +124,50 @@ def test_no_workflow_strands_a_with_key_inside_a_shell_script():
                         offenders.append(f"{path.name}:{name}: {key}")
 
     assert not offenders, f"action inputs stranded inside a shell script: {offenders}"
+
+
+def test_every_migration_manifest_names_a_service_account():
+    """A pod with no serviceAccountName runs as the cluster's `default`,
+    which is bound to no Google identity. The Cloud SQL connector then
+    asks for connect settings unauthenticated and the API answers:
+
+        boss::NOT_AUTHORIZED: Possibly missing permission
+        cloudsql.instances.get on resource instances/mizzou-db-prod
+
+    Nothing needs granting -- mizzou-app maps to mizzou-k8s-sa, which
+    already holds roles/cloudsql.client. The hand-applied manifest always
+    set it and the two rendered ones did not, so migrations failed only on
+    the paths nobody ran by hand.
+    """
+    import pathlib
+
+    import yaml
+
+    offenders = []
+    for path in sorted(pathlib.Path("k8s").rglob("*.yaml")):
+        text = path.read_text()
+        if "alembic" not in text and "migrator" not in text:
+            continue
+        for doc in yaml.safe_load_all(text.replace("<COMMIT_SHA>", "x")):
+            if not isinstance(doc, dict) or doc.get("kind") != "Job":
+                continue
+            spec = doc["spec"]["template"]["spec"]
+            if not spec.get("serviceAccountName"):
+                offenders.append(str(path))
+
+    assert not offenders, (
+        "these migration jobs run as the default service account and cannot "
+        f"reach Cloud SQL: {offenders}"
+    )
+
+
+def test_the_manual_workflow_writes_a_manifest_with_an_identity():
+    """It builds its Job inline rather than rendering a file, so the check
+    above cannot see it."""
+    text = open(".github/workflows/run-migrations.yml").read()
+    start = text.index("cat > /tmp/migration-job.yaml")
+    # Past the heredoc opener on that same line, or the window closes on
+    # the "EOF" that opens it and the assertion below is vacuous.
+    body = text[text.index("\n", start) :]
+    manifest = body[: body.index("EOF")]
+    assert "serviceAccountName: mizzou-app" in manifest

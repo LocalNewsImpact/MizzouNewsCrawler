@@ -131,6 +131,10 @@ jobs:
                   app: migrator
                   component: database
               spec:
+                # Workload Identity. Without it the pod runs as `default`,
+                # which is bound to no Google identity, and the Cloud SQL
+                # connector gets a 403 asking for connect settings.
+                serviceAccountName: mizzou-app
                 restartPolicy: Never
                 containers:
                   - name: alembic-migrate
