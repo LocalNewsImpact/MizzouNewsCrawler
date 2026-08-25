@@ -29,6 +29,19 @@ spec:
         app: migrator
         component: database
     spec:
+      # Workload Identity, without which the pod runs as the cluster's
+      # `default` service account, which is bound to no Google identity at
+      # all. The Cloud SQL connector then asks for connect settings with no
+      # credentials and the API answers 403:
+      #
+      #   boss::NOT_AUTHORIZED: Possibly missing permission
+      #   cloudsql.instances.get on resource instances/mizzou-db-prod
+      #
+      # Nothing needs granting: mizzou-app maps to mizzou-k8s-sa, which
+      # already holds roles/cloudsql.client, and every other workload here
+      # already runs as it. k8s/migration-job.yaml -- the hand-applied copy
+      # beside this one -- has always set it. The rendered ones did not.
+      serviceAccountName: mizzou-app
       restartPolicy: Never
       containers:
         - name: alembic-migrate

@@ -14,6 +14,7 @@ spec:
         app: migrator
         component: database
     spec:
+      serviceAccountName: mizzou-app
       restartPolicy: Never
       containers:
         - name: alembic-migrate

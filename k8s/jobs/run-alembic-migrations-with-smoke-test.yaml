@@ -14,6 +14,7 @@ spec:
         app: migrator
         component: database
     spec:
+      serviceAccountName: mizzou-app
       restartPolicy: Never
       # Use init container for migration, main container for smoke test
       initContainers:
