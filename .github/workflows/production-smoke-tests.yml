@@ -149,9 +149,21 @@ jobs:
           kubectl cp tests/e2e/test_production_smoke.py \
             "production/$POD_NAME:/tmp/test_production_smoke.py"
 
+          # Freshness assertions -- URLs discovered in the last day, telemetry
+          # in the last hour -- only mean something while collection runs.
+          # Ask Kubernetes whether the crawler is suspended and let the tests
+          # skip those checks with a reason rather than failing for one.
+          COLLECTION_SUSPENDED=$(kubectl get cronjob mizzou-crawler -n production \
+            -o jsonpath='{.spec.suspend}' 2>/dev/null || echo "")
+          if [ "$COLLECTION_SUSPENDED" = "true" ]; then
+            echo "ℹ️  Collection is suspended; freshness checks will skip."
+          else
+            COLLECTION_SUSPENDED="false"
+          fi
+
           # Build pytest command. `cd /app && python -m pytest` puts /app on
           # sys.path so the test's `from src.models...` imports resolve.
-          PYTEST_CMD="cd /app && python -m pytest /tmp/test_production_smoke.py -v --tb=short --color=yes -p no:cacheprovider"
+          PYTEST_CMD="cd /app && COLLECTION_SUSPENDED=$COLLECTION_SUSPENDED python -m pytest /tmp/test_production_smoke.py -v --tb=short --color=yes -p no:cacheprovider"
 
           # Add test filter if provided
           if [ -n "${{ github.event.inputs.test_filter }}" ]; then
