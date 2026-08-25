@@ -25,6 +25,26 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.fixture(scope="module")
+def active_collection():
+    """Skip checks that only mean something while collection is running.
+
+    Several tests here assert freshness -- URLs discovered in the last day,
+    telemetry written in the last hour, a section crawled within the week.
+    When the crawler CronJob is suspended those assertions describe the
+    suspension rather than a fault, and a suite that is red for a known
+    reason teaches everyone to ignore it.
+
+    The workflow asks Kubernetes whether collection is suspended and passes
+    the answer in; absent the variable the tests run, so a local or ad-hoc
+    invocation is unaffected."""
+    if os.getenv("COLLECTION_SUSPENDED", "").lower() == "true":
+        pytest.skip(
+            "collection is suspended (crawler CronJob), so freshness "
+            "assertions describe the suspension rather than a fault"
+        )
+
+
+@pytest.fixture(scope="module")
 def production_db():
     """Get production database connection."""
     # Skip if not running against production Cloud SQL
@@ -39,7 +59,9 @@ def production_db():
 class TestSectionURLExtraction:
     """Test section URL extraction and discovery integration."""
 
-    def test_section_urls_are_extracted_and_stored(self, production_db):
+    def test_section_urls_are_extracted_and_stored(
+        self, production_db, active_collection
+    ):
         """
         Verify section URLs are discovered and stored in sources.discovered_sections.
 
@@ -148,7 +170,9 @@ class TestSectionURLExtraction:
 class TestExtractionPipeline:
     """Test extraction pipeline end-to-end."""
 
-    def test_discovery_verification_extraction_flow(self, production_db):
+    def test_discovery_verification_extraction_flow(
+        self, production_db, active_collection
+    ):
         """
         Verify the complete discovery → verification → extraction pipeline.
 
@@ -245,7 +269,7 @@ class TestExtractionPipeline:
 class TestTelemetrySystem:
     """Test telemetry and monitoring systems."""
 
-    def test_telemetry_writes_succeed(self, production_db):
+    def test_telemetry_writes_succeed(self, production_db, active_collection):
         """
         Verify telemetry writes are succeeding without errors.
 
