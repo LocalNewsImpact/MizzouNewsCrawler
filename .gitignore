@@ -21,6 +21,11 @@ wheels/
 *.egg
 .venv/
 venv/
+# Any virtualenv, however it is named. `.venv/` and `venv/` covered the
+# two usual ones and missed `.venv-stamp/`, which was committed whole --
+# fourteen files whose shebangs point at a temp directory on one machine.
+.venv*/
+**/.venv*/
 env/
 tests/__pycache__/
 tests/*/__pycache__/
