@@ -59,6 +59,13 @@ export PATH="/usr/local/bin:/opt/homebrew/bin:/Applications/Docker.app/Contents/
 # PATH -- pyenv's, typically -- and failed with "No module named ruff" on a
 # push that was fine. The venv lives in the primary checkout, which is the
 # parent of the common git dir.
+# Resolved here rather than sixty lines below, where it used to be: this
+# block is the first thing to read it, and until now it read an empty
+# string. The hook looked for a virtualenv at "/.venv", found none, and
+# refused every push from the primary checkout with "Run: make setup" --
+# on a machine where `make setup` had already been run.
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
 VENV_DIR="$REPO_ROOT/.venv"
 if [ ! -x "$VENV_DIR/bin/python" ]; then
     COMMON_DIR="$(git rev-parse --git-common-dir)"
@@ -116,7 +123,6 @@ echo ""
 # Clean checkout of the commit being pushed, used for static-analysis steps.
 # Only committed, tracked files exist here — no untracked scratch files.
 # ----------------------------------------------------------------------------
-REPO_ROOT="$(git rev-parse --show-toplevel)"
 WORKTREE_PARENT="$(mktemp -d)"
 WORKTREE="$WORKTREE_PARENT/committed"
 cleanup_worktree() {
