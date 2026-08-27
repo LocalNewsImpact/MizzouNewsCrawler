@@ -146,6 +146,52 @@ class TestContentGate:
         response.usage = Usage()
         return response
 
+    def test_a_node_call_is_labelled_too(self, litellm_stub, monkeypatch):
+        """The node steps do not call litellm here -- they go through
+        agate_runtime into agate_nodes, which makes its own requests and
+        has never heard of a dataset. Those are the larger share of the
+        bill, so labelling only the calls this module makes directly would
+        attribute a fraction and leave the rest looking like overhead.
+
+        The label goes on at litellm itself, which is the one thing every
+        path shares. This test is that claim: a completion issued from
+        inside a node, with nothing passing an article down, still says
+        which dataset it was for.
+        """
+        seen = {}
+
+        def capture(**kw):
+            seen.update(kw)
+
+            class R:
+                usage = None
+
+            return R()
+
+        litellm_stub.completion = capture
+
+        def fake_node(params, inputs):
+            # What a backfield node does: reach for litellm on its own.
+            import litellm
+
+            litellm.completion(model="m", messages=[])
+            return {"ok": True}
+
+        monkeypatch.setattr(adapter, "_load", lambda node: fake_node)
+        monkeypatch.setattr(adapter, "_WRAPPED", False)
+        adapter.run_scope(ARTICLE, MODEL)
+        assert seen["user"] == "Mizzou-Missouri-State"
+
+    def test_a_label_does_not_outlive_the_step(self, litellm_stub, monkeypatch):
+        """A dataset left set would attribute the next dataset's calls, and
+        anything else the process does, to whatever ran last."""
+        litellm_stub.completion = lambda **kw: None
+        monkeypatch.setattr(adapter, "_WRAPPED", False)
+        response = self._fake_response('{"verdict": "news", "reason": "x"}')
+        litellm_stub.completion = lambda **kw: response
+        adapter.run_content_gate(ARTICLE, MODEL)
+        assert adapter._DATASET.get() is None
+
     def test_the_call_says_which_dataset_paid_for_it(self, litellm_stub):
         """LiteLLM forwards `user` to OpenRouter, which records it as
         `external_user` on the generation. Without it a trace says only
