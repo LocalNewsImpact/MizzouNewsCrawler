@@ -199,6 +199,14 @@ def run_content_gate(
             max_tokens=60,
             timeout=DEFAULT_TIMEOUT_S,
             response_format={"type": "json_object"},
+            # Which dataset paid for this call. LiteLLM forwards `user`
+            # to OpenRouter, which records it as `external_user` on the
+            # generation, so the billed cost can be split the way the
+            # recorded cost already is. Without it every trace we have
+            # collected says only that the money was spent -- the cost
+            # page shows a per-dataset figure for the recorded side and
+            # nothing at all for the billed one.
+            user=article.dataset_slug,
         )
         raw = response.choices[0].message.content or ""
         # Some providers wrap JSON in a code fence despite response_format.
@@ -257,6 +265,7 @@ def run_focus(article: ArticleInput, model: str) -> StepResult:
             timeout=DEFAULT_TIMEOUT_S,
             temperature=0,
             response_format={"type": "json_object"},
+            user=article.dataset_slug,
         )
         raw = response.choices[0].message.content or ""
         raw = re.sub(r"^```(json)?|```$", "", raw.strip(), flags=re.M).strip()

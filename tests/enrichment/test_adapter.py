@@ -146,6 +146,23 @@ class TestContentGate:
         response.usage = Usage()
         return response
 
+    def test_the_call_says_which_dataset_paid_for_it(self, litellm_stub):
+        """LiteLLM forwards `user` to OpenRouter, which records it as
+        `external_user` on the generation. Without it a trace says only
+        that money was spent: every trace collected up to 2026-08-22 has
+        `external_user` null, so the cost page can split the recorded side
+        per dataset and not the billed one."""
+        response = self._fake_response('{"verdict": "news", "reason": "x"}')
+        seen = {}
+
+        def capture(**kw):
+            seen.update(kw)
+            return response
+
+        litellm_stub.completion = capture
+        adapter.run_content_gate(ARTICLE, MODEL)
+        assert seen["user"] == "Mizzou-Missouri-State"
+
     def test_valid_verdict_passes(self, litellm_stub):
         response = self._fake_response('{"verdict": "news", "reason": "story present"}')
         litellm_stub.completion = lambda **kw: response
