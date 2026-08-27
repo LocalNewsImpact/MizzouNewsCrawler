@@ -15,11 +15,13 @@ from __future__ import annotations
 
 import json
 import re
+from contextlib import contextmanager
 from contextvars import ContextVar
 from decimal import Decimal
+from functools import wraps
 from importlib import import_module
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Iterator
 
 from src.enrichment.cost import call_cost
 from src.enrichment.types import ArticleInput, StepResult
@@ -33,6 +35,13 @@ DEFAULT_TIMEOUT_S = 300
 
 _USAGE_ACC: ContextVar[list | None] = ContextVar("enrichment_usage_acc", default=None)
 _CALLBACK_REGISTERED = False
+
+#: Which dataset the calls being made right now are for. Read by the wrapper
+#: below and sent as LiteLLM's `user`, which OpenRouter records as
+#: `external_user` on the generation -- the only field that survives the trip
+#: and can say what the money was spent on.
+_DATASET: ContextVar[str | None] = ContextVar("enrichment_dataset", default=None)
+_WRAPPED = False
 
 
 def _register_usage_callback() -> None:
@@ -63,6 +72,75 @@ def _register_usage_callback() -> None:
 
     litellm.success_callback.append(_collect)
     _CALLBACK_REGISTERED = True
+
+
+def _label_calls_with_the_dataset() -> None:
+    """Send `user` on every completion, once per process.
+
+    The steps this module runs directly can pass `user` themselves. The
+    node steps cannot: they call through agate_runtime into agate_nodes,
+    which makes its own requests and has no idea a dataset exists. Those
+    are the larger share of the bill, so labelling only what we call
+    directly would attribute a fraction and leave the rest looking like
+    overhead.
+
+    So the label goes on at the one place every call passes through --
+    litellm itself. This module already reaches into litellm to collect
+    usage; this is the same reach for the same reason, and the wrapper is
+    a pass-through in every respect but the one keyword.
+
+    `user` is not overwritten where a caller set it, so the direct calls
+    keep saying what they already say.
+    """
+    global _WRAPPED
+    if _WRAPPED:
+        return
+    try:
+        import litellm
+    except ImportError:
+        # Absent in the crawler venv, present in the enrichment image --
+        # the same best-effort as the usage callback above.
+        return
+
+    inner = litellm.completion
+
+    @wraps(inner)
+    def labelled(*args: Any, **kwargs: Any) -> Any:
+        dataset = _DATASET.get()
+        if dataset and not kwargs.get("user"):
+            kwargs["user"] = dataset
+        return inner(*args, **kwargs)
+
+    litellm.completion = labelled
+    _WRAPPED = True
+
+
+@contextmanager
+def for_dataset(slug: str | None) -> Iterator[None]:
+    """Label every completion made inside this block."""
+    _label_calls_with_the_dataset()
+    token = _DATASET.set(slug or None)
+    try:
+        yield
+    finally:
+        _DATASET.reset(token)
+
+
+def _labelled(fn: Callable[..., StepResult]) -> Callable[..., StepResult]:
+    """Run a step with its article's dataset on every completion inside it.
+
+    On the steps rather than around the orchestrator: every path to a model
+    goes through one of these, each already holds the article, and the
+    orchestrator can keep being handed a stand-in adapter by its tests
+    without knowing this exists.
+    """
+
+    @wraps(fn)
+    def run(article: ArticleInput, *args: Any, **kwargs: Any) -> StepResult:
+        with for_dataset(getattr(article, "dataset_slug", None)):
+            return fn(article, *args, **kwargs)
+
+    return run
 
 
 def _load(node: str) -> Callable[[dict, dict], dict]:
@@ -115,6 +193,7 @@ def _run_node(
         _USAGE_ACC.reset(token)
 
 
+@_labelled
 def run_scope(article: ArticleInput, model: str) -> StepResult:
     return _run_node(
         "scope",
@@ -130,6 +209,7 @@ def run_scope(article: ArticleInput, model: str) -> StepResult:
     )
 
 
+@_labelled
 def run_preset(article: ArticleInput, preset: str, model: str) -> StepResult:
     return _run_node(
         preset,
@@ -145,6 +225,7 @@ def run_preset(article: ArticleInput, preset: str, model: str) -> StepResult:
     )
 
 
+@_labelled
 def run_places(article: ArticleInput, model: str) -> StepResult:
     return _run_node(
         "places",
@@ -155,6 +236,7 @@ def run_places(article: ArticleInput, model: str) -> StepResult:
     )
 
 
+@_labelled
 def run_people(article: ArticleInput, model: str) -> StepResult:
     return _run_node(
         "people",
@@ -165,6 +247,7 @@ def run_people(article: ArticleInput, model: str) -> StepResult:
     )
 
 
+@_labelled
 def run_organizations(article: ArticleInput, model: str) -> StepResult:
     return _run_node(
         "organizations",
@@ -178,6 +261,7 @@ def run_organizations(article: ArticleInput, model: str) -> StepResult:
 _VALID_VERDICTS = {"news", "paywall", "not_news"}
 
 
+@_labelled
 def run_content_gate(
     article: ArticleInput, model: str, prefix_chars: int = GATE_WINDOW_CHARS
 ) -> StepResult:
@@ -243,6 +327,7 @@ def run_content_gate(
         )
 
 
+@_labelled
 def run_focus(article: ArticleInput, model: str) -> StepResult:
     """The central-geography claim: which one city/town is this story about.
 
