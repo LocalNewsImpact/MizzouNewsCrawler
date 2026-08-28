@@ -12,6 +12,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -702,6 +703,25 @@ class Source(Base):
     # Non-secret login parameters (auth0 domain/client_id/redirect_uri/scope,
     # login_url, CSS selectors, success_text). Credentials are NEVER stored here.
     auth_config = Column(JSON, nullable=True)
+
+    # Whether the publication has a paywall at all. Wider than
+    # requires_login, which says the extractor performs a browser login
+    # for this publisher and is true of the seven that are configured.
+    # This is a fact about the publication, ticked on the record long
+    # before anybody automates a login for it.
+    has_paywall = Column(
+        Boolean, default=False, nullable=False, server_default=text("FALSE")
+    )
+    # What a subscription costs, and what that buys: 'monthly' or
+    # 'annual'. One amount and one period rather than a monthly column and
+    # an annual one, because two numbers about one subscription can
+    # disagree and a yearly figure is arithmetic on a monthly one.
+    subscription_cost = Column(Numeric(10, 2), nullable=True)
+    subscription_period = Column(String(16), nullable=True)
+    # Where a person signs in. `auth_config` carries one for the
+    # publishers whose login is automated; this is for the rest, which is
+    # all of them but seven.
+    login_url = Column(Text, nullable=True)
 
     # Relationships
     broadcaster_callsigns = relationship(
