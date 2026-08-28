@@ -495,8 +495,18 @@ def enrich_publisher_osm_data(
 
     # Use the existing geocoding and OSM processing logic
     # [This would call the same logic as the bulk processor but for one source]
+    dataset_default_state = ""
+    ds_row = session.get(Dataset, dataset_id)
+    if ds_row is not None:
+        dataset_default_state = ((ds_row.meta or {}).get("default_state") or "").strip()
+
     success = _process_single_source_osm(
-        session, src, dataset_id, radius_miles, dry_run=False
+        session,
+        src,
+        dataset_id,
+        radius_miles,
+        dry_run=False,
+        dataset_default_state=dataset_default_state,
     )
 
     if success:
@@ -507,7 +517,25 @@ def enrich_publisher_osm_data(
     return success
 
 
-def _process_single_source_osm(session, src, dataset_id, radius_miles, dry_run=False):
+def resolve_source_state(src, dataset_default=""):
+    """The state a source is actually in -- never a guess.
+
+    A dataset is a coverage list, not a location: the Mizzou dataset
+    holds KC-metro publishers that sit in Kansas, and a Vermont upload
+    arrives with no state at all. Defaulting the state to the dataset's
+    own state geocodes those publishers into the wrong state, and
+    "Mission, Johnson, MO" does not fail loudly -- the Census lookup
+    misses, Nominatim fuzzy-matches, and the gazetteer is built around a
+    point eight miles from the newsroom. Return "" and let the caller
+    skip with a reason instead.
+    """
+    state = (src.get("metadata") or {}).get("state") or ""
+    return (state or dataset_default or "").strip()
+
+
+def _process_single_source_osm(
+    session, src, dataset_id, radius_miles, dry_run=False, dataset_default_state=""
+):
     """
     Process OSM data for a single source. Extracted for reuse between
     bulk processing and on-demand enrichment.
@@ -548,10 +576,14 @@ def _process_single_source_osm(session, src, dataset_id, radius_miles, dry_run=F
         latlon = None
 
         # First try full address if we have street address info
-        state = src.get("metadata") and src.get("metadata", {}).get("state")
-        # Default to Missouri for news sources if state not specified
+        state = resolve_source_state(src, dataset_default_state)
         if not state:
-            state = "MO"
+            print(
+                "      Skipping: no state on the source and none on the "
+                "dataset; a centroid guessed from the wrong state is worse "
+                "than no gazetteer"
+            )
+            return False
 
         # Try to build the most complete address possible
         meta = src.get("metadata", {})
@@ -1578,6 +1610,7 @@ def main(
 
     for ds in datasets:
         print(f"Processing dataset: {ds.slug} ({ds.label})")
+        dataset_default_state = ((ds.meta or {}) or {}).get("default_state", "") or ""
 
         # Get mapped sources for this dataset from dataset_sources join
         meta = MetaData()
@@ -1636,9 +1669,14 @@ def main(
             # (offline, deterministic, and the same source our FIPS ladder
             # uses), then ZIP, then Nominatim as a last resort.
             latlon = None
-            src_state = (
-                src.get("metadata") and src.get("metadata", {}).get("state")
-            ) or "MO"
+            src_state = resolve_source_state(src, dataset_default_state)
+            if not src_state:
+                print(
+                    "    Skipping: no state on the source and none on the "
+                    "dataset; a centroid guessed from the wrong state is "
+                    "worse than no gazetteer"
+                )
+                continue
             if src.get("city"):
                 census_hit = census_place_geoid(src.get("city"), src_state)
                 if census_hit is not None and census_hit.lat is not None:
