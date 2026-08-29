@@ -13,7 +13,7 @@ MizzouNewsCrawler is a cloud-native news discovery and processing pipeline that 
 
 - **Deployment**: Google Kubernetes Engine (GKE) cluster `mizzou-cluster` in `us-central1-a`
 
-- **Database**: Cloud SQL PostgreSQL (`mizzou-db-prod`) with Cloud SQL Connector
+- **Database**: Cloud SQL PostgreSQL (`mizzou-db-prod-ssd`) with Cloud SQL Connector
 
 - **Orchestration**: Argo Workflows with CronWorkflow scheduling for pipeline automation
 
@@ -31,7 +31,7 @@ MizzouNewsCrawler is a cloud-native news discovery and processing pipeline that 
 
 - **GKE Cluster**: `mizzou-cluster` in `us-central1-a` zone
 
-- **Database**: Cloud SQL PostgreSQL instance `mizzou-db-prod`
+- **Database**: Cloud SQL PostgreSQL instance `mizzou-db-prod-ssd`
 
 - **Connection Pattern**: Cloud SQL Connector (no proxy sidecar required)
 
@@ -1808,7 +1808,7 @@ DATABASE_ENGINE=postgresql+psycopg2
 DATABASE_HOST=127.0.0.1  # Cloud SQL Connector local endpoint
 DATABASE_PORT=5432
 USE_CLOUD_SQL_CONNECTOR=true
-CLOUD_SQL_INSTANCE=mizzou-news-crawler:us-central1:mizzou-db-prod
+CLOUD_SQL_INSTANCE=mizzou-news-crawler:us-central1:mizzou-db-prod-ssd
 
 # Pipeline Step Feature Flags (Issue #77 refactoring)
 ENABLE_DISCOVERY=false      # Moved to Argo workflows

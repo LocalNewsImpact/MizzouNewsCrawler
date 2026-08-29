@@ -80,7 +80,7 @@ def weekly_source_health_check(request):
         db_user = os.getenv("DB_USER", "mizzou_user")
         db_pass = os.getenv("DB_PASSWORD")
         db_name = os.getenv("DB_NAME")
-        instance = os.getenv("CLOUDSQL_INSTANCE", "mizzou-news-crawler:us-central1:mizzou-db-prod")
+        instance = os.getenv("CLOUDSQL_INSTANCE", "mizzou-news-crawler:us-central1:mizzou-db-prod-ssd")
         if database_url:
             try:
                 url = make_url(database_url)

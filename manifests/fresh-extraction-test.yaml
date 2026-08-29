@@ -123,7 +123,7 @@ spec:
           - {name: DATABASE_URL, value: "$(DATABASE_ENGINE)://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)"}
           - {name: TELEMETRY_DATABASE_URL, value: "$(DATABASE_ENGINE)://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)"}
           - {name: USE_CLOUD_SQL_CONNECTOR, value: "true"}
-          - {name: CLOUD_SQL_INSTANCE, value: "mizzou-news-crawler:us-central1:mizzou-db-prod"}
+          - {name: CLOUD_SQL_INSTANCE, value: "mizzou-news-crawler:us-central1:mizzou-db-prod-ssd"}
           - {name: PROXY_PROVIDER, value: "squid"}
           - name: SQUID_PROXY_URL
             valueFrom: {secretKeyRef: {name: squid-proxy-credentials, key: squid-proxy-url}}
@@ -169,7 +169,7 @@ spec:
           - {name: DATABASE_URL, value: "$(DATABASE_ENGINE)://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)"}
           - {name: TELEMETRY_DATABASE_URL, value: "$(DATABASE_ENGINE)://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)"}
           - {name: USE_CLOUD_SQL_CONNECTOR, value: "true"}
-          - {name: CLOUD_SQL_INSTANCE, value: "mizzou-news-crawler:us-central1:mizzou-db-prod"}
+          - {name: CLOUD_SQL_INSTANCE, value: "mizzou-news-crawler:us-central1:mizzou-db-prod-ssd"}
           - {name: PROXY_PROVIDER, value: "squid"}
           - name: SQUID_PROXY_URL
             valueFrom: {secretKeyRef: {name: squid-proxy-credentials, key: squid-proxy-url}}
@@ -215,7 +215,7 @@ spec:
           - {name: DATABASE_URL, value: "$(DATABASE_ENGINE)://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)"}
           - {name: TELEMETRY_DATABASE_URL, value: "$(DATABASE_ENGINE)://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)"}
           - {name: USE_CLOUD_SQL_CONNECTOR, value: "true"}
-          - {name: CLOUD_SQL_INSTANCE, value: "mizzou-news-crawler:us-central1:mizzou-db-prod"}
+          - {name: CLOUD_SQL_INSTANCE, value: "mizzou-news-crawler:us-central1:mizzou-db-prod-ssd"}
           - {name: PROXY_PROVIDER, value: "squid"}
           - name: SQUID_PROXY_URL
             valueFrom: {secretKeyRef: {name: squid-proxy-credentials, key: squid-proxy-url}}

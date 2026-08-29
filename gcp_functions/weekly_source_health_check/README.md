@@ -170,12 +170,12 @@ Schedule formats (cron):
   - `DB_NAME` (the exact PostgreSQL database name in your Cloud SQL instance)
   - `DB_USER` and `DB_PASSWORD` (credentials with access to that DB)
   - or provide a full `DATABASE_URL` (e.g., `postgresql://user:pass@/your_db_name`) which the function will parse.
-  - `CLOUDSQL_INSTANCE` (connection name, e.g., `mizzou-news-crawler:us-central1:mizzou-db-prod`)
+  - `CLOUDSQL_INSTANCE` (connection name, e.g., `mizzou-news-crawler:us-central1:mizzou-db-prod-ssd`)
 
 List databases (to confirm the exact name):
 
 ```bash
-gcloud sql databases list --instance=mizzou-db-prod
+gcloud sql databases list --instance=mizzou-db-prod-ssd
 ```
 
 Set database env vars on deploy:
@@ -186,7 +186,7 @@ gcloud functions deploy weekly-source-health-check \
   --source gcp_functions/weekly_source_health_check \
   --entry-point weekly_source_health_check \
   --trigger-http --memory 512MB --timeout 540 \
-  --set-env-vars DB_NAME=YOUR_DB_NAME,DB_USER=YOUR_USER,CLOUDSQL_INSTANCE=mizzou-news-crawler:us-central1:mizzou-db-prod \
+  --set-env-vars DB_NAME=YOUR_DB_NAME,DB_USER=YOUR_USER,CLOUDSQL_INSTANCE=mizzou-news-crawler:us-central1:mizzou-db-prod-ssd \
   --set-env-vars GMAIL_DELEGATED_USER=sender@example.com \
   --set-env-vars GMAIL_CREDENTIALS_JSON=$(cat path/to/sa.json | base64)
 ```

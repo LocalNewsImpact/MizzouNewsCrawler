@@ -92,12 +92,12 @@ steps:
                 - name: USE_CLOUD_SQL_CONNECTOR
                   value: "true"
                 - name: CLOUD_SQL_INSTANCE
-                  value: "${PROJECT_ID}:us-central1:mizzou-db-prod"
+                  value: "${PROJECT_ID}:us-central1:mizzou-db-prod-ssd"
               - name: cloud-sql-proxy
                 image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.8.0
                 args:
                   - "--port=5432"
-                  - "${PROJECT_ID}:us-central1:mizzou-db-prod"
+                  - "${PROJECT_ID}:us-central1:mizzou-db-prod-ssd"
                 securityContext:
                   runAsNonRoot: true
         EOF

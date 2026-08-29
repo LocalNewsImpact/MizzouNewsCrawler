@@ -168,7 +168,7 @@ Celery, no APIs, no UIs.** One container image, one job.
 ### The extension that would have forced a self-managed database
 
 Backfield's schema requires `postgis`, `vector`, `pg_trgm` and `h3`. Checked
-against `mizzou-db-prod`:
+against `mizzou-db-prod-ssd`:
 
 ```
 postgis   3.6.0   available
