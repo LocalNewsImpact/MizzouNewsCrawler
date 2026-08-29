@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from src.models import Gazetteer
 from src.models.database import safe_session_execute
 from src.pipeline.text_cleaning import decode_rot47_segments
+from src.utils.gazetteer_names import is_matchable_gazetteer_name
 
 logger = logging.getLogger(__name__)
 
@@ -136,12 +137,18 @@ class ArticleEntityExtractor:
                         norm_name,
                         (osm_category, osm_subcategory),
                     )
+                if not is_matchable_gazetteer_name(name):
+                    # A POI called "A" becomes a pattern that fires on
+                    # every "a" in the article. See src/utils/gazetteer_names.
+                    continue
                 key = (label_override, name.lower())
                 if key not in seen_patterns:
                     pattern_entries.append((label_override, name))
                     seen_patterns.add(key)
 
                 name_norm = getattr(row, "name_norm", None)
+                if not is_matchable_gazetteer_name(name_norm):
+                    name_norm = None
                 if name_norm and name_norm.strip():
                     norm_norm = _normalize_text(name_norm)
                     if norm_norm:
@@ -316,6 +323,8 @@ def _score_match(
 
     best_match: GazetteerMatch | None = None
     for entry in candidates:
+        if not is_matchable_gazetteer_name(getattr(entry, "name", None)):
+            continue
         name_norm = getattr(entry, "name_norm", None)
         entry_norm = name_norm or _normalize_text(entry.name or "")
         if not entry_norm:
@@ -373,7 +382,10 @@ def get_gazetteer_rows(
     else:
         stmt = stmt.where(filters[0])
 
-    return list(safe_session_execute(session, stmt).scalars().all())
+    rows = list(safe_session_execute(session, stmt).scalars().all())
+    # Unmatchable names are dropped here so both the EntityRuler and the
+    # fuzzy scorer see the same corpus, however they were called.
+    return [row for row in rows if is_matchable_gazetteer_name(row.name)]
 
 
 def attach_gazetteer_matches(
