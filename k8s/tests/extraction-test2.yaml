@@ -50,7 +50,7 @@ spec:
       - name: USE_CLOUD_SQL_CONNECTOR
         value: "false"
       - name: CLOUD_SQL_INSTANCE
-        value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+        value: "mizzou-news-crawler:us-central1:mizzou-db-prod-ssd"
       - name: INTER_REQUEST_MIN
         value: "2.0"
       - name: INTER_REQUEST_MAX
@@ -71,7 +71,7 @@ spec:
       args:
         - "--structured-logs"
         - "--port=5432"
-        - "mizzou-news-crawler:us-central1:mizzou-db-prod"
+        - "mizzou-news-crawler:us-central1:mizzou-db-prod-ssd"
       securityContext:
         runAsNonRoot: true
       resources:
