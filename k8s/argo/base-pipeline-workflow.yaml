@@ -216,7 +216,7 @@ spec:
       - name: USE_CLOUD_SQL_CONNECTOR
         value: "true"
       - name: CLOUD_SQL_INSTANCE
-        value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+        value: "mizzou-news-crawler:us-central1:mizzou-db-prod-ssd"
       # Proxy configuration
       - name: PROXY_PROVIDER
         value: "squid"
@@ -314,7 +314,7 @@ spec:
       - name: USE_CLOUD_SQL_CONNECTOR
         value: "true"
       - name: CLOUD_SQL_INSTANCE
-        value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+        value: "mizzou-news-crawler:us-central1:mizzou-db-prod-ssd"
       # Proxy configuration
       - name: PROXY_PROVIDER
         value: "squid"
@@ -426,7 +426,7 @@ spec:
       - name: USE_CLOUD_SQL_CONNECTOR
         value: "true"
       - name: CLOUD_SQL_INSTANCE
-        value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+        value: "mizzou-news-crawler:us-central1:mizzou-db-prod-ssd"
       # Work queue coordination
       - name: USE_WORK_QUEUE
         value: "true"
@@ -571,7 +571,7 @@ spec:
       - name: USE_CLOUD_SQL_CONNECTOR
         value: "true"
       - name: CLOUD_SQL_INSTANCE
-        value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+        value: "mizzou-news-crawler:us-central1:mizzou-db-prod-ssd"
 
   # Wait template: poll DB until a minimum number of verified articles exist
   - name: wait-for-verified
@@ -669,7 +669,7 @@ spec:
       - name: USE_CLOUD_SQL_CONNECTOR
         value: "true"
       - name: CLOUD_SQL_INSTANCE
-        value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+        value: "mizzou-news-crawler:us-central1:mizzou-db-prod-ssd"
 
   # Calculate optimal extraction workers based on backlog
   - name: calculate-extraction-workers
@@ -775,4 +775,4 @@ spec:
       - name: USE_CLOUD_SQL_CONNECTOR
         value: "true"
       - name: CLOUD_SQL_INSTANCE
-        value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+        value: "mizzou-news-crawler:us-central1:mizzou-db-prod-ssd"

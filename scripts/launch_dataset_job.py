@@ -238,7 +238,7 @@ def create_job_manifest(
                                 },
                                 {
                                     "name": "CLOUD_SQL_INSTANCE",
-                                    "value": "mizzou-news-crawler:us-central1:mizzou-db-prod",
+                                    "value": "mizzou-news-crawler:us-central1:mizzou-db-prod-ssd",
                                 },
                                 # Proxy - Squid doesn't need authentication
                                 {"name": "PROXY_PROVIDER", "value": "squid"},

@@ -55,7 +55,7 @@ spec:
         - name: USE_CLOUD_SQL_CONNECTOR
           value: "true"
         - name: CLOUD_SQL_INSTANCE
-          value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+          value: "mizzou-news-crawler:us-central1:mizzou-db-prod-ssd"
         - name: DATASET_FILTER
           value: "minnesota-news-sources"
         - name: MEDIACLOUD_ENABLED

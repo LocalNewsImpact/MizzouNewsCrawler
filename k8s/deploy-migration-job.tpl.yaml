@@ -35,7 +35,7 @@ spec:
       # credentials and the API answers 403:
       #
       #   boss::NOT_AUTHORIZED: Possibly missing permission
-      #   cloudsql.instances.get on resource instances/mizzou-db-prod
+      #   cloudsql.instances.get on resource instances/mizzou-db-prod-ssd
       #
       # Nothing needs granting: mizzou-app maps to mizzou-k8s-sa, which
       # already holds roles/cloudsql.client, and every other workload here

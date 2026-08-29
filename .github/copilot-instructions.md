@@ -30,7 +30,7 @@ BigQuery Export → analytics datasets
 
 ### Infrastructure
 
-- **Database**: Cloud SQL PostgreSQL (`mizzou-db-prod`) via Cloud SQL Connector (no proxy sidecar)
+- **Database**: Cloud SQL PostgreSQL (`mizzou-db-prod-ssd`) via Cloud SQL Connector (no proxy sidecar)
 - **Container Registry**: Artifact Registry (`us-central1-docker.pkg.dev/mizzou-news-crawler`)
 - **Build System**: Cloud Build with selective service detection (only rebuilds changed services)
 - **Orchestration**: Argo Workflows with dataset-specific CronWorkflows
@@ -39,7 +39,7 @@ BigQuery Export → analytics datasets
 
 ### 1. **NEVER look for production data in the local database**
 - The local database is EMPTY or STALE
-- Production data is ONLY in Cloud SQL (mizzou-db-prod)
+- Production data is ONLY in Cloud SQL (mizzou-db-prod-ssd)
 - Always access production data via `kubectl exec` into a production pod
 - If you try to test against local data, you're wasting everyone's time
 
