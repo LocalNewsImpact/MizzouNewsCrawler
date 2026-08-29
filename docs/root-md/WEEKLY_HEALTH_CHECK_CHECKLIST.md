@@ -23,7 +23,7 @@
 - [ ] Cloud Build API enabled: `gcloud services enable cloudbuild.googleapis.com`
 - [ ] Secret Manager API enabled: `gcloud services enable secretmanager.googleapis.com`
 - [ ] Cloud Scheduler API enabled: `gcloud services enable cloudscheduler.googleapis.com`
-- [ ] Cloud SQL instance exists: `mizzou-db-prod` in `us-central1`
+- [ ] Cloud SQL instance exists: `mizzou-db-prod-ssd` in `us-central1`
 - [ ] GCS bucket exists: `gs://mizzou-news-crawler-reports` (or create one)
 
 ### Gmail Setup
@@ -38,7 +38,7 @@
 - [ ] Note the GCP project ID: `mizzou-news-crawler`
 - [ ] Identify recipient email address for reports
 - [ ] Verify service account `default@mizzou-news-crawler.iam.gserviceaccount.com` exists
-- [ ] Confirm Cloud SQL connection name: `mizzou-news-crawler:us-central1:mizzou-db-prod`
+- [ ] Confirm Cloud SQL connection name: `mizzou-news-crawler:us-central1:mizzou-db-prod-ssd`
 
 ---
 
@@ -89,7 +89,7 @@ gcloud functions deploy weekly-source-health-check \
   --allow-unauthenticated \
   --memory 512MB \
   --timeout 540 \
-  --set-env-vars "CLOUD_SQL_CONNECTION_NAME=$PROJECT_ID:$REGION:mizzou-db-prod" \
+  --set-env-vars "CLOUD_SQL_CONNECTION_NAME=$PROJECT_ID:$REGION:mizzou-db-prod-ssd" \
   --ingress-settings internal-only
 ```
 

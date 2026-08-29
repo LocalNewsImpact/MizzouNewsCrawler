@@ -110,7 +110,7 @@ Created `scripts/test-bigquery-export.sh` to verify:
 For Cloud SQL Connector mode (production):
 ```bash
 USE_CLOUD_SQL_CONNECTOR=true
-CLOUD_SQL_INSTANCE=mizzou-news-crawler:us-central1:mizzou-db-prod
+CLOUD_SQL_INSTANCE=mizzou-news-crawler:us-central1:mizzou-db-prod-ssd
 DATABASE_USER=<from secret>
 DATABASE_PASSWORD=<from secret>
 DATABASE_NAME=<from secret>

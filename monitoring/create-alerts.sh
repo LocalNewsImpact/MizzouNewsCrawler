@@ -117,7 +117,7 @@ conditions:
     conditionThreshold:
       filter: |
         resource.type = "cloudsql_database"
-        AND resource.labels.database_id = "mizzou-news-crawler:mizzou-db-prod"
+        AND resource.labels.database_id = "mizzou-news-crawler:mizzou-db-prod-ssd"
         AND metric.type = "cloudsql.googleapis.com/database/cpu/utilization"
       aggregations:
         - alignmentPeriod: "300s"
@@ -145,7 +145,7 @@ conditions:
     conditionThreshold:
       filter: |
         resource.type = "cloudsql_database"
-        AND resource.labels.database_id = "mizzou-news-crawler:mizzou-db-prod"
+        AND resource.labels.database_id = "mizzou-news-crawler:mizzou-db-prod-ssd"
         AND metric.type = "cloudsql.googleapis.com/database/memory/utilization"
       aggregations:
         - alignmentPeriod: "300s"

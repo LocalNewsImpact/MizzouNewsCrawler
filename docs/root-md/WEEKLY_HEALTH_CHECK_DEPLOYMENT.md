@@ -104,15 +104,15 @@ The function needs to connect to Cloud SQL. Update the `--set-env-vars` command 
 
 ```bash
 # Get connection string format
-gcloud sql instances describe mizzou-db-prod --format="value(connectionName)"
-# Output: mizzou-news-crawler:us-central1:mizzou-db-prod
+gcloud sql instances describe mizzou-db-prod-ssd --format="value(connectionName)"
+# Output: mizzou-news-crawler:us-central1:mizzou-db-prod-ssd
 
 # Update function environment variable
 gcloud functions deploy weekly-source-health-check \
   --gen2 \
   --runtime python311 \
   --region us-central1 \
-  --set-env-vars CLOUD_SQL_CONNECTION_NAME="mizzou-news-crawler:us-central1:mizzou-db-prod"
+  --set-env-vars CLOUD_SQL_CONNECTION_NAME="mizzou-news-crawler:us-central1:mizzou-db-prod-ssd"
 ```
 
 ### Step 5: Grant Service Account Permissions
@@ -288,7 +288,7 @@ Note: SMTP/app passwords are no longer used. The system sends via Gmail API (ser
 
 1. Check Cloud SQL connection:
    ```bash
-   gcloud sql connect mizzou-db-prod --user mizzou_user
+   gcloud sql connect mizzou-db-prod-ssd --user mizzou_user
    ```
 
 2. Verify service account has `cloudsql.client` role:

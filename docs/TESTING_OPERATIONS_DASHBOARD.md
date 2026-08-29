@@ -155,7 +155,7 @@ If you want to run the **entire stack locally** (API + Frontend):
 # https://cloud.google.com/sql/docs/mysql/sql-proxy
 
 # Run proxy (replace with your instance connection name)
-cloud-sql-proxy mizzou-news-crawler:us-central1:mizzou-db-prod \
+cloud-sql-proxy mizzou-news-crawler:us-central1:mizzou-db-prod-ssd \
     --port 5432
 ```
 
