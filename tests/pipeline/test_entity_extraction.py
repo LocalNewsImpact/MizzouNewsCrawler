@@ -183,25 +183,25 @@ def test_get_gazetteer_rows_filters_by_source_or_dataset(
             id="1",
             source_id="source-1",
             dataset_id=None,
-            name="A",
+            name="Ashland Public Library",
         ),
         Gazetteer(
             id="2",
             source_id=None,
             dataset_id="dataset-1",
-            name="B",
+            name="Boone County Courthouse",
         ),
         Gazetteer(
             id="3",
             source_id="source-1",
             dataset_id="dataset-1",
-            name="C",  # Matches BOTH source AND dataset
+            name="Columbia Fire Station",  # Matches BOTH source AND dataset
         ),
         Gazetteer(
             id="4",
             source_id="source-other",
             dataset_id="dataset-other",
-            name="D",
+            name="Danville Community Center",
         ),
     ]
     in_memory_session.add_all(rows)

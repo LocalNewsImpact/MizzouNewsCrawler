@@ -210,6 +210,7 @@ def geocode_address_nominatim(address: str) -> dict[str, float] | None:
 # Import ORM models after ensuring `src` is on sys.path
 from src.enrichment.fips import place_geoid as census_place_geoid  # noqa: E402
 from src.models import Dataset, GeocodeCache  # noqa: E402
+from src.utils.gazetteer_names import is_matchable_gazetteer_name  # noqa: E402
 
 # Expose create_engine at module level so tests can monkeypatch/import it
 # Tests expect scripts.populate_gazetteer.create_engine to exist.
@@ -843,7 +844,10 @@ def _process_single_source_osm(
             for el in elements:
                 tags = el.get("tags", {}) or {}
                 name = tags.get("name")
-                if not name:
+                if not is_matchable_gazetteer_name(name):
+                    # Lettered bus stops and numbered ball fields are real
+                    # map data and useless as text; keeping them out here
+                    # keeps them out of every match downstream.
                     continue
 
                 osm_type = el.get("type")
@@ -1771,7 +1775,7 @@ def main(
                 for el in elements:
                     tags = el.get("tags", {}) or {}
                     name = tags.get("name")
-                    if not name:
+                    if not is_matchable_gazetteer_name(name):
                         continue
                     osm_type = el.get("type")
                     osm_id = str(el.get("id"))
