@@ -17,7 +17,7 @@ warcio>=1.8.1  # Parse WARC archives for historical data ingestion
 mediacloud>=5.1.0
 
 # Data export and analytics
-google-cloud-bigquery[pandas]>=3.42.2  # BigQuery export for analytics pipeline
+google-cloud-bigquery[pandas]>=3.44.0  # BigQuery export for analytics pipeline
 
 # Removed 2026-07-20 — the browser automation and mcmetadata extraction stacks:
 #   selenium, undetected-chromedriver, selenium-stealth, trafilatura, goose3,
