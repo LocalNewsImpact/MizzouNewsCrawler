@@ -473,6 +473,69 @@ class BylineCleaner:
         " + ",
     ]
 
+    # A dash or tilde in a byline means one of two things and the tail
+    # decides which. "Matthew Defranks - Nathan Mills" is two reporters;
+    # "John Garlock - Ktvo" is a reporter and the station that employs
+    # him. Neither was handled: both arrived in the column whole, so the
+    # first counted as one author with a strange name and the second
+    # carried an outlet into a name field.
+    #
+    # Tilde and "//" already split correctly. Dash did not, which is why
+    # 24 distinct bylines held several reporters in one string and 37
+    # held a name with an outlet appended.
+    # Dashes only. Tilde and "//" are already split correctly by the
+    # existing logic, which then drops the outlet against the publication
+    # list -- taking them over here replaced a working path with one that
+    # keeps "Standard Democrat" as a co-author wherever that list is not
+    # loaded.
+    _DASH_SPLIT = re.compile(r"\s+(?:-{1,2}|–|—)\s+")
+
+    # Trailing punctuation left where a separator had nothing after it:
+    # "Cecilia Velazquez -", "Courtney Waters --".
+    _TRAILING_SEPARATOR = re.compile(r"[\s]*(?:-{1,3}|–|—|:|,)\s*$")
+
+    # Name shape, used only to tell a co-author from an outlet. Particles
+    # may lead or repeat: "de la Cruz", "Maria de los Angeles Rodriguez".
+    _PARTICLE = (
+        r"(?:de|del|della|der|den|des|van|von|la|las|le|les|los|du|da|das|"
+        r"dos|bin|ibn|al|el|st|ter|te|di|do)"
+    )
+    _NAME_WORD = r"[A-Z][\w'\u2019.-]*"
+    _NAME_SHAPE = re.compile(
+        rf"^(?:{_PARTICLE}\s+)*{_NAME_WORD}"
+        rf"(?:\s+(?:{_PARTICLE}\s+)*{_NAME_WORD}){{1,5}}$",
+        re.UNICODE,
+    )
+
+    @classmethod
+    def _looks_like_a_person(cls, value: str) -> bool:
+        """Two or more name-shaped words, allowing particles and initials."""
+        return bool(cls._NAME_SHAPE.match((value or "").strip()))
+
+    @classmethod
+    def normalise_dash_separators(cls, byline: str) -> str:
+        """Rewrite dash-joined bylines so the rest of the pipeline sees them.
+
+        Returns a comma-joined string of the parts that look like people.
+        A part that does not -- a station, a section, a job title -- is
+        dropped, which is what the source-removal step would have done had
+        the outlet arrived in a field of its own.
+
+        Left alone when no part looks like a person, so a byline this
+        cannot read reaches the existing logic unchanged rather than being
+        emptied by a rule that did not understand it.
+        """
+        if not byline:
+            return byline
+        text = cls._TRAILING_SEPARATOR.sub("", byline).strip()
+        parts = [p.strip() for p in cls._DASH_SPLIT.split(text) if p and p.strip()]
+        if len(parts) < 2:
+            return text
+        people = [p for p in parts if cls._looks_like_a_person(p)]
+        if not people:
+            return text
+        return ", ".join(people)
+
     def __init__(self, enable_telemetry: bool = True):
         """Initialize the byline cleaner."""
         # Compile regex patterns for efficiency
@@ -548,6 +611,9 @@ class BylineCleaner:
 
             # Store source name for wire service filtering
             self._current_source_name = source_canonical_name or source_name
+
+            # Dash-joined bylines, before anything else reads them.
+            byline = self.normalise_dash_separators(byline)
 
             if not byline or not byline.strip():
                 self.telemetry.finalize_cleaning_session(
