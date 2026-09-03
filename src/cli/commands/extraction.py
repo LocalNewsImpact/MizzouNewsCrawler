@@ -31,6 +31,7 @@ from src.models.database import (
 
 # stdlib-only module (re + collections.abc), so this stays safe to import in the
 # crawler image, which carries no ML dependencies.
+from src.pipeline import review_hold
 from src.pipeline.text_cleaning import decode_rot47_segments
 from src.services.wire_detection import resolve_api_token
 from src.utils.boilerplate import (
@@ -322,8 +323,7 @@ def _get_work_from_queue(
                 # Exponential backoff: 2s, 4s, 8s
                 backoff = 2**attempt
                 logger.warning(
-                    "Work queue request failed (attempt %d/%d): %s. "
-                    "Retrying in %ds...",
+                    "Work queue request failed (attempt %d/%d): %s. Retrying in %ds...",
                     attempt + 1,
                     max_retries,
                     e,
@@ -835,7 +835,7 @@ def handle_extraction_command(args) -> int:
         selenium_mode_source = "environment"
     else:
         selenium_mode_source = "default"
-    print("   Selenium mode: " f"{effective_selenium_mode} ({selenium_mode_source})")
+    print(f"   Selenium mode: {effective_selenium_mode} ({selenium_mode_source})")
     logger.info(
         "Extractor initialized with Selenium mode %s (source=%s)",
         effective_selenium_mode,
@@ -1196,6 +1196,23 @@ def handle_extract_url_command(args) -> int:
 
         text_hash = calculate_content_hash(cleaned_text)
         now = datetime.utcnow()
+
+        # A field that is wrong rather than absent stops here. A garbage
+        # byline or an undecoded body otherwise sits on a `labeled` article,
+        # which enrichment selects, so the bad value is enriched and
+        # exported before anybody sees it. `in_review` is selected by no
+        # stage; only a decision in the review console releases it.
+        defects = review_hold.field_defects(author=cleaned_author, text=cleaned_text)
+        if defects:
+            article_status, metadata_value = review_hold.apply_hold(
+                article_status, metadata_value, defects
+            )
+            logger.warning(
+                "Holding %s for review (%s): %s",
+                article_id,
+                ", ".join(defects),
+                url,
+            )
 
         # Insert article row
         wire_check_status = _initial_wire_check_status(article_status)
