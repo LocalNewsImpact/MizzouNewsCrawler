@@ -142,3 +142,31 @@ def test_extraction_holds_before_it_inserts():
     hold_at = body.index("review_hold.apply_hold")
     insert_at = body.index("ARTICLE_INSERT_SQL", hold_at - 4000)
     assert hold_at < insert_at
+
+
+def test_a_released_row_flagged_again_gets_a_fresh_note():
+    """A note from an earlier episode describes a hold already decided and
+    released. Keeping it would restore the article to a status it left long
+    ago, so a new hold writes a new note."""
+    _, first = apply_hold("labeled", {}, ["byline_not_a_name"])
+    # Released: the console restored it and it later re-entered the pipeline.
+    released = dict(first)
+    status, second = apply_hold("enriched", released, ["text_not_decoded"])
+    assert status == IN_REVIEW
+    assert second[REVIEW_META_KEY]["status_before"] == "enriched"
+    assert second[REVIEW_META_KEY]["claim"] == "text_not_decoded"
+
+
+def test_the_note_shape_comes_from_the_shared_contract():
+    """Not a local copy that happens to match. Two copies with a test each,
+    neither able to see the other, is what let a rename strand every held
+    article."""
+    from lnic_contracts import review_note as contract
+
+    from src.pipeline.review_hold import IN_REVIEW as local_status
+    from src.pipeline.review_hold import REVIEW_META_KEY as local_key
+
+    assert local_status == contract.IN_REVIEW
+    assert local_key == contract.METADATA_KEY
+    _, meta = apply_hold("labeled", {}, ["byline_not_a_name"])
+    assert contract.is_readable(contract.from_metadata(meta))

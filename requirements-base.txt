@@ -62,3 +62,13 @@ google-cloud-storage>=3.13.0  # Raw HTML archive (extractor A/B replay)
 # repeated in each service's requirements.
 google-cloud-secret-manager>=2.30.0  # Secret retrieval
 google-cloud-firestore>=2.28.0  # Shared proxy/domain health state (proxy_router)
+
+# The shapes one service in the suite writes and another reads. The review
+# hold note is written here and read by the datadesk console; each
+# repository having its own copy of the key names is what let a rename
+# strand every held article.
+#
+# Pinned to a tag, never a branch: a shape must not change under a test
+# run, and a release happens because somebody bumped a version in a
+# reviewed pull request.
+lnic-contracts @ git+https://github.com/LocalNewsImpact/lnic-contracts@v0.1.0
