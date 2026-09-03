@@ -500,7 +500,11 @@ class BylineCleaner:
         r"(?:de|del|della|der|den|des|van|von|la|las|le|les|los|du|da|das|"
         r"dos|bin|ibn|al|el|st|ter|te|di|do)"
     )
-    _NAME_WORD = r"[A-Z][\w'\u2019.-]*"
+    # A quoted nickname is part of the name, not a defect: 'Meredith "Kit"
+    # Bromfield', "William 'Rocky' Kistner". Without the quote characters
+    # here those read as not-a-name and would be held for review, which is
+    # a hold on a correct value.
+    _NAME_WORD = r"[\"'\u2018\u201c]?[A-Z][\w'\u2019.-]*[\"'\u2019\u201d]?"
     _NAME_SHAPE = re.compile(
         rf"^(?:{_PARTICLE}\s+)*{_NAME_WORD}"
         rf"(?:\s+(?:{_PARTICLE}\s+)*{_NAME_WORD}){{1,5}}$",
