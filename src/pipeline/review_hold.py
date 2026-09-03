@@ -34,8 +34,14 @@ status_before, claim, stage and held_at.
 
 from __future__ import annotations
 
-IN_REVIEW = "in_review"
-REVIEW_META_KEY = "review"
+# The note's shape is not defined here. It is written here and read by the
+# datadesk console, and each repository having its own copy of the key
+# names is what let a rename strand every held article -- two tests,
+# neither able to see the other.
+from lnic_contracts import review_note as _contract
+
+IN_REVIEW = _contract.IN_REVIEW
+REVIEW_META_KEY = _contract.METADATA_KEY
 
 #: The stage this hold is raised from. The console forms its question from
 #: the claim and the stage, so two stages raising the same claim stay two
@@ -89,15 +95,13 @@ def field_defects(*, author: str | None = None, text: str | None = None) -> list
 
 
 def hold_note(claim: str, status_before: str) -> dict:
-    """The note the console reads to form its question and put the row back."""
-    from datetime import datetime, timezone
+    """The note the console reads to form its question and put the row back.
 
-    return {
-        "status_before": status_before,
-        "claim": claim,
-        "stage": STAGE,
-        "held_at": datetime.now(timezone.utc).isoformat(),
-    }
+    Built by the contract, which refuses a status_before of `in_review` --
+    what a caller gets by reading the status AFTER applying the hold, and
+    the defect that once made the hold a one-way door.
+    """
+    return _contract.build(claim=claim, status_before=status_before, stage=STAGE)
 
 
 def apply_hold(status: str, metadata: dict | None, defects: list[str]) -> tuple:
@@ -112,8 +116,14 @@ def apply_hold(status: str, metadata: dict | None, defects: list[str]) -> tuple:
     """
     if not defects or status == IN_REVIEW:
         return status, metadata
+    # A note left by an earlier episode describes a hold that has already
+    # been decided and released -- the article is not held now, or the
+    # guard above would have returned. Keeping it would restore the article
+    # to a status it left long ago, so a fresh hold gets a fresh note.
+    #
+    # `into_metadata` will not overwrite, which is right while an article
+    # IS held and wrong once it has been released, so the stale note is
+    # dropped first rather than the refusal being worked around.
     meta = dict(metadata or {})
-    if REVIEW_META_KEY in meta:
-        return status, metadata
-    meta[REVIEW_META_KEY] = hold_note(defects[0], status)
-    return IN_REVIEW, meta
+    meta.pop(REVIEW_META_KEY, None)
+    return IN_REVIEW, _contract.into_metadata(meta, hold_note(defects[0], status))
