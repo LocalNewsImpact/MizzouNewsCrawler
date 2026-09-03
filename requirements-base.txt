@@ -71,4 +71,12 @@ google-cloud-firestore>=2.28.0  # Shared proxy/domain health state (proxy_router
 # Pinned to a tag, never a branch: a shape must not change under a test
 # run, and a release happens because somebody bumped a version in a
 # reviewed pull request.
-lnic-contracts @ git+https://github.com/LocalNewsImpact/lnic-contracts@v0.1.0
+# From the release tarball, not git+https. This image is a SINGLE stage,
+# and it installs no git -- its apt line is gcc, g++, libpq-dev, wget,
+# ca-certificates and procps. A git dependency cannot be fetched without
+# git, so the build failed at pip install.
+#
+# Adding git would have shipped it to the runtime image for the sake of one
+# build-time fetch. datadesk installs the same tag over git+https because
+# its build is multi-stage and git never leaves the builder.
+lnic-contracts @ https://github.com/LocalNewsImpact/lnic-contracts/archive/refs/tags/v0.1.0.tar.gz
