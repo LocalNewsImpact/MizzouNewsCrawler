@@ -549,14 +549,16 @@ class TestRepository:
                 {"id": articles[0].id},
             )
             s.commit()
+            # Out of the export while it waits, which is what a rewind
+            # means. The others do not move.
             assert exported(s) == before - 1
-            before = exported(s)
+            waiting = before - 1
 
             candidates = select_reprocess_candidates(
                 s, "Mizzou-Missouri-State", batch=10, max_attempts=3
             )
             assert {c.id for c in candidates} == {articles[0].id}
-            assert exported(s) == before, "selection must not change status"
+            assert exported(s) == waiting, "selection must not change status"
 
             # mid-reprocess: after re-persisting one, still exportable
             bumped = Profile(
@@ -592,6 +594,10 @@ class TestRepository:
                 backfield_commit="c",
                 prompt_versions={},
             )
+            # Back in the export once it is re-persisted, and nothing else
+            # ever left it. "Never withdraws rows" is about the articles
+            # that were not rewound: a rewind is a deliberate withdrawal
+            # and is asserted above as exactly one row.
             assert exported(s) == before, "reprocessing must not withdraw rows"
 
             version = s.execute(
