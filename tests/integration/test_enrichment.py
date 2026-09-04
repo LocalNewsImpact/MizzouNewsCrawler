@@ -525,11 +525,31 @@ class TestRepository:
             before = exported(s)
             assert before == len(articles)
 
-            # a profile bump makes them candidates again — status untouched
-            candidates = select_reprocess_candidates(
-                s, "Mizzou-Missouri-State", profile_version=2, batch=10, max_attempts=3
+            # A finished article is NOT a candidate again. Reprocessing is
+            # keyed on status: raising a profile version used to select
+            # every finished article in the dataset -- 19,238 of them in
+            # production on 2026-09-04, each one a model call nobody asked
+            # for -- and a profile is not a reason to re-answer a question
+            # that was answered.
+            assert (
+                select_reprocess_candidates(
+                    s, "Mizzou-Missouri-State", batch=10, max_attempts=3
+                )
+                == []
             )
-            assert {c.id for c in candidates} == {a.id for a in articles}
+
+            # Rewinding one is what brings it back, and that is the whole
+            # mechanism: a review decision, or a re-extraction that found
+            # the body a first attempt missed.
+            s.execute(
+                sa.text("UPDATE articles SET status='labeled' WHERE id = :id"),
+                {"id": articles[0].id},
+            )
+            s.commit()
+            candidates = select_reprocess_candidates(
+                s, "Mizzou-Missouri-State", batch=10, max_attempts=3
+            )
+            assert {c.id for c in candidates} == {articles[0].id}
             assert exported(s) == before, "selection must not change status"
 
             # mid-reprocess: after re-persisting one, still exportable
@@ -577,7 +597,7 @@ class TestRepository:
             assert version == 2
 
             remaining = select_reprocess_candidates(
-                s, "Mizzou-Missouri-State", profile_version=2, batch=10, max_attempts=3
+                s, "Mizzou-Missouri-State", batch=10, max_attempts=3
             )
             assert candidates[0].id not in {c.id for c in remaining}
 
@@ -658,7 +678,7 @@ class TestRepository:
                 status == "enriched"
             ), "the committed article survives a later failure"
 
-    def test_out_of_scope_does_not_export_but_reprocesses(self, db):
+    def test_out_of_scope_does_not_export_and_is_not_reprocessed(self, db):
         """A dataset flag change (profile bump) must bring excluded articles
         back as candidates — toggling the flag is reversible."""
         with db() as s:
@@ -711,8 +731,24 @@ class TestRepository:
             # not a plain candidate...
             plain = select_candidates(s, "Mizzou-Missouri-State", 10, 3)
             assert articles[0].id not in {c.id for c in plain}
-            # ...but a profile bump brings it back
-            bumped = select_reprocess_candidates(
-                s, "Mizzou-Missouri-State", profile_version=2, batch=10, max_attempts=3
+            # ...and not a reprocess candidate either. `out_of_scope` is a
+            # decision, not a state waiting for a better profile.
+            assert articles[0].id not in {
+                c.id
+                for c in select_reprocess_candidates(
+                    s, "Mizzou-Missouri-State", batch=10, max_attempts=3
+                )
+            }
+
+            # Rewinding the status is what brings it back.
+            s.execute(
+                sa.text("UPDATE articles SET status='labeled' WHERE id = :id"),
+                {"id": articles[0].id},
             )
-            assert articles[0].id in {c.id for c in bumped}
+            s.commit()
+            assert articles[0].id in {
+                c.id
+                for c in select_reprocess_candidates(
+                    s, "Mizzou-Missouri-State", batch=10, max_attempts=3
+                )
+            }
