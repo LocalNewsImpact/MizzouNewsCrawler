@@ -72,7 +72,7 @@ def test_nothing_is_built_when_an_image_for_those_contents_exists():
         build = next(
             step
             for step in jobs[name]["steps"]
-            if "gcloud builds submit" in str(step.get("run", ""))
+            if "gcloud builds triggers run" in str(step.get("run", ""))
         )
         assert build["if"] == "steps.tag.outputs.exists == 'false'"
 
@@ -109,3 +109,37 @@ def test_the_rebuilt_ci_image_reaches_where_ci_pulls_from():
     original failure."""
     steps = yaml.dump(_workflow()["jobs"]["ci-base"]["steps"])
     assert "Mirror CI Images to GHCR" in steps
+
+
+def test_the_build_runs_through_the_trigger():
+    """`gcloud builds submit` uploads a source tarball, and the service
+    account this workflow authenticates as cannot write to the Cloud
+    Build source bucket -- the first run of this workflow failed on
+    exactly that.
+
+    The manual triggers read their config from git (gitFileSource, on
+    refs/heads/main), so the build being run is the one in this
+    repository and reviewable in a pull request. They were a deliberate
+    choice and they are the right one; what was wrong was `:latest`, not
+    the trigger.
+    """
+    jobs = _workflow()["jobs"]
+    for name, trigger in (
+        ("base", "build-base-manual"),
+        ("ml-base", "build-ml-base-manual"),
+        ("ci-base", "build-ci-base-manual"),
+    ):
+        steps = yaml.dump(jobs[name]["steps"])
+        assert f"gcloud builds triggers run {trigger}" in steps
+        assert "gcloud builds submit" not in steps.replace("`builds submit`", "")
+
+
+def test_the_trigger_is_told_which_tag_to_build():
+    """The trigger for ml-base carries `_BASE_IMAGE=...base:latest` as a
+    default, which is what let it build against whatever happened to be
+    there. Passing it overrides that for the run."""
+    jobs = _workflow()["jobs"]
+    for name in ("ml-base", "ci-base"):
+        steps = yaml.dump(jobs[name]["steps"])
+        assert "_BASE_IMAGE=" in steps
+        assert "_TAG=" in steps

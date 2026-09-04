@@ -55,8 +55,6 @@ concurrency:
 env:
   PROJECT_ID: mizzou-news-crawler
   REGISTRY: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler
-  # us-central1 refuses N1 machine types; the configs use E2.
-  BUILD_REGION: us-central1
 
 jobs:
   base:
@@ -85,12 +83,20 @@ jobs:
           inputs_to_hash: |
             requirements-base.txt
 
+      # Through the manual trigger, not `gcloud builds submit`.
+      #
+      # The triggers read their config from git (gitFileSource:
+      # gcp/cloudbuild/cloudbuild-base.yaml on refs/heads/main), so the
+      # build being run is the one in this repository and reviewable in a
+      # pull request. `builds submit` uploads a source tarball instead,
+      # and the service account this workflow authenticates as cannot
+      # write to the Cloud Build source bucket -- which is what the first
+      # run of this workflow failed on.
       - name: Build it, if there is no image for these contents
         if: steps.tag.outputs.exists == 'false'
         run: |
-          gcloud builds submit \
-            --config=gcp/cloudbuild/cloudbuild-base.yaml \
-            --project="$PROJECT_ID" --region="$BUILD_REGION" \
+          gcloud builds triggers run build-base-manual \
+            --project="$PROJECT_ID" --sha="${{ github.sha }}" \
             --substitutions="_TAG=${{ steps.tag.outputs.tag }}"
 
   ml-base:
@@ -120,12 +126,14 @@ jobs:
           build_args: |
             BASE_IMAGE=${{ needs.base.outputs.image }}
 
+      # The trigger carries `_BASE_IMAGE=...base:latest` as a default,
+      # which is the thing this change is removing. Passing it here
+      # overrides it for the run.
       - name: Build it, if there is no image for these contents
         if: steps.tag.outputs.exists == 'false'
         run: |
-          gcloud builds submit \
-            --config=gcp/cloudbuild/cloudbuild-ml-base.yaml \
-            --project="$PROJECT_ID" --region="$BUILD_REGION" \
+          gcloud builds triggers run build-ml-base-manual \
+            --project="$PROJECT_ID" --sha="${{ github.sha }}" \
             --substitutions="_TAG=${{ steps.tag.outputs.tag }},_BASE_IMAGE=${{ needs.base.outputs.image }}"
 
   ci-base:
@@ -163,9 +171,8 @@ jobs:
       - name: Build it, if there is no image for these contents
         if: steps.tag.outputs.exists == 'false'
         run: |
-          gcloud builds submit \
-            --config=gcp/cloudbuild/cloudbuild-ci-base.yaml \
-            --project="$PROJECT_ID" --region="$BUILD_REGION" \
+          gcloud builds triggers run build-ci-base-manual \
+            --project="$PROJECT_ID" --sha="${{ github.sha }}" \
             --substitutions="_TAG=${{ steps.tag.outputs.tag }},_BASE_IMAGE=${{ needs.base.outputs.image }}"
 
       # CI pulls this from GHCR, not from Artifact Registry: pulling a
