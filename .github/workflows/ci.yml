@@ -364,6 +364,21 @@ jobs:
       - name: Pull base image
         run: docker pull ghcr.io/localnewsimpact/mizzou-ci-base:latest
 
+      # The image is topped up with this commit's requirements before the
+      # tests run (below, in the same docker run). It is built from the
+      # production base and mirrored here, and a pull request never
+      # rebuilds it -- so a change to requirements-base.txt was tested
+      # against an image built from the PREVIOUS version of that file, and
+      # a dependency added or bumped in a PR could not pass CI at all.
+      #
+      # That is what happened twice on 4 September: lnic_contracts was
+      # missing entirely because ci-base was seven weeks old, and then
+      # present at the wrong version because the image predates the bump.
+      # A one-package `pip install google-cloud-firestore` was already in
+      # two of these commands for the same reason, one package at a time.
+      #
+      # Installing the pinned files is a no-op when the image is current
+      # and installs the difference when it is not.
       - name: Create data directory for tests
         run: mkdir -p data
 
@@ -698,7 +713,7 @@ jobs:
             -e DATABASE_USER="$DATABASE_USER" \
             -e DATABASE_PASSWORD="$DATABASE_PASSWORD" \
             ghcr.io/localnewsimpact/mizzou-ci-base:latest \
-            /bin/bash -c "git config --global --add safe.directory /workspace && pytest -v -m 'integration and not docker and not local_scripts and not proxy' --tb=short --no-cov"
+            /bin/bash -c "git config --global --add safe.directory /workspace && pip install -q -r requirements-base.txt -r requirements-dev.txt && pytest -v -m 'integration and not docker and not local_scripts and not proxy' --tb=short --no-cov"
 
   firestore-integration:
     name: Integration Tests (Firestore)
@@ -757,7 +772,7 @@ jobs:
             -e FIRESTORE_EMULATOR_HOST="$FIRESTORE_EMULATOR_HOST" \
             -e GOOGLE_CLOUD_PROJECT="$GOOGLE_CLOUD_PROJECT" \
             ghcr.io/localnewsimpact/mizzou-ci-base:latest \
-            /bin/bash -c "git config --global --add safe.directory /workspace && pip install -q 'google-cloud-firestore>=2.21.0' && pytest -v -m 'integration and proxy' --tb=short --no-cov"
+            /bin/bash -c "git config --global --add safe.directory /workspace && pip install -q -r requirements-base.txt -r requirements-dev.txt && pytest -v -m 'integration and proxy' --tb=short --no-cov"
 
   integration:
     name: Integration & Coverage
@@ -796,7 +811,7 @@ jobs:
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
             ghcr.io/localnewsimpact/mizzou-ci-base:latest \
-            /bin/bash -c "git config --global --add safe.directory /workspace && pip install -q 'google-cloud-firestore>=2.21.0' && pytest -m 'not postgres and not docker and not local_scripts' --cov=src --cov-report=xml --cov-report=html --cov-report=term-missing --cov-fail-under=78"
+            /bin/bash -c "git config --global --add safe.directory /workspace && pip install -q -r requirements-base.txt -r requirements-dev.txt && pytest -m 'not postgres and not docker and not local_scripts' --cov=src --cov-report=xml --cov-report=html --cov-report=term-missing --cov-fail-under=78"
 
       - name: Generate coverage summary
         if: success()

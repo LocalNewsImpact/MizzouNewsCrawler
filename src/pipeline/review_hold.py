@@ -107,14 +107,32 @@ def hold_note(claim: str, status_before: str) -> dict:
 def apply_hold(status: str, metadata: dict | None, defects: list[str]) -> tuple:
     """Return the status and metadata to write, holding if anything is wrong.
 
-    Takes the first defect as the claim. A row with two wrong fields is one
-    question to a reviewer looking at it; the second is asked again if it
-    survives the first decision, because a new claim is a new question.
+    Takes the first defect a person has not already answered as the claim.
+    A row with two wrong fields is one question to a reviewer looking at
+    it; the second is asked once the first is decided, because a new claim
+    is a new question.
 
     Leaves a row already held alone: re-holding would overwrite the note
     and lose the status it was holding.
     """
     if not defects or status == IN_REVIEW:
+        return status, metadata
+
+    # A claim a person has answered is not raised again. The hold is
+    # raised from the article's own fields, so without this an article is
+    # held, released by a reviewer, and held again by the next run that
+    # reads the same fields -- the reviewer's decision undone by the stage
+    # that never knew it was made.
+    #
+    # The decision is on the article, written by the console through the
+    # audited write path, because that is the only place both this and the
+    # console can see it. Their databases do not join.
+    defects = [
+        claim
+        for claim in defects
+        if not _contract.is_answered(metadata, claim=claim, stage=STAGE)
+    ]
+    if not defects:
         return status, metadata
     # A note left by an earlier episode describes a hold that has already
     # been decided and released -- the article is not held now, or the

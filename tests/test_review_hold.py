@@ -14,6 +14,7 @@ pipeline is wrong.
 """
 
 import pytest
+from lnic_contracts import review_note as contract
 
 from src.pipeline.review_hold import (
     IN_REVIEW,
@@ -170,3 +171,77 @@ def test_the_note_shape_comes_from_the_shared_contract():
     assert local_key == contract.METADATA_KEY
     _, meta = apply_hold("labeled", {}, ["byline_not_a_name"])
     assert contract.is_readable(contract.from_metadata(meta))
+
+
+# --- a decision the hold has to respect --------------------------------------
+#
+# The hold is raised from the article's own fields. Without reading what a
+# person decided, an article is held, released from the console, and held
+# again by the next run that reads the same fields -- the reviewer's
+# decision undone by the stage that never knew it was made, and the same
+# question back in the queue.
+
+
+def _answered(claim, stage=STAGE, decision="accept"):
+    return contract.record_decision(
+        {}, contract.build_decision(claim=claim, stage=stage, decision=decision)
+    )
+
+
+def test_an_answered_claim_is_not_held_again():
+    meta = _answered("byline_not_a_name")
+    status, out = apply_hold("labeled", meta, ["byline_not_a_name"])
+    assert status == "labeled", "a decided claim put the article back in review"
+    assert out == meta
+
+
+def test_an_unanswered_claim_still_holds():
+    meta = _answered("text_not_decoded")
+    status, out = apply_hold("labeled", meta, ["byline_not_a_name"])
+    assert status == IN_REVIEW
+    assert out[REVIEW_META_KEY]["claim"] == "byline_not_a_name"
+
+
+def test_the_second_defect_is_asked_once_the_first_is_answered():
+    """A row with two wrong fields is one question at a time. Answering
+    the first has to surface the second, not clear the row."""
+    meta = _answered("byline_not_a_name")
+    status, out = apply_hold("labeled", meta, ["byline_not_a_name", "text_not_decoded"])
+    assert status == IN_REVIEW
+    assert out[REVIEW_META_KEY]["claim"] == "text_not_decoded"
+
+
+def test_a_decision_from_another_stage_does_not_answer_this_one():
+    """The question is the claim and the stage that raised it."""
+    meta = _answered("byline_not_a_name", stage="labeling")
+    status, _ = apply_hold("labeled", meta, ["byline_not_a_name"])
+    assert status == IN_REVIEW
+
+
+def test_every_claim_answered_leaves_the_article_alone():
+    meta = _answered("byline_not_a_name")
+    meta = contract.record_decision(
+        meta,
+        contract.build_decision(
+            claim="text_not_decoded", stage=STAGE, decision="reject"
+        ),
+    )
+    status, out = apply_hold("labeled", meta, ["byline_not_a_name", "text_not_decoded"])
+    assert status == "labeled"
+    assert REVIEW_META_KEY not in out
+
+
+def test_a_decision_survives_the_hold_it_does_not_answer():
+    """The hold drops a stale note and writes a fresh one. A decision must
+    not be dropped with it."""
+    meta = _answered("text_not_decoded")
+    meta[REVIEW_META_KEY] = {"stale": True}
+    _, out = apply_hold("labeled", meta, ["byline_not_a_name"])
+    assert contract.is_answered(out, claim="text_not_decoded", stage=STAGE)
+
+
+def test_metadata_that_is_not_a_mapping_holds_as_before():
+    """An article with no metadata has answered nothing."""
+    status, out = apply_hold("labeled", None, ["byline_not_a_name"])
+    assert status == IN_REVIEW
+    assert out[REVIEW_META_KEY]["claim"] == "byline_not_a_name"
