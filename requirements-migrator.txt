@@ -2,11 +2,11 @@
 # This file contains only what's needed to run Alembic migrations
 
 # Database
-sqlalchemy>=2.0.51
-alembic>=1.18.5
+sqlalchemy>=2.0.52
+alembic>=1.19.1
 psycopg2-binary>=2.9.12  # PostgreSQL adapter
-cloud-sql-python-connector[pg8000]>=1.21.0  # Google Cloud SQL connector
+cloud-sql-python-connector[pg8000]>=1.22.0  # Google Cloud SQL connector
 
 # Configuration
-python-dotenv>=1.2.2
-pydantic>=2.13.4
+python-dotenv>=1.2.3
+pydantic>=2.13.5

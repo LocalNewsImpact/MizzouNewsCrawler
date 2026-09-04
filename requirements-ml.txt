@@ -4,16 +4,16 @@
 
 # Core ML frameworks
 torch>=2.13.0  # PyTorch for deep learning models
-transformers>=5.14.1  # HuggingFace transformers for NLP
+transformers>=5.16.1  # HuggingFace transformers for NLP
 
 # ML utilities
 scikit-learn>=1.9.0,<1.10  # Compatible with StorySniffer 1.0.9+ skops models (model trained with 1.7.2)
 storysniffer>=1.0.9  # News article classification (skops-based models)
 
 # Crawler dependencies for article extraction (processor CLI imports crawler)
-feedparser>=6.0.13  # RSS/Atom feed parsing
+feedparser>=6.0.14  # RSS/Atom feed parsing
 newspaper4k>=0.9.6  # Article extraction (modern fork of newspaper3k)
-selenium>=4.46.0  # Browser automation for JavaScript sites
+selenium>=4.48.0  # Browser automation for JavaScript sites
 undetected-chromedriver>=3.5.5  # Advanced anti-detection for Selenium
 selenium-stealth>=1.0.6  # Browser fingerprint masking
 cloudscraper>=1.2.71  # Bypass Cloudflare protection
