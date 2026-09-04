@@ -1,9 +1,23 @@
-# Cloud Build configuration for ML Base Image
-# This image contains heavy ML dependencies (torch, transformers, sklearn)
-# Built infrequently since ML dependencies rarely change
+# The ML dependency layer: the production base plus torch, transformers
+# and the model.
+#
+# Tagged by a hash of what goes into it, and the base image's tag is part
+# of that hash (.github/workflows/base-images.yml). A base that changes
+# gives this image a tag that does not exist yet, so it is rebuilt --
+# which is what nothing did for ci-base between 18 July and 3 September.
+#
+# `:latest` is also moved, because references across this repository still
+# resolve by it. Nothing new should.
+
+substitutions:
+  _TAG: ""
+  _BASE_IMAGE: ""
+  _REGISTRY: "us-central1-docker.pkg.dev/$PROJECT_ID/mizzou-crawler"
 
 steps:
-  # Step 0: Download ML model from GCS (418MB, too large for git)
+  # The model is 418MB and lives in GCS rather than git. Its absence is
+  # not fatal here -- the image builds without it and the service falls
+  # back -- so this does not fail the build.
   - id: 'download-model'
     name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: 'bash'
@@ -11,68 +25,43 @@ steps:
       - '-c'
       - |
         mkdir -p models
-        gsutil cp gs://mizzou-news-crawler-models/productionmodel.pt models/productionmodel.pt || echo "Model not found in GCS, will use default"
+        gsutil cp gs://mizzou-news-crawler-models/productionmodel.pt \
+          models/productionmodel.pt || echo "no model in GCS; building without it"
 
-  # Step 1: Build ML base image
   - id: 'build-ml-base'
     name: 'gcr.io/cloud-builders/docker'
-    args:
-      - 'build'
-      - '--build-arg'
-      - 'BASE_IMAGE=us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/base:latest'
-      - '-t'
-      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ml-base:${SHORT_SHA}'
-      - '-t'
-      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ml-base:latest'
-      - '-t'
-      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ml-base:v1.0.0'
-      - '-f'
-      - 'Dockerfile.ml-base'
-      - '.'
-    waitFor:
-      - 'download-model'
-
-  # Step 2: Push all tags
-  - id: 'push-ml-base'
-    name: 'gcr.io/cloud-builders/docker'
-    args:
-      - 'push'
-      - '--all-tags'
-      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ml-base'
-    waitFor:
-      - 'build-ml-base'
-
-  # Step 3: Log completion
-  - id: 'log-completion'
-    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: 'bash'
+    waitFor: ['download-model']
     args:
       - '-c'
       - |
-        echo "✅ ML Base image built and pushed"
-        echo "Image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ml-base:${SHORT_SHA}"
-        echo "This image contains: torch, transformers, sklearn, newspaper4k, selenium"
-        echo "Processor builds will now be much faster!"
-    waitFor:
-      - 'push-ml-base'
+        set -euo pipefail
+        if [ -z "${_TAG}" ] || [ -z "${_BASE_IMAGE}" ]; then
+          echo "_TAG and _BASE_IMAGE are both required."
+          echo ".github/workflows/base-images.yml computes them with the"
+          echo "shared image-tag action and passes them in."
+          exit 1
+        fi
+        docker pull "${_BASE_IMAGE}"
+        docker build \
+          --build-arg "BASE_IMAGE=${_BASE_IMAGE}" \
+          -t "${_REGISTRY}/ml-base:${_TAG}" \
+          -t "${_REGISTRY}/ml-base:latest" \
+          -f Dockerfile.ml-base .
+        docker push "${_REGISTRY}/ml-base:${_TAG}"
+        docker push "${_REGISTRY}/ml-base:latest"
 
-# Build configuration
-options:
-  machineType: 'N1_HIGHCPU_8'
-  diskSizeGb: 100
-  logging: CLOUD_LOGGING_ONLY
+timeout: '3600s'  # ML packages take time to install
 
-timeout: '3600s'  # 1 hour (ML packages take time to install)
-
-# Images to be pushed
-images:
-  - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ml-base:${SHORT_SHA}'
-  - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ml-base:latest'
-  - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ml-base:v1.0.0'
-
-substitutions:
-  _BASE_IMAGE: 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/base:latest'
+# No `images:` block. The build pushes what it built, by the tag it was
+# given; listing tags here would push a ${SHORT_SHA} and a v1.0.0 that
+# say nothing about what is in the image, which is what tagging by
+# contents replaces.
 
 tags:
   - 'ml-base'
   - 'infrastructure'
+
+options:
+  machineType: 'E2_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY

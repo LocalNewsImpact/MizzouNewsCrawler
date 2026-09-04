@@ -1,28 +1,49 @@
-steps:
-  # First, pull the production base image that we'll extend
-  - name: 'gcr.io/cloud-builders/docker'
-    id: 'pull-base'
-    args:
-      - 'pull'
-      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/base:latest'
+# The image CI runs its tests inside: the production base plus test-only
+# dependencies.
+#
+# THE FAILURE THIS IS FIXING
+# --------------------------
+# ci-base:latest was built on 18 July and base:latest on 3 September.
+# Nothing rebuilds this when the base changes and nothing compared them,
+# so CI ran for seven weeks against an image that could not hold what the
+# commits pinned -- a hundred collection errors in three jobs, none of
+# which named the cause, and a pull request merged with them failing.
+#
+# The base image's tag is part of this image's tag
+# (.github/workflows/base-images.yml), so a base that changes gives this
+# image a tag that does not exist yet, and it is built. Going stale is no
+# longer something anybody has to notice.
 
-  # Then build CI base image extending production base
+substitutions:
+  _TAG: ""
+  _BASE_IMAGE: ""
+  _REGISTRY: "us-central1-docker.pkg.dev/$PROJECT_ID/mizzou-crawler"
+
+steps:
   - name: 'gcr.io/cloud-builders/docker'
     id: 'build-ci-base'
+    entrypoint: 'bash'
     args:
-      - 'build'
-      - '-t'
-      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/ci-base:latest'
-      - '--build-arg'
-      - 'BASE_IMAGE=us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/base:latest'
-      - '-f'
-      - 'Dockerfile.ci-base'
-      - '.'
+      - '-c'
+      - |
+        set -euo pipefail
+        if [ -z "${_TAG}" ] || [ -z "${_BASE_IMAGE}" ]; then
+          echo "_TAG and _BASE_IMAGE are both required."
+          echo ".github/workflows/base-images.yml computes them with the"
+          echo "shared image-tag action and passes them in."
+          exit 1
+        fi
+        docker pull "${_BASE_IMAGE}"
+        docker build \
+          -t "${_REGISTRY}/ci-base:${_TAG}" \
+          -t "${_REGISTRY}/ci-base:latest" \
+          --build-arg "BASE_IMAGE=${_BASE_IMAGE}" \
+          -f Dockerfile.ci-base .
+        docker push "${_REGISTRY}/ci-base:${_TAG}"
+        docker push "${_REGISTRY}/ci-base:latest"
 
-images:
-  - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/ci-base:latest'
+timeout: 1800s
 
-timeout: 1200s
 options:
-  machineType: 'N1_HIGHCPU_8'
+  machineType: 'E2_HIGHCPU_8'
   logging: CLOUD_LOGGING_ONLY
