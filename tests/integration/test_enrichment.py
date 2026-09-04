@@ -537,15 +537,21 @@ class TestRepository:
                 )
                 == []
             )
+            assert exported(s) == before, "selection must not change status"
 
             # Rewinding one is what brings it back, and that is the whole
             # mechanism: a review decision, or a re-extraction that found
-            # the body a first attempt missed.
+            # the body a first attempt missed. The rewind takes it out of
+            # the export deliberately -- that is what a rewind is -- so
+            # the count moves by exactly one, and by nothing else.
             s.execute(
                 sa.text("UPDATE articles SET status='labeled' WHERE id = :id"),
                 {"id": articles[0].id},
             )
             s.commit()
+            assert exported(s) == before - 1
+            before = exported(s)
+
             candidates = select_reprocess_candidates(
                 s, "Mizzou-Missouri-State", batch=10, max_attempts=3
             )
