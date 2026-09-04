@@ -1,0 +1,179 @@
+# Keep the base images in step with what the repository pins.
+#
+# THE FAILURE THIS EXISTS FOR
+# ---------------------------
+# ci-base:latest was built on 18 July and base:latest on 3 September.
+# Nothing rebuilt one when the other changed and nothing compared them, so
+# CI ran for seven weeks inside an image that could not hold what the
+# commits pinned. It surfaced as a hundred collection errors in three
+# jobs, none of which named the cause, and a pull request was merged with
+# them failing.
+#
+# HOW THE CHAIN WORKS
+# -------------------
+# Each image is tagged with a hash of what goes into it, and a child's
+# hash includes its parent's tag:
+#
+#   base     = hash(Dockerfile.base, requirements-base.txt)
+#   ml-base  = hash(Dockerfile.ml-base, requirements-ml.txt, base tag)
+#   ci-base  = hash(Dockerfile.ci-base, the requirements it installs, base tag)
+#
+# So a base that changes gives its children tags that do not exist yet,
+# and they are built. Going stale stops being something a person has to
+# notice.
+#
+# The tag is computed by the action shared across the suite
+# (LocalNewsImpact/lnic-contracts), so every repository computes it the
+# same way. The build runs in Cloud Build, because these images are 1.4
+# to 10 GB from a 6.4 GB context and do not fit on a runner.
+name: Base images
+
+on:
+  push:
+    branches: [main]
+    paths:
+      # Only what these images are built from. Unlike the per-service path
+      # lists this replaces, being wrong here is visible: a file that
+      # belongs in the hash and is not in it produces a tag that does not
+      # move, and the image-tag action fails on a path that does not exist.
+      - 'Dockerfile.base'
+      - 'Dockerfile.ml-base'
+      - 'Dockerfile.ci-base'
+      - 'requirements-base.txt'
+      - 'requirements-ml.txt'
+      - 'requirements-dev.txt'
+      - 'requirements-crawler.txt'
+      - 'requirements-processor.txt'
+      - 'requirements-api.txt'
+      - '.github/workflows/base-images.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: base-images
+  cancel-in-progress: false
+
+env:
+  PROJECT_ID: mizzou-news-crawler
+  REGISTRY: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler
+  # us-central1 refuses N1 machine types; the configs use E2.
+  BUILD_REGION: us-central1
+
+jobs:
+  base:
+    name: base
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      image: ${{ steps.tag.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+      # The key this repository's other deploy workflows use. Workload
+      # identity would be better and is not what is configured here;
+      # inventing a second auth path in this change would be a second
+      # thing to get wrong.
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+      - id: tag
+        uses: LocalNewsImpact/lnic-contracts/.github/actions/image-tag@ci-v1
+        with:
+          image: ${{ env.REGISTRY }}/base
+          dockerfile: Dockerfile.base
+          inputs_to_hash: |
+            requirements-base.txt
+
+      - name: Build it, if there is no image for these contents
+        if: steps.tag.outputs.exists == 'false'
+        run: |
+          gcloud builds submit \
+            --config=gcp/cloudbuild/cloudbuild-base.yaml \
+            --project="$PROJECT_ID" --region="$BUILD_REGION" \
+            --substitutions="_TAG=${{ steps.tag.outputs.tag }}"
+
+  ml-base:
+    name: ml-base
+    needs: base
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The key this repository's other deploy workflows use. Workload
+      # identity would be better and is not what is configured here;
+      # inventing a second auth path in this change would be a second
+      # thing to get wrong.
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+      - id: tag
+        uses: LocalNewsImpact/lnic-contracts/.github/actions/image-tag@ci-v1
+        with:
+          image: ${{ env.REGISTRY }}/ml-base
+          dockerfile: Dockerfile.ml-base
+          inputs_to_hash: |
+            requirements-ml.txt
+          # The parent's tag, so a base that changes rebuilds this.
+          build_args: |
+            BASE_IMAGE=${{ needs.base.outputs.image }}
+
+      - name: Build it, if there is no image for these contents
+        if: steps.tag.outputs.exists == 'false'
+        run: |
+          gcloud builds submit \
+            --config=gcp/cloudbuild/cloudbuild-ml-base.yaml \
+            --project="$PROJECT_ID" --region="$BUILD_REGION" \
+            --substitutions="_TAG=${{ steps.tag.outputs.tag }},_BASE_IMAGE=${{ needs.base.outputs.image }}"
+
+  ci-base:
+    name: ci-base
+    needs: base
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The key this repository's other deploy workflows use. Workload
+      # identity would be better and is not what is configured here;
+      # inventing a second auth path in this change would be a second
+      # thing to get wrong.
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+      - id: tag
+        uses: LocalNewsImpact/lnic-contracts/.github/actions/image-tag@ci-v1
+        with:
+          image: ${{ env.REGISTRY }}/ci-base
+          dockerfile: Dockerfile.ci-base
+          # Everything Dockerfile.ci-base installs. This image carries
+          # every service's requirements so tests exercise the real
+          # dependency set rather than a subset.
+          inputs_to_hash: |
+            requirements-dev.txt
+            requirements-crawler.txt
+            requirements-processor.txt
+            requirements-api.txt
+          build_args: |
+            BASE_IMAGE=${{ needs.base.outputs.image }}
+
+      - name: Build it, if there is no image for these contents
+        if: steps.tag.outputs.exists == 'false'
+        run: |
+          gcloud builds submit \
+            --config=gcp/cloudbuild/cloudbuild-ci-base.yaml \
+            --project="$PROJECT_ID" --region="$BUILD_REGION" \
+            --substitutions="_TAG=${{ steps.tag.outputs.tag }},_BASE_IMAGE=${{ needs.base.outputs.image }}"
+
+      # CI pulls this from GHCR, not from Artifact Registry: pulling a
+      # multi-GB image to a GitHub runner costs $0.35-0.50 in egress each
+      # time. A rebuilt image that is not mirrored is a rebuilt image CI
+      # never sees, which is half of the original failure.
+      - name: Mirror it to where CI pulls from
+        if: steps.tag.outputs.exists == 'false'
+        run: gh workflow run "Mirror CI Images to GHCR" --repo "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

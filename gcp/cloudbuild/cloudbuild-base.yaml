@@ -1,29 +1,42 @@
-# Cloud Build configuration for base image
-# This base image contains common dependencies used by all services
-# Should be rebuilt manually when base dependencies change
+# The dependency layer every service is built on.
+#
+# Tagged by a hash of what goes into it, computed by the shared action
+# (LocalNewsImpact/lnic-contracts .github/actions/image-tag) and passed in
+# as _TAG. `:latest` is also moved here, because 46 references across this
+# repository still resolve by it; nothing new should.
+#
+# Built by .github/workflows/base-images.yml, which builds it only when no
+# image for these contents exists.
+
+substitutions:
+  _TAG: ""
+  _REGISTRY: "us-central1-docker.pkg.dev/$PROJECT_ID/mizzou-crawler"
 
 steps:
-  # Build base image
   - name: 'gcr.io/cloud-builders/docker'
-    args:
-      - 'build'
-      - '-t'
-      - 'us-central1-docker.pkg.dev/$PROJECT_ID/mizzou-crawler/base:latest'
-      - '-t'
-      - 'us-central1-docker.pkg.dev/$PROJECT_ID/mizzou-crawler/base:$SHORT_SHA'
-      - '-f'
-      - 'Dockerfile.base'
-      - '.'
     id: 'build-base'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        # Refused rather than defaulted: an image tagged with nothing, or
+        # with a tag this build invented, is the failure the content hash
+        # exists to remove.
+        if [ -z "${_TAG}" ]; then
+          echo "_TAG is unset. .github/workflows/base-images.yml computes it"
+          echo "with the shared image-tag action and passes it in."
+          exit 1
+        fi
+        docker build \
+          -t "${_REGISTRY}/base:${_TAG}" \
+          -t "${_REGISTRY}/base:latest" \
+          -f Dockerfile.base .
+        docker push "${_REGISTRY}/base:${_TAG}"
+        docker push "${_REGISTRY}/base:latest"
 
-  # Push both tags to Artifact Registry
-images:
-  - 'us-central1-docker.pkg.dev/$PROJECT_ID/mizzou-crawler/base:latest'
-  - 'us-central1-docker.pkg.dev/$PROJECT_ID/mizzou-crawler/base:$SHORT_SHA'
-
-# Base image build takes longer (10-15 minutes first time, ~5 minutes cached)
-timeout: 1200s
+timeout: 1800s
 
 options:
-  machineType: 'N1_HIGHCPU_8'
+  machineType: 'E2_HIGHCPU_8'
   logging: CLOUD_LOGGING_ONLY
