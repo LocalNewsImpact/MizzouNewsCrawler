@@ -364,6 +364,24 @@ jobs:
       - name: Pull base image
         run: docker pull ghcr.io/localnewsimpact/mizzou-ci-base:latest
 
+      # The CI image is built from the production base and mirrored here.
+      # It is not rebuilt by a pull request, so a dependency added to
+      # requirements-base.txt is invisible to CI until somebody rebuilds
+      # it -- and ci-base went from 18 July to 4 September without one.
+      # `lnic_contracts` is imported by src/pipeline/review_hold.py, which
+      # most test modules reach transitively, so its absence arrived as a
+      # hundred collection errors saying nothing about the cause.
+      - name: The image has the dependencies this commit pins
+        run: |
+          missing="$(docker run --rm ghcr.io/localnewsimpact/mizzou-ci-base:latest \
+            python -c "import importlib.util as u; print(' '.join(m for m in ('lnic_contracts',) if not u.find_spec(m)))")"
+          if [ -n "$missing" ]; then
+            echo "::error::mizzou-ci-base:latest is missing: $missing"
+            echo "Rebuild base, then ci-base (gcp/cloudbuild/cloudbuild-ci-base.yaml),"
+            echo "then run the Mirror CI Images to GHCR workflow."
+            exit 1
+          fi
+
       - name: Create data directory for tests
         run: mkdir -p data
 
@@ -438,6 +456,24 @@ jobs:
 
       - name: Pull base image
         run: docker pull ghcr.io/localnewsimpact/mizzou-ci-base:latest
+
+      # The CI image is built from the production base and mirrored here.
+      # It is not rebuilt by a pull request, so a dependency added to
+      # requirements-base.txt is invisible to CI until somebody rebuilds
+      # it -- and ci-base went from 18 July to 4 September without one.
+      # `lnic_contracts` is imported by src/pipeline/review_hold.py, which
+      # most test modules reach transitively, so its absence arrived as a
+      # hundred collection errors saying nothing about the cause.
+      - name: The image has the dependencies this commit pins
+        run: |
+          missing="$(docker run --rm ghcr.io/localnewsimpact/mizzou-ci-base:latest \
+            python -c "import importlib.util as u; print(' '.join(m for m in ('lnic_contracts',) if not u.find_spec(m)))")"
+          if [ -n "$missing" ]; then
+            echo "::error::mizzou-ci-base:latest is missing: $missing"
+            echo "Rebuild base, then ci-base (gcp/cloudbuild/cloudbuild-ci-base.yaml),"
+            echo "then run the Mirror CI Images to GHCR workflow."
+            exit 1
+          fi
 
       - name: Create data directory for tests
         run: mkdir -p data
@@ -515,6 +551,24 @@ jobs:
 
       - name: Pull base image
         run: docker pull ghcr.io/localnewsimpact/mizzou-ci-base:latest
+
+      # The CI image is built from the production base and mirrored here.
+      # It is not rebuilt by a pull request, so a dependency added to
+      # requirements-base.txt is invisible to CI until somebody rebuilds
+      # it -- and ci-base went from 18 July to 4 September without one.
+      # `lnic_contracts` is imported by src/pipeline/review_hold.py, which
+      # most test modules reach transitively, so its absence arrived as a
+      # hundred collection errors saying nothing about the cause.
+      - name: The image has the dependencies this commit pins
+        run: |
+          missing="$(docker run --rm ghcr.io/localnewsimpact/mizzou-ci-base:latest \
+            python -c "import importlib.util as u; print(' '.join(m for m in ('lnic_contracts',) if not u.find_spec(m)))")"
+          if [ -n "$missing" ]; then
+            echo "::error::mizzou-ci-base:latest is missing: $missing"
+            echo "Rebuild base, then ci-base (gcp/cloudbuild/cloudbuild-ci-base.yaml),"
+            echo "then run the Mirror CI Images to GHCR workflow."
+            exit 1
+          fi
 
       - name: Create data directory for tests
         run: mkdir -p data
@@ -642,6 +696,24 @@ jobs:
 
       - name: Pull base image
         run: docker pull ghcr.io/localnewsimpact/mizzou-ci-base:latest
+
+      # The CI image is built from the production base and mirrored here.
+      # It is not rebuilt by a pull request, so a dependency added to
+      # requirements-base.txt is invisible to CI until somebody rebuilds
+      # it -- and ci-base went from 18 July to 4 September without one.
+      # `lnic_contracts` is imported by src/pipeline/review_hold.py, which
+      # most test modules reach transitively, so its absence arrived as a
+      # hundred collection errors saying nothing about the cause.
+      - name: The image has the dependencies this commit pins
+        run: |
+          missing="$(docker run --rm ghcr.io/localnewsimpact/mizzou-ci-base:latest \
+            python -c "import importlib.util as u; print(' '.join(m for m in ('lnic_contracts',) if not u.find_spec(m)))")"
+          if [ -n "$missing" ]; then
+            echo "::error::mizzou-ci-base:latest is missing: $missing"
+            echo "Rebuild base, then ci-base (gcp/cloudbuild/cloudbuild-ci-base.yaml),"
+            echo "then run the Mirror CI Images to GHCR workflow."
+            exit 1
+          fi
 
       - name: Create data directory for tests
         run: mkdir -p data
@@ -786,6 +858,24 @@ jobs:
 
       - name: Pull base image
         run: docker pull ghcr.io/localnewsimpact/mizzou-ci-base:latest
+
+      # The CI image is built from the production base and mirrored here.
+      # It is not rebuilt by a pull request, so a dependency added to
+      # requirements-base.txt is invisible to CI until somebody rebuilds
+      # it -- and ci-base went from 18 July to 4 September without one.
+      # `lnic_contracts` is imported by src/pipeline/review_hold.py, which
+      # most test modules reach transitively, so its absence arrived as a
+      # hundred collection errors saying nothing about the cause.
+      - name: The image has the dependencies this commit pins
+        run: |
+          missing="$(docker run --rm ghcr.io/localnewsimpact/mizzou-ci-base:latest \
+            python -c "import importlib.util as u; print(' '.join(m for m in ('lnic_contracts',) if not u.find_spec(m)))")"
+          if [ -n "$missing" ]; then
+            echo "::error::mizzou-ci-base:latest is missing: $missing"
+            echo "Rebuild base, then ci-base (gcp/cloudbuild/cloudbuild-ci-base.yaml),"
+            echo "then run the Mirror CI Images to GHCR workflow."
+            exit 1
+          fi
 
       - name: Create data directory for tests
         run: mkdir -p data
