@@ -26,31 +26,37 @@
 # (LocalNewsImpact/lnic-contracts), so every repository computes it the
 # same way. The build runs in Cloud Build, because these images are 1.4
 # to 10 GB from a 6.4 GB context and do not fit on a runner.
+#
+# WHO RUNS IT
+# -----------
+# build-and-deploy-services.yml calls this on every push to main, ahead
+# of the service builds, which are FROM these images. It has no push
+# trigger of its own: two runs for one push would each find the image
+# missing and each build it. Each job waits for its Cloud Build to finish
+# -- `gcloud builds triggers run` returns when the build is queued, and
+# the first version of this workflow took that for done, so ml-base and
+# ci-base pulled a base that was still being built and the run was green
+# while every build behind it failed.
+#
+# The caller's concurrency group serialises this with the rest of the
+# deploy. A manual dispatch has no such group and runs alongside whatever
+# is in flight; `force` is for refreshing an upstream layer (the python
+# image, an OS package) that the hash cannot see.
 name: Base images
 
 on:
-  push:
-    branches: [main]
-    paths:
-      # Only what these images are built from. Unlike the per-service path
-      # lists this replaces, being wrong here is visible: a file that
-      # belongs in the hash and is not in it produces a tag that does not
-      # move, and the image-tag action fails on a path that does not exist.
-      - 'Dockerfile.base'
-      - 'Dockerfile.ml-base'
-      - 'Dockerfile.ci-base'
-      - 'requirements-base.txt'
-      - 'requirements-ml.txt'
-      - 'requirements-dev.txt'
-      - 'requirements-crawler.txt'
-      - 'requirements-processor.txt'
-      - 'requirements-api.txt'
-      - '.github/workflows/base-images.yml'
+  workflow_call:
+    inputs:
+      force:
+        description: Rebuild every image, even one that exists for these contents.
+        type: boolean
+        default: false
   workflow_dispatch:
-
-concurrency:
-  group: base-images
-  cancel-in-progress: false
+    inputs:
+      force:
+        description: Rebuild every image, even one that exists for these contents.
+        type: boolean
+        default: false
 
 env:
   PROJECT_ID: mizzou-news-crawler
@@ -93,11 +99,10 @@ jobs:
       # write to the Cloud Build source bucket -- which is what the first
       # run of this workflow failed on.
       - name: Build it, if there is no image for these contents
-        if: steps.tag.outputs.exists == 'false'
-        run: |
-          gcloud builds triggers run build-base-manual \
-            --project="$PROJECT_ID" --sha="${{ github.sha }}" \
-            --substitutions="_TAG=${{ steps.tag.outputs.tag }}"
+        if: steps.tag.outputs.exists == 'false' || inputs.force
+        run: >-
+          scripts/ci/run-cloud-build-trigger.sh build-base-manual "${{ github.sha }}"
+          "_TAG=${{ steps.tag.outputs.tag }}"
 
   ml-base:
     name: ml-base
@@ -105,10 +110,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # The key this repository's other deploy workflows use. Workload
-      # identity would be better and is not what is configured here;
-      # inventing a second auth path in this change would be a second
-      # thing to get wrong.
       - uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
@@ -127,14 +128,13 @@ jobs:
             BASE_IMAGE=${{ needs.base.outputs.image }}
 
       # The trigger carries `_BASE_IMAGE=...base:latest` as a default,
-      # which is the thing this change is removing. Passing it here
-      # overrides it for the run.
+      # which is the thing this chain replaces. Passing it here overrides
+      # it for the run.
       - name: Build it, if there is no image for these contents
-        if: steps.tag.outputs.exists == 'false'
-        run: |
-          gcloud builds triggers run build-ml-base-manual \
-            --project="$PROJECT_ID" --sha="${{ github.sha }}" \
-            --substitutions="_TAG=${{ steps.tag.outputs.tag }},_BASE_IMAGE=${{ needs.base.outputs.image }}"
+        if: steps.tag.outputs.exists == 'false' || inputs.force
+        run: >-
+          scripts/ci/run-cloud-build-trigger.sh build-ml-base-manual "${{ github.sha }}"
+          "_TAG=${{ steps.tag.outputs.tag }},_BASE_IMAGE=${{ needs.base.outputs.image }}"
 
   ci-base:
     name: ci-base
@@ -142,10 +142,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # The key this repository's other deploy workflows use. Workload
-      # identity would be better and is not what is configured here;
-      # inventing a second auth path in this change would be a second
-      # thing to get wrong.
       - uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
@@ -169,18 +165,20 @@ jobs:
             BASE_IMAGE=${{ needs.base.outputs.image }}
 
       - name: Build it, if there is no image for these contents
-        if: steps.tag.outputs.exists == 'false'
-        run: |
-          gcloud builds triggers run build-ci-base-manual \
-            --project="$PROJECT_ID" --sha="${{ github.sha }}" \
-            --substitutions="_TAG=${{ steps.tag.outputs.tag }},_BASE_IMAGE=${{ needs.base.outputs.image }}"
+        id: build
+        if: steps.tag.outputs.exists == 'false' || inputs.force
+        run: >-
+          scripts/ci/run-cloud-build-trigger.sh build-ci-base-manual "${{ github.sha }}"
+          "_TAG=${{ steps.tag.outputs.tag }},_BASE_IMAGE=${{ needs.base.outputs.image }}"
 
       # CI pulls this from GHCR, not from Artifact Registry: pulling a
       # multi-GB image to a GitHub runner costs $0.35-0.50 in egress each
       # time. A rebuilt image that is not mirrored is a rebuilt image CI
-      # never sees, which is half of the original failure.
+      # never sees, which is half of the original failure. Only after the
+      # build has finished: mirroring before it lands re-mirrors the old
+      # image under the same name.
       - name: Mirror it to where CI pulls from
-        if: steps.tag.outputs.exists == 'false'
+        if: steps.build.outcome == 'success'
         run: gh workflow run "Mirror CI Images to GHCR" --repo "$GITHUB_REPOSITORY"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
