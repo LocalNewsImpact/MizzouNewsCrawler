@@ -137,34 +137,36 @@ jobs:
             echo "✅ ML base image changed (Dockerfile.ml-base / requirements-ml.txt)"
           fi
 
-          # Processor: processor-specific changes, ML code, or migrations.
-          # src/cli/ is the entrypoint the processor runs (continuous_processor
-          # shells out to `cli_modular extract/analyze/extract-entities`), and
-          # src/reporting/ ships in the processor image — both were MISSING here,
-          # so #423 (which touched only src/cli/ and src/reporting/) built
-          # nothing at all and shipped no image. See 2026-07-26.
+          # Each pattern below is what that image's Dockerfile copies, and
+          # tests/test_deploy_filters_match_the_dockerfiles.py holds it to
+          # that. The images copy src/ whole, so the pattern is src/ whole.
           #
-          # src/crawler/ was missing for the same reason and cost a deploy on
-          # 2026-08-12: #453 changed only src/crawler/ files, so this filter
-          # said "no processor change", only the crawler image was built, and
-          # the processor image — which the dataset-discovery jobs run via
-          # PROCESSOR_IMAGE — stayed on the previous commit's crawler code
-          # while the deploy reported success.
-          if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.processor|requirements-processor\.txt|src/(models|pipeline|utils|services|ml|cli|reporting|crawler)/|pyproject\.toml|orchestration/|alembic/versions/'; then
+          # Three deploys were lost to listing subdirectories of src/
+          # instead: #423 (2026-07-26) touched only src/cli/ and
+          # src/reporting/ and built nothing; #453 (2026-08-12) touched only
+          # src/crawler/, built the crawler, and left the processor -- which
+          # the dataset-discovery jobs run -- on the previous commit's crawler
+          # code while the deploy reported success. After both were added,
+          # src/mcmetadata/ (the extraction parser), src/config.py,
+          # src/telemetry/ and src/lookups/ still matched nothing.
+          #
+          # Processor: everything in its image, plus migrations.
+          if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.processor|requirements-processor\.txt|src/|orchestration/|scripts/|sitecustomize\.py|pyproject\.toml|alembic/versions/'; then
             PROCESSOR=true
             echo "✅ Processor changed (processor code or migrations)"
           fi
 
-          # API: API-specific changes, shared models, or migrations. src/cli/
-          # and src/reporting/ ship in the API image (report generation).
-          if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.api|requirements-api\.txt|src/(models|services|cli|reporting)/|backend/|pyproject\.toml|alembic/versions/'; then
+          # API: everything in its image. It carries alembic/ whole, not only
+          # the versions.
+          if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.api|requirements-api\.txt|src/|backend/|web/|alembic/|alembic\.ini|pyproject\.toml'; then
             API=true
             echo "✅ API changed (API code or shared models)"
           fi
 
-          # Crawler: crawler-specific changes. src/cli/ is the crawler entrypoint
-          # (`cli_modular extract` runs the extraction path in the crawler image).
-          if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.crawler|requirements-crawler\.txt|src/(crawler|models|services|utils|cli)/|pyproject\.toml'; then
+          # Crawler: everything in its image. lookups/ and fingerprints/ are
+          # data the crawler reads at runtime; a changed site rule that is not
+          # built is a site rule that is not applied.
+          if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.crawler|requirements-crawler\.txt|src/|lookups/|orchestration/|fingerprints/|sitecustomize\.py|scripts/xvfb-wrapper\.sh|pyproject\.toml'; then
             CRAWLER=true
             echo "✅ Crawler changed (crawler code)"
           fi
@@ -176,14 +178,19 @@ jobs:
           # Dockerfile or its requirements had changed. Between 2026-07-26
           # and 2026-08-23 the newest migrator image was a month old while
           # production's schema drifted ahead of its recorded revision.
-          if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.migrator|requirements-migrator\.txt|alembic/'; then
+          #
+          # The migrator copies src/ whole but runs only what alembic/env.py
+          # imports from it (src/config.py, src/models/), so those are what
+          # rebuild it. Matching all of src/ would rebuild it -- and run the
+          # migration job against production -- on every code push.
+          if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.migrator|requirements-migrator\.txt|alembic/|alembic\.ini|scripts/migrations/|src/models/|src/config\.py'; then
             MIGRATOR=true
             echo "✅ Migrator changed (migrations or migrator image)"
           fi
 
-          # Enrichment: the image ships all of src/, so shared code rebuilds it
-          # too; vendor/backfield/ is the pinned backfield wheel set it installs.
-          if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.enrichment|vendor/backfield/|src/(enrichment|models|services|utils|cli)/|pyproject\.toml'; then
+          # Enrichment: everything in its image; vendor/backfield/ is the
+          # pinned backfield wheel set it installs.
+          if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.enrichment|vendor/backfield/|src/|sitecustomize\.py|pyproject\.toml'; then
             ENRICHMENT=true
             echo "✅ Enrichment changed (enrichment code or vendored backfield)"
           fi
