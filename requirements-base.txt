@@ -28,8 +28,6 @@ cloudscraper>=1.2.71  # Needed by tests
 
 # NLP and text processing
 spacy>=3.8.16  # Python 3.11+ supports latest spacy with numpy 2.x
-nltk>=3.10.3
-textblob>=0.20.1
 ftfy>=6.3.1
 python-dateutil>=2.9.0.post0
 scikit-learn>=1.9.0,<1.10  # Compatible with StorySniffer 1.0.9+ skops models (model trained with 1.7.2)

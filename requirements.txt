@@ -22,7 +22,6 @@ structlog>=26.1.0  # Structured logging for production
 scikit-learn>=1.9.0,<1.10  # Compatible with StorySniffer 1.0.9+ skops models (model trained with 1.7.2)
 spacy>=3.8.16  # Python 3.11+ supports latest spacy with numpy 2.x
 transformers>=5.16.1
-nltk>=3.10.3
 torch>=2.13.0
 
 # Data formats
