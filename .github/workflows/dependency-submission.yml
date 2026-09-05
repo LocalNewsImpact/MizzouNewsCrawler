@@ -30,7 +30,12 @@ jobs:
         uses: actions/setup-python@v7
         with:
           python-version: '3.11'
-          cache: 'pip'
+          # No cache. This job is the only thing in the repository that
+          # pip-installs on a runner, and what it downloads is 2.9 GB --
+          # a third of the repository's 10 GB cache budget, held for a
+          # job that runs once a week. It was also the entry every pull
+          # request restored and re-saved under its own key until the
+          # budget overflowed and the checks went red.
 
       - name: Install dependencies
         run: |

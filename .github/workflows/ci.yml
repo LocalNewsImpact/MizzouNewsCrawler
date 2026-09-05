@@ -133,6 +133,13 @@ jobs:
     uses: LocalNewsImpact/lnic-contracts/.github/workflows/python-checks.yml@ci-v1
     with:
       install: make ci-image
+      # Nothing here pip-installs on the runner: every stage runs inside
+      # the image `make ci-image` pulls. setup-python's post-step then
+      # has no ~/.cache/pip to save and fails the job -- after the tests
+      # have passed -- on any cache MISS. It also, on a HIT, copied the
+      # 2.9 GB entry it restored back under this pull request's key,
+      # four of which evicted the entry every run restores from.
+      pip-cache: false
       typecheck: true
       integration: true
       postgres-db: mizzou_test
