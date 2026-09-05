@@ -2133,7 +2133,7 @@ python -m pytest tests/test_telemetry_system.py -v
 
 **📚 Documentation:**
 
-- [docs/TESTING_STRATEGY.md](docs/TESTING_STRATEGY.md) - **Complete testing guide** (markers, CI matching, debugging)
+- [docs/BUILD_AND_CI_ARCHITECTURE.md](docs/BUILD_AND_CI_ARCHITECTURE.md) - **How the stages run** (`make lint`, `make typecheck`, `make test`, `make test-integration` -- the same targets locally and in CI)
 - [docs/TESTING_OPERATIONS_DASHBOARD.md](docs/TESTING_OPERATIONS_DASHBOARD.md) - Operations testing guidelines
 - [tests/e2e/README.md](tests/e2e/README.md) - **Production smoke tests** (E2E validation after deployment)
 
