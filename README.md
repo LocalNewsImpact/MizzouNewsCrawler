@@ -2047,6 +2047,99 @@ The project has evolved through several major phases:
 
 See [docs/PHASE_TRANSITION.md](docs/PHASE_TRANSITION.md) for phase transition details.
 
+## The suite
+
+This repository is one of four that share a database, a contracts package,
+a deployment project and one set of rules about how a change reaches
+`main`. It is the collection and processing end: everything downstream
+reads what it writes.
+
+### The repositories
+
+| Repository | What it is | What it publishes |
+| --- | --- | --- |
+| `MizzouNewsCrawler` | discovery, extraction, cleaning, classification and enrichment; GKE + Argo Workflows | rows in the crawler database; analytics tables in BigQuery |
+| `datadesk` | the newsroom console and review queue; Django on Cloud Run | decisions written back to the crawler database; published visuals |
+| `NewsSourceDirectory` | the outlet directory and its review queue; Django on Cloud Run at `sources.localnewsimpact.org` | a hashed static feed on `gh-pages`, read by the WordPress plugin |
+| `lnic-contracts` | the shapes one service writes and another reads, the shared CI, the coverage floor | a Python package and two tag series |
+
+### How main is protected
+
+Two layers, deliberately split.
+
+**One organization ruleset**, `Main is reached by pull request`, targets `~ALL` repositories' default branch:
+
+| Rule | Effect |
+| --- | --- |
+| `pull_request` | a change reaches main through a pull request; one approving review, code-owner review where a CODEOWNERS file matches |
+| `non_fast_forward` | no force-push over main |
+| `deletion` | main cannot be deleted |
+
+**Each repository's own ruleset** carries `required_status_checks` and nothing else. That rule cannot move up to the organization: the contexts differ per repository — `checks / integration` exists only in the crawler, `Data quality`, `Public feed`, `Pages payload` and `Image builds` only in the Source Directory — and a context named in a ruleset but never reported blocks every pull request permanently.
+
+The rules the suite works to:
+
+1. Nothing is pushed to origin except on a branch.
+2. Every repository has a pre-push hook that runs `make check`, so what CI will say is known before it is said.
+3. CI checks the pull request, and green is what allows a merge.
+4. An administrator may merge without a code review.
+5. Nobody pushes to main, administrators included.
+
+Four and five look contradictory. The ruleset's bypass list resolves them, and the mode is what does it: `OrganizationAdmin` bypasses in `pull_request` mode, which permits an override **while merging a pull request** and none at all for a direct push.
+
+| Bypass mode | Direct push to main | Merge against the rules |
+| --- | --- | --- |
+| `always` | allowed | allowed |
+| `pull_request` (in use) | refused | allowed, with `--admin` |
+
+So an administrator merges with `gh pr merge <n> --squash --admin`, and a merge without `--admin` waits for a review. The GraphQL field `viewerCanMergeAsAdmin` reports `false` under this configuration and the `--admin` merge succeeds anyway; it describes the legacy branch-protection override, not a ruleset bypass, and is not the field to read.
+
+`delete_branch_on_merge` is on in every repository.
+
+### What enforces what
+
+| Layer | Catches | Where it lives |
+| --- | --- | --- |
+| pre-push hook | a red commit, before it leaves the machine | `scripts/setup-hooks.sh`, one per repository, running that repository's `make check` |
+| shared CI | a red pull request | `lnic-contracts/.github/workflows/python-checks.yml@ci-v1` — lint, typecheck, test, integration, with a Postgres service |
+| `conforms.yml` | a repository drifting from the pattern | `lnic-contracts`, called alongside the checks |
+| the ruleset | a merge that skipped either | GitHub, organization and repository level |
+
+`conforms.yml` fails a repository that stops calling the shared workflow, loses a make target the workflow runs, drops its pre-push hook, lets that hook run the whole suite for a branch deletion, leaves CI's push trigger unscoped so every pull request push runs twice, sets a coverage floor of its own, or stops running the suite's floor from `make test`.
+
+Every stage is a make target — `make lint`, `make test` — never a bare `ruff` or `pytest`. The commands live in each repository's Makefile, which is what a person runs locally, so CI and a local run cannot mean different things. What the targets *do* differs: the crawler runs its tests inside a prebuilt image because its dependencies take minutes to install; the others install them on the runner because they take seconds. Both are `make test`.
+
+The coverage floor is one number, 80%, in `lnic_contracts.coverage_floor`, run by every repository's `make test` and again by the shared workflow. A repository that sets its own is refused.
+
+### How the repositories are joined
+
+**Data.** One Cloud SQL instance serves all three applications. The crawler owns its database; the Source Directory's tables live in a `directory` schema alongside shared identity tables in `public`; datadesk has its own database and reaches the crawler's through a **read-only role** (`infra/sql/create_crawler_readonly_role.sql`, password in Secret Manager), with a separate read-write connection for the decisions the review queue writes back. Postgres enforces the read-only half; it is not a convention.
+
+**Packages.** `lnic-contracts` is installed from a tag tarball, pinned in each consumer's requirements. `NewsSourceDirectory` is installed into datadesk's base image from a pinned git tag, so the directory front end datadesk serves is a released version rather than whatever `main` happens to be; tagging a directory release dispatches datadesk's deploy.
+
+**Versioning.** `lnic-contracts` carries two tag series, because the cadences differ. `vX.Y.Z` versions the Python package — the shapes two services must agree on, where a renamed key strands data at runtime with no import error to catch it. `ci-vX.Y.Z` versions the workflows, and `ci-v1` follows the newest of them, so a CI fix reaches all three repositories without a pull request in each. `release-ci.yml` runs `make check` before moving the major tag.
+
+**Publishing.** The crawler exports to BigQuery. The Source Directory publishes a hashed static feed to `gh-pages`, which the WordPress plugin reads. datadesk publishes visuals.
+
+### This repository's place in it
+
+The crawler writes the rows every other application reads, so its
+required checks are the strictest in the suite: `checks / lint`,
+`checks / typecheck`, `checks / test`, `checks / integration` and
+`conforms / conforms`. It is also the only repository whose stages run
+inside a prebuilt image (`make ci-image`) rather than installing on the
+runner, which is why its CI passes `pip-cache: false` to the shared
+workflow -- nothing on the runner writes `~/.cache/pip`, and a cache
+that is only ever restored fails the job on the first miss.
+
+Images are built in Cloud Build and tagged with a hash of their
+contents, a child's hash including its parent's tag, so a change to a
+requirements file produces a tag that does not exist yet and the image
+is built. `tests/test_deploy_filters_match_the_dockerfiles.py` holds the
+deploy workflow's path filters to what each Dockerfile actually copies.
+
+---
+
 ## Contributing & Development
 
 ### Contributing Guidelines
