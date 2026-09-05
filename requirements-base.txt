@@ -4,31 +4,31 @@
 # Core data processing
 pandas>=3.0.5
 numpy>=2.4.6  # Python 3.11+ supports numpy 2.x with all dependencies
-pyarrow>=25.0.0  # For Parquet support
+pyarrow>=25.0.1  # For Parquet support
 openpyxl>=3.1.5  # Excel export support
 
 # Database
-sqlalchemy>=2.0.51
-alembic>=1.18.5
+sqlalchemy>=2.0.52
+alembic>=1.19.1
 psycopg2-binary>=2.9.12  # PostgreSQL adapter for production
-cloud-sql-python-connector[pg8000]>=1.21.0  # Google Cloud SQL connector
+cloud-sql-python-connector[pg8000]>=1.22.0  # Google Cloud SQL connector
 
 # HTTP and web utilities
 requests>=2.34.2
 urllib3>=2.7.0
 beautifulsoup4>=4.15.0
-lxml>=6.1.1
+lxml>=6.1.2
 lxml_html_clean>=0.4.5  # Required for newspaper3k HTML cleaning
 storysniffer>=1.0.9  # URL verification service (skops-based models)
-selenium>=4.46.0  # Needed by tests
+selenium>=4.48.0  # Needed by tests
 newspaper4k>=0.9.6  # Needed by tests
-feedparser>=6.0.13  # Needed by tests
-rapidfuzz>=3.14.5  # Needed by tests
+feedparser>=6.0.14  # Needed by tests
+rapidfuzz>=3.14.6  # Needed by tests
 cloudscraper>=1.2.71  # Needed by tests
 
 # NLP and text processing
-spacy>=3.8.14  # Python 3.11+ supports latest spacy with numpy 2.x
-nltk>=3.10.0
+spacy>=3.8.16  # Python 3.11+ supports latest spacy with numpy 2.x
+nltk>=3.10.3
 textblob>=0.20.1
 ftfy>=6.3.1
 python-dateutil>=2.9.0.post0
@@ -39,29 +39,29 @@ pytest>=9.1.1
 pytest-cov>=7.1.0
 pytest-mock
 requests-mock
-fastapi>=0.140.13  # Needed for test fixtures
+fastapi>=0.141.1  # Needed for test fixtures
 httpx  # Needed for FastAPI TestClient
 
 # Development
-pre-commit>=4.6.1
-isort>=8.0.1
+pre-commit>=4.6.2
+isort>=9.0.1
 flake8>=7.3.0
 
 # Utilities
-click>=8.4.2
-python-dotenv>=1.2.2
-pydantic>=2.13.4
+click>=8.5.0
+python-dotenv>=1.2.3
+pydantic>=2.13.5
 pyyaml>=6.0.3  # For Kubernetes manifest generation
 
 # Observability and Monitoring
 structlog>=26.1.0  # Structured logging
-google-cloud-logging>=3.16.1  # Cloud Logging integration
+google-cloud-logging>=3.16.3  # Cloud Logging integration
 google-cloud-monitoring>=2.31.0  # Cloud Monitoring metrics
-google-cloud-storage>=3.13.0  # Raw HTML archive (extractor A/B replay)
+google-cloud-storage>=3.13.1  # Raw HTML archive (extractor A/B replay)
 # Needed by api, crawler and processor, so it belongs here rather than being
 # repeated in each service's requirements.
 google-cloud-secret-manager>=2.30.0  # Secret retrieval
-google-cloud-firestore>=2.28.0  # Shared proxy/domain health state (proxy_router)
+google-cloud-firestore>=2.29.0  # Shared proxy/domain health state (proxy_router)
 
 # The shapes one service in the suite writes and another reads. The review
 # hold note is written here and read by the datadesk console; each
