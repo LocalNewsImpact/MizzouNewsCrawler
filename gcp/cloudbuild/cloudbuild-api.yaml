@@ -69,7 +69,36 @@ steps:
       - 'api=${_REGISTRY}/api:${SHORT_SHA}'
       - '--namespace=production'
     waitFor: ['get-gke-credentials']
+  # The two proxy-health CronJobs run this image as well, and ran it as
+  # `api:latest` -- the moving tag the content-hash scheme replaced
+  # everywhere else. A moving tag makes "which code is checking the proxy"
+  # unanswerable, and it is the check that says whether egress works at
+  # all.
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'update-proxy-health-monitor'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=us-central1-a'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=mizzou-cluster'
+    args:
+      - 'set'
+      - 'image'
+      - 'cronjob/proxy-health-monitor'
+      - 'proxy-health-check=${_REGISTRY}/api:${SHORT_SHA}'
+      - '--namespace=production'
+    waitFor: ['get-gke-credentials']
 
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'update-proxy-health-all-nodes'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=us-central1-a'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=mizzou-cluster'
+    args:
+      - 'set'
+      - 'image'
+      - 'cronjob/proxy-health-all-nodes'
+      - 'proxy-check=${_REGISTRY}/api:${SHORT_SHA}'
+      - '--namespace=production'
+    waitFor: ['get-gke-credentials']
 images:
   - '${_REGISTRY}/api:${SHORT_SHA}'
   - '${_REGISTRY}/api:v${_RELEASE_VERSION}'
