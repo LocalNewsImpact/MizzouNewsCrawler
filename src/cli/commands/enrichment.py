@@ -164,6 +164,12 @@ def handle_enrichment_command(args) -> int:
                     session, args.dataset, args.limit, _max_attempts()
                 )
             elif action == "reprocess":
+                # Keyed on status. `--profile-version` no longer selects
+                # anything -- raising a profile is not a reason to
+                # re-answer questions that were answered -- and it is
+                # still checked against the dataset's, because running a
+                # reprocess against a profile the dataset does not have
+                # would record a version that never enriched anything.
                 profile = repository.dataset_profile(session, args.dataset)
                 if profile.version < args.profile_version:
                     raise ConfigurationError(
@@ -174,7 +180,6 @@ def handle_enrichment_command(args) -> int:
                 candidates = repository.select_reprocess_candidates(
                     session,
                     args.dataset,
-                    args.profile_version,
                     args.limit,
                     _max_attempts(),
                 )

@@ -220,3 +220,37 @@ test-production-ready:
 	make test-docker
 	@echo ""
 	@echo "✅ ALL TESTS PASSED - Ready for production deployment!"
+
+# The `Integration Tests (PostgreSQL)` CI job, runnable here.
+#
+# The marker expression is copied from .github/workflows/ci.yml so this
+# selects the same tests. If they diverge, this stops being the gate it
+# claims to be.
+#
+# They could always run locally -- Postgres is in Docker -- and nothing
+# said how, so everybody improvised and got a different answer from CI.
+# A suite that means one thing here and another there is not a gate.
+#
+# A throwaway database each time: `alembic upgrade` is not idempotent
+# against a schema that is already there, so reusing one fails on the
+# second run for a reason that has nothing to do with the code.
+PG_CONTAINER ?= mizzou-postgres
+PG_USER      ?= mizzou_user
+PG_PASS      ?= mizzou_pass
+IT_DB        ?= mizzou_integration
+
+.PHONY: test-integration-postgres
+test-integration-postgres: ## The Integration Tests (PostgreSQL) job, locally
+	@docker exec $(PG_CONTAINER) psql -U $(PG_USER) -d mizzou \
+	  -c "DROP DATABASE IF EXISTS $(IT_DB);" >/dev/null
+	@docker exec $(PG_CONTAINER) psql -U $(PG_USER) -d mizzou \
+	  -c "CREATE DATABASE $(IT_DB);" >/dev/null
+# Both names: some of these tests read DATABASE_URL and some read
+# TEST_DATABASE_URL, and a run that sets one silently skips or fails the
+# other half.
+	DATABASE_URL="postgresql://$(PG_USER):$(PG_PASS)@127.0.0.1:5432/$(IT_DB)" \
+	TEST_DATABASE_URL="postgresql://$(PG_USER):$(PG_PASS)@127.0.0.1:5432/$(IT_DB)" \
+	USE_CLOUD_SQL_CONNECTOR=false \
+	  .venv/bin/python -m pytest \
+	    -m 'integration and not docker and not local_scripts and not proxy' \
+	    -q --no-cov --tb=short

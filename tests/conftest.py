@@ -368,8 +368,15 @@ def populate_wire_service_patterns():
     db = DatabaseManager()
     engine = db.engine
 
-    # Create tables if they don't exist (for SQLite in-memory tests)
-    Base.metadata.create_all(bind=engine)
+    # SQLite only. This is here for in-memory tests that have no schema of
+    # their own; against a real Postgres it created all 32 ORM tables in
+    # whatever DATABASE_URL pointed at, before any test ran -- so alembic
+    # then failed with "relation already exists" and the integration tests
+    # could not be run locally at all. They ran in CI, where this fixture
+    # reaches a different database, which is exactly how a test suite
+    # comes to pass in one place and fail in the other.
+    if engine.dialect.name == "sqlite":
+        Base.metadata.create_all(bind=engine)
 
     # Clear ContentTypeDetector cache FIRST to ensure fresh patterns are loaded
     # The cache is class-level and persists across test functions
@@ -383,6 +390,18 @@ def populate_wire_service_patterns():
         ContentTypeDetector._pattern_timestamp_by_type = {}
 
     with db.get_session() as session:
+        # The table may not be there yet. Against Postgres the schema is
+        # built by alembic, and this autouse fixture runs before the
+        # fixture that runs it -- so on a clean database `wire_services`
+        # does not exist, and an error here failed every integration test
+        # for a reason that had nothing to do with any of them.
+        #
+        # Nothing that needs these patterns runs before the schema does.
+        from sqlalchemy import inspect as _inspect
+
+        if not _inspect(engine).has_table(WireService.__tablename__):
+            return
+
         # Check if patterns already exist (avoid duplicates in nested tests)
         existing_count = session.query(WireService).count()
         if existing_count > 0:

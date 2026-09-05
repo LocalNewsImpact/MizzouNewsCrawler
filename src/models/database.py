@@ -551,12 +551,21 @@ class DatabaseManager:
                 )
             self._SHARED_ENGINES[engine_key] = self.engine
 
-            # Only run create_all in test environments or if explicitly requested
-            # In production, we use Alembic migrations. create_all is slow with pg8000.
+            # Only in test environments, and only against SQLite.
+            #
+            # Production uses alembic; create_all is also slow with pg8000.
+            # The SQLite condition is the important one: constructing a
+            # DatabaseManager under pytest wrote all 32 ORM tables into
+            # whatever DATABASE_URL named, so `alembic upgrade` then failed
+            # with "relation already exists" and the integration tests
+            # could not be run against Postgres locally at all. They passed
+            # in CI, which is how a suite comes to mean different things in
+            # the two places it runs.
+            #
+            # DB_FORCE_CREATE_ALL is the way to ask for it anyway.
             if (
-                _is_test_environment()
-                or os.getenv("DB_FORCE_CREATE_ALL", "false").lower() == "true"
-            ):
+                _is_test_environment() and self.engine.dialect.name == "sqlite"
+            ) or os.getenv("DB_FORCE_CREATE_ALL", "false").lower() == "true":
                 logger.info("Initializing database schema (create_all)")
                 Base.metadata.create_all(self.engine)
 

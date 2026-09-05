@@ -42,6 +42,29 @@ _CANDIDATE_SQL = text("""
     FOR UPDATE OF a SKIP LOCKED
     """)
 
+# Reprocessing is keyed on status, and on nothing else.
+#
+# It used to also select every finished article whose recorded
+# profile_version was lower than the dataset's -- so raising the version
+# reprocessed the corpus. Against production on 2026-09-04 that was
+# 19,238 already-finished articles for one dataset on the next bump,
+# each one a model call, none of them asked for.
+#
+# A profile is not a reason to re-answer a question that was answered.
+# The reason to reprocess an article is that its BODY changed: an
+# extraction that failed and was fixed, a paywall stub that finally
+# yielded text. That arrives as a status -- something rewinds the article
+# to `labeled` -- and this selects it because it is `labeled`, the same
+# as any other candidate.
+#
+# `enrichment_skipped` is not an unfinished state waiting for a better
+# profile. It is a story that gave a headline, a byline and a CIN label
+# and not enough body to extract entities from: counted as local, and
+# deliberately never enriched.
+#
+# What still separates this from _CANDIDATE_SQL is the `since` floor:
+# scheduled runs stop at the dataset's steady_state_since, and a
+# reprocess reaches back past it.
 _REPROCESS_SQL = text("""
     SELECT a.id, a.title, a.content, d.slug AS dataset_slug, s.city AS publication_city,
            coalesce(nullif(s.metadata::json->>'state',''), d.metadata::json->>'default_state') AS publication_state
@@ -50,14 +73,10 @@ _REPROCESS_SQL = text("""
     JOIN dataset_sources ds ON ds.source_id = cl.source_id
     JOIN datasets d          ON d.id = ds.dataset_id
     LEFT JOIN sources s      ON s.id = cl.source_id
-    LEFT JOIN article_enrichment e ON e.article_id = a.id
     WHERE d.slug = :dataset
+      AND a.status = 'labeled'
       AND a.wire_check_status IN ('complete', 'local')
-      AND (
-        (a.status = 'labeled' AND a.enrichment_attempts < :max_attempts)
-        OR (a.status IN ('enriched', 'enrichment_skipped', 'out_of_scope')
-            AND e.profile_version < :profile_version)
-      )
+      AND a.enrichment_attempts < :max_attempts
     ORDER BY a.created_at
     LIMIT :batch
     FOR UPDATE OF a SKIP LOCKED
@@ -124,15 +143,19 @@ def select_candidates(
 def select_reprocess_candidates(
     session: Session,
     dataset_slug: str,
-    profile_version: int,
     batch: int,
     max_attempts: int,
 ) -> list[ArticleInput]:
+    """Articles waiting to be enriched, ignoring the steady-state floor.
+
+    Keyed on status. An article is reprocessed because something rewound
+    it -- a review decision, a re-extraction that found the body a first
+    attempt missed -- and never because a profile version rose.
+    """
     rows = session.execute(
         _REPROCESS_SQL,
         {
             "dataset": dataset_slug,
-            "profile_version": profile_version,
             "batch": batch,
             "max_attempts": max_attempts,
         },
