@@ -270,6 +270,25 @@ def parse_iso8601(value: str) -> Optional[datetime]:
     return parsed.astimezone(timezone.utc)
 
 
+def _status_code_of(exc: Exception) -> int | str:
+    """The HTTP status behind an ``APIResponseError``, whichever class it is.
+
+    The fallback defined above carries ``status_code``; the real
+    ``mediacloud.error.APIResponseError`` takes ``(response, params, data)``
+    and carries ``response.status_code`` instead. Reading the attribute
+    directly therefore raised AttributeError from inside the handler
+    whenever the dependency was installed -- which is production -- so a
+    rate-limited lookup crashed the caller rather than returning
+    ``api_error:429``. Every unit test passed, because without the package
+    installed the fallback has the attribute.
+    """
+
+    code = getattr(exc, "status_code", None)
+    if code is None:
+        code = getattr(getattr(exc, "response", None), "status_code", None)
+    return code if code is not None else "unknown"
+
+
 def build_query(title: str) -> str:
     escaped = title.replace('"', '\\"')
     return f'"{escaped}"'
@@ -350,7 +369,7 @@ class MediaCloudDetector:
             self.log.warning(
                 "MediaCloud API error for article %s: %s", article.article_id, exc
             )
-            status = f"api_error:{exc.status_code}"
+            status = f"api_error:{_status_code_of(exc)}"
             stories = []
         except Exception as exc:  # noqa: BLE001
             self.log.exception(
