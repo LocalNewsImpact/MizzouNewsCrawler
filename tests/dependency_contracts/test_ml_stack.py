@@ -1,5 +1,5 @@
 """Contracts for the model-coupled stack: torch+transformers (production
-checkpoint), storysniffer→scikit-learn (skops model), spacy, nltk.
+checkpoint), storysniffer→scikit-learn (skops model), spacy.
 
 These are the highest-risk bumps: the artifact (checkpoint / skops pickle /
 spacy model) was produced under one library version and loaded under another.
@@ -113,8 +113,18 @@ class TestStorySnifferSklearn:
         assert bool(section_guess) in (True, False)
 
 
-class TestSpacyNltk:
-    """Call sites: entity extraction pipeline (spacy NER), nltk tokenizers."""
+class TestSpacy:
+    """Call site: the entity extraction pipeline (spacy NER).
+
+    nltk was here too, and nothing called it. No module under src/
+    imports it; the classifier tokenizes with transformers' AutoTokenizer
+    and storysniffer with scikit-learn's own vectorizer. It was pinned in
+    requirements.txt and requirements-base.txt, and textblob -- also
+    unused -- required it, so it rode into every runtime image and
+    carried GHSA-8mgp-746c-j5xp, high, with no patched version. Both pins
+    are gone; safety still pulls nltk into the dev image, which is where
+    a tool that wants it can find it.
+    """
 
     def test_spacy_model_load_and_ner(self):
         spacy = pytest.importorskip("spacy")
@@ -126,12 +136,3 @@ class TestSpacyNltk:
         doc = nlp("Mayor Pat Alderman spoke in Jefferson City on Tuesday.")
         assert [t.text for t in doc]  # tokenization
         assert any(ent.label_ for ent in doc.ents)  # NER produced entities
-
-    def test_nltk_tokenize(self):
-        nltk = pytest.importorskip("nltk")
-
-        try:
-            tokens = nltk.word_tokenize("The council approved the budget.")
-        except LookupError:
-            pytest.skip("nltk punkt data not installed in this venue")
-        assert "council" in tokens
