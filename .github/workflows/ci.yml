@@ -1,33 +1,47 @@
 name: CI
 
-# CI workflow for MizzouNewsCrawler
+# The crawler's CI, on the suite's shared pattern.
 #
-# quick-checks-integration job: runs a focused Alembic/Postgres integration test
-# (resync migration) against a PostgreSQL instance. This job is gated on the
-# repository secret `TEST_DATABASE_URL` (CI-managed DB) to avoid accidental runs
-# on forks or feature branches. It may also be manually dispatched on `main`.
-# The job uses a service container (postgres:15) on GitHub-hosted runners, or
-# can be triggered with TEST_DATABASE_URL env pointing to an external DB.
+# The four stages -- lint, typecheck, test, test-integration -- are
+# lnic-contracts' python-checks.yml, which runs `make <stage>` and nothing
+# else. What each stage does is this repository's Makefile, the same
+# targets a developer runs; CI's one difference is that the targets run
+# inside the CI image (GITHUB_ACTIONS is set, so the Makefile's IN_IMAGE
+# is). The conforms job checks that the Makefile keeps its side of that.
+#
+# The suites that are the crawler's alone stay here as jobs, each a make
+# target too: the headful Selenium regression in the crawler image, the
+# proxy-router tests against a Firestore emulator, and the weekly
+# security scan and versioning stress run.
+#
+# Jobs are gated per job, never by a trigger-level `paths` filter: a
+# skipped job satisfies a required status check, a never-triggered
+# workflow leaves it pending forever.
 
 on:
-  # Removed push to main - redundant since branch protection requires PR + passing CI
-  # No need to run tests again after merge when they already passed on the PR
+  # No push to main: branch protection requires a PR and passing CI, so
+  # a merge would only re-run what already passed.
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches:
-      - main  # Run CI on PRs to main branch
+      - main
   schedule:
-    # Run stress job weekly at 03:00 UTC on Sundays (example)
-    - cron: '0 3 * * 0'
-  workflow_dispatch: {}  # Allow manual runs on main if needed
+    - cron: '0 3 * * 0'  # weekly: security + stress
+  workflow_dispatch: {}
+
+# The shared workflow declares no permissions of its own; it runs with
+# these. packages: read because every stage runs inside a private GHCR
+# image that `make ci-image` pulls.
+permissions:
+  contents: read
+  packages: read
 
 jobs:
-  # Detect whether this PR touches anything other than CI workflows and docs.
-  # The heavy jobs below gate on `code == 'true'`, so a workflow-only or
-  # docs-only PR skips them. A job skipped via `if:` reports success, so the
-  # required status checks are still satisfied. (A trigger-level `paths` filter
-  # would instead leave required checks pending forever and block the merge —
-  # hence per-job gating.)
+  # What does this PR change? Three answers, all from one diff:
+  #   code    anything scripts/ci/docs-only.sh does not call documentation
+  #           (the pre-push hook asks the same script, so the two agree)
+  #   images  which container images the diff affects, for image-build-check
+  # plus the one actor-based exception below.
   changes:
     name: Detect code changes
     runs-on: ubuntu-latest
@@ -58,24 +72,18 @@ jobs:
           changed=$(git diff --name-only "$mb" "$head")
           echo "Changed files:"
           echo "$changed"
-          # Anything that is NOT a workflow file, docs/, *.md, or the local
-          # git-hook installer counts as code. (setup-hooks.sh only defines the
-          # pre-push hook — it's never imported by src/ or tests/.)
-          code_files=$(echo "$changed" | grep -vE '^(\.github/workflows/|docs/|scripts/setup-hooks\.sh$)' | grep -vE '\.md$' || true)
 
           # The image-tag bookkeeping PR is the one exception, and it is
           # recognised by WHO opened it, not by which files it touches: the
           # update-versions-env job records the tags already built and
-          # deployed, so the five heavy jobs would spend a full cycle
-          # validating three strings that describe images CI has no say over.
-          # A human editing the same files by hand still gets the full suite,
-          # which is why this tests the actor and the branch rather than
-          # adding the paths to the exclusion list above.
+          # deployed, so the suite would spend a full cycle validating
+          # three strings that describe images CI has no say over. A
+          # human editing the same files by hand still gets the suite.
           if [ "${{ github.event.pull_request.user.login }}" = "github-actions[bot]" ] \
              && [ "${{ startsWith(github.head_ref, 'chore/image-tags') }}" = "true" ]; then
             unexpected=$(echo "$changed" | grep -vE '^k8s/(versions\.env|argo/base-pipeline-workflow\.yaml)$' || true)
             if [ -z "$unexpected" ]; then
-              echo "→ image-tag bookkeeping from the deploy job; skipping heavy test jobs."
+              echo "→ image-tag bookkeeping from the deploy job; skipping the suite."
               echo "code=false" >> "$GITHUB_OUTPUT"
               echo "images=" >> "$GITHUB_OUTPUT"
               exit 0
@@ -83,12 +91,12 @@ jobs:
             echo "→ bookkeeping branch touched more than the tag files; running full suite."
           fi
 
-          if [ -n "$code_files" ]; then
+          if scripts/ci/docs-only.sh "$mb" "$head"; then
+            echo "→ documentation only; skipping the suite."
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          else
             echo "→ code changes present; running full suite."
             echo "code=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "→ only workflow/docs changes; skipping heavy test jobs."
-            echo "code=false" >> "$GITHUB_OUTPUT"
           fi
 
           # Which container images does this PR's diff affect? Dockerfiles are
@@ -110,6 +118,33 @@ jobs:
           done <<< "$changed"
           echo "→ images affected: ${images:-none}"
           echo "images=$images" >> "$GITHUB_OUTPUT"
+
+  # The four stages. python-checks.yml runs `make ci-image` before each
+  # (the `install` input, with GITHUB_TOKEN in its environment), then
+  # `make lint`, `make typecheck`, `make test`, `make test-integration`.
+  # The test and integration stages get a Postgres 16 service -- what
+  # production runs -- announced as PGHOST and friends, which the
+  # Makefile reads for the integration database.
+  checks:
+    needs: [changes]
+    if: >-
+      needs.changes.outputs.code == 'true'
+      && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    uses: LocalNewsImpact/lnic-contracts/.github/workflows/python-checks.yml@ci-v1
+    with:
+      install: make ci-image
+      typecheck: true
+      integration: true
+      postgres-db: mizzou_test
+
+  conforms:
+    uses: LocalNewsImpact/lnic-contracts/.github/workflows/conforms.yml@ci-v1
+    with:
+      # The same two flags the checks job declares. conforms uses them to
+      # decide which make targets to require, so a stage turned on above
+      # and not here would run a target nothing checks for.
+      typecheck: true
+      integration: true
 
   # PR CI runs tests INSIDE prebuilt images, so a PR that edits a Dockerfile
   # or requirements file is never actually built here — the change would first
@@ -188,541 +223,30 @@ jobs:
           fi
           exit "$status"
 
-  lint:
-    name: Lint & Format Check
-    runs-on: ubuntu-latest
-    needs: [changes]
-    if: >-
-      needs.changes.outputs.code == 'true'
-      && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
-
-    steps:
-      - uses: actions/checkout@v7
-      - name: Clean Python bytecode cache
-        run: find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-
-
-      - name: Clean Python bytecode cache
-        run: find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-
-      - name: Log in to GHCR
-        # Images are mirrored AR->GHCR (mirror-images.yml); pulls from GHCR to
-        # GitHub-hosted runners are free and fast, vs ~$0.35-0.50 of Artifact
-        # Registry egress per multi-GB pull. GITHUB_TOKEN can read packages
-        # pushed by this repo's workflows.
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-
-      - name: Pull base image
-        run: docker pull ghcr.io/localnewsimpact/mizzou-ci-base:latest
-
-      - name: Run linting in container
-        run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            ghcr.io/localnewsimpact/mizzou-ci-base:latest \
-            /bin/bash -c "
-              git config --global --add safe.directory /workspace &&
-              python -m ruff check . &&
-              python -m black --check src/ tests/ web/ &&
-              python -m isort --check-only --profile black src/ tests/ web/ &&
-              (python -m mypy src/ --ignore-missing-imports || true)
-            "
-            # NOTE: only mypy is advisory here (the strict gate is the separate
-            # mypy-strict job). Without the parentheses the trailing '|| true'
-            # rescued the WHOLE && chain, so ruff/black/isort could never fail
-            # this job — black had been printing failures into green runs.
-
-      - name: Validate deployment configurations
-        run: |
-          echo "Validating k8s deployment YAML..."
-
-          # Verify PYTHONPATH includes /app
-          if ! grep -q 'value: "/app:' k8s/processor-deployment.yaml; then
-            echo "❌ PYTHONPATH does not include /app!"
-            exit 1
-          fi
-
-          # Verify image is placeholder (not :latest)
-          if grep -q 'image:.*:latest' k8s/processor-deployment.yaml; then
-            echo "❌ Deployment uses image:latest!"
-            exit 1
-          fi
-
-          echo "✅ Deployment YAML validation passed"
-
-  mypy-strict:
-    name: Mypy (strict)
-    runs-on: ubuntu-latest
-    needs: [changes, lint]
-    if: >-
-      needs.changes.outputs.code == 'true'
-      && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
-    # Run on all PR checks (no longer need push condition since we removed push trigger)
-
-    steps:
-      - uses: actions/checkout@v7
-      - name: Clean Python bytecode cache
-        run: find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-
-
-      - name: Log in to GHCR
-        # Images are mirrored AR->GHCR (mirror-images.yml); pulls from GHCR to
-        # GitHub-hosted runners are free and fast, vs ~$0.35-0.50 of Artifact
-        # Registry egress per multi-GB pull. GITHUB_TOKEN can read packages
-        # pushed by this repo's workflows.
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-
-      - name: Pull base image
-        run: docker pull ghcr.io/localnewsimpact/mizzou-ci-base:latest
-
-      - name: Run mypy (fail on errors) in container
-        run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            ghcr.io/localnewsimpact/mizzou-ci-base:latest \
-            /bin/bash -c "git config --global --add safe.directory /workspace && python -m mypy src/ --ignore-missing-imports"
-
-  security:
-    name: Security Scan (weekly/manual only)
-    runs-on: ubuntu-latest
-    needs: [lint]
-    if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
-
-    steps:
-      - uses: actions/checkout@v7
-      - name: Clean Python bytecode cache
-        run: find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-
-
-      - name: Log in to GHCR
-        # Images are mirrored AR->GHCR (mirror-images.yml); pulls from GHCR to
-        # GitHub-hosted runners are free and fast, vs ~$0.35-0.50 of Artifact
-        # Registry egress per multi-GB pull. GITHUB_TOKEN can read packages
-        # pushed by this repo's workflows.
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-
-      - name: Pull base image
-        run: docker pull ghcr.io/localnewsimpact/mizzou-ci-base:latest
-
-      - name: Run bandit security scan in container
-        run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            ghcr.io/localnewsimpact/mizzou-ci-base:latest \
-            /bin/bash -c "git config --global --add safe.directory /workspace && python -m bandit -r src/ -ll -f txt || true" && \
-          echo "Bandit found issues but not failing build (review recommended)"
-
-      - name: Check dependency vulnerabilities with safety
-        run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            ghcr.io/localnewsimpact/mizzou-ci-base:latest \
-            /bin/bash -c "git config --global --add safe.directory /workspace && python -m safety check --json || true" && \
-          echo "Safety check completed (review recommended)"
-        continue-on-error: true
-
-  unit:
-    name: Unit Tests (fast)
-    runs-on: ubuntu-latest
-    needs: [changes, lint]
-    if: >-
-      needs.changes.outputs.code == 'true'
-      && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
-
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: test_db
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
-    steps:
-      - uses: actions/checkout@v7
-      - name: Clean Python bytecode cache
-        run: find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-
-
-      - name: Log in to GHCR
-        # Images are mirrored AR->GHCR (mirror-images.yml); pulls from GHCR to
-        # GitHub-hosted runners are free and fast, vs ~$0.35-0.50 of Artifact
-        # Registry egress per multi-GB pull. GITHUB_TOKEN can read packages
-        # pushed by this repo's workflows.
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-
-      - name: Pull base image
-        run: docker pull ghcr.io/localnewsimpact/mizzou-ci-base:latest
-
-      # The image is topped up with this commit's requirements before the
-      # tests run (below, in the same docker run). It is built from the
-      # production base and mirrored here, and a pull request never
-      # rebuilds it -- so a change to requirements-base.txt was tested
-      # against an image built from the PREVIOUS version of that file, and
-      # a dependency added or bumped in a PR could not pass CI at all.
-      #
-      # That is what happened twice on 4 September: lnic_contracts was
-      # missing entirely because ci-base was seven weeks old, and then
-      # present at the wrong version because the image predates the bump.
-      # A one-package `pip install google-cloud-firestore` was already in
-      # two of these commands for the same reason, one package at a time.
-      #
-      # Installing the pinned files is a no-op when the image is current
-      # and installs the difference when it is not.
-      - name: Create data directory for tests
-        run: mkdir -p data
-
-      - name: Run migrations in container
-        env:
-          DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/test_db"
-        run: |
-          docker run --rm \
-            --network host \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            -e DATABASE_URL="$DATABASE_URL" \
-            ghcr.io/localnewsimpact/mizzou-ci-base:latest \
-            /bin/bash -c "git config --global --add safe.directory /workspace && alembic upgrade head"
-
-      - name: Run unit tests in container
-        env:
-          DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/test_db"
-          TELEMETRY_DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/test_db"
-          TEST_DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/test_db"
-        run: |
-          docker run --rm \
-            --network host \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            -e DATABASE_URL="$DATABASE_URL" \
-            -e TELEMETRY_DATABASE_URL="$TELEMETRY_DATABASE_URL" \
-            -e TEST_DATABASE_URL="$TEST_DATABASE_URL" \
-            ghcr.io/localnewsimpact/mizzou-ci-base:latest \
-            /bin/bash -c "
-              git config --global --add safe.directory /workspace &&
-              python3 scripts/validate_workflow_templates.py &&
-              pytest -q --override-ini='addopts=' -p no:pytest-cov tests/unit/test_argo_workflow_template.py tests/unit/test_verification_no_head.py
-            "
-
-  argo-quick:
-    name: Quick Workflow Template Checks
-    runs-on: ubuntu-latest
-    needs: [changes, lint]
-    if: >-
-      needs.changes.outputs.code == 'true'
-      && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
-    # Run on PRs to main (removed push condition since we no longer trigger on push)
-
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: test_db
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
-    steps:
-      - uses: actions/checkout@v7
-      - name: Clean Python bytecode cache
-        run: find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-
-
-      - name: Log in to GHCR
-        # Images are mirrored AR->GHCR (mirror-images.yml); pulls from GHCR to
-        # GitHub-hosted runners are free and fast, vs ~$0.35-0.50 of Artifact
-        # Registry egress per multi-GB pull. GITHUB_TOKEN can read packages
-        # pushed by this repo's workflows.
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-
-      - name: Pull base image
-        run: docker pull ghcr.io/localnewsimpact/mizzou-ci-base:latest
-
-      - name: Create data directory for tests
-        run: mkdir -p data
-
-      - name: Run migrations in container
-        env:
-          DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/test_db"
-        run: |
-          docker run --rm \
-            --network host \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            -e DATABASE_URL="$DATABASE_URL" \
-            ghcr.io/localnewsimpact/mizzou-ci-base:latest \
-            /bin/bash -c "git config --global --add safe.directory /workspace && alembic upgrade head"
-
-      - name: Quick validator and targeted tests in container
-        env:
-          DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/test_db"
-          TELEMETRY_DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/test_db"
-          TEST_DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/test_db"
-          PYTEST_ADDOPTS: ""
-        run: |
-          docker run --rm \
-            --network host \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            -e DATABASE_URL="$DATABASE_URL" \
-            -e TELEMETRY_DATABASE_URL="$TELEMETRY_DATABASE_URL" \
-            -e TEST_DATABASE_URL="$TEST_DATABASE_URL" \
-            -e PYTEST_ADDOPTS="$PYTEST_ADDOPTS" \
-            ghcr.io/localnewsimpact/mizzou-ci-base:latest \
-            /bin/bash -c "
-              git config --global --add safe.directory /workspace &&
-              python3 scripts/validate_workflow_templates.py &&
-              pytest -q -c /dev/null -p no:pytest_cov -p no:pytest_postgresql tests/unit/test_argo_workflow_template.py tests/unit/test_verification_no_head.py
-            "
-
-  origin-proxy-only:
-    name: Proxy stack tests (smoke)
-    runs-on: ubuntu-latest
-    needs: [changes, lint]  # Run early in parallel with unit tests
-    if: >-
-      needs.changes.outputs.code == 'true'
-      && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
-    # Run on PRs to main (removed push condition since we no longer trigger on push)
-
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: test_db
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
-    steps:
-      - uses: actions/checkout@v7
-      - name: Clean Python bytecode cache
-        run: find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-
-
-      - name: Log in to GHCR
-        # Images are mirrored AR->GHCR (mirror-images.yml); pulls from GHCR to
-        # GitHub-hosted runners are free and fast, vs ~$0.35-0.50 of Artifact
-        # Registry egress per multi-GB pull. GITHUB_TOKEN can read packages
-        # pushed by this repo's workflows.
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-
-      - name: Pull base image
-        run: docker pull ghcr.io/localnewsimpact/mizzou-ci-base:latest
-
-      - name: Create data directory for tests
-        run: mkdir -p data
-
-      - name: Run migrations in container
-        env:
-          DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/test_db"
-        run: |
-          docker run --rm \
-            --network host \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            -e DATABASE_URL="$DATABASE_URL" \
-            ghcr.io/localnewsimpact/mizzou-ci-base:latest \
-            /bin/bash -c "git config --global --add safe.directory /workspace && alembic upgrade head"
-
-      - name: Run proxy stack smoke tests in container
-        env:
-          DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/test_db"
-          TELEMETRY_DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/test_db"
-          TEST_DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/test_db"
-        run: |
-          docker run --rm \
-            --network host \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            -e DATABASE_URL="$DATABASE_URL" \
-            -e TELEMETRY_DATABASE_URL="$TELEMETRY_DATABASE_URL" \
-            -e TEST_DATABASE_URL="$TEST_DATABASE_URL" \
-            ghcr.io/localnewsimpact/mizzou-ci-base:latest \
-            /bin/bash -c "set -euo pipefail; git config --global --add safe.directory /workspace && pytest -q --maxfail=1 -o addopts= tests/backend/test_lifecycle.py tests/test_deployment_requirements.py"
-
+  # The one suite that needs the Chrome the crawler ships, so it runs in
+  # the crawler image rather than the CI image. After the stages: a PR
+  # that fails lint does not pull a second multi-GB image.
   selenium-headful:
     name: Selenium Headful Regression
     runs-on: ubuntu-latest
-    needs: [changes, unit]
+    needs: [changes, checks]
     if: >-
       needs.changes.outputs.code == 'true'
       && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
-
     steps:
       - uses: actions/checkout@v7
-      - name: Clean Python bytecode cache
-        run: find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-
-
-      - name: Log in to GHCR
-        # Images are mirrored AR->GHCR (mirror-images.yml); pulls from GHCR to
-        # GitHub-hosted runners are free and fast, vs ~$0.35-0.50 of Artifact
-        # Registry egress per multi-GB pull. GITHUB_TOKEN can read packages
-        # pushed by this repo's workflows.
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-
-      - name: Pull crawler image
-        run: docker pull ghcr.io/localnewsimpact/mizzou-crawler:latest
-
-      - name: Run Selenium regression tests (headful-first)
+      - run: make crawler-image
         env:
-          PYTHONWARNINGS: ignore
-        run: |
-          docker run --rm \
-            --user root \
-            --network host \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            ghcr.io/localnewsimpact/mizzou-crawler:latest \
-            /bin/bash -c "
-              set -euo pipefail
-              if ! command -v Xvfb >/dev/null; then
-                export DEBIAN_FRONTEND=noninteractive
-                mkdir -p /var/lib/apt/lists/partial && chmod -R 755 /var/lib/apt/lists
-                apt-get update >/dev/null && apt-get install -y xvfb >/dev/null
-              fi
-              cat <<'WRAPPER' >/usr/local/bin/run-with-xvfb.sh
-              #!/bin/bash
-              set -euo pipefail
-              DISPLAY_ID=":99"
-              XVFB_ARGS="-screen 0 1920x1080x24 -ac +extension GLX +render -noreset"
-              Xvfb "$DISPLAY_ID" $XVFB_ARGS &
-              XVFB_PID=$!
-              trap "kill $XVFB_PID" EXIT
-              DISPLAY=$DISPLAY_ID "$@"
-              WRAPPER
-              chmod +x /usr/local/bin/run-with-xvfb.sh
-              chown -R appuser:appuser /workspace
-              su appuser -c 'export SELENIUM_EXECUTION_MODE=headful && /usr/local/bin/run-with-xvfb.sh pytest -m enable_selenium tests/test_selenium_only_feature.py -vv'
-            "
-
-  postgres-integration:
-    name: Integration Tests (PostgreSQL)
-    runs-on: ubuntu-latest
-    needs: [changes, unit, selenium-headful]
-    if: >-
-      needs.changes.outputs.code == 'true'
-      && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
-    # Run on PRs to main (removed push condition since we no longer trigger on push)
-
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: mizzou_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
-    steps:
-      - uses: actions/checkout@v7
-      - name: Clean Python bytecode cache
-        run: find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-
-
-      - name: Log in to GHCR
-        # Images are mirrored AR->GHCR (mirror-images.yml); pulls from GHCR to
-        # GitHub-hosted runners are free and fast, vs ~$0.35-0.50 of Artifact
-        # Registry egress per multi-GB pull. GITHUB_TOKEN can read packages
-        # pushed by this repo's workflows.
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-
-      - name: Pull base image
-        run: docker pull ghcr.io/localnewsimpact/mizzou-ci-base:latest
-
-      - name: Create data directory for tests
-        run: mkdir -p data
-
-      - name: Run Alembic migrations on test database in container
-        env:
-          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/mizzou_test"
-          DATABASE_ENGINE: "postgresql"
-          DATABASE_HOST: "localhost"
-          DATABASE_PORT: "5432"
-          DATABASE_NAME: "mizzou_test"
-          DATABASE_USER: "postgres"
-          DATABASE_PASSWORD: "postgres"
-        run: |
-          docker run --rm \
-            --network host \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            -e DATABASE_URL="$DATABASE_URL" \
-            -e DATABASE_ENGINE="$DATABASE_ENGINE" \
-            -e DATABASE_HOST="$DATABASE_HOST" \
-            -e DATABASE_PORT="$DATABASE_PORT" \
-            -e DATABASE_NAME="$DATABASE_NAME" \
-            -e DATABASE_USER="$DATABASE_USER" \
-            -e DATABASE_PASSWORD="$DATABASE_PASSWORD" \
-            ghcr.io/localnewsimpact/mizzou-ci-base:latest \
-            /bin/bash -c "git config --global --add safe.directory /workspace && alembic upgrade head"
-
-      - name: Run all integration tests with PostgreSQL in container
-        env:
-          PYTEST_KEEP_DB_ENV: "true"
-          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/mizzou_test"
-          TELEMETRY_DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/mizzou_test"
-          TEST_DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/mizzou_test"
-          DATABASE_ENGINE: "postgresql"
-          DATABASE_HOST: "localhost"
-          DATABASE_PORT: "5432"
-          DATABASE_NAME: "mizzou_test"
-          DATABASE_USER: "postgres"
-          DATABASE_PASSWORD: "postgres"
-        run: |
-          docker run --rm \
-            --network host \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            -e PYTEST_KEEP_DB_ENV="$PYTEST_KEEP_DB_ENV" \
-            -e DATABASE_URL="$DATABASE_URL" \
-            -e TELEMETRY_DATABASE_URL="$TELEMETRY_DATABASE_URL" \
-            -e TEST_DATABASE_URL="$TEST_DATABASE_URL" \
-            -e DATABASE_ENGINE="$DATABASE_ENGINE" \
-            -e DATABASE_HOST="$DATABASE_HOST" \
-            -e DATABASE_PORT="$DATABASE_PORT" \
-            -e DATABASE_NAME="$DATABASE_NAME" \
-            -e DATABASE_USER="$DATABASE_USER" \
-            -e DATABASE_PASSWORD="$DATABASE_PASSWORD" \
-            ghcr.io/localnewsimpact/mizzou-ci-base:latest \
-            /bin/bash -c "git config --global --add safe.directory /workspace && pip install -q -r requirements-base.txt -r requirements-dev.txt && pytest -v -m 'integration and not docker and not local_scripts and not proxy' --tb=short --no-cov"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: make test-selenium
 
   firestore-integration:
     name: Integration Tests (Firestore)
     runs-on: ubuntu-latest
-    needs: [changes, unit, selenium-headful]
+    needs: [changes, checks]
     if: >-
       needs.changes.outputs.code == 'true'
       && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
-
     services:
       firestore:
         image: mtlynch/firestore-emulator-docker
@@ -730,205 +254,41 @@ jobs:
           FIRESTORE_PROJECT_ID: mizzou-news-crawler-test
         ports:
           - 8080:8080
-
-    steps:
-      - uses: actions/checkout@v7
-      - name: Clean Python bytecode cache
-        run: find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-
-      - name: Log in to GHCR
-        # Images are mirrored AR->GHCR (mirror-images.yml); pulls from GHCR to
-        # GitHub-hosted runners are free and fast, vs ~$0.35-0.50 of Artifact
-        # Registry egress per multi-GB pull. GITHUB_TOKEN can read packages
-        # pushed by this repo's workflows.
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-
-      - name: Pull base image
-        run: docker pull ghcr.io/localnewsimpact/mizzou-ci-base:latest
-
-      - name: Wait for Firestore emulator
-        run: |
-          for i in $(seq 1 30); do
-            curl -sf http://localhost:8080 >/dev/null 2>&1 && exit 0
-            sleep 1
-          done
-          echo "Firestore emulator never became ready" >&2
-          exit 1
-
-      # The inline `pip install google-cloud-firestore` bridges the prebuilt-
-      # image gap: PR CI runs inside mizzou-ci-base, which only picks up the
-      # requirements-base.txt addition when it's rebuilt post-merge. Once a
-      # rebuilt ci-base ships with the package, the install is a ~2s no-op and
-      # can be removed. (Same bridge in the integration job below.)
-      - name: Run Firestore proxy router integration tests
-        env:
-          FIRESTORE_EMULATOR_HOST: "localhost:8080"
-          GOOGLE_CLOUD_PROJECT: "mizzou-news-crawler-test"
-        run: |
-          docker run --rm \
-            --network host \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            -e FIRESTORE_EMULATOR_HOST="$FIRESTORE_EMULATOR_HOST" \
-            -e GOOGLE_CLOUD_PROJECT="$GOOGLE_CLOUD_PROJECT" \
-            ghcr.io/localnewsimpact/mizzou-ci-base:latest \
-            /bin/bash -c "git config --global --add safe.directory /workspace && pip install -q -r requirements-base.txt -r requirements-dev.txt && pytest -v -m 'integration and proxy' --tb=short --no-cov"
-
-  integration:
-    name: Integration & Coverage
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    needs: [changes, unit, selenium-headful]
-    if: >-
-      needs.changes.outputs.code == 'true'
-      && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
-    # Run on PRs to main (removed push condition since we no longer trigger on push)
-    # Note: This job runs coverage on non-PostgreSQL tests
-    # PostgreSQL-specific tests run in the postgres-integration job
-
-    steps:
-      - uses: actions/checkout@v7
-      - name: Clean Python bytecode cache
-        run: find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-
-
-      - name: Log in to GHCR
-        # Images are mirrored AR->GHCR (mirror-images.yml); pulls from GHCR to
-        # GitHub-hosted runners are free and fast, vs ~$0.35-0.50 of Artifact
-        # Registry egress per multi-GB pull. GITHUB_TOKEN can read packages
-        # pushed by this repo's workflows.
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-
-      - name: Pull base image
-        run: docker pull ghcr.io/localnewsimpact/mizzou-ci-base:latest
-
-      - name: Create data directory for tests
-        run: mkdir -p data
-
-      - name: Run tests with coverage (excludes PostgreSQL-specific and local dev tests)
-        run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            ghcr.io/localnewsimpact/mizzou-ci-base:latest \
-            /bin/bash -c "git config --global --add safe.directory /workspace && pip install -q -r requirements-base.txt -r requirements-dev.txt && pytest -m 'not postgres and not docker and not local_scripts' --cov=src --cov-report=xml --cov-report=html --cov-report=term-missing --cov-fail-under=78"
-
-      - name: Generate coverage summary
-        if: success()
-        run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            ghcr.io/localnewsimpact/mizzou-ci-base:latest \
-            /bin/bash -c "git config --global --add safe.directory /workspace && python tools/generate_coverage_summary.py coverage.xml coverage-summary.md"
-
-  quick-checks-integration:
-    name: Quick DB Integration (resync migration)
-    runs-on: ubuntu-latest
-    needs: [unit, selenium-headful]
-    # Only run on manual dispatch to main branch (requires TEST_DATABASE_URL secret)
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
-
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: mizzou_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
+    # With the emulator announced, the Makefile runs the suite against it
+    # rather than starting one of its own; the script waits for it.
     env:
-      TEST_DATABASE_URL: "${{ secrets.TEST_DATABASE_URL }}"
-
+      FIRESTORE_EMULATOR_HOST: localhost:8080
+      GOOGLE_CLOUD_PROJECT: mizzou-news-crawler-test
     steps:
       - uses: actions/checkout@v7
-      - name: Clean Python bytecode cache
-        run: find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-
-
-      - name: Log in to GHCR
-        # Images are mirrored AR->GHCR (mirror-images.yml); pulls from GHCR to
-        # GitHub-hosted runners are free and fast, vs ~$0.35-0.50 of Artifact
-        # Registry egress per multi-GB pull. GITHUB_TOKEN can read packages
-        # pushed by this repo's workflows.
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-
-      - name: Pull base image
-        run: docker pull ghcr.io/localnewsimpact/mizzou-ci-base:latest
-
-      - name: Wait for Postgres
-        run: |
-          for i in {1..30}; do
-            docker run --rm --network host postgres:15 pg_isready -h 172.17.0.1 -p 5432 && break || sleep 1
-          done
-
-      - name: Run resync migration test (capture logs) in container
+      - run: make ci-image
         env:
-          TEST_DATABASE_URL: "${{ env.TEST_DATABASE_URL }}"
-          DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/mizzou_test"
-          DATABASE_ENGINE: "postgresql"
-          DATABASE_HOST: "172.17.0.1"
-          DATABASE_PORT: "5432"
-          DATABASE_NAME: "mizzou_test"
-          DATABASE_USER: "postgres"
-          DATABASE_PASSWORD: "postgres"
-        run: |
-          set -o pipefail
-          mkdir -p ci-logs
-          docker run --rm \
-            --network host \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            -e TEST_DATABASE_URL="$TEST_DATABASE_URL" \
-            -e DATABASE_URL="$DATABASE_URL" \
-            -e DATABASE_ENGINE="$DATABASE_ENGINE" \
-            -e DATABASE_HOST="$DATABASE_HOST" \
-            -e DATABASE_PORT="$DATABASE_PORT" \
-            -e DATABASE_NAME="$DATABASE_NAME" \
-            -e DATABASE_USER="$DATABASE_USER" \
-            -e DATABASE_PASSWORD="$DATABASE_PASSWORD" \
-            ghcr.io/localnewsimpact/mizzou-ci-base:latest \
-            /bin/bash -c "git config --global --add safe.directory /workspace && pytest -vv tests/alembic/test_resync_sequence_postgres.py -c /dev/null" 2>&1 | tee ci-logs/resync-test.log
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: make test-firestore
 
-      - name: Upload logs on failure
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: resync-test-logs
-          path: ci-logs/
-          if-no-files-found: warn
-
-      - name: Upload coverage artifacts
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: coverage-py311
-          path: |
-            coverage.xml
-            coverage-summary.md
-            htmlcov/
-          if-no-files-found: warn
-
+  security:
+    name: Security Scan (weekly/manual only)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v7
+      - run: make ci-image
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Advisory: bandit and safety report, the target does not fail.
+      - run: make security
 
   stress:
     name: Stress Concurrency Tests (scheduled/manual only)
     runs-on: ubuntu-latest
-    if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
-
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     services:
       postgres:
-        image: postgres:15
+        image: postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: test_db
+          POSTGRES_DB: stress
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -936,49 +296,17 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
-
+    # Announced the way python-checks.yml announces its service, so the
+    # Makefile's one database rule serves both.
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: stress
     steps:
       - uses: actions/checkout@v7
-      - name: Clean Python bytecode cache
-        run: find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-
-
-      - name: Log in to GHCR
-        # Images are mirrored AR->GHCR (mirror-images.yml); pulls from GHCR to
-        # GitHub-hosted runners are free and fast, vs ~$0.35-0.50 of Artifact
-        # Registry egress per multi-GB pull. GITHUB_TOKEN can read packages
-        # pushed by this repo's workflows.
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-
-      - name: Pull base image
-        run: docker pull ghcr.io/localnewsimpact/mizzou-ci-base:latest
-
-      - name: Run migrations in container
+      - run: make ci-image
         env:
-          DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/test_db"
-        run: |
-          docker run --rm \
-            --network host \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            -e DATABASE_URL="$DATABASE_URL" \
-            ghcr.io/localnewsimpact/mizzou-ci-base:latest \
-            /bin/bash -c "git config --global --add safe.directory /workspace && alembic upgrade head"
-
-      - name: Run stress tests with RUN_STRESS_TESTS=1 in container
-        env:
-          DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/test_db"
-          TELEMETRY_DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/test_db"
-          TEST_DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/test_db"
-          RUN_STRESS_TESTS: '1'
-        run: |
-          docker run --rm \
-            --network host \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            -e DATABASE_URL="$DATABASE_URL" \
-            -e TELEMETRY_DATABASE_URL="$TELEMETRY_DATABASE_URL" \
-            -e TEST_DATABASE_URL="$TEST_DATABASE_URL" \
-            -e RUN_STRESS_TESTS="$RUN_STRESS_TESTS" \
-            ghcr.io/localnewsimpact/mizzou-ci-base:latest \
-            /bin/bash -c "git config --global --add safe.directory /workspace && pytest --override-ini addopts='-q' tests/test_versioning_concurrent_stress.py"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: make stress

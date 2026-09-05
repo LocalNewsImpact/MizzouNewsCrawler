@@ -106,13 +106,12 @@ def test_the_hook_resolves_its_environment_in_a_fresh_checkout(tmp_path):
     hook_path.write_text(_hook_body())
     hook_path.chmod(0o755)
 
-    # Stop at the first heavy step; reaching it is what is being asserted.
+    # Stop at the heavy step; reaching it is what is being asserted. The
+    # step is `make check`, which is every stage CI runs.
     marker = "PREPUSH_REACHED_FIRST_STEP"
-    body = hook_path.read_text().replace(
-        "python -m ruff check .",
-        f'echo "{marker}"; exit 0; python -m ruff check .',
-        1,
-    )
+    step = 'make VENV="$VENV_DIR" check'
+    assert step in hook_path.read_text(), "the hook no longer runs make check"
+    body = hook_path.read_text().replace(step, f'echo "{marker}"; exit 0; {step}', 1)
     hook_path.write_text(body)
 
     result = subprocess.run(
@@ -131,6 +130,7 @@ def test_the_hook_resolves_its_environment_in_a_fresh_checkout(tmp_path):
     assert "/.venv" not in combined, (
         "the hook resolved a path from an unset variable:\n" + combined
     )
-    assert marker in combined or result.returncode == 0, (
-        "the hook did not reach its first step:\n" + combined
-    )
+    # The marker, not a zero exit: the docs-only skip also exits 0, and
+    # in a scratch repository with no history it used to fire on every
+    # run, so this assertion passed without the hook resolving anything.
+    assert marker in combined, "the hook did not reach make check:\n" + combined

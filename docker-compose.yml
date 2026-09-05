@@ -1,7 +1,6 @@
 # Docker Compose for local development
 # Simulates the production Kubernetes environment
 
-version: '3.8'
 
 services:
   # Shared base image (build once, use for all services)

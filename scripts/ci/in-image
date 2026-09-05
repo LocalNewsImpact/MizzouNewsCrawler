@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Run one CI stage inside the CI image, the way GitHub Actions does.
+#
+# `make <stage>` runs the stage's script on whatever python is on PATH --
+# the virtualenv, here. With IN_IMAGE set (which GITHUB_ACTIONS sets) the
+# Makefile runs the same script through this wrapper instead: in
+# ghcr.io/localnewsimpact/mizzou-ci-base, with the checkout mounted at
+# /workspace. The stage's commands are one string either way; only the
+# thing around them differs.
+#
+# Two things the image needs before any stage can start, once, rather
+# than in every job of the workflow as they used to be:
+#
+#   - git refuses to read a repository owned by another uid unless told
+#     it is safe. The mount is owned by the runner; the image runs as root.
+#   - the image is built from the production base and mirrored, never
+#     rebuilt by a pull request, so it holds what the LAST merge pinned.
+#     Installing what THIS commit pins is a no-op when the image is current
+#     and the difference when it is not (f12a478d: a dependency added in a
+#     pull request could not pass CI at all).
+set -euo pipefail
+git config --global --add safe.directory /workspace
+pip install -q -r requirements-base.txt -r requirements-dev.txt
+exec "$@"

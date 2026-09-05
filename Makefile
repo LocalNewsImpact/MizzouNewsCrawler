@@ -1,256 +1,290 @@
-.PHONY: help coverage lint format security type-check test-full test-migrations test-alembic ci-check test-parallel test-quick test-ci test-unit test-integration test-postgres test-production-readiness
+# MizzouNewsCrawler -- the suite's shared CI pattern, run here and in CI.
+#
+# Four stages, each a make target, run by the same script whether you type
+# `make check` or GitHub Actions calls lnic-contracts' python-checks.yml:
+#
+#   lint              ruff, black, isort, the Argo template, the k8s manifest
+#   typecheck         mypy, blocking
+#   test              the coverage suite, on SQLite, fail-under 78
+#   test-integration  the tests marked integration, against Postgres
+#
+# Locally the stage scripts (scripts/ci/) run on the virtualenv. In CI --
+# GITHUB_ACTIONS is set, so IN_IMAGE is -- they run inside the CI image,
+# the production base plus test tooling, through scripts/ci/in-image. Set
+# IN_IMAGE=1 to do that here; on Apple silicon the image is amd64 under
+# emulation, so expect it to be slow.
+#
+# The other suites are what they were as CI jobs, each now a target the
+# workflow calls: test-selenium, test-firestore, security, stress.
+#
+# The pattern itself is documented in lnic-contracts' docs/shared-ci.md;
+# how this repository arrived at it in docs/BUILD_AND_CI_ARCHITECTURE.md.
 
+SHELL := /bin/bash
+.SHELLFLAGS := -eo pipefail -c
 .DEFAULT_GOAL := help
+
+# The virtualenv. Overridable so the pre-push hook can run `make check` in
+# a clean worktree of the commit being pushed with the primary checkout's
+# virtualenv, which is the only one there is.
+VENV ?= $(CURDIR)/.venv
+# Resolved before the venv goes on PATH: the interpreter that CREATES the
+# venv must be the machine's 3.11, the version the CI image runs.
+PYTHON ?= $(shell command -v python3.11 || command -v python3)
+export PATH := $(VENV)/bin:$(PATH)
+
+CI_IMAGE      ?= ghcr.io/localnewsimpact/mizzou-ci-base:latest
+CRAWLER_IMAGE ?= ghcr.io/localnewsimpact/mizzou-crawler:latest
+IN_IMAGE      ?= $(GITHUB_ACTIONS)
+
+# Every clone of this repository must talk to the SAME compose project.
+# Compose names the project after the directory, so a worktree or a second
+# clone gets its own -- and because docker-compose.yml pins
+# container_name: mizzou-postgres, that project can neither start a
+# Postgres of its own (the name is taken) nor exec into the running one
+# (it belongs to another project).
+export COMPOSE_PROJECT_NAME ?= mizzounewscrawler
+
+# Everything a stage reads from its environment, forwarded into the image
+# when set. `-e NAME` with no value copies the host's; a name that is
+# unset here is not set in the container either.
+FORWARD := $(addprefix -e ,CI GITHUB_ACTIONS PYTHONWARNINGS PYTEST_KEEP_DB_ENV \
+    DATABASE_URL TEST_DATABASE_URL TELEMETRY_DATABASE_URL DATABASE_ENGINE \
+    DATABASE_HOST DATABASE_PORT DATABASE_NAME DATABASE_USER DATABASE_PASSWORD \
+    USE_CLOUD_SQL_CONNECTOR FIRESTORE_EMULATOR_HOST GOOGLE_CLOUD_PROJECT)
+
+# --network host: the CI service containers publish to the runner's
+# loopback, and so does the compose Postgres here.
+ifneq ($(IN_IMAGE),)
+RUN := docker run --rm --network host -v $(CURDIR):/workspace -w /workspace \
+    $(FORWARD) $(CI_IMAGE) scripts/ci/in-image
+else
+RUN :=
+endif
+
+.PHONY: help setup .venv ci-image crawler-image lint typecheck test test-integration \
+    test-db check format test-selenium test-firestore firestore-emulator \
+    security stress test-file test-migrations test-alembic test-docker \
+    test-docker-work-queue test-docker-proxy test-docker-all \
+    test-production-readiness
 
 help:
 	@echo ""
-	@echo "📦 MizzouNewsCrawler - Available Make Targets"
-	@echo "=============================================="
+	@echo "MizzouNewsCrawler"
 	@echo ""
-	@echo "🧪 Testing (Run before pushing!)"
-	@echo "  make test-ci                   - Run full CI suite (Unit + Integration + PostgreSQL)"
-	@echo "  make test-production-readiness - 🐳 Run Docker-based production tests (CRITICAL!)"
-	@echo "  make test-unit                 - Run unit tests only (fast)"
-	@echo "  make test-integration          - Run integration tests with SQLite"
-	@echo "  make test-postgres             - Run PostgreSQL integration tests"
-	@echo "  make test-all-ci               - Run all test suites sequentially"
+	@echo "  make setup             virtualenv + the pre-push hook (once)"
+	@echo "  make check             what CI runs: lint typecheck test test-integration"
 	@echo ""
-	@echo "🔍 Code Quality"
-	@echo "  make lint             - Check code style (ruff, black, isort, mypy)"
-	@echo "  make format           - Auto-format code (black, isort, ruff --fix)"
-	@echo "  make security         - Run security scans (bandit, safety)"
-	@echo "  make type-check       - Run mypy type checker"
+	@echo "  make lint              ruff, black, isort, Argo template, k8s manifest"
+	@echo "  make typecheck         mypy (blocking)"
+	@echo "  make test              coverage suite on SQLite, fail-under 78"
+	@echo "  make test-integration  integration tests against Postgres (compose, or PGHOST)"
+	@echo "  make format            black, isort, ruff --fix"
 	@echo ""
-	@echo "📊 Coverage & Legacy"
-	@echo "  make coverage         - Run tests with coverage report"
-	@echo "  make test-full        - Full test suite with coverage"
-	@echo "  make test-migrations  - Test Alembic migrations"
-	@echo "  make ci-check         - Run all CI checks locally"
+	@echo "  make test-selenium     headful Selenium regression, in the crawler image"
+	@echo "  make test-firestore    proxy-router tests against a Firestore emulator"
+	@echo "  make security          bandit + safety (advisory)"
+	@echo "  make stress            versioning concurrency tests (weekly in CI)"
 	@echo ""
-	@echo "⚡ Recommended workflow:"
-	@echo "  1. make format        - Format your code"
-	@echo "  2. make lint          - Check for issues"
-	@echo "  3. make test-ci       - Run full CI test suite"
-	@echo "  4. git push           - Push with confidence!"
+	@echo "  make test-file FILE=tests/x.py [ARGS='-k name']"
+	@echo "  make test-migrations   tests/alembic/"
+	@echo "  make test-docker-all   the docker-marked suites (real containers)"
+	@echo ""
+	@echo "  IN_IMAGE=1 make <stage>   run a stage inside the CI image, as CI does"
 	@echo ""
 
-# ========================================
-# Local CI Test Runners
-# ========================================
-# These match GitHub Actions CI behavior exactly.
-# Run 'make test-ci' before pushing to catch issues early!
+# ---- environment -----------------------------------------------------------
 
-test-ci:
-	@echo "🚀 Running FULL CI test suite (Unit + Integration + PostgreSQL)"
-	@echo "   This matches GitHub Actions CI exactly:"
-	@echo "   1. Unit + Integration tests (-m 'not postgres') with coverage"
-	@echo "   2. PostgreSQL integration tests (-m integration)"
-	@echo ""
-	./scripts/pre-deploy-validation.sh all --docker-ci
+# The virtualenv holds what Dockerfile.ci-base installs, so a test that
+# passes here passes there for the same reason. torch from the CPU
+# index: the default wheel on Linux carries 2.7 GB of CUDA the tests
+# never use.
+#
+# It is kept in step with the pins by a stamp named after the CONTENT of
+# the requirements files, and every local stage depends on the stamp. A
+# pin bump therefore reinstalls once, on the next `make` of anything,
+# and lint can no longer run a ruff two releases behind the one CI runs
+# -- which it was, on 2026-09-04, on a machine whose venv had been made
+# by hand and never remade. Content rather than mtime because the hook
+# runs the stages in a fresh worktree, where every file is new.
+REQS := requirements-base.txt requirements-dev.txt requirements-crawler.txt \
+        requirements-processor.txt requirements-api.txt requirements-ml.txt
+REQS_SHA := $(shell cat $(REQS) | shasum -a 256 | cut -c1-16)
+VENV_STAMP := $(VENV)/.requirements-$(REQS_SHA)
 
-test-unit:
-	@echo "⚡ Running unit tests only (fast, no database)"
-	@echo "   Tests marked with: -m 'not integration and not postgres and not slow'"
-	@echo ""
-	PYTEST_K="not integration and not postgres and not slow" ./scripts/pre-deploy-validation.sh all --sqlite-only
+$(VENV_STAMP):
+	[ -x $(VENV)/bin/python ] || $(PYTHON) -m venv $(VENV)
+	$(VENV)/bin/pip install -q --upgrade pip
+	$(VENV)/bin/pip install -q --extra-index-url https://download.pytorch.org/whl/cpu \
+	    $(addprefix -r ,$(REQS))
+	rm -f $(VENV)/.requirements-*
+	touch $@
 
-test-integration:
-	@echo "🔧 Running integration tests with SQLite"
-	@echo "   Tests marked with: -m 'not postgres'"
-	@echo ""
-	./scripts/pre-deploy-validation.sh all --sqlite-only
+.venv: $(VENV_STAMP)
 
-test-postgres:
-	@echo "🐘 Running PostgreSQL integration tests only"
-	@echo "   Tests marked with: -m integration"
-	@echo "   Requires PostgreSQL at localhost:5432"
-	@echo ""
-	./scripts/pre-deploy-validation.sh all --docker-ci --postgres-only
+setup: .venv
+	scripts/setup-hooks.sh
 
-test-all-ci:
-	@echo "🔄 Running ALL test suites sequentially"
-	@echo "   Runs: unit → integration (SQLite) → postgres"
-	@echo ""
-	./scripts/pre-deploy-validation.sh all --docker-ci
+# Inside the image the tooling is the image's (topped up by
+# scripts/ci/in-image to the commit's pins); on a machine it is the venv.
+ifneq ($(IN_IMAGE),)
+STAGE_DEPS :=
+else
+STAGE_DEPS := $(VENV_STAMP)
+endif
 
-test-production-readiness:
-	@echo "🐳 Running production readiness tests in Docker containers"
-	@echo "   These tests use REAL containers, not mocks"
-	@echo "   WOULD HAVE CAUGHT the January 2, 2026 production failure"
-	@echo ""
-	@echo "Starting Docker containers..."
-	docker-compose up -d postgres
-	@sleep 5
-	@echo ""
-	@echo "Running tests that verify:"
-	@echo "  ✓ Container imports work (PYTHONPATH)"
-	@echo "  ✓ ChromeDriver actually launches"
-	@echo "  ✓ Extraction method logic is correct"
-	@echo "  ✓ End-to-end extraction works"
-	@echo ""
-	python -m pytest tests/test_production_readiness.py -v -m docker --tb=short
-	@echo ""
-	@echo "Stopping containers..."
-	docker-compose down
+# The `install` input of python-checks.yml. The image is a private GHCR
+# package; the caller grants packages: read and the workflow puts
+# GITHUB_TOKEN in this step's environment. Off CI, `gh auth token`.
+ci-image:
+	@echo "$${GITHUB_TOKEN:-$$(gh auth token)}" | docker login ghcr.io \
+	    -u "$${GITHUB_ACTOR:-$$USER}" --password-stdin
+	docker pull $(CI_IMAGE)
 
-coverage:
-	python -m pytest --cov=src --cov-report=term-missing --cov-fail-under=45
+crawler-image:
+	@echo "$${GITHUB_TOKEN:-$$(gh auth token)}" | docker login ghcr.io \
+	    -u "$${GITHUB_ACTOR:-$$USER}" --password-stdin
+	docker pull $(CRAWLER_IMAGE)
 
-lint:
-	@echo "Running Ruff..."
-	ruff check .
-	@echo "Checking Black formatting..."
-	black --check src/ tests/ web/
-	@echo "Checking import sorting..."
-	isort --check-only --profile black src/ tests/ web/
-	@echo "Running mypy type checker (advisory only)..."
-	-mypy src/ --ignore-missing-imports
+# ---- the four stages -------------------------------------------------------
+
+lint: $(STAGE_DEPS)
+	$(RUN) scripts/ci/lint.sh
+
+typecheck: $(STAGE_DEPS)
+	$(RUN) scripts/ci/typecheck.sh
+
+test: $(STAGE_DEPS)
+	$(RUN) scripts/ci/test.sh
+
+# The database. In CI python-checks.yml announces its service Postgres as
+# PGHOST and friends, already empty. Here there is none of that, so the
+# compose Postgres is started and a throwaway database created on it:
+# `alembic upgrade` is not idempotent against a schema that is already
+# there, and one name shared by every checkout meant two pushes
+# destroying each other's database mid-run. The name carries make's pid.
+ifdef PGHOST
+IT_HOST := $(PGHOST)
+IT_PORT := $(PGPORT)
+IT_USER := $(PGUSER)
+IT_PASS := $(PGPASSWORD)
+IT_DB   := $(PGDATABASE)
+else
+IT_HOST := 127.0.0.1
+IT_PORT := 5432
+IT_USER := mizzou_user
+IT_PASS := mizzou_pass
+IT_DB   ?= mizzou_it_$(shell sh -c 'echo $$PPID')
+endif
+IT_URL := postgresql://$(IT_USER):$(IT_PASS)@$(IT_HOST):$(IT_PORT)/$(IT_DB)
+
+# All the names, because some of these tests read the URL and some read
+# the parts, and a run that sets one silently skips the other half.
+test-integration stress: export PYTEST_KEEP_DB_ENV := true
+test-integration stress: export DATABASE_URL := $(IT_URL)
+test-integration stress: export TEST_DATABASE_URL := $(IT_URL)
+test-integration stress: export TELEMETRY_DATABASE_URL := $(IT_URL)
+test-integration stress: export DATABASE_ENGINE := postgresql
+test-integration stress: export DATABASE_HOST := $(IT_HOST)
+test-integration stress: export DATABASE_PORT := $(IT_PORT)
+test-integration stress: export DATABASE_NAME := $(IT_DB)
+test-integration stress: export DATABASE_USER := $(IT_USER)
+test-integration stress: export DATABASE_PASSWORD := $(IT_PASS)
+test-integration stress: export USE_CLOUD_SQL_CONNECTOR := false
+
+DROP_IT_DB := docker compose exec -T postgres dropdb -U $(IT_USER) --if-exists $(IT_DB)
+
+ifdef PGHOST
+test-integration: $(STAGE_DEPS)
+	$(RUN) scripts/ci/test-integration.sh
+
+stress: $(STAGE_DEPS)
+	$(RUN) scripts/ci/stress.sh
+else
+test-db:
+	docker compose up -d --wait postgres
+	$(DROP_IT_DB)
+	docker compose exec -T postgres createdb -U $(IT_USER) $(IT_DB)
+
+# The trap drops the database on any exit, a failed suite included.
+test-integration: $(STAGE_DEPS) test-db
+	trap '$(DROP_IT_DB) >/dev/null' EXIT; $(RUN) scripts/ci/test-integration.sh
+
+stress: $(STAGE_DEPS) test-db
+	trap '$(DROP_IT_DB) >/dev/null' EXIT; $(RUN) scripts/ci/stress.sh
+endif
+
+check: lint typecheck test test-integration
 
 format:
-	@echo "Formatting with Black..."
 	black src/ tests/ web/
-	@echo "Sorting imports with isort..."
 	isort --profile black src/ tests/ web/
-	@echo "Auto-fixing with Ruff..."
 	ruff check --fix .
 
-security:
-	@echo "Running Bandit security scan..."
-	bandit -r src/ -ll
-	@echo "Checking dependencies with Safety..."
-	-safety check
+# ---- the other suites ------------------------------------------------------
 
-type-check:
-	@echo "Running mypy type checker..."
-	-mypy src/ --ignore-missing-imports
+# Always in the crawler image: it is the one suite that needs the Chrome
+# the crawler ships. Root, because the script installs Xvfb if the image
+# lacks it and then drops to appuser.
+test-selenium: export PYTHONWARNINGS := ignore
+test-selenium:
+	docker run --rm --user root --network host -v $(CURDIR):/workspace -w /workspace \
+	    -e PYTHONWARNINGS $(CRAWLER_IMAGE) scripts/ci/test-selenium.sh
 
-test-full:
-	python -m pytest --cov=src --cov-report=html --cov-report=term-missing --cov-fail-under=70
+FIRESTORE_PROJECT ?= mizzou-news-crawler-test
+test-firestore: export GOOGLE_CLOUD_PROJECT := $(FIRESTORE_PROJECT)
+ifdef FIRESTORE_EMULATOR_HOST
+test-firestore: $(STAGE_DEPS)
+	$(RUN) scripts/ci/test-firestore.sh
+else
+test-firestore: export FIRESTORE_EMULATOR_HOST := 127.0.0.1:8080
+test-firestore: $(STAGE_DEPS) firestore-emulator
+	trap 'docker rm -f mizzou-firestore-emulator >/dev/null' EXIT; $(RUN) scripts/ci/test-firestore.sh
 
-test-migrations:
-	@echo "=== Running Alembic migration tests ==="
-	python -m pytest tests/alembic/ -v
+firestore-emulator:
+	docker run -d --rm --name mizzou-firestore-emulator -p 8080:8080 \
+	    -e FIRESTORE_PROJECT_ID=$(FIRESTORE_PROJECT) mtlynch/firestore-emulator-docker
+endif
 
-test-alembic: test-migrations
-	@echo "Alias for test-migrations"
+security: $(STAGE_DEPS)
+	$(RUN) scripts/ci/security.sh
 
-ci-check:
-	@echo "=== Running all CI checks locally ==="
-	@echo "1. Linting..."
-	ruff check .
-	black --check src/ tests/ web/
-	isort --check-only --profile black src/ tests/ web/
-	-mypy src/ --ignore-missing-imports
-	@echo "2. Deployment YAML validation..."
-	@if ! grep -q 'value: "/app:' k8s/processor-deployment.yaml; then \
-		echo "❌ PYTHONPATH does not include /app!"; \
-		exit 1; \
-	fi
-	@if grep -q 'image:.*:latest' k8s/processor-deployment.yaml; then \
-		echo "❌ Deployment uses image:latest!"; \
-		exit 1; \
-	fi
-	@echo "✅ Deployment YAML validation passed"
-	@echo "3. Tests with coverage..."
-	python -m pytest --cov=src --cov-report=term-missing --cov-fail-under=78
+# ---- by hand ---------------------------------------------------------------
 
-	@echo "=== All CI checks passed! ==="
-
-test-parallel:
-	@echo "=== Running parallel processing tests only ==="
-	python -m pytest -m parallel -v --tb=short
-
-test-quick:
-	@echo "=== Running quick test subset (no slow/postgres) ==="
-	python -m pytest -m "not slow and not postgres" -v --maxfail=5 --tb=short --no-cov
-
-# Run specific test file or pattern quickly
-# Usage: make test-file FILE=tests/services/test_classification_service_unit.py
-# Usage: make test-file FILE="tests/test_*.py" ARGS="-k batch"
+# Usage: make test-file FILE=tests/services/test_x.py [ARGS='-k batch -v']
 test-file:
 	@if [ -z "$(FILE)" ]; then \
-		echo "Usage: make test-file FILE=<path> [ARGS='-k filter']"; \
-		echo "Example: make test-file FILE=tests/services/test_classification_service_unit.py"; \
-		echo "Example: make test-file FILE='tests/test_*.py' ARGS='-k batch -v'"; \
-		exit 1; \
+	    echo "Usage: make test-file FILE=<path> [ARGS='-k filter']"; \
+	    exit 1; \
 	fi
 	python -m pytest $(FILE) $(ARGS) -v --tb=short --no-cov --maxfail=3
 
-# Run Docker-based production readiness tests
-# These verify the code works in production containers with real Chrome/ChromeDriver
+test-migrations:
+	python -m pytest tests/alembic/ -v
+
+test-alembic: test-migrations
+
+# The docker-marked suites use real containers rather than mocks: they
+# verify imports, ChromeDriver and extraction inside the production images.
 test-docker:
-	@echo "🐳 Running Docker-based production readiness tests"
 	./scripts/test-production-readiness.sh
 
-.PHONY: test-docker-work-queue
-test-docker-work-queue:  ## Run Docker-based work queue integration tests
-	@echo "Running work queue integration tests in Docker..."
-	docker-compose up -d postgres
-	sleep 5
+test-docker-work-queue:
+	docker compose up -d --wait postgres
 	python -m pytest tests/docker/test_work_queue_integration.py -v -m docker --tb=short --no-cov
-	docker-compose down
+	docker compose down
 
-.PHONY: test-docker-proxy
-test-docker-proxy:  ## Run Docker-based proxy routing tests
-	@echo "Running proxy routing tests in Docker..."
-	docker-compose up -d postgres
-	sleep 5
+test-docker-proxy:
+	docker compose up -d --wait postgres
 	python -m pytest tests/docker/test_proxy_routing.py -v -m docker --tb=short --no-cov
-	docker-compose down
+	docker compose down
 
-.PHONY: test-docker-all
-test-docker-all:  ## Run all Docker-based integration tests
-	@echo "Running all Docker integration tests..."
-	docker-compose up -d postgres
-	sleep 5
+test-docker-all:
+	docker compose up -d --wait postgres
 	python -m pytest tests/docker/ -v -m docker --tb=short --no-cov
-	docker-compose down
+	docker compose down
 
-# Comprehensive pre-deployment validation (includes Docker tests)
-test-production-ready:
-	@echo "🚀 COMPREHENSIVE PRE-DEPLOYMENT VALIDATION"
-	@echo "=========================================="
-	@echo ""
-	@echo "Running full test suite + Docker production readiness tests..."
-	@echo ""
-	make test-ci
-	@echo ""
-	@echo "Now running Docker-based production readiness tests..."
-	@echo ""
-	make test-docker
-	@echo ""
-	@echo "✅ ALL TESTS PASSED - Ready for production deployment!"
-
-# The `Integration Tests (PostgreSQL)` CI job, runnable here.
-#
-# The marker expression is copied from .github/workflows/ci.yml so this
-# selects the same tests. If they diverge, this stops being the gate it
-# claims to be.
-#
-# They could always run locally -- Postgres is in Docker -- and nothing
-# said how, so everybody improvised and got a different answer from CI.
-# A suite that means one thing here and another there is not a gate.
-#
-# A throwaway database each time: `alembic upgrade` is not idempotent
-# against a schema that is already there, so reusing one fails on the
-# second run for a reason that has nothing to do with the code.
-PG_CONTAINER ?= mizzou-postgres
-PG_USER      ?= mizzou_user
-PG_PASS      ?= mizzou_pass
-IT_DB        ?= mizzou_integration
-
-.PHONY: test-integration-postgres
-test-integration-postgres: ## The Integration Tests (PostgreSQL) job, locally
-	@docker exec $(PG_CONTAINER) psql -U $(PG_USER) -d mizzou \
-	  -c "DROP DATABASE IF EXISTS $(IT_DB);" >/dev/null
-	@docker exec $(PG_CONTAINER) psql -U $(PG_USER) -d mizzou \
-	  -c "CREATE DATABASE $(IT_DB);" >/dev/null
-# Both names: some of these tests read DATABASE_URL and some read
-# TEST_DATABASE_URL, and a run that sets one silently skips or fails the
-# other half.
-	DATABASE_URL="postgresql://$(PG_USER):$(PG_PASS)@127.0.0.1:5432/$(IT_DB)" \
-	TEST_DATABASE_URL="postgresql://$(PG_USER):$(PG_PASS)@127.0.0.1:5432/$(IT_DB)" \
-	USE_CLOUD_SQL_CONNECTOR=false \
-	  .venv/bin/python -m pytest \
-	    -m 'integration and not docker and not local_scripts and not proxy' \
-	    -q --no-cov --tb=short
+test-production-readiness:
+	docker compose up -d --wait postgres
+	python -m pytest tests/test_production_readiness.py -v -m docker --tb=short
+	docker compose down
