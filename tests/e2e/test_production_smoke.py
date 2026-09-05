@@ -36,7 +36,17 @@ def active_collection():
 
     The workflow asks Kubernetes whether collection is suspended and passes
     the answer in; absent the variable the tests run, so a local or ad-hoc
-    invocation is unaffected."""
+    invocation is unaffected.
+
+    One test requested this fixture when it was written and ten did not, so
+    the run on 2026-09-05 was red with twelve failures while the CronJob
+    was suspended and the workflow had correctly reported it. Every test
+    whose query carries a `NOW() - INTERVAL` window and asserts that
+    something is IN it belongs here. A test that asserts something about
+    rows regardless of when they arrived does not, and three deliberately
+    stay outside: source metadata completeness, the statement timeout, and
+    status/label consistency. Those describe the database, not the
+    schedule, and a red from them means what it says."""
     if os.getenv("COLLECTION_SUSPENDED", "").lower() == "true":
         pytest.skip(
             "collection is suspended (crawler CronJob), so freshness "
@@ -692,7 +702,9 @@ class TestErrorRecoveryAndResilience:
 class TestDataPipelineConsistency:
     """Test data pipeline state transitions and consistency."""
 
-    def test_state_transition_discovered_to_article(self, production_db):
+    def test_state_transition_discovered_to_article(
+        self, production_db, active_collection
+    ):
         """
         Verify state transition from discovered → article.
 
@@ -743,7 +755,9 @@ class TestDataPipelineConsistency:
                 f"time ordering broken"
             )
 
-    def test_state_transition_article_to_extracted(self, production_db):
+    def test_state_transition_article_to_extracted(
+        self, production_db, active_collection
+    ):
         """
         Verify state transition from article → extracted.
 
@@ -793,7 +807,9 @@ class TestDataPipelineConsistency:
                 f"timeline ordering broken"
             )
 
-    def test_state_transition_extracted_to_cleaned(self, production_db):
+    def test_state_transition_extracted_to_cleaned(
+        self, production_db, active_collection
+    ):
         """
         Verify state transition from extracted → cleaned.
 
@@ -840,7 +856,9 @@ class TestDataPipelineConsistency:
                 f"without content - cleaning may be broken"
             )
 
-    def test_state_transition_cleaned_to_classified(self, production_db):
+    def test_state_transition_cleaned_to_classified(
+        self, production_db, active_collection
+    ):
         """
         Verify state transition from cleaned → classified.
 
@@ -1091,7 +1109,7 @@ class TestDataPipelineConsistency:
 class TestContentCleaningPipeline:
     """Test content cleaning pipeline (extracted → cleaned transition)."""
 
-    def test_article_cleaning_status_transition(self, production_db):
+    def test_article_cleaning_status_transition(self, production_db, active_collection):
         """
         Verify articles transition from extracted to cleaned status.
 
@@ -1136,7 +1154,7 @@ class TestContentCleaningPipeline:
                     f"cleaning may be bottlenecked"
                 )
 
-    def test_content_validation_after_cleaning(self, production_db):
+    def test_content_validation_after_cleaning(self, production_db, active_collection):
         """
         Verify cleaned content meets quality standards.
 
@@ -1198,7 +1216,9 @@ class TestContentCleaningPipeline:
                     max_ratio < 0.99
                 ), "Some articles retain >99% content - cleaning not working"
 
-    def test_byline_extraction_and_normalization(self, production_db):
+    def test_byline_extraction_and_normalization(
+        self, production_db, active_collection
+    ):
         """
         Verify byline extraction and author normalization.
 
@@ -1256,7 +1276,9 @@ class TestContentCleaningPipeline:
                     wire_ratio < 0.1
                 ), f"High wire service contamination in authors: {wire_ratio:.1%}"
 
-    def test_wire_service_detection_and_classification(self, production_db):
+    def test_wire_service_detection_and_classification(
+        self, production_db, active_collection
+    ):
         """
         Verify wire service content is correctly detected and labeled.
 
@@ -1441,7 +1463,9 @@ class TestMLPipeline:
                     max_score <= 1.0
                 ), f"Invalid match score: {max_score} - >1.0 impossible"
 
-    def test_label_distribution_across_article_types(self, production_db):
+    def test_label_distribution_across_article_types(
+        self, production_db, active_collection
+    ):
         """
         Verify label distribution across article types.
 
@@ -1790,7 +1814,7 @@ class TestPerformance:
                     f"may need more workers"
                 )
 
-    def test_verification_throughput(self, production_db):
+    def test_verification_throughput(self, production_db, active_collection):
         """Verify URL verification maintains reasonable throughput."""
         with production_db.get_session() as session:
             # Get verifications in last hour
