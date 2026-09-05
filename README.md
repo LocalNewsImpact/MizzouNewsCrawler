@@ -2089,7 +2089,7 @@ git push origin feature/your-feature-name
 make check             # lint, typecheck, test, test-integration — CI's four stages
 make lint              # ruff, black, isort, the Argo template, the k8s manifest
 make typecheck         # mypy
-make test              # the coverage suite on SQLite (fail-under 78%)
+make test              # the coverage suite on SQLite, then the suite's 80% floor
 make test-integration  # the integration suite against the compose Postgres
 make format            # black, isort, ruff --fix
 

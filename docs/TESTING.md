@@ -16,8 +16,8 @@ make test-file FILE="tests/test_*.py" ARGS="-k batch"
 
 ### Run tests by marker
 ```bash
-pytest -m parallel -v --tb=short --no-cov
-pytest -m postgres -v --tb=short --no-cov
+pytest -m parallel -v --tb=short
+pytest -m postgres -v --tb=short
 ```
 
 ### Run one specific test
@@ -75,4 +75,7 @@ Full CI runs automatically on every PR push.
 2. **Use Quick Test for integration/postgres tests** - faster than local DB setup
 3. **Only push to PR when reasonably confident** - saves CI time
 4. **Use `--maxfail=1`** - stop after first failure to get results faster
-5. **Skip coverage** - use `--no-cov` for faster runs during iteration
+5. **Coverage is measured by `make test` only** - a bare `pytest` does not
+   measure it, so there is nothing to skip while iterating. `make test` runs
+   the coverage suite and then the suite's floor (`lnic_contracts.coverage_floor`,
+   80% for every repository); a subset's percentage is not the suite's.

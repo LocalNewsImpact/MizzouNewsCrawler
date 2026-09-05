@@ -7,8 +7,6 @@
 # because the mount belongs to the runner and appuser has to write
 # .pytest_cache and the like into it, and handed back on exit so the
 # runner's own post-steps can still write to it.
-#
-# --no-cov: pytest.ini gates the whole suite at 78%; this is one file.
 set -euo pipefail
 
 if ! command -v Xvfb >/dev/null; then
@@ -32,4 +30,4 @@ chmod +x /usr/local/bin/run-with-xvfb.sh
 owner=$(stat -c '%u:%g' /workspace)
 trap 'chown -R "$owner" /workspace' EXIT
 chown -R appuser:appuser /workspace
-su appuser -c 'export SELENIUM_EXECUTION_MODE=headful && /usr/local/bin/run-with-xvfb.sh pytest --no-cov -m enable_selenium tests/test_selenium_only_feature.py -vv'
+su appuser -c 'export SELENIUM_EXECUTION_MODE=headful && /usr/local/bin/run-with-xvfb.sh pytest -m enable_selenium tests/test_selenium_only_feature.py -vv'
