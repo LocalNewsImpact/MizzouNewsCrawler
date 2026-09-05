@@ -17,7 +17,11 @@
 substitutions:
   _TAG: ""
   _BASE_IMAGE: ""
-  _REGISTRY: "us-central1-docker.pkg.dev/$PROJECT_ID/mizzou-crawler"
+  # Braced, and only braced: inside a user-defined substitution Cloud
+  # Build expands ${PROJECT_ID} and passes a bare $PROJECT_ID through to
+  # the shell unexpanded, where `set -u` stops the build at step 0.
+  # That is how every tagged build failed from 2026-09-04 to 2026-09-05.
+  _REGISTRY: "us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler"
 
 steps:
   - name: 'gcr.io/cloud-builders/docker'

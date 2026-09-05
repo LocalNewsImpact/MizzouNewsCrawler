@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       services:
-        description: 'Services to build (comma-separated: processor,api,crawler,base,ml-base, or "all")'
+        description: 'Services to build (comma-separated: processor,api,crawler,migrator,enrichment, or "all"; base or ml-base forces a base-image rebuild)'
         required: false
         default: 'auto'
         type: string
@@ -265,135 +265,28 @@ jobs:
   # tagged 797faa0 -- #418's tree -- while reporting against c6082b1f. The
   # concurrency group above serialises Actions runs but cannot prevent this,
   # because the SHA was never pinned.
-  build-base:
-    name: Build Base Image
-    needs: detect-changes
-    runs-on: ubuntu-latest
-    outputs:
-      build_id: ${{ steps.trigger.outputs.build_id }}
-
-    steps:
-      - name: Skip base build (not requested)
-        if: needs.detect-changes.outputs.base != 'true'
-        run: 'echo "Info: Base image not requested; skipping Cloud Build trigger."'
-
-      - uses: actions/checkout@v7
-        if: needs.detect-changes.outputs.base == 'true'
-
-      - name: Authenticate to Google Cloud
-        if: needs.detect-changes.outputs.base == 'true'
-        uses: google-github-actions/auth@v3
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Set up Cloud SDK
-        if: needs.detect-changes.outputs.base == 'true'
-        uses: google-github-actions/setup-gcloud@v3
-
-      - name: Trigger Cloud Build
-        id: trigger
-        if: needs.detect-changes.outputs.base == 'true'
-        run: |
-          set +e
-          BUILD_ID=$(gcloud builds triggers run build-base-manual \
-            --sha="${{ github.sha }}" \
-            --format="value(metadata.build.id)" 2>&1)
-          EXIT_CODE=$?
-          set -e
-          if [ $EXIT_CODE -ne 0 ] || [ -z "$BUILD_ID" ]; then
-            echo "❌ Failed to trigger base image build"
-            echo "$BUILD_ID"
-            exit 1
-          fi
-          echo "✅ Base image build triggered (build ID: $BUILD_ID)"
-          echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
-
-      - name: Wait for base build to complete
-        if: needs.detect-changes.outputs.base == 'true'
-        run: |
-          # Dependents (ml-base/api/crawler) build FROM base:latest, so the base
-          # image must finish pushing before they build — otherwise they'd pull
-          # the previous base. This job gates the downstream build jobs via
-          # `needs`, so blocking here enforces correct ordering. Only base/
-          # ml-base wait; processor/api/crawler still trigger back-to-back.
-          BID="${{ steps.trigger.outputs.build_id }}"
-          echo "⏳ Waiting for base Cloud Build $BID to complete..."
-          for _ in $(seq 1 120); do
-            STATUS=$(gcloud builds describe "$BID" --format="value(status)" 2>/dev/null || echo "")
-            case "$STATUS" in
-              SUCCESS) echo "✅ base build succeeded"; exit 0 ;;
-              FAILURE|INTERNAL_ERROR|TIMEOUT|CANCELLED|EXPIRED)
-                echo "❌ base build ended: $STATUS"; exit 1 ;;
-              *) echo "  base build status: ${STATUS:-pending} (waiting)"; sleep 30 ;;
-            esac
-          done
-          echo "❌ Timed out waiting for base build $BID"; exit 1
-
-  build-ml-base:
-    name: Build ML Base Image
-    needs: [detect-changes, build-base]
-    runs-on: ubuntu-latest
-    outputs:
-      build_id: ${{ steps.trigger.outputs.build_id }}
-
-    steps:
-      - name: Skip ml-base build (not requested)
-        if: needs.detect-changes.outputs.ml_base != 'true'
-        run: 'echo "Info: ML base image not requested; skipping Cloud Build trigger."'
-
-      - uses: actions/checkout@v7
-        if: needs.detect-changes.outputs.ml_base == 'true'
-
-      - name: Authenticate to Google Cloud
-        if: needs.detect-changes.outputs.ml_base == 'true'
-        uses: google-github-actions/auth@v3
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Set up Cloud SDK
-        if: needs.detect-changes.outputs.ml_base == 'true'
-        uses: google-github-actions/setup-gcloud@v3
-
-      - name: Trigger Cloud Build
-        id: trigger
-        if: needs.detect-changes.outputs.ml_base == 'true'
-        run: |
-          set +e
-          BUILD_ID=$(gcloud builds triggers run build-ml-base-manual \
-            --sha="${{ github.sha }}" \
-            --format="value(metadata.build.id)" 2>&1)
-          EXIT_CODE=$?
-          set -e
-          if [ $EXIT_CODE -ne 0 ] || [ -z "$BUILD_ID" ]; then
-            echo "❌ Failed to trigger ml-base image build"
-            echo "$BUILD_ID"
-            exit 1
-          fi
-          echo "✅ ML base image build triggered (build ID: $BUILD_ID)"
-          echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
-
-      - name: Wait for ml-base build to complete
-        if: needs.detect-changes.outputs.ml_base == 'true'
-        run: |
-          # Processor builds FROM ml-base:latest, so ml-base must finish pushing
-          # before the processor build starts (this job gates build-processor via
-          # `needs`).
-          BID="${{ steps.trigger.outputs.build_id }}"
-          echo "⏳ Waiting for ml-base Cloud Build $BID to complete..."
-          for _ in $(seq 1 120); do
-            STATUS=$(gcloud builds describe "$BID" --format="value(status)" 2>/dev/null || echo "")
-            case "$STATUS" in
-              SUCCESS) echo "✅ ml-base build succeeded"; exit 0 ;;
-              FAILURE|INTERNAL_ERROR|TIMEOUT|CANCELLED|EXPIRED)
-                echo "❌ ml-base build ended: $STATUS"; exit 1 ;;
-              *) echo "  ml-base build status: ${STATUS:-pending} (waiting)"; sleep 30 ;;
-            esac
-          done
-          echo "❌ Timed out waiting for ml-base build $BID"; exit 1
+  # The base images, by content hash, ahead of every service build (the
+  # services are FROM them). The called workflow waits for each Cloud Build
+  # to finish, so `needs` on this job is the ordering the concurrency note
+  # above describes: no service build starts while base:latest is being
+  # replaced. It runs on every push: the registry check that decides
+  # whether anything is built costs seconds, and it is what guarantees an
+  # image exists for what the pins say -- whether or not the path filters
+  # in detect-changes noticed. This replaces two jobs here that still ran
+  # the triggers without the _TAG the configs came to require, which is
+  # how run #228 failed on 2026-09-05.
+  base-images:
+    name: Base images
+    uses: ./.github/workflows/base-images.yml
+    secrets: inherit
+    with:
+      # `base` or `ml-base` in a manual dispatch: rebuild even when an image
+      # exists for these contents (an upstream refresh the hash cannot see).
+      force: ${{ github.event_name == 'workflow_dispatch' && (contains(github.event.inputs.services, 'base') || github.event.inputs.services == 'all') }}
 
   build-processor:
     name: Build Processor
-    needs: [detect-changes, build-ml-base]
+    needs: [detect-changes, base-images]
     runs-on: ubuntu-latest
     outputs:
       build_id: ${{ steps.trigger.outputs.build_id }}
@@ -747,8 +640,6 @@ jobs:
     needs:
       [
         detect-changes,
-        build-base,
-        build-ml-base,
         build-processor,
         build-api,
         build-crawler,
@@ -771,8 +662,6 @@ jobs:
 
       - name: Wait for builds to complete
         env:
-          BASE_BUILD_ID: ${{ needs.build-base.outputs.build_id }}
-          ML_BASE_BUILD_ID: ${{ needs.build-ml-base.outputs.build_id }}
           PROCESSOR_BUILD_ID: ${{ needs.build-processor.outputs.build_id }}
           API_BUILD_ID: ${{ needs.build-api.outputs.build_id }}
           CRAWLER_BUILD_ID: ${{ needs.build-crawler.outputs.build_id }}
@@ -802,8 +691,6 @@ jobs:
             fi
           }
 
-          add_build "$BASE_BUILD_ID" "base"
-          add_build "$ML_BASE_BUILD_ID" "ml-base"
           add_build "$PROCESSOR_BUILD_ID" "processor"
           add_build "$API_BUILD_ID" "api"
           add_build "$CRAWLER_BUILD_ID" "crawler"
@@ -919,8 +806,6 @@ jobs:
       [
         detect-changes,
         wait-for-builds,
-        build-base,
-        build-ml-base,
         build-processor,
         build-api,
         build-crawler,
@@ -928,8 +813,6 @@ jobs:
     if: >-
       github.ref == 'refs/heads/main' &&
       (
-        needs.build-base.outputs.build_id != '' ||
-        needs.build-ml-base.outputs.build_id != '' ||
         needs.build-processor.outputs.build_id != '' ||
         needs.build-api.outputs.build_id != '' ||
         needs.build-crawler.outputs.build_id != ''

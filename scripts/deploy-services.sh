@@ -3,10 +3,10 @@ set -e
 
 # Flexible Build Script for GCP Services
 # Usage: ./scripts/deploy-services.sh [branch] [services...]
-# Services: base, ml, api, crawler, processor, ci (or 'all')
+# Services: api, crawler, processor, ci (or 'all')
+# The base images are built by .github/workflows/base-images.yml (see below).
 # Examples:
 #   ./scripts/deploy-services.sh fix/telemetrystring crawler processor
-#   ./scripts/deploy-services.sh main base ml processor
 #   ./scripts/deploy-services.sh main all
 #   ./scripts/deploy-services.sh main ci  # Just CI/CD services (api, crawler, processor)
 
@@ -88,12 +88,21 @@ else
                 # Legacy alias for 'services'
                 SERVICES_TO_BUILD+=("api" "crawler" "processor")
                 ;;
-            base|ml|api|crawler|processor)
+            base|ml)
+                # The base images are tagged by their contents and built by
+                # .github/workflows/base-images.yml, which computes the tag
+                # the Cloud Build configs now require. Run that instead:
+                #   gh workflow run "Base images" --field force=true
+                echo -e "${COLOR_RED}❌ '$arg' is built by the Base images workflow, not this script.${COLOR_RESET}"
+                echo "   gh workflow run \"Base images\" --field force=true"
+                exit 1
+                ;;
+            api|crawler|processor)
                 SERVICES_TO_BUILD+=("$arg")
                 ;;
             *)
                 echo -e "${COLOR_RED}❌ Unknown service: $arg${COLOR_RESET}"
-                echo "Valid services: base, ml, api, crawler, processor, services, ci, all"
+                echo "Valid services: api, crawler, processor, services, ci, all"
                 exit 1
                 ;;
         esac
