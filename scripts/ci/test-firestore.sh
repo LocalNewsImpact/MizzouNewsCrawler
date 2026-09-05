@@ -19,4 +19,4 @@ ready >/dev/null 2>&1 || {
     echo "Firestore emulator at ${FIRESTORE_EMULATOR_HOST} never became ready" >&2
     exit 1
 }
-pytest -v -m 'integration and proxy' --tb=short --no-cov
+pytest -v -m 'integration and proxy' --tb=short

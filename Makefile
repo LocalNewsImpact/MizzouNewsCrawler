@@ -5,7 +5,7 @@
 #
 #   lint              ruff, black, isort, the Argo template, the k8s manifest
 #   typecheck         mypy, blocking
-#   test              the coverage suite, on SQLite, fail-under 78
+#   test              the coverage suite, on SQLite, then the suite's floor
 #   test-integration  the tests marked integration, against Postgres
 #
 # Locally the stage scripts (scripts/ci/) run on the virtualenv. In CI --
@@ -77,7 +77,7 @@ help:
 	@echo ""
 	@echo "  make lint              ruff, black, isort, Argo template, k8s manifest"
 	@echo "  make typecheck         mypy (blocking)"
-	@echo "  make test              coverage suite on SQLite, fail-under 78"
+	@echo "  make test              coverage suite on SQLite, then the suite's floor"
 	@echo "  make test-integration  integration tests against Postgres (compose, or PGHOST)"
 	@echo "  make format            black, isort, ruff --fix"
 	@echo ""
@@ -257,7 +257,7 @@ test-file:
 	    echo "Usage: make test-file FILE=<path> [ARGS='-k filter']"; \
 	    exit 1; \
 	fi
-	python -m pytest $(FILE) $(ARGS) -v --tb=short --no-cov --maxfail=3
+	python -m pytest $(FILE) $(ARGS) -v --tb=short --maxfail=3
 
 test-migrations:
 	python -m pytest tests/alembic/ -v
@@ -271,17 +271,17 @@ test-docker:
 
 test-docker-work-queue:
 	docker compose up -d --wait postgres
-	python -m pytest tests/docker/test_work_queue_integration.py -v -m docker --tb=short --no-cov
+	python -m pytest tests/docker/test_work_queue_integration.py -v -m docker --tb=short
 	docker compose down
 
 test-docker-proxy:
 	docker compose up -d --wait postgres
-	python -m pytest tests/docker/test_proxy_routing.py -v -m docker --tb=short --no-cov
+	python -m pytest tests/docker/test_proxy_routing.py -v -m docker --tb=short
 	docker compose down
 
 test-docker-all:
 	docker compose up -d --wait postgres
-	python -m pytest tests/docker/ -v -m docker --tb=short --no-cov
+	python -m pytest tests/docker/ -v -m docker --tb=short
 	docker compose down
 
 test-production-readiness:

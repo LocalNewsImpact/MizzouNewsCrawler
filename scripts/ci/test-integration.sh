@@ -10,5 +10,4 @@ set -euo pipefail
 : "${DATABASE_URL:?run this through make test-integration, which sets the database}"
 mkdir -p data
 alembic upgrade head
-pytest -v -m 'integration and not docker and not local_scripts and not proxy' \
-    --tb=short --no-cov
+pytest -v -m 'integration and not docker and not local_scripts and not proxy' --tb=short

@@ -25,6 +25,18 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SETUP_HOOKS = REPO_ROOT / "scripts" / "setup-hooks.sh"
 
 
+def _without_git_env() -> dict[str, str]:
+    """The environment with every GIT_* variable removed.
+
+    Git exports GIT_DIR to a hook when the push comes from a linked
+    worktree (from the primary checkout it does not). This suite runs
+    inside the hook, so with that variable inherited the scratch
+    `git init` below re-initialises the pushing repository as bare and
+    the hook is installed into it instead. datadesk's copy of this test
+    did exactly that on 2026-09-05."""
+    return {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+
+
 def _hook_body() -> str:
     """The hook exactly as scripts/setup-hooks.sh writes it."""
     script = SETUP_HOOKS.read_text()
@@ -76,20 +88,14 @@ def test_every_variable_is_assigned_before_it_is_read():
     assert not problems, "\n".join(problems)
 
 
-@pytest.mark.skipif(
-    subprocess.run(["which", "git"], capture_output=True).returncode != 0,
-    reason="git is required to build a scratch repository",
-)
-def test_the_hook_resolves_its_environment_in_a_fresh_checkout(tmp_path):
-    """Install the hook the way a developer does and run it far enough to
-    prove it found the repository, the virtualenv and the tooling.
-
-    The hook is stopped before its first expensive step: reaching that step
-    is the assertion. Every failure of this class has happened in the
-    seconds before it."""
+def _scratch_checkout(tmp_path: Path) -> tuple[Path, Path]:
+    """A fresh repository with a stub virtualenv and the hook installed,
+    the way a developer's checkout has them."""
     scratch = tmp_path / "checkout"
     scratch.mkdir()
-    subprocess.run(["git", "init", "-q"], cwd=scratch, check=True)
+    subprocess.run(
+        ["git", "init", "-q"], cwd=scratch, check=True, env=_without_git_env()
+    )
     (scratch / ".venv" / "bin").mkdir(parents=True)
     # A virtualenv the hook can find, whose python answers the tooling check.
     stub = scratch / ".venv" / "bin" / "python"
@@ -105,6 +111,21 @@ def test_the_hook_resolves_its_environment_in_a_fresh_checkout(tmp_path):
     hook_path = scratch / ".git" / "hooks" / "pre-push"
     hook_path.write_text(_hook_body())
     hook_path.chmod(0o755)
+    return scratch, hook_path
+
+
+@pytest.mark.skipif(
+    subprocess.run(["which", "git"], capture_output=True).returncode != 0,
+    reason="git is required to build a scratch repository",
+)
+def test_the_hook_resolves_its_environment_in_a_fresh_checkout(tmp_path):
+    """Install the hook the way a developer does and run it far enough to
+    prove it found the repository, the virtualenv and the tooling.
+
+    The hook is stopped before its first expensive step: reaching that step
+    is the assertion. Every failure of this class has happened in the
+    seconds before it."""
+    scratch, hook_path = _scratch_checkout(tmp_path)
 
     # Stop at the heavy step; reaching it is what is being asserted. The
     # step is `make check`, which is every stage CI runs.
@@ -117,6 +138,7 @@ def test_the_hook_resolves_its_environment_in_a_fresh_checkout(tmp_path):
     result = subprocess.run(
         ["bash", str(hook_path), "origin", "https://example.invalid/repo.git"],
         cwd=scratch,
+        env=_without_git_env(),
         input="refs/heads/main abc123 refs/heads/main def456\n",
         text=True,
         capture_output=True,
@@ -134,3 +156,20 @@ def test_the_hook_resolves_its_environment_in_a_fresh_checkout(tmp_path):
     # in a scratch repository with no history it used to fire on every
     # run, so this assertion passed without the hook resolving anything.
     assert marker in combined, "the hook did not reach make check:\n" + combined
+
+
+def test_the_scratch_repository_is_not_the_one_git_exported(tmp_path, monkeypatch):
+    """With GIT_DIR pointed at a decoy repository, the way git points it at
+    the pushing repository from a linked worktree, the scratch repository
+    must still be the one at `cwd` and the decoy must be untouched."""
+    decoy = tmp_path / "decoy"
+    decoy.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=decoy, check=True, env=_without_git_env())
+    before = (decoy / ".git" / "config").read_text()
+    monkeypatch.setenv("GIT_DIR", str(decoy / ".git"))
+
+    scratch, hook_path = _scratch_checkout(tmp_path)
+
+    assert hook_path.exists(), "the hook was installed where GIT_DIR pointed"
+    assert (decoy / ".git" / "config").read_text() == before
+    assert not (decoy / ".git" / "hooks" / "pre-push").exists()
