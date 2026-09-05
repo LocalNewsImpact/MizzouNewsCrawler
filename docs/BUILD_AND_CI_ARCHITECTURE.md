@@ -275,6 +275,29 @@ image is paid for on every cold start, and §3.2 is the lever.
 
 ---
 
+## 8. Documents this replaced
+
+Nineteen documents described machinery that is no longer here. They were
+removed rather than corrected: each one is a full account of a system
+that was taken out, and half-updating them produces the worst kind of
+document -- one that is right about enough to be trusted and wrong about
+the part that matters. The text is in git history.
+
+| Removed | Described | Where it lives now |
+| --- | --- | --- |
+| `SELECTIVE_BUILD_*` (six), `CI_CD_SERVICE_DETECTION.md`, `root-md/SELECTIVE_BUILD_README.md`, `root-md/TEAM_BRIEFING_SELECTIVE_BUILD.md` | `selective-service-build.yml`, a workflow this repository does not have | The `detect-changes` job in `build-and-deploy-services.yml`, held to what each Dockerfile copies by `tests/test_deploy_filters_match_the_dockerfiles.py` |
+| `BASE_IMAGE_MAINTENANCE.md`, `BASE_IMAGE_QUICKSTART.md`, `ML_BASE_IMAGE_ARCHITECTURE.md` | rebuilding `:latest` by hand with `docker build`, and when to decide to | `base-images.yml`: an image is tagged with a hash of its contents, a child's hash includes its parent's tag, and a tag that does not exist is built. Nobody decides |
+| `CI_OPTIMIZATION_ANALYSIS.md`, `CI_OPTIMIZATION_COMPLETE.md`, `TESTING_STRATEGY.md` | pytest invocations and their flags, per job | The four stages, each a make target, in `python-checks.yml@ci-v1`. §3.4 |
+| `CI_CD_ENFORCEMENT.md` | `tests/test_sitecustomize_integration.py`, which is not in the repository | -- |
+| `DEPENDENCY_SUBMISSION_OPTIMIZATION.md`, `DEPENDENCY_SUBMISSION_SUCCESS.md`, `DISABLE_AUTOMATIC_DEPENDENCY_SUBMISSION.md` | GitHub's automatic `dynamic` submission, and turning it off (October 2025) | `dependency-submission.yml`, which is explicit, runs weekly, and is the only job here that pip-installs on a runner |
+
+The pattern in all five rows is the same: a document written to announce
+a system, and nothing that failed when the system left. A test fails when
+what it asserts stops being true; a document does not, which is why the
+ones that matter here are short and the assertions are in `tests/`.
+
+---
+
 ## Sources
 
 - Artifact Registry image list, `mizzou-crawler` repository, 2026-09-04.

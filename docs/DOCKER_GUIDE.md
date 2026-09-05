@@ -478,7 +478,11 @@ The base image should be rebuilt when:
 - Application code changes
 - Configuration changes
 
-See [BASE_IMAGE_MAINTENANCE.md](./BASE_IMAGE_MAINTENANCE.md) for detailed rebuild procedures.
+There is no rebuild procedure to follow. `base-images.yml` tags each
+image with a hash of its contents and a child's hash includes its
+parent's tag, so a change to a Dockerfile or a requirements file
+produces a tag that does not exist yet and the image is built. See
+[BUILD_AND_CI_ARCHITECTURE.md](./BUILD_AND_CI_ARCHITECTURE.md).
 
 ### Security Best Practices
 
