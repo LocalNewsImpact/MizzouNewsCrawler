@@ -3,67 +3,67 @@ pandas>=3.0.5
 numpy>=2.4.6  # Python 3.11+ supports numpy 2.x with all dependencies
 requests>=2.34.2
 beautifulsoup4>=4.15.0
-lxml>=6.1.1
+lxml>=6.1.2
 lxml_html_clean>=0.4.5  # Required for newspaper3k HTML cleaning
 urllib3>=2.7.0
 
 # Database
-sqlalchemy>=2.0.51
-alembic>=1.18.5
+sqlalchemy>=2.0.52
+alembic>=1.19.1
 psycopg2-binary>=2.9.12  # PostgreSQL adapter for production
-cloud-sql-python-connector[pg8000]>=1.21.0  # Google Cloud SQL connector (replaces proxy sidecar)
-google-cloud-bigquery[pandas]>=3.42.2  # BigQuery client for analytics export
-google-api-python-client>=2.198.0  # Google API client for Sheets/Docs
+cloud-sql-python-connector[pg8000]>=1.22.0  # Google Cloud SQL connector (replaces proxy sidecar)
+google-cloud-bigquery[pandas]>=3.44.0  # BigQuery client for analytics export
+google-api-python-client>=2.200.0  # Google API client for Sheets/Docs
 
 # Logging & Telemetry
 structlog>=26.1.0  # Structured logging for production
 
 # ML/NLP
 scikit-learn>=1.9.0,<1.10  # Compatible with StorySniffer 1.0.9+ skops models (model trained with 1.7.2)
-spacy>=3.8.14  # Python 3.11+ supports latest spacy with numpy 2.x
-transformers>=5.14.1
-nltk>=3.10.0
+spacy>=3.8.16  # Python 3.11+ supports latest spacy with numpy 2.x
+transformers>=5.16.1
+nltk>=3.10.3
 torch>=2.13.0
 
 # Data formats
-pyarrow>=25.0.0  # For Parquet support
+pyarrow>=25.0.1  # For Parquet support
 
 # Web scraping
-selenium>=4.46.0
+selenium>=4.48.0
 undetected-chromedriver>=3.5.5  # Advanced anti-detection
 selenium-stealth>=1.0.6  # Browser fingerprint masking
 newspaper4k>=0.9.6  # Use newspaper4k (modern fork)
 storysniffer>=1.0.9  # Compatible version (skops-based models)
-feedparser>=6.0.13
+feedparser>=6.0.14
 cloudscraper>=1.2.71  # Bypass Cloudflare protection
 
 # Content extraction & processing (mcmetadata dependencies)
-readability-lxml>=0.8.4.1  # Article content extraction
-trafilatura>=2.1.0  # Web content extraction
+readability-lxml>=0.9  # Article content extraction
+trafilatura>=2.2.0  # Web content extraction
 boilerpy3>=1.0.7  # Boilerplate removal (1.0.7 is the latest release; >=1.0.8 broke installs)
 goose3>=3.1.22  # Content extraction
 htmldate>=1.10.0  # HTML date extraction
-py3langid>=0.3.0  # Language detection
-dateparser>=1.4.1  # Flexible date parsing
+py3langid>=0.4.0  # Language detection
+dateparser>=1.4.2  # Flexible date parsing
 url-normalize>=3.0.0  # URL normalization
 furl>=2.1.4  # URL manipulation
 requests-mock
 
 # Development
-pre-commit>=4.6.1
+pre-commit>=4.6.2
 black>=26.5.1
-isort>=8.0.1
+isort>=9.0.1
 flake8>=7.3.0
 
 # Utilities
-click>=8.4.2
-python-dotenv>=1.2.2
-pydantic>=2.13.4
+click>=8.5.0
+python-dotenv>=1.2.3
+pydantic>=2.13.5
 
 # Transitive security pins (Dependabot high/critical; floors force patched versions)
-cryptography>=49.0.0
+cryptography>=50.0.1
 pillow>=12.3.0
-soupsieve>=2.9.1
+soupsieve>=2.9.2
 pyasn1>=0.6.4
-Mako>=1.3.12
-starlette>=1.3.1
+Mako>=1.4.1
+starlette>=1.6.0
