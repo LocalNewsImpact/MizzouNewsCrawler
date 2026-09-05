@@ -41,7 +41,7 @@ spec:
           serviceAccountName: mizzou-app
           containers:
             - name: proxy-health-check
-              image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:latest
+              image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:${API_TAG}
               imagePullPolicy: Always
               command:
                 - python
@@ -404,7 +404,7 @@ spec:
                   topologyKey: kubernetes.io/hostname
           containers:
             - name: proxy-check
-              image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:latest
+              image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:${API_TAG}
               imagePullPolicy: Always
               command:
                 - python

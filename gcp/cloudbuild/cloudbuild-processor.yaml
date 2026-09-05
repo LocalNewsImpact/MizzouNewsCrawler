@@ -101,6 +101,24 @@ steps:
       - '--namespace=production'
     waitFor: ['get-gke-credentials']
 
+  # The housekeeping CronJob runs this same image, and nothing updated it:
+  # it sat on processor:0b28478 while the deployments moved through nine
+  # months of releases. A CronJob has no rollout to restart -- the tag is
+  # read when the next job is created -- so setting the image is the whole
+  # update.
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'update-housekeeping-cronjob'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=us-central1-a'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=mizzou-cluster'
+    args:
+      - 'set'
+      - 'image'
+      - 'cronjob/mizzou-housekeeping'
+      - 'housekeeping=${_REGISTRY}/processor:${SHORT_SHA}'
+      - '--namespace=production'
+    waitFor: ['get-gke-credentials']
+
   # Force a rollout restart to ensure new image is pulled
   # This handles case where same tag has new image digest
   - name: 'gcr.io/cloud-builders/kubectl'

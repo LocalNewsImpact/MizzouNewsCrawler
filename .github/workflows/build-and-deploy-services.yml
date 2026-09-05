@@ -910,7 +910,14 @@ jobs:
           echo "Direct push refused by the branch ruleset; opening a PR instead."
           git push --force origin "HEAD:refs/heads/${BRANCH}"
 
-          if gh pr view "$BRANCH" --json number >/dev/null 2>&1; then
+          # An OPEN one. `gh pr view` finds a closed pull request for the
+          # branch just as readily, and editing that one puts the tags
+          # somewhere nothing will merge them from: #467 was closed on
+          # 2026-09-05 and the next two deploys reported "Updated the open
+          # PR" onto it, which is why versions.env sat months behind what
+          # was deployed.
+          STATE="$(gh pr view "$BRANCH" --json state -q .state 2>/dev/null || true)"
+          if [ "$STATE" = "OPEN" ]; then
             gh pr edit "$BRANCH" \
               --title "chore: update image tags (${SHORT})" \
               --body "Automated by the update-versions-env job after a successful build of ${SHORT}. Records the image tags now deployed, so k8s/versions.env (used by envsubst for the manifests) and the repo Argo template match production. Bookkeeping only -- the images are already built and rolled out.
