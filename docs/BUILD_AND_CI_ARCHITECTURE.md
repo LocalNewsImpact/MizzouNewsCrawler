@@ -33,6 +33,10 @@ images around 300 MB.
 
 ### 1.2 Three CI dialects
 
+*As written on 2026-09-04. Superseded the next day: all three now call
+the shared workflows (§3.4), and the crawler's database is `postgres:16`.
+The table stands as the record of what the pattern replaced.*
+
 | Repository | How tests get their dependencies | Database |
 | --- | --- | --- |
 | Source Directory | `pip install -r requirements-dev.txt` on the runner | `postgres:16` service |
@@ -180,6 +184,34 @@ its own parameters. The crawler keeps its container-based job, because its
 dependency set justifies it; what it stops doing is defining its own
 answer to every other question.
 
+**What was built (2026-09-05).** The contracts repository publishes two
+workflows, not three: `python-checks.yml` runs the stages lint →
+typecheck → test → integration, each as `make <stage>` and nothing else,
+with a Postgres service on the two test stages; `conforms.yml` checks
+that a repository's Makefile and hook keep to that. The image-build
+workflow was not needed: nothing in a pull request builds an image.
+
+The crawler's side of it:
+
+- `scripts/ci/<stage>.sh` is what a stage does, one file per stage. The
+  Makefile runs the script on the virtualenv locally and, when
+  `GITHUB_ACTIONS` is set, inside `mizzou-ci-base` through
+  `scripts/ci/in-image`, which tops the image up to the commit's pins.
+  Same script, same string, both places.
+- `make check` is the four stages. The pre-push hook runs it on a clean
+  worktree of the commit being pushed, so what reaches GitHub has
+  already passed what GitHub will run.
+- The virtualenv is kept at the pins by a stamp named after the content
+  of the requirements files; every local stage depends on it. This
+  closed the last version gap: on 2026-09-04 local lint was running ruff
+  0.15.22 against a pinned 0.16.0, and nothing had said so.
+- `scripts/ci/docs-only.sh` decides, for the workflow and the hook
+  alike, whether a change is documentation only. A deny-list: YAML,
+  workflows included, always runs the suite.
+- The suites that are the crawler's alone — headful Selenium, Firestore,
+  the weekly security scan and stress run — stay as jobs in `ci.yml`,
+  each a make target too.
+
 ---
 
 ## 4. What the enrichment split needs
@@ -215,7 +247,7 @@ they can.
 | 1 | Tag base images by requirements hash; CI resolves the tag from the tree | — |
 | 2 | Move spacy/nltk/torch out of `base` into `ml-base`; rebuild the tree in §3.2 | 1 |
 | 3 | One requirements file per image; delete the union | 2 |
-| 4 | Reusable workflows published from the contracts repository; the three repositories adopt them | 1 |
+| 4 | **Done 2026-09-05.** Reusable workflows published from the contracts repository (`ci-v1`); datadesk, the Source Directory and the crawler call them | — |
 | 5 | Automate the contract release and the consumer version bumps | 4 |
 | 6 | Split analysis/enrichment into its own repository, on the finished pattern | 2, 4, 5 |
 

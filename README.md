@@ -167,13 +167,14 @@ DATABASE_NAME=mizzou_dev
 
 ### First Run Checklist
 
-1. **Set up pre-deployment validation** (prevents deployment bugs):
+1. **Set up the virtualenv and the pre-push hook**:
 
    ```bash
-   ./scripts/setup-git-hooks.sh
+   make setup
    ```
 
-   This installs a pre-push hook that validates your changes before pushing.
+   The hook runs `make check` — the same four stages CI runs — on the
+   commit being pushed, and refuses the push if any of them fails.
 
 1. Seed the SQLite database with crawler sources:
 
@@ -2082,36 +2083,23 @@ git push origin feature/your-feature-name
 
 ### Testing
 
-**⚠️ IMPORTANT: Run local CI tests before pushing to catch failures early:**
+**Run what CI runs before pushing** (the pre-push hook does this for you):
 
 ```bash
-# Quick commands (using Makefile)
-make test-ci          # Full CI suite with coverage (matches GitHub Actions)
-make test-unit        # Unit tests only (no database)
-make test-integration # Integration tests with SQLite
-make test-postgres    # PostgreSQL integration tests
-make test-all-ci      # All suites sequentially
+make check             # lint, typecheck, test, test-integration — CI's four stages
+make lint              # ruff, black, isort, the Argo template, the k8s manifest
+make typecheck         # mypy
+make test              # the coverage suite on SQLite (fail-under 78%)
+make test-integration  # the integration suite against the compose Postgres
+make format            # black, isort, ruff --fix
 
-# Or use the unified pre-deploy validation script directly
-# Examples (preferred):
-# Run full CI-style validation (unit + sqlite integration + postgres integration in Docker):
-./scripts/pre-deploy-validation.sh all --docker-ci
-
-# Run unit-only (fast) locally (uses pytest marker filtering):
-PYTEST_K="not integration and not postgres and not slow" ./scripts/pre-deploy-validation.sh all --sqlite-only
-
-# Run integration tests with SQLite (fast, matches CI 'integration' job):
-./scripts/pre-deploy-validation.sh all --sqlite-only
-
-# Run PostgreSQL integration tests (Docker-based, matches CI 'postgres-integration' job):
-./scripts/pre-deploy-validation.sh all --docker-ci --postgres-only
-
-# Benefits:
-# ✅ Matches exact CI environment (PostgreSQL, markers, coverage)
-# ✅ Runs migrations automatically
-# ✅ Catches CI failures before pushing
-# ✅ Color-coded output
+make test-file FILE=tests/path/to/test_x.py ARGS='-k name'
+IN_IMAGE=1 make test   # run a stage inside the CI image, exactly as CI does
 ```
+
+Each stage is a script in `scripts/ci/`; CI runs the same script inside
+`mizzou-ci-base`, locally it runs on the virtualenv, which `make` keeps at
+the pinned versions. `make help` lists everything else.
 
 **Manual test commands (may differ from CI):**
 

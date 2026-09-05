@@ -78,13 +78,16 @@ make lint
 make security
 
 # Run type checking
-make type-check
+make typecheck
 
-# Run full test suite with coverage (matches CI integration job)
-make test-full
+# Run the coverage suite (matches CI's test stage)
+make test
 
-# Or run all CI checks locally at once
-make ci-check
+# Run the integration suite against Postgres (matches CI's integration stage)
+make test-integration
+
+# Or all four stages at once — what the pre-push hook runs
+make check
 ```
 
 ## CI Workflow Triggers

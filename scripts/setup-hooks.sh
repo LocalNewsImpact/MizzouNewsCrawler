@@ -1,7 +1,12 @@
 #!/bin/bash
 
-# Setup git hooks for local development
-# This ensures local CI matches remote CI
+# Install the pre-push hook: what CI runs, before the push.
+#
+# The hook runs `make check` -- lint, typecheck, test, test-integration,
+# the four stages lnic-contracts' python-checks.yml runs on GitHub -- on
+# a clean worktree of the commit being pushed. Same targets, same
+# scripts, same virtualenv; the one thing CI adds is the image the
+# targets run in.
 
 set -e
 
@@ -14,58 +19,59 @@ echo "🔧 Installing git hooks..."
 cat > "$REPO_ROOT/.git/hooks/pre-push" << 'EOF'
 #!/bin/bash
 
-# Git pre-push hook to run tests before pushing
-# Prevents pushing code that will fail in CI
+# Git pre-push hook: `make check` on a clean worktree of the commit being
+# pushed. Refuses the push if any stage fails.
 #
-# Static-analysis steps (lint, type-check) run against a CLEAN CHECKOUT of the
-# commit being pushed (via a temporary git worktree), so untracked scratch files
-# in the working tree never affect the result. This mirrors CI, which runs on a
-# fresh checkout of committed code only — the hook must test what is in git for
-# push to origin, not the developer's dirty working tree.
-
+# A CLEAN WORKTREE, not the working tree. CI checks out the commit and
+# nothing else, so the hook does the same: untracked scratch files are
+# not linted, a stray local module cannot make a test pass, and a file
+# that was never `git add`ed fails here rather than on GitHub. The
+# worktree has no virtualenv of its own, so this checkout's is passed
+# in as VENV=.
+#
 # Branch DELETIONS have nothing to test — pre-push receives refspecs on
 # stdin as "<local_ref> <local_sha> <remote_ref> <remote_sha>"; a deletion's
 # local_sha is all zeros. Without this, deleting a remote branch ran the
 # full CI suite (discovered 2026-07-19).
 ZERO=0000000000000000000000000000000000000000
-ANY_NON_DELETE=false
+PUSH_SHA=""
+BASE_SHA=""
 while read -r local_ref local_sha remote_ref remote_sha; do
-    [ "$local_sha" != "$ZERO" ] && ANY_NON_DELETE=true
+    [ "$local_sha" != "$ZERO" ] || continue
+    PUSH_SHA="$local_sha"
+    BASE_SHA="$remote_sha"
 done
-if [ "$ANY_NON_DELETE" = "false" ]; then
+if [ -z "$PUSH_SHA" ]; then
     echo "⏭️  Skipping pre-push CI: branch deletion(s) only"
     exit 0
 fi
 
-# Skip CI for workflow-only / docs-only changes (nothing the test suite covers).
-# Mirrors the `changes` gate in .github/workflows/ci.yml so local and remote
-# agree on what counts as "code".
-CHANGED_FILES=$(git diff --name-only @{upstream}..HEAD 2>/dev/null || git diff --name-only HEAD~1..HEAD)
-CODE_FILES=$(echo "$CHANGED_FILES" | grep -vE '^(\.github/workflows/|docs/|scripts/setup-hooks\.sh$)' | grep -vE '\.md$' || true)
+REPO_ROOT="$(git rev-parse --show-toplevel)"
 
-if [ -z "$CODE_FILES" ]; then
-    echo "⏭️  Skipping pre-push CI: only workflow/docs changes (nothing the suite covers)"
-    echo "   (These can't be tested locally - CI will validate on GitHub)"
+# Skip the suite for a documentation-only push. The workflow's `changes`
+# job asks scripts/ci/docs-only.sh the same question about the same
+# range -- the commits the push adds -- so the two cannot disagree. The
+# range is what the remote has to what it will have; for a new branch,
+# where it has nothing yet, from the merge-base with main, which is the
+# diff the pull request will show.
+if [ "$BASE_SHA" = "$ZERO" ] || ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+    BASE_SHA="$(git merge-base origin/main "$PUSH_SHA" 2>/dev/null || true)"
+fi
+if [ -n "$BASE_SHA" ] && [ -x "$REPO_ROOT/scripts/ci/docs-only.sh" ] \
+   && "$REPO_ROOT/scripts/ci/docs-only.sh" "$BASE_SHA" "$PUSH_SHA"; then
+    echo "⏭️  Skipping pre-push CI: documentation only (nothing the suite covers)"
     exit 0
 fi
 
 # Ensure Docker is in PATH (for macOS Docker Desktop)
 export PATH="/usr/local/bin:/opt/homebrew/bin:/Applications/Docker.app/Contents/Resources/bin:$PATH"
 
-# Resolve the virtualenv, and put it on PATH for every step and subshell.
-# A linked worktree has no .venv of its own: `git rev-parse --show-toplevel`
-# returns the worktree, the activation below finds nothing, and because each
-# activation is `|| true` the hook carried on under whatever python was on
-# PATH -- pyenv's, typically -- and failed with "No module named ruff" on a
-# push that was fine. The venv lives in the primary checkout, which is the
+# Resolve the virtualenv. A linked worktree has no .venv of its own:
+# `git rev-parse --show-toplevel` returns the worktree, and a hook that
+# looked only there carried on under whatever python was on PATH --
+# pyenv's, typically -- and failed with "No module named ruff" on a push
+# that was fine. The venv lives in the primary checkout, which is the
 # parent of the common git dir.
-# Resolved here rather than sixty lines below, where it used to be: this
-# block is the first thing to read it, and until now it read an empty
-# string. The hook looked for a virtualenv at "/.venv", found none, and
-# refused every push from the primary checkout with "Run: make setup" --
-# on a machine where `make setup` had already been run.
-REPO_ROOT="$(git rev-parse --show-toplevel)"
-
 VENV_DIR="$REPO_ROOT/.venv"
 if [ ! -x "$VENV_DIR/bin/python" ]; then
     COMMON_DIR="$(git rev-parse --git-common-dir)"
@@ -76,8 +82,7 @@ if [ ! -x "$VENV_DIR/bin/python" ]; then
     CANDIDATE="$(cd "$(dirname "$COMMON_DIR")" 2>/dev/null && pwd)/.venv"
     if [ -x "$CANDIDATE/bin/python" ]; then
         VENV_DIR="$CANDIDATE"
-        echo "🔗 Worktree detected; using the primary checkout's virtualenv:"
-        echo "   $VENV_DIR"
+        echo "🔗 Worktree detected; using the primary checkout's virtualenv"
     fi
 fi
 
@@ -91,16 +96,16 @@ export VIRTUAL_ENV="$VENV_DIR"
 export PATH="$VENV_DIR/bin:$PATH"
 
 # Fail loudly rather than part-way through: a venv without the tooling
-# produces "No module named ruff" three steps in, which reads as a code
+# produces "No module named ruff" one stage in, which reads as a code
 # problem rather than an environment one.
 if ! python -m ruff --version >/dev/null 2>&1; then
-    echo "❌ ruff is not installed in $VENV_DIR."
+    echo "❌ ruff is not installed in the virtualenv."
     echo "   The hook cannot mirror CI without it. Run: make setup"
     exit 1
 fi
 
 # Setup log rotation (keep last 3 logs)
-LOG_DIR="logs/pre-push"
+LOG_DIR="$REPO_ROOT/logs/pre-push"
 mkdir -p "$LOG_DIR"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 LOGFILE="$LOG_DIR/pre-push-${TIMESTAMP}.log"
@@ -110,18 +115,18 @@ ln -sf "pre-push-${TIMESTAMP}.log" "$LOG_DIR/latest.log"
 notify() {
     command -v osascript >/dev/null 2>&1 &&         osascript -e "display notification \"$2\" with title \"local CI: $1\"" 2>/dev/null || true
 }
-notify "started" "pre-push checks running — tail logs/pre-push/latest.log"
+notify "started" "make check running — tail logs/pre-push/latest.log"
 
 # Rotate logs - keep only the 3 most recent
 ls -t "$LOG_DIR"/pre-push-*.log 2>/dev/null | tail -n +4 | xargs rm -f 2>/dev/null
 
-echo "🚀 Pre-push hook: Running checks..."
+echo "🚀 Pre-push hook: make check on $(git rev-parse --short "$PUSH_SHA")"
 echo "📝 Logging to: $LOGFILE"
 echo ""
 
 # ----------------------------------------------------------------------------
-# Clean checkout of the commit being pushed, used for static-analysis steps.
-# Only committed, tracked files exist here — no untracked scratch files.
+# Clean checkout of the commit being pushed. Only committed, tracked files
+# exist here — no untracked scratch files.
 # ----------------------------------------------------------------------------
 WORKTREE_PARENT="$(mktemp -d)"
 WORKTREE="$WORKTREE_PARENT/committed"
@@ -129,250 +134,36 @@ cleanup_worktree() {
     git worktree remove --force "$WORKTREE" 2>/dev/null
     rm -rf "$WORKTREE_PARENT" 2>/dev/null
 }
-if ! git worktree add --detach --quiet "$WORKTREE" HEAD 2>>"$LOGFILE"; then
-    echo "⚠️  Could not create clean worktree; falling back to working tree for lint/type checks" | tee -a "$LOGFILE"
+if ! git worktree add --detach --quiet "$WORKTREE" "$PUSH_SHA" 2>>"$LOGFILE"; then
+    echo "⚠️  Could not create clean worktree; falling back to the working tree" | tee -a "$LOGFILE"
     WORKTREE="$REPO_ROOT"
     cleanup_worktree() { :; }
 fi
 
-# Step 1: Run fast linting/formatting checks first (fail fast on simple errors)
-# Runs against the committed checkout so untracked files are never linted.
-echo "🔍 Step 1/4: Running linting checks (ruff, black, isort)..."
 (
     cd "$WORKTREE" || exit 1
-    source "$VENV_DIR/bin/activate" 2>/dev/null || true
-    echo "  → Running ruff..." &&
-    python -m ruff check . &&
-    echo "  → Running black..." &&
-    python -m black --check src/ tests/ web/ &&
-    echo "  → Running isort..." &&
-    python -m isort --check-only --profile black src/ tests/ web/
+    make VENV="$VENV_DIR" check
 ) 2>&1 | tee -a "$LOGFILE"
-LINT_EXIT_CODE=${PIPESTATUS[0]}
-
-if [ $LINT_EXIT_CODE -ne 0 ]; then
-    cleanup_worktree
-    echo ""
-    echo "❌ Linting/formatting checks failed! Push aborted."
-    notify "FAILED" "Linting/formatting checks failed"
-    echo "💡 Tip: Run 'make format' to auto-fix formatting issues"
-    echo "📝 Full log saved to: $LOGFILE"
-    exit 1
-fi
-
-echo "✅ Step 1/4: Linting checks passed"
-echo ""
-
-# Step 2: Run mypy type checking (matches CI mypy-strict job)
-# Runs against the committed checkout so untracked files are never type-checked.
-echo "🔍 Step 2/4: Running mypy type checking..."
-(
-    cd "$WORKTREE" || exit 1
-    source "$VENV_DIR/bin/activate" 2>/dev/null || true
-    python -m mypy src/ --ignore-missing-imports
-) 2>&1 | tee -a "$LOGFILE"
-MYPY_EXIT_CODE=${PIPESTATUS[0]}
-
-if [ $MYPY_EXIT_CODE -ne 0 ]; then
-    cleanup_worktree
-    echo ""
-    echo "❌ Type checking failed! Push aborted."
-    notify "FAILED" "Type checking failed"
-    echo "💡 Tip: Run 'make type-check' to see all type errors"
-    echo "📝 Full log saved to: $LOGFILE"
-    exit 1
-fi
-
-echo "✅ Step 2/4: Type checking passed"
-echo ""
-
-# Done with static analysis on the clean checkout.
+CHECK_EXIT_CODE=${PIPESTATUS[0]}
 cleanup_worktree
 
-# Step 3: Validate Dockerfile dependencies (lightweight, no Docker build needed)
-# Runs in the working tree: it intentionally verifies that build inputs exist
-# on disk, including untracked artifacts such as models/productionmodel.pt.
-echo "🚀 Step 3/4: Validating Dockerfile dependencies..."
-if [ -f "./scripts/validate-dockerfile-deps.sh" ]; then
-    ./scripts/validate-dockerfile-deps.sh 2>&1 | tee -a "$LOGFILE"
-    DOCKER_VALIDATE_EXIT_CODE=${PIPESTATUS[0]}
-
-    if [ $DOCKER_VALIDATE_EXIT_CODE -ne 0 ]; then
-        echo ""
-        echo "❌ Dockerfile validation failed! Push aborted."
-    notify "FAILED" "Dockerfile validation failed"
-        echo "📝 Full log saved to: $LOGFILE"
-        exit 1
+if [ "$CHECK_EXIT_CODE" -ne 0 ]; then
+    echo ""
+    echo "❌ make check failed! Push aborted."
+    notify "FAILED" "make check failed"
+    if ! docker info >/dev/null 2>&1; then
+        echo "   Docker is not running. make test-integration needs the compose Postgres,"
+        echo "   and CI runs it, so the hook cannot mirror CI without it."
     fi
-else
-    echo "⚠️  scripts/validate-dockerfile-deps.sh not found, skipping"
-fi
-
-echo "✅ Step 3/4: Dockerfile validation passed"
-echo ""
-
-# Steps 4-6 run the two test suites in succession and ACCUMULATE coverage
-# across both (via --cov-append), then gate on the COMBINED total in Step 6 —
-# neither suite alone can reach the threshold. Erase stale data first so the
-# run starts clean. addopts is overridden per phase so its single
-# --cov-fail-under=78 doesn't fire mid-succession; the combined check is Step 6.
-(source "$VENV_DIR/bin/activate" 2>/dev/null || true; python -m coverage erase) >/dev/null 2>&1
-
-# Step 4: Main test suite (unit + SQLite integration), excluding PostgreSQL.
-# Runs in the working tree because some tests need untracked runtime artifacts
-# (e.g. models/productionmodel.pt). Gate tests that scan the source tree
-# enumerate git-tracked files (git ls-files), so untracked scratch files in the
-# working tree are never tested. PostgreSQL-marked tests run separately in
-# Step 5, so the two suites never contend for a single database.
-echo "🚀 Step 4/6: Running main test suite (unit + integration, excluding PostgreSQL)..."
-(
-    source "$VENV_DIR/bin/activate" 2>/dev/null || true &&
-    python -m pytest tests/ -q --tb=short --override-ini="addopts=" \
-        -p no:postgresql -m "not postgres and not docker and not local_scripts" \
-        --cov=src --cov-append --cov-report=
-) 2>&1 | tee -a "$LOGFILE"
-TEST_EXIT_CODE=${PIPESTATUS[0]}
-
-if [ $TEST_EXIT_CODE -ne 0 ]; then
-    echo ""
-    echo "❌ Main test suite failed! Push aborted."
-    notify "FAILED" "Main test suite failed"
+    echo "💡 Run the failed stage by name to iterate: make lint / typecheck / test / test-integration"
+    echo "   Formatting: make format"
     echo "📝 Full log saved to: $LOGFILE"
     exit 1
 fi
 
-echo "✅ Step 4/6: Main test suite passed"
 echo ""
-
-# Step 5: PostgreSQL suite, run in succession against a docker PostgreSQL.
-# Mirrors CI's dedicated PostgreSQL job. Uses the docker-compose 'postgres'
-# service and a throwaway database, so it never touches a real dev database and
-# never runs at the same time as the main suite. The local gate is meant to
-# MIRROR remote CI, so Docker being unavailable is a HARD FAILURE (the push is
-# blocked), not a silent skip — otherwise a Postgres-only regression sails past
-# the local gate and only surfaces in remote CI. Set SKIP_PG=1 to deliberately
-# opt out for the rare case where you knowingly want to defer to CI.
-echo "🐘 Step 5/6: Running PostgreSQL suite (docker)..."
-
-if [ "${SKIP_PG:-}" = "1" ]; then
-    echo "⚠️  SKIP_PG=1 set; deliberately skipping PostgreSQL suite (CI will run it)." | tee -a "$LOGFILE"
-    echo "✅ Step 5/6: PostgreSQL suite skipped (SKIP_PG=1)"
-    echo ""
-else
-DOCKER_COMPOSE=""
-if docker compose version >/dev/null 2>&1; then
-    DOCKER_COMPOSE="docker compose"
-elif command -v docker-compose >/dev/null 2>&1; then
-    DOCKER_COMPOSE="docker-compose"
-fi
-
-# Every clone of this repo must talk to the SAME compose project. Compose
-# derives its project name from the directory, so a worktree or a clone in
-# another workspace gets its own project -- and because docker-compose.yml
-# pins container_name: mizzou-postgres, that project cannot start a postgres
-# of its own (the name is taken) and cannot exec into the running one (it
-# belongs to another project). The hook then reports "PostgreSQL did not
-# become ready" and aborts a push that had nothing wrong with it. Pinning the
-# name here means any checkout reaches the one container, and nobody has to
-# remember to export this by hand.
-export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-mizzounewscrawler}"
-
-if [ -z "$DOCKER_COMPOSE" ] || ! docker info >/dev/null 2>&1; then
-    echo ""
-    echo "❌ Docker is not available — the PostgreSQL suite cannot run, so this"
-    echo "   push would NOT mirror remote CI. Push aborted."
-    echo "   → Start Docker Desktop and re-push, or run with SKIP_PG=1 to"
-    echo "     deliberately defer the Postgres suite to CI (not recommended)."
-    echo "❌ Docker not available; PostgreSQL suite could not run. Push aborted." >> "$LOGFILE"
-    notify "FAILED" "Docker unavailable; PostgreSQL suite could not run"
-    echo "📝 Full log saved to: $LOGFILE"
-    exit 1
-else
-    # One database per push, not one shared name. Several checkouts of this
-    # repo (worktrees, other sessions) push at overlapping times; with a
-    # fixed name the second push's dropdb/createdb destroys the first push's
-    # database mid-run, and the first push's cleanup then destroys the
-    # second's. Both fail, and the failure looks like a broken test suite
-    # rather than a collision. $$ is the hook's pid, unique per push.
-    PG_TESTDB="mizzou_prepush_$$"
-    export TEST_DATABASE_URL="postgresql://mizzou_user:mizzou_pass@127.0.0.1:5432/${PG_TESTDB}"
-    export DATABASE_URL="$TEST_DATABASE_URL"
-
-    $DOCKER_COMPOSE up -d postgres >>"$LOGFILE" 2>&1
-
-    PG_READY=""
-    for _ in $(seq 1 30); do
-        if $DOCKER_COMPOSE exec -T postgres pg_isready -U mizzou_user -d mizzou >/dev/null 2>&1; then
-            PG_READY=1
-            break
-        fi
-        sleep 1
-    done
-
-    if [ -z "$PG_READY" ]; then
-        echo ""
-        echo "❌ PostgreSQL container did not become ready in time; the suite could"
-        echo "   not run, so this push would NOT mirror remote CI. Push aborted."
-        echo "   → Check 'docker compose logs postgres', then re-push."
-        echo "❌ PostgreSQL did not become ready; suite could not run. Push aborted." >> "$LOGFILE"
-        notify "FAILED" "PostgreSQL did not become ready; suite could not run"
-        echo "📝 Full log saved to: $LOGFILE"
-        exit 1
-    else
-        # Fresh throwaway database, migrated to head, then run the suite.
-        $DOCKER_COMPOSE exec -T postgres dropdb -U mizzou_user --if-exists "$PG_TESTDB" >>"$LOGFILE" 2>&1
-        $DOCKER_COMPOSE exec -T postgres createdb -U mizzou_user "$PG_TESTDB" >>"$LOGFILE" 2>&1
-        # A push that fails a later step, or is interrupted, would otherwise
-        # leave its database behind; this drops it on any exit.
-        trap '$DOCKER_COMPOSE exec -T postgres dropdb -U mizzou_user --if-exists "$PG_TESTDB" >/dev/null 2>&1' EXIT
-        (
-            source "$VENV_DIR/bin/activate" 2>/dev/null || true &&
-            alembic upgrade head &&
-            python -m pytest tests/ -q --tb=short --override-ini="addopts=" \
-                -p no:postgresql -m "postgres and not docker" \
-                --cov=src --cov-append --cov-report=
-        ) 2>&1 | tee -a "$LOGFILE"
-        PG_EXIT_CODE=${PIPESTATUS[0]}
-        $DOCKER_COMPOSE exec -T postgres dropdb -U mizzou_user --if-exists "$PG_TESTDB" >>"$LOGFILE" 2>&1
-
-        if [ $PG_EXIT_CODE -ne 0 ]; then
-            echo ""
-            echo "❌ PostgreSQL suite failed! Push aborted."
-    notify "FAILED" "PostgreSQL suite failed"
-            echo "📝 Full log saved to: $LOGFILE"
-            exit 1
-        fi
-    fi
-fi
-
-echo "✅ Step 5/6: PostgreSQL suite complete"
-echo ""
-fi  # end SKIP_PG guard
-
-# Step 6: Combined coverage gate. Steps 4 and 5 accumulated coverage via
-# --cov-append; enforce the 78% threshold on the COMBINED total here. If the
-# PostgreSQL suite was skipped (no Docker), this checks the main suite alone,
-# which matches CI's coverage job and still clears the threshold.
-echo "📊 Step 6/6: Checking combined coverage (fail-under 78%)..."
-(
-    source "$VENV_DIR/bin/activate" 2>/dev/null || true &&
-    python -m coverage report --fail-under=78
-) 2>&1 | tee -a "$LOGFILE"
-COV_EXIT_CODE=${PIPESTATUS[0]}
-
-if [ $COV_EXIT_CODE -ne 0 ]; then
-    echo ""
-    echo "❌ Combined coverage below 78%! Push aborted."
-    notify "FAILED" "Combined coverage below 78%"
-    echo "📝 Full log saved to: $LOGFILE"
-    exit 1
-fi
-
-echo "✅ Step 6/6: Combined coverage gate passed"
-
-echo ""
-notify "passed" "all checks green — pushing"
-echo "✅ All pre-push checks passed! Proceeding with push..."
+notify "passed" "make check green — pushing"
+echo "✅ make check passed! Proceeding with push..."
 echo "📝 Full log saved to: $LOGFILE"
 exit 0
 EOF
@@ -381,17 +172,13 @@ chmod +x "$REPO_ROOT/.git/hooks/pre-push"
 
 echo "✅ Git hooks installed successfully!"
 echo ""
-echo "The pre-push hook will now run:"
-echo "  1. Linting checks (ruff, black, isort) — clean checkout of committed code"
-echo "  2. Type checking (mypy) - matches CI mypy-strict job — clean checkout"
-echo "  3. Dockerfile dependency validation"
-echo "  4. Main test suite (unit + integration, excluding PostgreSQL)"
-echo "  5. PostgreSQL suite against a docker PostgreSQL (skipped if Docker is down)"
-echo "  6. Combined coverage gate (>=78% across steps 4-5)"
+echo "The pre-push hook runs \`make check\` -- lint, typecheck, test,"
+echo "test-integration -- on a clean worktree of the commit being pushed,"
+echo "with this checkout's virtualenv. These are the stages CI runs, by the"
+echo "same scripts; CI's one difference is that they run inside the CI image."
 echo ""
-echo "Static-analysis steps run against a temporary git worktree of HEAD, so"
-echo "untracked scratch files in your working tree never affect the result."
-echo "The main and PostgreSQL suites run in succession (not one shared DB) and"
-echo "their coverage is accumulated, then gated on the combined total."
+echo "A documentation-only push (scripts/ci/docs-only.sh decides, for the"
+echo "hook and for CI) skips the suite. Docker must be running: the"
+echo "integration stage uses the compose Postgres."
 echo ""
 echo "To reinstall hooks later: ./scripts/setup-hooks.sh"

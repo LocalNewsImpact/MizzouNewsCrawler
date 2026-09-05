@@ -98,6 +98,7 @@ tests/utils/test_logging_config.py
 .coverage.*
 htmlcov/
 coverage.xml
+coverage-summary.md
 
 # Project specific
 models/productionmodel.pt
