@@ -75,10 +75,7 @@ def _determine_default_database_url() -> str:
             DATABASE_PASSWORD,
         )
         from src.config import DATABASE_URL as CONFIG_DATABASE_URL
-        from src.config import (
-            DATABASE_USER,
-            USE_CLOUD_SQL_CONNECTOR,
-        )
+        from src.config import DATABASE_USER, USE_CLOUD_SQL_CONNECTOR
 
         # If using Cloud SQL Connector, build PostgreSQL URL
         if (
