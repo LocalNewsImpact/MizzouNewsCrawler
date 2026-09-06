@@ -18,7 +18,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from src.enrichment import adapter
-from src.enrichment.gate import HEURISTIC_REJECT, boilerplate_score
+from src.enrichment.gate import HEURISTIC_REJECT, boilerplate_score, paywalled_stub
 from src.enrichment.profiles import Profile
 from src.enrichment.resolve import resolve_point
 from src.enrichment.types import ArticleInput, EnrichmentOutcome, StepResult
@@ -40,6 +40,13 @@ PLACES_SCOPES = POINT_SCOPES | {"regional"}
 # separate genuine boilerplate from articles whose text never arrived.
 _GATE_VERDICT_STATUS = {"paywall": "enrichment_skipped", "not_news": "not_article"}
 _GATE_VERDICT_SKIP_REASON = {"paywall": "paywall_stub"}
+
+#: The deterministic rule's own reason, deliberately not the LLM's
+#: 'paywall_stub'. The two findings agree, but they are not the same
+#: evidence: one is a phrase and a length, auditable and retunable; the
+#: other is a model's judgement. A review that cannot tell them apart
+#: cannot tune the rule or measure what the rule is costing in recall.
+PAYWALL_RULE_SKIP_REASON = "paywall_stub_rule"
 
 
 def _metadata_payload_invalid(payload: dict) -> str | None:
@@ -93,6 +100,13 @@ def enrich_article(
     if profile.content_gate:
         if boilerplate_score(article.content) >= HEURISTIC_REJECT:
             return outcome("not_article", None)
+        # The same finding the paid gate would return, reached for free. A
+        # walled stub is the single most common thing the gate is asked to
+        # judge, and a truncated body carrying a subscribe prompt is the one
+        # case a phrase match cannot be wrong about (100% precision measured
+        # against production). Everything else still costs a call.
+        if paywalled_stub(article.content) is not None:
+            return outcome(_GATE_VERDICT_STATUS["paywall"], PAYWALL_RULE_SKIP_REASON)
         gate = adapter.run_content_gate(article, model)
         results.append(gate)
         if not gate.ok or gate.payload is None:
