@@ -8,6 +8,10 @@ collection and extraction stay in this repository; enrichment moves to
 a second one, developed semi-separately and run as an independent
 service against the same database.
 
+The work itself — every table, column, file, image, role, workflow,
+test, and the order of operations — is specified in
+[ENRICHMENT_SPLIT_SPEC.md](ENRICHMENT_SPLIT_SPEC.md).
+
 ---
 
 ## 1. The short answer
@@ -45,7 +49,7 @@ implementation. The test that keeps the boundary honest:
 
 | Belongs in `lnic-contracts` | Stays in the owning repository |
 | --- | --- |
-| table shapes (`crawler-schema`) | the ORM that maps them |
+| table shapes (declared as data; today `crawler-schema` is a datadesk command over the live database, not a declaration) | the ORM that maps them |
 | status vocabularies | the code that transitions them |
 | the export row schema | the query that produces it |
 | `python-checks.yml`, the coverage floor, the org ruleset | the tests and the `Makefile` |
@@ -133,9 +137,11 @@ Two readers change with it:
 - **The BigQuery scheduled query** (outside the repository) whose inner
   filter is `status IN ('enriched', 'enrichment_skipped')` joins
   `article_enrichment` for the same filter. One config change.
-- **Datadesk** reads `enriched` / `enrichment_skipped` counts for the
-  dashboard and costs pages; the queries join `article_enrichment`. Its
-  review rewinds already write only crawler statuses and do not change.
+- **Datadesk** reads `enriched` / `enrichment_skipped` on the dashboard,
+  the costs and corpus pages, the review queue and its dispositions,
+  and writes `enrichment_skipped` for a reviewer's paywall type. Ten
+  modules and fourteen test files (spec §7.6); the paywall write becomes
+  a recorded decision enrichment executes.
 
 **Migrations have one owner per table.** The seven enrichment
 migrations move to the new repository as the start of its own alembic
