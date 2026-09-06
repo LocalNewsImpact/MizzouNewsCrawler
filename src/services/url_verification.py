@@ -47,7 +47,11 @@ except ImportError:
 
 from src.crawler.proxy_config import get_proxy_manager  # noqa: E402
 from src.models.database import DatabaseManager, safe_execute  # noqa: E402
-from src.models.verification import VerificationPattern  # noqa: E402
+from src.models.verification import (  # noqa: E402
+    URLVerification,
+    VerificationJob,
+    VerificationPattern,
+)
 from src.utils.telemetry import (  # noqa: E402
     OperationTracker,
     create_telemetry_system,
@@ -91,8 +95,20 @@ _PATTERN_CACHE_TTL_ENV_VAR = "VERIFICATION_PATTERN_CACHE_TTL_SECONDS"
 _DEFAULT_PATTERN_CACHE_TTL_SECONDS = 300
 _MIN_PATTERN_CACHE_TTL_SECONDS = 30
 
+# A rule whose type names a topic records that topic. Everything else
+# falls through to `not_article`, which is a statement about the URL --
+# that it is not an article at all -- and must only be made about URLs
+# where it is true.
+#
+# A story from the national desk is a story. Recording it as
+# `not_article` is false, and it is terminal: the row is never fetched,
+# so nothing downstream can notice the mistake. `us_world_news` is here
+# because its rule is now active (migration q2r3s4t5u6v7) and what it
+# matches is wire copy -- 2,739 of 2,740 fetched `/world/` articles were
+# classified `wire` after extraction.
 _PATTERN_STATUS_OVERRIDES: dict[str, str] = {
     "wire": "wire",
+    "us_world_news": "wire",
     "obituary": "obituary",
     "opinion": "opinion",
 }
@@ -148,6 +164,15 @@ class URLVerificationService:
             self.run_http_precheck = bool(run_http_precheck)
         # (debug logging removed)
         self.db = DatabaseManager()
+        # One `verification_jobs` row per run, opened on the first
+        # decision recorded and referenced by every one after it.
+        # The name is set by the run loop rather than passed into
+        # `process_batch`: the batch's signature is what callers and
+        # their test doubles already implement, and a new parameter
+        # on it breaks them for something that is a property of the
+        # run.
+        self._job_id: str | None = None
+        self._job_name: str = ""
         self.sniffer = storysniffer.StorySniffer()
         self.logger = logging.getLogger(__name__)
         self.http_session = http_session or requests.Session()
@@ -678,6 +703,75 @@ class URLVerificationService:
                 self.logger.warning(f"Verification failed for {url}: {e}")
                 return result
 
+    def _decided_by(self, result: dict) -> str:
+        """Which of the four mechanisms produced this verdict.
+
+        The verdict was recorded and the reason for it was not, so a
+        rejection could not be attributed: a rule matching too widely and
+        the model getting it wrong were the same row. Two thirds of
+        rejections turn out to be rules overruling the model, which is
+        only sayable because this can now be read per URL.
+        """
+        if result.get("error"):
+            return "error"
+        if result.get("wire_filtered"):
+            return "wire"
+        if result.get("pattern_filtered"):
+            return f"pattern:{result.get('pattern_type') or 'unnamed'}"
+        if result.get("storysniffer_result"):
+            return "sniffer"
+        return "default"
+
+    def _ensure_job(self, job_name: str) -> str | None:
+        """The run's row in `verification_jobs`, created once.
+
+        `url_verifications.verification_job_id` is NOT NULL against this
+        table, so a decision cannot be recorded without one. Both tables
+        held zero rows: the implementation that wrote them was never the
+        one that runs.
+        """
+        if self._job_id is not None:
+            return self._job_id
+        try:
+            with self.db.get_session() as session:
+                job = VerificationJob(job_name=job_name, status="running")
+                session.add(job)
+                session.flush()
+                self._job_id = str(job.id)
+                session.commit()
+        except Exception as exc:  # pragma: no cover - defensive
+            self.logger.warning("Could not open a verification job: %s", exc)
+            self._job_id = None
+        return self._job_id
+
+    def record_verifications(self, records: list[dict], job_name: str) -> int:
+        """Write one row per decision, and never fail the batch for it.
+
+        Recording is bookkeeping. A verification run that stopped because
+        it could not write its own audit row would trade the pipeline for
+        the record of it, so every failure here is logged and swallowed.
+        """
+        if not records:
+            return 0
+        job_id = self._ensure_job(job_name)
+        if job_id is None:
+            return 0
+        try:
+            with self.db.get_session() as session:
+                session.add_all(
+                    [
+                        URLVerification(verification_job_id=job_id, **record)
+                        for record in records
+                    ]
+                )
+                session.commit()
+            return len(records)
+        except Exception as exc:
+            self.logger.warning(
+                "Could not record %d verification decisions: %s", len(records), exc
+            )
+            return 0
+
     def update_candidate_status(
         self, candidate_id: str, new_status: str, error_message: str | None = None
     ):
@@ -716,7 +810,13 @@ class URLVerificationService:
         self.logger.debug(f"Updated candidate {candidate_id} to: {new_status}")
 
     def process_batch(self, candidates: list[dict]) -> dict:
-        """Process a batch of candidates and return metrics."""
+        """Process a batch of candidates and return metrics.
+
+        Decisions are recorded when the run has named itself
+        (`self._job_name`, set by `run_verification_loop`). Driven
+        directly, as a test does, the decisions are still made -- they
+        are simply not written down.
+        """
         batch_metrics: dict = {
             "total_processed": 0,
             "verified_articles": 0,
@@ -728,6 +828,9 @@ class URLVerificationService:
         }
 
         batch_start_time = time.time()
+        # One row per decision, written after the batch rather than per
+        # URL: the same work in one round trip.
+        decisions: list[dict] = []
 
         for candidate in candidates:
             # Verify URL
@@ -779,6 +882,37 @@ class URLVerificationService:
 
             # Update candidate status
             self.update_candidate_status(candidate["id"], new_status, error_message)
+
+            decisions.append(
+                {
+                    "candidate_link_id": candidate["id"],
+                    "url": candidate["url"],
+                    "storysniffer_result": verification_result.get(
+                        "storysniffer_result"
+                    ),
+                    # Left null deliberately. `StorySniffer.guess` returns a
+                    # boolean, and the probability behind it comes from a
+                    # GaussianNB that saturates -- 5,959 of 6,000 production
+                    # URLs score exactly 0 or 1 -- so a number here would
+                    # invite ranking on something that cannot rank.
+                    "verification_confidence": None,
+                    "previous_status": candidate.get("status"),
+                    "new_status": new_status,
+                    "verification_time_ms": verification_result.get(
+                        "verification_time_ms"
+                    ),
+                    "verification_error": error_message,
+                    "meta": {
+                        "decided_by": self._decided_by(verification_result),
+                        "pattern_id": verification_result.get("pattern_id"),
+                        "pattern_type": verification_result.get("pattern_type"),
+                        "http_status": verification_result.get("http_status"),
+                    },
+                }
+            )
+
+        if self._job_name:
+            self.record_verifications(decisions, self._job_name)
 
         # Calculate batch timing
         batch_metrics["batch_time_seconds"] = time.time() - batch_start_time
@@ -833,6 +967,9 @@ class URLVerificationService:
         self.running = True
         batch_count = 0
         job_name = f"verification_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        # What the run calls itself, which is what its decisions are
+        # recorded against.
+        self._job_name = job_name
         idle_start_monotonic: float | None = None
         idle_wait_logged = False
 
