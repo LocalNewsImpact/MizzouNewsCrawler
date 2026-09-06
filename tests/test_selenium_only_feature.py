@@ -20,7 +20,22 @@ sys.path.insert(0, str(ROOT))
 import src.crawler as crawler_module  # noqa: E402
 from src.crawler import ContentExtractor  # noqa: E402
 
-pytestmark = pytest.mark.enable_selenium
+# NOT on the module.
+#
+# `enable_selenium` switches off two guards for everything it marks:
+# `disable_real_selenium`, which keeps SELENIUM_AVAILABLE false, and
+# `block_external_network`, which fails a unit test that reaches a
+# non-loopback host. Marking the whole file removed both from 35 tests,
+# and the ones whose fetch is not mocked went to the real network and
+# fell back to real Chrome. Two of them cost 220 of the 358 seconds this
+# file takes in the headful job, and the worse offender asserts nothing
+# at all.
+#
+# The mark now sits on the class that is actually about headful Selenium,
+# which is what `scripts/ci/test-selenium.sh` selects. Everything else
+# runs in the ordinary suite with both guards on, which is also what
+# makes it test anything: a mocked path that silently falls through to
+# the network is not exercising the branch it names.
 
 
 class TestBotProtectionTypeDetection:
@@ -343,9 +358,15 @@ class TestExtractionFlowWithSeleniumOnly:
                     # newspaper4k should NOT be called
                     mock_newspaper.assert_not_called()
 
-    def test_extract_content_uses_selenium_for_selenium_only(self):
-        """Should use Selenium for selenium_only domains."""
+    def test_extract_content_uses_selenium_for_selenium_only(self, monkeypatch):
+        """Should use Selenium for selenium_only domains.
+
+        `SELENIUM_AVAILABLE` is set here rather than by marking the test
+        `enable_selenium`, which would also switch off the network guard.
+        The flag is what this test needs; unrestricted egress is not.
+        """
         extractor = ContentExtractor()
+        monkeypatch.setattr(crawler_module, "SELENIUM_AVAILABLE", True)
 
         with patch.object(
             extractor,
@@ -363,28 +384,40 @@ class TestExtractionFlowWithSeleniumOnly:
                 # Selenium SHOULD be called
                 mock_selenium.assert_called()
 
-    def test_extract_content_normal_flow_for_non_selenium_only(self):
-        """Normal domains should use the regular extraction flow."""
+    def test_extract_content_normal_flow_for_non_selenium_only(self, monkeypatch):
+        """A normal domain takes the HTTP path, and not Selenium.
+
+        This asserted nothing -- it called `extract_content` and ended on
+        a comment saying mcmetadata "may or may not" have been called. It
+        also left its fetch unmocked, so with the file-wide
+        `enable_selenium` mark removing the network guard it went out to
+        normalnews.com and fell back to real headful Chrome: 177 seconds
+        of the headful job, for a test that could not fail.
+        """
         extractor = ContentExtractor()
+        monkeypatch.setattr(crawler_module, "SELENIUM_AVAILABLE", True)
+        monkeypatch.setattr(crawler_module, "MCMETADATA_AVAILABLE", True)
 
-        with patch.object(
-            extractor, "_get_domain_extraction_method", return_value=("http", None)
+        with (
+            patch.object(
+                extractor, "_get_domain_extraction_method", return_value=("http", None)
+            ),
+            patch.object(
+                extractor, "_fetch_page_html", return_value="<html>capture</html>"
+            ),
+            patch.object(
+                extractor, "_parse_with_mcmetadata", return_value=True
+            ) as mock_mcmetadata,
+            patch.object(extractor, "_get_missing_fields", return_value=[]),
+            patch.object(extractor, "_run_selenium_extraction") as mock_selenium,
         ):
-            with patch.object(extractor, "_parse_with_mcmetadata") as mock_mcmetadata:
-                mock_mcmetadata.return_value = {
-                    "title": "Test Article",
-                    "text": "This is the article content with sufficient length.",
-                    "authors": ["Jane Doe"],
-                    "publish_date": "2025-01-01",
-                }
+            extractor.extract_content(
+                "https://normalnews.com/article",
+                html="<html><body>Test</body></html>",
+            )
 
-                extractor.extract_content(
-                    "https://normalnews.com/article",
-                    html="<html><body>Test</body></html>",
-                )
-
-                # Normal extraction should proceed
-                # (mcmetadata may or may not be called depending on config)
+        mock_mcmetadata.assert_called_once()
+        mock_selenium.assert_not_called()
 
 
 class TestHeadfulPrimarySelenium:
@@ -394,6 +427,9 @@ class TestHeadfulPrimarySelenium:
     - HTTP domains: HTTP methods first, Selenium as fallback
     - Unblock domains: Selenium first (PerimeterX/Akamai require it)
     """
+
+    # What the headful job runs (scripts/ci/test-selenium.sh).
+    pytestmark = pytest.mark.enable_selenium
 
     def test_headful_mode_uses_http_first_for_http_domains(self, monkeypatch):
         """Headful mode should NOT force Selenium-first for HTTP domains."""
