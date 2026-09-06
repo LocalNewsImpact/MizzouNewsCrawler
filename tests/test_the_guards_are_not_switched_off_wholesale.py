@@ -31,6 +31,15 @@ TESTS = Path(__file__).resolve().parent
 #: Marks that disable a guard rather than describe a test.
 LOOSENING = ("enable_selenium", "allow_network")
 
+#: The one shape where a file-wide mark is right: a file whose every test
+#: needs the thing the mark allows. The rule is not "never mark a module"
+#: -- it is "do not hand the network to tests that only meant to mock a
+#: method". A file that exists to drive a real browser is not that.
+#:
+#: Earned rather than asserted: `test_the_exemption_is_all_browser_tests`
+#: checks that every test in it actually takes the browser fixture.
+ALL_TESTS_NEED_IT = {"test_headful_chrome_runs_in_this_image.py"}
+
 
 def _module_level_marks(text: str) -> list[str]:
     """`pytestmark` assignments at column 0 -- the whole file."""
@@ -46,6 +55,8 @@ def _module_level_marks(text: str) -> list[str]:
 
 @pytest.mark.parametrize("path", sorted(TESTS.rglob("test_*.py")), ids=lambda p: p.name)
 def test_no_file_switches_the_guards_off_for_everything(path):
+    if path.name in ALL_TESTS_NEED_IT:
+        pytest.skip("every test in this file needs a real browser")
     offenders = _module_level_marks(path.read_text(errors="ignore"))
     assert not offenders, (
         f"{path.name} disables a guard for every test in it: {offenders}. "
@@ -71,3 +82,19 @@ def test_the_slow_test_asserts_something_now():
     start = text.index("def test_extract_content_normal_flow_for_non_selenium_only")
     body = text[start : text.index("\n    def ", start + 10)]
     assert "assert" in body, "the test still asserts nothing"
+
+
+def test_the_exemption_is_all_browser_tests():
+    """The exempt file may mark the module only because every test in it
+    drives a browser. If one appears that does not take the `driver`
+    fixture, the exemption has stopped being true and the mark is handing
+    that test the network for nothing."""
+    for name in ALL_TESTS_NEED_IT:
+        text = (TESTS / name).read_text()
+        tests = re.findall(r"^def (test_\w+)\(([^)]*)\)", text, re.M)
+        assert tests, f"{name} defines no tests"
+        without = [t for t, args in tests if "driver" not in args]
+        assert not without, (
+            f"{name} is exempt because every test needs a browser, but "
+            f"these do not take the driver fixture: {without}"
+        )
