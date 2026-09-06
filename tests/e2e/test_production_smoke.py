@@ -46,7 +46,13 @@ def active_collection():
     rows regardless of when they arrived does not, and three deliberately
     stay outside: source metadata completeness, the statement timeout, and
     status/label consistency. Those describe the database, not the
-    schedule, and a red from them means what it says."""
+    schedule, and a red from them means what it says.
+
+    `test_entity_extraction_gazetteer_loading` was a twelfth: it asserts
+    entities written in the last 24 hours, which is a freshness claim by
+    this fixture's own rule, and it did not ask for it. On 2026-09-06 the
+    newest entity was 28 hours old because nothing had run, and the test
+    said "extraction may be failing"."""
     if os.getenv("COLLECTION_SUSPENDED", "").lower() == "true":
         pytest.skip(
             "collection is suspended (crawler CronJob), so freshness "
@@ -560,20 +566,35 @@ class TestErrorRecoveryAndResilience:
                 f"connections may be stuck"
             )
 
-            # Verify statement timeout is configured
-            statement_timeout = session.execute(text("""
-                SELECT setting
+            # Verify statement timeout is configured.
+            #
+            # `pg_settings` reports the value and its unit in SEPARATE
+            # columns -- setting='120000', unit='ms'. This read `setting`
+            # alone and then looked for "ms" INSIDE it, which is never
+            # there, so it took the else branch, set the value to 0 and
+            # asserted 0 > 0. The test could not pass on any database: a
+            # timeout of 120s failed it, and so did a timeout of 0.
+            #
+            # It reported "Statement timeout is 0 - queries can hang
+            # indefinitely" against a database where mizzou_user has had
+            # statement_timeout=120s throughout, which sent somebody
+            # looking for a lost setting on the production instance.
+            row = session.execute(text("""
+                SELECT setting, unit
                 FROM pg_settings
                 WHERE name = 'statement_timeout'
-            """)).scalar()
+            """)).one_or_none()
 
-            # Should have a timeout set (not 0)
-            if statement_timeout:
-                timeout_val = statement_timeout.split("ms")[0]
-                timeout_ms = int(timeout_val) if "ms" in statement_timeout else 0
-                assert (
-                    timeout_ms > 0
-                ), "Statement timeout is 0 - queries can hang indefinitely"
+            assert row is not None, "statement_timeout is not reported at all"
+            assert row.unit == "ms", (
+                f"statement_timeout is reported in {row.unit!r}, not ms; "
+                "this assertion reads it as milliseconds"
+            )
+            assert int(row.setting) > 0, (
+                f"statement_timeout is {row.setting}{row.unit} - queries can "
+                "hang indefinitely. Set it on the role: "
+                "ALTER ROLE <role> SET statement_timeout = '120s'"
+            )
 
     def test_transaction_rollback_on_extraction_errors(self, production_db):
         """
@@ -1409,7 +1430,9 @@ class TestContentCleaningPipeline:
 class TestMLPipeline:
     """Test ML pipeline (entity extraction, gazetteer, labeling)."""
 
-    def test_entity_extraction_gazetteer_loading(self, production_db):
+    def test_entity_extraction_gazetteer_loading(
+        self, production_db, active_collection
+    ):
         """
         Verify entity extraction with gazetteer loading per source.
 
