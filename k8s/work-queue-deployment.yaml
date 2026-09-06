@@ -59,11 +59,12 @@ spec:
             # Database configuration
             - name: USE_CLOUD_SQL_CONNECTOR
               value: "true"
+            # The literal, as every other manifest writes it. Taken
+            # from the secret, this file did not say which database it
+            # meant -- and the cluster's copy was edited by hand to the
+            # SSD instance, so applying this would have moved it back.
             - name: CLOUD_SQL_INSTANCE
-              valueFrom:
-                secretKeyRef:
-                  name: cloudsql-db-credentials
-                  key: instance-connection-name
+              value: "mizzou-news-crawler:us-central1:mizzou-db-prod-ssd"
             - name: DATABASE_NAME
               valueFrom:
                 secretKeyRef:
@@ -139,11 +140,9 @@ spec:
             - "--port=5432"
             - "$(CLOUD_SQL_INSTANCE)"
           env:
+            # The proxy sidecar's own copy, and the second in this file.
             - name: CLOUD_SQL_INSTANCE
-              valueFrom:
-                secretKeyRef:
-                  name: cloudsql-db-credentials
-                  key: instance-connection-name
+              value: "mizzou-news-crawler:us-central1:mizzou-db-prod-ssd"
           resources:
             requests:
               memory: "128Mi"

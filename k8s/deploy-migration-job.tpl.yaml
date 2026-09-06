@@ -50,11 +50,20 @@ spec:
           env:
             - name: USE_CLOUD_SQL_CONNECTOR
               value: "true"
+            # The literal, as every other manifest here writes it. It
+            # used to come from `cloudsql-db-credentials`, and that made
+            # this the only deployed file that did not say which database
+            # it meant -- so when the corpus moved to the SSD instance
+            # and every manifest was updated, this one had nothing to
+            # update, and the secret in `production` still named the old
+            # instance. Migrations kept reporting success against a
+            # database nothing else read, for eight days.
+            #
+            # Credentials still come from the secret. An instance name is
+            # not a credential; it is which database this is, and that
+            # belongs in the file that is reviewed and deployed.
             - name: CLOUD_SQL_INSTANCE
-              valueFrom:
-                secretKeyRef:
-                  name: cloudsql-db-credentials
-                  key: instance-connection-name
+              value: "mizzou-news-crawler:us-central1:mizzou-db-prod-ssd"
             - name: DATABASE_USER
               valueFrom:
                 secretKeyRef:
