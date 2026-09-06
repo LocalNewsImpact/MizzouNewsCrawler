@@ -8,9 +8,10 @@ unwritable by an earlier run made the next run fail during COLLECTION:
     ERROR collecting tests/integration/test_work_queue_integration.py
 
 That file was neither the cause nor selected. It failed because
-`src/services/work_queue.py` builds a coordinator at import and touches
-the database, so whichever module imports it first wears the error. The
-pre-push hook rejected three pushes before the leftover was found.
+`src/services/work_queue.py` built a coordinator at import and touched
+the database, so whichever module imported it first wore the error --
+which is fixed in tests/test_importing_a_service_touches_no_database.py.
+The pre-push hook rejected three pushes before the leftover was found.
 
 Cleanup swallowed every error and only ran when a session ended
 normally, which is how leftovers were made in the first place.

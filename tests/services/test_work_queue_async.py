@@ -17,7 +17,11 @@ def test_concurrent_requests_do_not_block():
     This test verifies the fix for the async/sync blocking bug where slow
     database queries would block the entire event loop, causing timeouts.
     """
-    from src.services.work_queue import app, coordinator
+    from src.services.work_queue import app, get_coordinator
+
+    # Built on demand now, so the tests ask for it rather than
+    # importing an instance the module makes at import time.
+    coordinator = get_coordinator()
 
     # Mock slow database operation (simulates 2-second query)
     original_request_work = coordinator.request_work
@@ -80,7 +84,11 @@ def test_health_check_responds_during_slow_request():
 
     This verifies that the health endpoint is not blocked by slow work requests.
     """
-    from src.services.work_queue import app, coordinator
+    from src.services.work_queue import app, get_coordinator
+
+    # Built on demand now, so the tests ask for it rather than
+    # importing an instance the module makes at import time.
+    coordinator = get_coordinator()
 
     # Mock slow request_work (simulates 3-second query)
     def slow_request_work(*args, **kwargs):
@@ -147,7 +155,10 @@ async def test_async_endpoint_uses_executor():
         executor_thread_id = threading.get_ident()
         return MagicMock(items=[], worker_domains={}, status="no_work")
 
-    with patch("src.services.work_queue.coordinator") as mock_coordinator:
+    # `get_coordinator` is what the routes call, so that is what a
+    # double replaces.
+    with patch("src.services.work_queue.get_coordinator") as get_mock:
+        mock_coordinator = get_mock.return_value
         mock_coordinator.request_work = track_thread
 
         # Create mock request
@@ -249,7 +260,9 @@ def test_heartbeat_endpoint_non_blocking():
 
 def test_stats_endpoint_non_blocking():
     """Stats endpoint should respond quickly even under load."""
-    from src.services.work_queue import StatsResponse, app, coordinator
+    from src.services.work_queue import StatsResponse, app, get_coordinator
+
+    coordinator = get_coordinator()
 
     # Mock slow get_stats (simulates 1-second query)
     def slow_get_stats():

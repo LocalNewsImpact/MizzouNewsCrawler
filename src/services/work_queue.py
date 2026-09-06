@@ -537,8 +537,44 @@ class WorkQueueCoordinator:
             )
 
 
-# Global coordinator instance
-coordinator = WorkQueueCoordinator()
+# The process's coordinator, built when something first asks for it.
+#
+# This used to be `coordinator = WorkQueueCoordinator()` at module
+# scope, which meant importing this module opened a database connection
+# and ran `Base.metadata.create_all` (src/models/database.py). Any
+# importer paid for that, including pytest: collecting a test module
+# that imports this one created tables in whatever database the
+# environment happened to name.
+#
+# It also made failures point at the wrong place. A stale, unwritable
+# SQLite file in the temp directory surfaced as
+#
+#     ERROR collecting tests/integration/test_work_queue_integration.py
+#     sqlite3.OperationalError: attempt to write a readonly database
+#
+# against a test that was deselected and never ran. It was simply the
+# first module to import this one, so it wore an error it had no part
+# in.
+#
+# Built on first use, the connection happens when the service serves,
+# and importing this module does nothing but define things.
+_coordinator: Optional["WorkQueueCoordinator"] = None
+_coordinator_lock = Lock()
+
+
+def get_coordinator() -> "WorkQueueCoordinator":
+    """The coordinator this process serves from, made once.
+
+    Double-checked under a lock: the routes hand their work to a thread
+    pool, so two requests arriving together would otherwise build two
+    coordinators and two connection pools.
+    """
+    global _coordinator
+    if _coordinator is None:
+        with _coordinator_lock:
+            if _coordinator is None:
+                _coordinator = WorkQueueCoordinator()
+    return _coordinator
 
 
 @app.post("/work/request", response_model=WorkResponse)
@@ -557,7 +593,7 @@ async def request_work(request: WorkRequest) -> WorkResponse:
         return await loop.run_in_executor(
             None,
             partial(
-                coordinator.request_work,
+                get_coordinator().request_work,
                 request.worker_id,
                 request.batch_size,
                 request.max_articles_per_domain,
@@ -582,7 +618,9 @@ async def worker_heartbeat(worker_id: str) -> dict[str, str]:
     try:
         # Run in thread pool to avoid blocking event loop
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, coordinator.update_worker_heartbeat, worker_id)
+        await loop.run_in_executor(
+            None, get_coordinator().update_worker_heartbeat, worker_id
+        )
         return {
             "status": "success",
             "message": f"Heartbeat received for {worker_id}",
@@ -607,7 +645,7 @@ async def report_failure(worker_id: str, domain: str) -> dict[str, str]:
         # Run in thread pool to avoid blocking event loop
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(
-            None, partial(coordinator.report_failure, worker_id, domain)
+            None, partial(get_coordinator().report_failure, worker_id, domain)
         )
         return {"status": "success", "message": f"Failure reported for {domain}"}
     except Exception as e:
@@ -625,7 +663,7 @@ async def get_stats() -> StatsResponse:
     try:
         # Run in thread pool to avoid blocking event loop
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, coordinator.get_stats)
+        return await loop.run_in_executor(None, get_coordinator().get_stats)
     except Exception as e:
         logger.error(f"Error getting stats: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
