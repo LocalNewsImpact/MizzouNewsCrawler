@@ -16,7 +16,7 @@ Measured against `main` on 2026-09-05, datadesk `main`, and
 
 | Decision | Taken | Because |
 | --- | --- | --- |
-| Repository name | `LocalNewsImpact/lnic-enrichment` | Matches `lnic-contracts`; the crawler and datadesk keep their names |
+| Repository name | `LocalNewsImpact/lnic-classify` | Set 2026-09-05; the crawler and datadesk keep their names |
 | Source layout | `src/enrichment/` kept verbatim; history carried with `git filter-repo` | A `git mv` diff, `blame` preserved, no import rewrites in the moved tests |
 | Enrichment's own status lives in | `article_enrichment.status`, three values | One writer per column; `articles.status` stops at `labeled` for enrichment |
 | Attempt counter lives in | new table `article_enrichment_attempts` | `article_enrichment` has five NOT NULL provenance columns; an attempt with no verdict cannot be a row there |
@@ -39,7 +39,7 @@ the cut-over is a switch with a rollback, not a dual-running window.
 
 | | Today | After |
 | --- | --- | --- |
-| Repositories writing enrichment tables | crawler | `lnic-enrichment` |
+| Repositories writing enrichment tables | crawler | `lnic-classify` |
 | Writers of `articles.status` | crawler, enrichment, datadesk | crawler, datadesk |
 | Writers of `articles.enriched_at`, `articles.enrichment_attempts` | enrichment | nobody; columns dropped |
 | Enrichment's verdict | `articles.status` | `article_enrichment.status` |
@@ -60,7 +60,7 @@ Origin column: `moved` is a path in this repository carried with history;
 `new` is written for the split.
 
 ```
-lnic-enrichment/
+lnic-classify/
 ├── .github/
 │   ├── CODEOWNERS                              new
 │   └── workflows/
@@ -129,8 +129,8 @@ lnic-enrichment/
 ### 2.2 Carrying history
 
 ```sh
-git clone --no-local git@github.com:LocalNewsImpact/MizzouNewsCrawler.git lnic-enrichment
-cd lnic-enrichment
+git clone --no-local git@github.com:LocalNewsImpact/MizzouNewsCrawler.git lnic-classify
+cd lnic-classify
 git filter-repo \
   --path src/enrichment/ \
   --path src/cli/commands/enrichment.py \
@@ -144,10 +144,10 @@ git filter-repo \
   --path-rename Dockerfile.enrichment:Dockerfile \
   --path-rename tests/cli/commands/test_enrichment_command.py:tests/enrichment/test_cli.py \
   --path-rename tests/integration/test_enrichment.py:tests/integration/test_repository.py
-git remote add origin git@github.com:LocalNewsImpact/lnic-enrichment.git
+git remote add origin git@github.com:LocalNewsImpact/lnic-classify.git
 ```
 
-The repository is created empty first (`gh repo create LocalNewsImpact/lnic-enrichment --private`);
+The repository is created empty first (`gh repo create LocalNewsImpact/lnic-classify --private`);
 the org ruleset applies to it on creation. The first push is the filtered
 history followed by one commit adding everything marked `new`.
 
@@ -165,10 +165,10 @@ gh api repos/LocalNewsImpact/MizzouNewsCrawler/rulesets/8488585 \
          | .rules[0].parameters.required_status_checks
            = [{"context":"lint"},{"context":"test"},{"context":"integration"},{"context":"conforms"}]' \
   > ruleset.json
-gh api -X POST repos/LocalNewsImpact/lnic-enrichment/rulesets --input ruleset.json
+gh api -X POST repos/LocalNewsImpact/lnic-classify/rulesets --input ruleset.json
 ```
 
-Verify: `gh api repos/LocalNewsImpact/lnic-enrichment/rulesets --jq '.[].name'` lists both.
+Verify: `gh api repos/LocalNewsImpact/lnic-classify/rulesets --jq '.[].name'` lists both.
 
 ### 2.4 Makefile
 
@@ -316,10 +316,10 @@ The `github` WIF pool and provider exist in `mizzou-news-crawler`
 ```sh
 gcloud iam workload-identity-pools providers update-oidc github \
   --project=mizzou-news-crawler --location=global --workload-identity-pool=github \
-  --attribute-condition="assertion.repository in ['LocalNewsImpact/MizzouNewsCrawler','LocalNewsImpact/lnic-enrichment']"
+  --attribute-condition="assertion.repository in ['LocalNewsImpact/MizzouNewsCrawler','LocalNewsImpact/lnic-classify']"
 
 gcloud iam service-accounts create enrichment-deploy --project=mizzou-news-crawler \
-  --display-name="lnic-enrichment GitHub Actions"
+  --display-name="lnic-classify GitHub Actions"
 gcloud artifacts repositories add-iam-policy-binding mizzou-crawler \
   --project=mizzou-news-crawler --location=us-central1 \
   --member="serviceAccount:enrichment-deploy@mizzou-news-crawler.iam.gserviceaccount.com" \
@@ -330,9 +330,9 @@ gcloud projects add-iam-policy-binding mizzou-news-crawler \
 gcloud iam service-accounts add-iam-policy-binding \
   enrichment-deploy@mizzou-news-crawler.iam.gserviceaccount.com --project=mizzou-news-crawler \
   --role=roles/iam.workloadIdentityUser \
-  --member="principalSet://iam.googleapis.com/projects/145096615031/locations/global/workloadIdentityPools/github/attribute.repository/LocalNewsImpact/lnic-enrichment"
+  --member="principalSet://iam.googleapis.com/projects/145096615031/locations/global/workloadIdentityPools/github/attribute.repository/LocalNewsImpact/lnic-classify"
 
-gh variable set WIF_PROVIDER --repo LocalNewsImpact/lnic-enrichment \
+gh variable set WIF_PROVIDER --repo LocalNewsImpact/lnic-classify \
   --body "projects/145096615031/locations/global/workloadIdentityPools/github/providers/github"
 ```
 
@@ -852,7 +852,7 @@ its own copy — the bump removes that.
 
 | Image | Built by | From | Deploys to |
 | --- | --- | --- | --- |
-| `…/mizzou-crawler/enrichment:<tag>` | `lnic-enrichment` `build.yml` (image-build.yml, WIF) | `python:3.11-slim` | `cronjob/mizzou-enrichment` |
+| `…/mizzou-crawler/enrichment:<tag>` | `lnic-classify` `build.yml` (image-build.yml, WIF) | `python:3.11-slim` | `cronjob/mizzou-enrichment` |
 | `…/mizzou-crawler/enrichment` via `build-enrichment-manual` (Cloud Build) | crawler | `mizzou-base` | retired at step 10 |
 
 ### 6.2 `k8s/enrichment-cronjob.yaml` (moved)
@@ -868,7 +868,7 @@ Diff against the current manifest:
                    key: username
    (same for DATABASE_PASSWORD → password, DATABASE_NAME → database)
 -          image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/enrichment:${ENRICHMENT_TAG}
-+          image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/enrichment:${ENRICHMENT_TAG}   # unchanged path; tag now from lnic-enrichment/k8s/versions.env
++          image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/enrichment:${ENRICHMENT_TAG}   # unchanged path; tag now from lnic-classify/k8s/versions.env
 ```
 
 Schedule `30 */4 * * *`, `concurrencyPolicy: Forbid`,
@@ -1038,7 +1038,7 @@ opens. Steps 1–5 change nothing in production.
 | --- | --- | --- | --- | --- |
 | 1 | `lnic-contracts` | v0.4.0: §5.1–5.3, tests, tag | `make check`; tag exists | untag |
 | 2 | crawler | pin v0.4.0; the two contract tests (§5.4); `src/utils/census_places.py` and the gazetteer import (§3.5) | `make check`; deploy of processor/crawler unaffected | revert |
-| 3 | `lnic-enrichment` | repository created (§2.2), rulesets (§2.3), GCP identity (§2.8); everything in §2, §3, §4.3–4.4, §7.1–7.4 as the first PR | CI green: lint, typecheck, test (floor ≥ 80%), integration, conforms; `build.yml` dispatch pushes an image | delete the repository |
+| 3 | `lnic-classify` | repository created (§2.2), rulesets (§2.3), GCP identity (§2.8); everything in §2, §3, §4.3–4.4, §7.1–7.4 as the first PR | CI green: lint, typecheck, test (floor ≥ 80%), integration, conforms; `build.yml` dispatch pushes an image | delete the repository |
 | 4 | — | restore the production instance to a clone (`gcloud sql instances clone`); run steps 6–8 against it end to end; record the §4.5 counts and the run's timings in the step-6 PR | one full CronJob run on the clone: rows written, `articles` untouched | delete the clone |
 | 5 | datadesk | pin v0.4.0; §7.6 in full; `make check`; **not deployed** until step 8 — held as an open PR with CI green (the one open PR datadesk carries) | `make check` on :5434 | close |
 | 6 | production | `apply.sh create_enrichment_role.sql`; Secret Manager + `enrichment-db-credentials` (§4.6) | the three verifications in §4.6 | `DROP ROLE` after `REASSIGN OWNED BY enrichment_rw TO mizzou_user` |
@@ -1058,7 +1058,7 @@ clone. Step 9 waits a week of scheduled runs.
 | --- | --- | --- |
 | 1 | 1 | `lnic-contracts` v0.4.0 tagged |
 | 1–2 | 2 | crawler PR: pin, two contract tests, `census_places` |
-| 2–4 | 3 | `lnic-enrichment`: history, `db.py`, `cli.py`, repository changes, alembic chain, Dockerfile, workflows, Makefile, hook, all tests green, image built; GCP identity |
+| 2–4 | 3 | `lnic-classify`: history, `db.py`, `cli.py`, repository changes, alembic chain, Dockerfile, workflows, Makefile, hook, all tests green, image built; GCP identity |
 | 5 | 4 | clone rehearsal; counts and timings recorded |
 | 5–6 | 5 | datadesk PR: models, dispositions, queue, dashboard, corpus, templates, conftest, fourteen test files, grant |
 | 7 | 6–8 | production cut-over |
