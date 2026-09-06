@@ -15,12 +15,35 @@ from coverage.exceptions import CoverageException
 # Tests that need Cloud SQL/PostgreSQL can set PYTEST_KEEP_DB_ENV=true
 if "USE_CLOUD_SQL_CONNECTOR" not in os.environ:
     os.environ["USE_CLOUD_SQL_CONNECTOR"] = "false"
+#: The directory holding this session's SQLite database, or None when
+#: DATABASE_URL was set from outside (CI's Postgres, or a developer
+#: pointing the suite somewhere).
+TEST_DB_DIR: str | None = None
+
 if "DATABASE_URL" not in os.environ:
-    # Use file-based SQLite so the same database is shared across
-    # all DatabaseManager() instances within a test session
+    # A file, so every DatabaseManager() in a session shares one database
+    # -- and a NEW directory per session, because the name used to be
+    # fixed: `<tmp>/test_news_crawler.db`, one database for every
+    # checkout and every run on the machine.
+    #
+    # A copy of it left unwritable by an earlier run made the next run
+    # fail during COLLECTION, with "attempt to write a readonly
+    # database" reported against
+    # tests/integration/test_work_queue_integration.py -- a file that
+    # was neither the cause nor even selected, because the import that
+    # touched the database happened to be in it. Three pushes were
+    # rejected by the pre-push hook before the leftover was found.
+    #
+    # The cleanup below removes the directory, and `atexit` repeats it,
+    # because a session that is interrupted never reaches a fixture's
+    # teardown and that is how the leftovers were made.
+    import atexit
+    import shutil
     import tempfile
 
-    test_db_path = os.path.join(tempfile.gettempdir(), "test_news_crawler.db")
+    TEST_DB_DIR = tempfile.mkdtemp(prefix="news-crawler-tests-")
+    atexit.register(shutil.rmtree, TEST_DB_DIR, ignore_errors=True)
+    test_db_path = os.path.join(TEST_DB_DIR, "news_crawler.db")
     os.environ["DATABASE_URL"] = f"sqlite:///{test_db_path}"
 # Clear PostgreSQL env vars that might cause unwanted connections
 # Prevents src.config from building PostgreSQL URL when running tests locally
@@ -51,18 +74,21 @@ pytest_plugins = [
 
 @pytest.fixture(scope="session", autouse=True)
 def cleanup_test_database():
-    """Clean up file-based SQLite test database after all tests complete."""
-    yield
-    # After all tests complete, delete the test database file
-    import os
-    import tempfile
+    """Remove this session's SQLite database when the session ends.
 
-    test_db_path = os.path.join(tempfile.gettempdir(), "test_news_crawler.db")
-    if os.path.exists(test_db_path):
-        try:
-            os.remove(test_db_path)
-        except Exception:
-            pass  # Ignore cleanup errors
+    The whole directory goes, not just the file: SQLite writes `-wal`
+    and `-shm` beside it, and a directory removed whole cannot leave one
+    of them behind.
+
+    Nothing is removed when DATABASE_URL came from outside -- that is
+    CI's Postgres, or somebody's own database, and neither is this
+    fixture's to delete.
+    """
+    yield
+    import shutil
+
+    if TEST_DB_DIR:
+        shutil.rmtree(TEST_DB_DIR, ignore_errors=True)
 
 
 @pytest.fixture(autouse=True)
