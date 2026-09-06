@@ -216,7 +216,9 @@ The crawler's side of it:
 
 ## 4. What the enrichment split needs
 
-The split is sound and should happen after §3.1–3.3, not before.
+The split is sound and should happen after §3.1–3.3, not before. What it
+would cost and what it would risk is measured in
+[SPLITTING_ENRICHMENT.md](SPLITTING_ENRICHMENT.md).
 
 **A repository split does not divide the images.** Enrichment currently
 builds on `base` (`Dockerfile.enrichment`) while `processor` builds on
