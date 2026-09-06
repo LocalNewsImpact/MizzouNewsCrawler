@@ -1,188 +1,240 @@
-# Splitting analysis and enrichment into their own repository
+# Splitting enrichment into its own repository
 
 What it would cost, what it would risk, and what has to be true first.
 Measured against the tree on 2026-09-05.
 
 The question is a repository split, not a service split: discovery,
-collection and extraction stay in this repository; CIN classification,
-entity extraction and enrichment move to a second one, developed
-semi-separately and run as independent services against the same
-database.
+collection and extraction stay in this repository; enrichment moves to
+a second one, developed semi-separately and run as an independent
+service against the same database.
 
 ---
 
 ## 1. The short answer
 
-**Effort: two to three weeks of focused work, most of it not the move.**
-The code that moves is small — about 5,000 of 69,000 lines. What costs
-is the shared floor underneath it and the second delivery pipeline it
-needs.
+**Effort: 8–9 working days.** The code that moves is 1,951 lines that
+already import nothing from the rest of the tree, already own their own
+tables, and already run as their own image and CronJob. What costs is
+the second delivery pipeline and moving three columns.
 
-**Risk: moderate, and concentrated in one place.** Both repositories
-would write `articles.status`, and a status vocabulary that drifts
-strands rows in a state neither side services. Everything else is
-plumbing with known shapes.
+**Risk: low once one column stops being shared.** Enrichment writes
+`articles.status`, `articles.enriched_at` and
+`articles.enrichment_attempts`. Those three columns are the whole
+coupling. Moved into `article_enrichment`, enrichment never writes a
+table it does not own, and the drift that a split would otherwise
+introduce has nowhere to happen.
 
-**It is not blocked on the split being hard.** It is blocked on two
-things this repository has not finished: the NLP stack still sits in
-`base` where both sides pay for it, and a contract release still has to
-be bumped by hand in each consumer.
+**It is not blocked on the NLP stack.** Enrichment uses no torch, spaCy
+or scikit-learn. It builds on `mizzou-base` today because that is the
+only base there is; in its own repository it builds on `python:3.11-slim`
+and §3.2 of BUILD_AND_CI_ARCHITECTURE stops being its problem.
+
+The one precondition is the status vocabulary becoming a contract (§6),
+and that is owed with or without the split: datadesk already reads and
+writes `articles.status` with no contract behind it.
 
 ---
 
-## 2. What actually moves
+## 2. The rule the suite is built on
+
+`lnic-contracts` holds definitions. Each repository holds its own
+implementation. The test that keeps the boundary honest:
+
+> A contracts release may require a consumer to **accept a new shape**.
+> It must never require a consumer to **change behaviour**.
+
+| Belongs in `lnic-contracts` | Stays in the owning repository |
+| --- | --- |
+| table shapes (`crawler-schema`) | the ORM that maps them |
+| status vocabularies | the code that transitions them |
+| the export row schema | the query that produces it |
+| `python-checks.yml`, the coverage floor, the org ruleset | the tests and the `Makefile` |
+
+Shared *code* in the contracts package — an ORM, a config loader, a
+telemetry client — turns three repositories back into one deployable
+with three checkouts: every behaviour change becomes a coordinated
+release, and the package built to remove the bottleneck becomes it.
+Kubernetes' `k8s.io/api` is the reference for the good version: types
+only, imported by every component, no behaviour.
+
+The second rule follows from the first. **A repository owns the tables
+it writes.** It reads every other table through the declared shape and
+never writes one. Datadesk already works this way against this
+database; enrichment nearly does (§4).
+
+### Why not one repository
+
+This repository already is one: discovery, extraction and enrichment in
+one 69,000-line tree, which is the tree an outside contributor cannot
+approach. A monorepo isolates a contributor only after path-filtered CI,
+per-package test targets and CODEOWNERS are built on top of a workspace
+tool; at the suite's size that tooling is a fourth project. A separate
+repository gets the same isolation from GitHub for nothing: a
+contributor forks one repository, the org ruleset and the shared CI
+apply, and the crawler is never in their checkout.
+
+---
+
+## 3. What moves
 
 | Moves | Lines |
 | --- | ---: |
 | `src/enrichment/` | 1,951 |
-| `src/ml/` (the classifier) | 315 |
-| `src/pipeline/entity_extraction.py` | — |
-| `src/services/classification_service.py` | — |
-| `src/utils/gazetteer_names.py`, geocode cache | — |
-| `vendor/backfield/` | 852 KB, vendored |
-| `src/cli/commands/{enrichment,entity_extraction,gazetteer,analysis}.py` | — |
-| 47 test files of 388 | — |
+| `src/cli/commands/enrichment.py` | 235 |
+| `vendor/backfield/` (prompts and reference data) | 852 KB |
+| `Dockerfile.enrichment`, `k8s/enrichment-cronjob.yaml`, `gcp/cloudbuild/cloudbuild-enrichment.yaml` | — |
+| `tests/enrichment/`, `tests/cli/commands/test_enrichment_command.py`, `tests/integration/test_enrichment.py` | — |
+| `alembic/versions/` — the seven migrations that create or alter enrichment's tables | — |
 
-Roughly 5,000 lines of source and an eighth of the test suite. For
-comparison, `src/crawler/` alone is 17,437 lines and `src/utils/`
-21,357.
-
-**The runtime boundary already exists.** `Dockerfile.enrichment` builds
-its own image, `k8s/enrichment-cronjob.yaml` runs it as its own CronJob,
-and its entrypoint is one CLI verb (`enrich run --dataset …`). Nothing
-in the crawler's request path calls into enrichment; the coupling is a
-CLI import, not a function call in a hot loop.
+**What stays.** `src/ml/` (the classifier), `src/pipeline/entity_extraction.py`,
+`src/services/classification_service.py` and the gazetteer commands
+are older, ORM-bound, and part of the extraction pipeline's labelling
+step, not of enrichment. They were counted into the earlier 5,000-line
+estimate, and they are where the shared-floor cost came from. They do
+not move.
 
 ---
 
-## 3. What is shared, and what that costs
+## 4. What enrichment touches today
 
-The move is small. The floor underneath it is not.
+Measured, not assumed.
 
-| Shared today | Lines | What the second repository needs |
-| --- | ---: | --- |
-| `src/models/` — the ORM, one definition of every table | 4,550 | a package, or a duplicate that drifts |
-| `src/config.py` | 225 | the same |
-| `src/telemetry/`, `src/utils/telemetry.py` | ~2,400 | the same |
-| `src/utils/` odds — confidence, logging, metrics, process tracking | ~1,500 | the same |
-| `alembic/` — 63 migrations, one head | — | see §4 |
+| Dependency | Finding |
+| --- | --- |
+| `src.models`, `src.config`, `src.telemetry`, `src.utils` | **not imported** by anything under `src/enrichment/` |
+| Database access | raw SQL over a SQLAlchemy `Connection`; the CLI wrapper borrows `DatabaseManager` once, for the connection (`src/cli/commands/enrichment.py:136`) |
+| torch, spaCy, scikit-learn, newspaper | none |
+| Tables it writes and owns | `article_enrichment`, `article_geoids`, `article_people`, `article_places`, `article_organizations` |
+| Columns it writes on a table it does not own | `articles.enrichment_attempts` (`repository.py:342`); `articles.status`, `articles.enriched_at` (`repository.py:691`) |
+| Rows it reads | `articles` joined to `candidate_links`, `dataset_sources`, `datasets`, `sources` — all through the shape `lnic-contracts` already declares |
+| Base image | `mizzou-base` (10 GB, carries the NLP stack it does not use) |
 
-Three ways to handle it, and only one is honest:
-
-1. **Duplicate.** Cheapest today, and the drift is guaranteed: two ORM
-   definitions of `articles` diverge the first time a column is added.
-2. **Talk over an API.** Correct in the long run, wrong now: enrichment
-   reads whole article bodies in batches, and an HTTP hop per article
-   changes the cost profile of a job that already runs for hours.
-3. **Grow `lnic-contracts` to carry the shared floor.** The package
-   already exists for exactly this reason, already holds a shape both
-   sides read, and already ships to three consumers. This is the answer,
-   and it is most of the work.
+The runtime boundary is already a service boundary. The repository
+boundary is three columns and one import away.
 
 ---
 
-## 4. The database is one database
-
-Both sides write the same rows.
+## 5. The database is one database, and each table has one writer
 
 | Side | Writes |
 | --- | --- |
-| crawler | `candidate_links`, `sources`, `articles` (through extraction) |
-| enrichment | `article_enrichment`, `article_geoids`, `article_people`, `article_places`, `article_organizations`, and **`articles.status`** |
+| crawler | `candidate_links`, `sources`, `articles` |
+| enrichment | its five tables, and — until the split — three columns of `articles` |
+| datadesk | `articles.status` on review (rewinds to `paused`, `cleaned`), its own tables |
 
-A repository boundary does not make a service boundary. The two will go
-on sharing a database, which is the same constraint the sources
-migration works under: they cannot join across databases, so the split
-must not assume they can.
+**The three columns move.** `status`, `enriched_at` and
+`enrichment_attempts` become columns of `article_enrichment`, which
+already holds one row per article enrichment has looked at. After the
+move enrichment selects from `articles` and writes only its own tables.
+`articles.status` stops at `labeled` for the crawler's purposes.
 
-**Migrations need an owner.** 63 migrations, one head. The enrichment
-tables were created by six of them. After a split, either the crawler
-keeps `alembic/` and the second repository asks it for schema changes —
-slow, and the wrong repository reviews them — or the second repository
-runs its own chain with its own version table against the same database,
-which works and needs a rule about who may touch `articles`.
+Two readers change with it:
 
-Recommended: the second repository owns the tables only it writes, with
-its own alembic version table. `articles` stays here, and a column
-enrichment needs is a pull request against this repository.
+- **The BigQuery scheduled query** (outside the repository) whose inner
+  filter is `status IN ('enriched', 'enrichment_skipped')` joins
+  `article_enrichment` for the same filter. One config change.
+- **Datadesk** reads `enriched` / `enrichment_skipped` counts for the
+  dashboard and costs pages; the queries join `article_enrichment`. Its
+  review rewinds already write only crawler statuses and do not change.
+
+**Migrations have one owner per table.** The seven enrichment
+migrations move to the new repository as the start of its own alembic
+chain with its own version table. `alembic/` here keeps `articles`, and
+a column enrichment wants on `articles` is a pull request against this
+repository — which, after the move, it has no reason to want.
+
+A local end-to-end run is two checkouts pointed at one Postgres. Each
+repository's compose file already takes a DSN.
 
 ---
 
-## 5. What has to be true first
+## 6. The status vocabulary is already a cross-repository fact
 
-| Blocked on | Why | State |
+`articles.status` is the pipeline's state machine, and three
+repositories touch it today with nothing but convention holding the
+words together:
+
+| Repository | Reads | Writes |
 | --- | --- | --- |
-| NLP out of `base` (§3.2 of BUILD_AND_CI_ARCHITECTURE) | after the split the crawler should not carry spacy/torch, which is only true if the base image stops carrying them | not done |
-| The contract release opens the bump PR in each consumer | two consumers already have to be bumped by hand in lockstep; a third makes it worse | not done |
-| Shared CI (`ci-v1`) | a new repository gets the pattern for free | **done 2026-09-05** |
-| The status vocabulary is a contract, not a convention | see §6 | not done |
+| crawler | everything | `extracted`, `cleaned`, `labeled`, `paused`, `wire`, `obituary`, `opinion`, `weather`, `paywall`, `out_of_scope` … |
+| enrichment | `labeled` | `enriched`, `enrichment_skipped` |
+| datadesk | `enriched`, `enrichment_skipped`, `labeled`, `cleaned`, `paused` | `paused`, `cleaned` (review rewinds) |
+
+A status renamed on one side is invisible until an article lands in a
+state the other does not service — out of the pipeline, out of the
+export, with nothing raising it. This is the exact failure
+`lnic-contracts` was created for, where a key renamed in
+`articles.metadata.review` stranded held articles with no import error
+to catch it.
+
+The vocabulary moves into `lnic-contracts` as a declared enumeration.
+Each repository gains one test: every status it writes is in the
+contract, and every status it reads is one it handles. This is owed
+today; the split only makes the third writer a third repository.
 
 ---
 
-## 6. The risk that matters
+## 7. What has to be true first
 
-**Two repositories writing one status column.**
+| Precondition | State |
+| --- | --- |
+| Status vocabulary in `lnic-contracts`, asserted by crawler and datadesk | not done — the one real gate |
+| Shared CI (`ci-v1`) so the new repository inherits the pattern | **done 2026-09-05** |
+| Org ruleset so the new repository inherits the merge rules | **done 2026-09-05** |
 
-`articles.status` is the pipeline's state machine. Extraction writes
-`extracted`, `cleaned`, `paused`; enrichment writes `enriched`,
-`enrichment_skipped`, and reads `labeled`. The values are agreed by
-nothing but the fact that both sides are in one tree and one test suite.
+Two items that the earlier assessment listed as blockers are not:
 
-Split them, and a status renamed on one side is invisible until an
-article lands in a state the other does not service — out of the
-pipeline, out of the export, with nothing raising it. This is not
-hypothetical: it is the exact failure `lnic-contracts` was created for,
-where a key renamed in `articles.metadata.review` stranded held articles
-with no import error to catch it.
+- **NLP out of `base`** (§3.2). Enrichment leaves `base` by leaving the
+  repository. The crawler's own image size is §3.2's problem and is
+  unchanged by the split either way.
+- **Automated contract bump PRs.** Worth doing — three consumers bumped
+  by hand is worse than two — but the split does not depend on it. A
+  status vocabulary changes rarely; a table shape changes when a column
+  is added, which the current hand bump already handles.
 
-Mitigation, and it is the price of the split: the statuses move into
-`lnic-contracts` as a declared vocabulary both sides import, with a test
-in each repository asserting that every status it writes is in the
-contract and every status it reads is handled.
+---
 
-### The rest, in order of how much they would hurt
+## 8. Risks
 
 | Risk | Mitigation |
 | --- | --- |
-| Version lockstep across three repositories, done by hand | automate the bump PR before the split, not after |
-| Migration head conflicts against one database | one owner per table; separate version tables |
-| A local end-to-end run needs two checkouts and one database | a compose file in each that points at the same Postgres, and a documented order |
-| The gazetteer and geocode cache are read by both sides | they belong with enrichment; the crawler's use is a report, which can move or read the table |
-| Coverage floor per repository | the floor is one number in `lnic-contracts` already; a new repository inherits it |
-| Two deploy pipelines to keep current | the second is a copy of a pattern now proven three times; the `image-tag` action and `python-checks.yml` are shared |
+| The scheduled query or a datadesk page still filters `articles.status` for enrichment states after the columns move | grep for the two words across all three repositories before the migration; the contract test in §6 catches a read of a status no longer written |
+| Migration head conflicts against one database | one owner per table; separate version tables; the enrichment chain starts from its own base revision |
+| A second deploy pipeline to keep current | a copy of a pattern proven three times; `image-tag` and `python-checks.yml` are shared |
+| Reprocessing: something rewinds `article_enrichment.status` and enrichment must notice | unchanged — reprocessing is already keyed on the status alone (`repository.py:45`) |
+| Version lockstep across three consumers, done by hand | tolerable at the rate contracts changes; automate when it hurts |
 
 ---
 
-## 7. What it buys
+## 9. What it buys
 
-- **The NLP stack stops being everybody's cost.** `ml-base` is 10 GB and
-  the processor image 9.99 GB; extraction does not need any of it.
-- **The two can be released on their own cadence.** A change to the
-  geocoding ladder does not rebuild the crawler; a change to the fetch
-  path does not rebuild the classifier.
-- **A second team can work without merge collisions** in a 69,000-line
-  tree where the two halves already do not call each other.
-- **The boundary gets tested.** Today the seam between extraction and
-  enrichment is an import; after the split it is a contract with a test
-  on both sides, which is the thing that catches a rename before it
-  strands rows.
+- **Enrichment stops paying for the NLP stack.** Its image goes from
+  10 GB to a few hundred MB, and rebuilds in seconds.
+- **The two release on their own cadence.** A change to the geocoding
+  ladder does not rebuild the crawler; a change to the fetch path does
+  not rebuild enrichment.
+- **A contributor can hold the whole repository in their head.** Two
+  thousand lines with one entrypoint, one table family and one external
+  API, instead of 69,000.
+- **The boundary gets tested.** Today the seam is a CLI import; after
+  the split it is a declared vocabulary with a test on both sides.
+- **No repository writes another's table.** The rule datadesk already
+  keeps becomes the rule everywhere.
 
 ---
 
-## 8. Effort, itemised
+## 10. Effort, itemised
 
 | Work | Estimate |
 | --- | --- |
-| Move the code and its tests; fix imports | 2 days |
-| Shared floor into `lnic-contracts` (models, config, telemetry) and pinned in both | 4–5 days |
-| Statuses into the contract, with the assertions in both repositories | 2 days |
-| Alembic ownership: split the chain, prove it against a restored copy | 2 days |
-| New repository's CI, image chain, Cloud Build triggers, deploy workflow | 2 days |
-| k8s: move the CronJob, the Argo template reference, versions.env | 1 day |
-| Documentation, and a week of running both before retiring the old path | 2 days |
+| Move `src/enrichment/`, the CLI verb, vendored backfield and tests; open the connection from a DSN instead of `DatabaseManager` | 1 day |
+| Migration: three columns into `article_enrichment`; backfill; drop from `articles`; the scheduled query and datadesk's two queries join | 2 days |
+| Status vocabulary into `lnic-contracts`, with the assertion in each of the three repositories | 1 day |
+| New repository: `python-checks.yml`, per-repo ruleset, `Dockerfile` on `python:3.11-slim`, Cloud Build trigger, deploy workflow | 2 days |
+| Enrichment's alembic chain and version table, proven against a restored copy | 1 day |
+| k8s: CronJob and `versions.env` move; the crawler's image chain drops `enrichment` | 0.5 day |
+| Documentation, and running both paths for a week before retiring the old one | 1–1.5 days |
 
-**Total: 15–16 working days**, of which the actual move is two.
-
-The estimate assumes the two blockers in §5 are cleared first. Attempted
-before them, the same work costs closer to four weeks and lands a
-crawler image that still carries torch.
+**Total: 8–9 working days.** The earlier estimate of 15–16 assumed the
+ORM, config and telemetry would move into `lnic-contracts`; that was
+both the wrong pattern (§2) and, measured, unnecessary (§4).

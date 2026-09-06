@@ -216,8 +216,10 @@ The crawler's side of it:
 
 ## 4. What the enrichment split needs
 
-The split is sound and should happen after §3.1–3.3, not before. What it
-would cost and what it would risk is measured in
+The split is sound. It does not wait on §3.2: enrichment uses none of
+the NLP stack and leaves `base` by leaving the repository. What it would
+cost, what it would risk, and the one precondition — the status
+vocabulary as a contract — are measured in
 [SPLITTING_ENRICHMENT.md](SPLITTING_ENRICHMENT.md).
 
 **A repository split does not divide the images.** Enrichment currently
