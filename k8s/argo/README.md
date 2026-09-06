@@ -41,16 +41,31 @@ This directory contains Argo Workflows configurations for production pipeline or
 
 ### Deploy Manually
 
+The base template carries `${CRAWLER_TAG}` and `${PROCESSOR_TAG}` rather
+than image tags of its own, as every other manifest here does. Set them
+to the tags you mean and render with `envsubst`; applying the file
+directly would send an empty tag to the cluster, which fails rather than
+quietly deploying something unintended.
+
+The tags of the last deploy are on that run's summary in GitHub Actions,
+and attached to it as the `versions-env` artifact.
+
 ```bash
 # 1. Deploy RBAC
 kubectl apply -f k8s/argo/rbac.yaml
 
-# 2. Deploy base template
-kubectl apply -f k8s/argo/base-pipeline-workflow.yaml
+# 2. Deploy base template, with the tags you are deploying
+export CRAWLER_TAG=6a4ad5f PROCESSOR_TAG=6a4ad5f
+envsubst < k8s/argo/base-pipeline-workflow.yaml | kubectl apply -f -
 
 # 3. Deploy Mizzou CronWorkflow
 kubectl apply -f k8s/argo/mizzou-pipeline-cronworkflow.yaml
 ```
+
+Note that a deploy has already done this: Cloud Build repoints the live
+WorkflowTemplate on every build
+(`gcp/cloudbuild/update-workflow-template.sh`). Applying by hand is for
+recovery, not for routine deploys.
 
 ### Verify Deployment
 

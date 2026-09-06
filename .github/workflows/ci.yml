@@ -73,23 +73,6 @@ jobs:
           echo "Changed files:"
           echo "$changed"
 
-          # The image-tag bookkeeping PR is the one exception, and it is
-          # recognised by WHO opened it, not by which files it touches: the
-          # update-versions-env job records the tags already built and
-          # deployed, so the suite would spend a full cycle validating
-          # three strings that describe images CI has no say over. A
-          # human editing the same files by hand still gets the suite.
-          if [ "${{ github.event.pull_request.user.login }}" = "github-actions[bot]" ] \
-             && [ "${{ startsWith(github.head_ref, 'chore/image-tags') }}" = "true" ]; then
-            unexpected=$(echo "$changed" | grep -vE '^k8s/(versions\.env|argo/base-pipeline-workflow\.yaml)$' || true)
-            if [ -z "$unexpected" ]; then
-              echo "→ image-tag bookkeeping from the deploy job; skipping the suite."
-              echo "code=false" >> "$GITHUB_OUTPUT"
-              echo "images=" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            echo "→ bookkeeping branch touched more than the tag files; running full suite."
-          fi
 
           if scripts/ci/docs-only.sh "$mb" "$head"; then
             echo "→ documentation only; skipping the suite."
