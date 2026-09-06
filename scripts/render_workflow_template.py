@@ -50,20 +50,40 @@ def apply_tags(
 
     The service being deployed takes this build's SHA; every other service
     keeps the tag it is currently running, so a crawler deploy cannot roll the
-    processor back to whatever tag the repo file happens to carry (those are
-    maintained by a separate job that lagged for months). A service that is
-    neither built here nor live keeps the repo's own value.
+    processor back to whatever tag the repo file happens to carry. A service
+    that is neither built here nor live keeps whatever the repo says -- which
+    is now a `${SERVICE_TAG}` placeholder rather than a tag that went stale
+    the moment it was written, so that case is caught by
+    `unresolved_images` instead of quietly deploying an old image.
     """
     applied: dict[str, tuple[str, int]] = {}
     for svc in KNOWN_SERVICES:
         tag = new_sha if svc == service_type else live_tags.get(svc)
         if not tag:
             continue
-        pattern = re.compile(rf"(image:\s*\S*/{svc}):[\w.-]+")
+        # A literal tag or a `${SERVICE_TAG}` placeholder: the template
+        # carries placeholders, and a cluster copy read back carries
+        # whatever tag it is running.
+        pattern = re.compile(rf"(image:\s*\S*/{svc}):(?:[\w.-]+|\$\{{[A-Z_]+\}})")
         rendered, count = pattern.subn(rf"\g<1>:{tag}", rendered)
         if count:
             applied[svc] = (tag, count)
     return rendered, applied
+
+
+#: An image line still carrying a placeholder after substitution.
+UNRESOLVED = re.compile(r"^\s*image:\s*\S*:\$\{[A-Z_]+\}\s*$", re.M)
+
+
+def unresolved_images(rendered: str) -> list[str]:
+    """Image lines whose tag was never filled in.
+
+    Reaching the cluster with `crawler:${CRAWLER_TAG}` would be an invalid
+    reference that the apply may well accept and every pod then fail on.
+    The build stops instead: a service neither built nor live has no tag
+    anybody has chosen, and guessing one is what the placeholders replaced.
+    """
+    return [line.strip() for line in UNRESOLVED.findall(rendered)]
 
 
 def fetch_live_tags() -> dict[str, str]:
@@ -151,6 +171,17 @@ def main(argv: list[str] | None = None) -> int:
     if args.print_only:
         print(rendered)
         return 0
+
+    stranded = unresolved_images(rendered)
+    if stranded:
+        print("❌ Image tags were never resolved:")
+        for line in stranded:
+            print(f"   {line}")
+        print(
+            "   That service was not built here and is not running in the "
+            "cluster, so nothing named a tag for it."
+        )
+        return 1
 
     # Validate server-side first: a malformed template must fail the build
     # rather than half-apply to production.

@@ -232,3 +232,53 @@ class TestApplyUsesServerSide:
 
     def test_still_reads_the_manifest_from_stdin(self, monkeypatch):
         assert self._cmd(monkeypatch, dry_run=False)[-2:] == ["-f", "-"]
+
+
+class TestPlaceholdersAreResolvedOrRefused:
+    """The template names `${CRAWLER_TAG}`, not a tag of its own.
+
+    A literal tag in the repo went stale the moment it was written and had
+    to be rewritten after every deploy -- which is why a bookkeeping pull
+    request existed. The placeholder is filled at apply time from the build
+    or from what is live, and if neither names a tag the build stops rather
+    than sending `crawler:${CRAWLER_TAG}` to the cluster.
+    """
+
+    def test_a_placeholder_is_substituted_like_a_tag(self):
+        text = "image: reg/crawler:${CRAWLER_TAG}\n"
+        rendered, applied = apply_tags(text, "crawler", "abc1234", {})
+        assert "reg/crawler:abc1234" in rendered
+        assert applied["crawler"] == ("abc1234", 1)
+
+    def test_a_live_tag_fills_a_placeholder_for_another_service(self):
+        """A crawler deploy keeps the processor on what it is running."""
+        text = "image: reg/processor:${PROCESSOR_TAG}\n"
+        rendered, _ = apply_tags(text, "crawler", "abc1234", {"processor": "613a942"})
+        assert "reg/processor:613a942" in rendered
+
+    def test_an_unresolved_placeholder_is_reported(self):
+        from scripts.render_workflow_template import unresolved_images
+
+        left = unresolved_images("image: reg/api:${API_TAG}\n")
+        assert left == ["image: reg/api:${API_TAG}"]
+
+    def test_a_resolved_template_reports_nothing(self):
+        from scripts.render_workflow_template import unresolved_images
+
+        assert unresolved_images("image: reg/api:abc1234\n") == []
+
+    def test_main_refuses_to_apply_an_unresolved_template(self, monkeypatch, tmp_path):
+        """Neither built nor live: nobody named a tag, so the build stops."""
+        import scripts.render_workflow_template as mod
+
+        template = tmp_path / "t.yaml"
+        template.write_text("image: reg/api:${API_TAG}\n")
+        monkeypatch.setattr(mod, "fetch_live_tags", lambda: {})
+        called = []
+        monkeypatch.setattr(
+            mod, "kubectl_apply", lambda *a, **k: called.append(a) or (0, "", "")
+        )
+
+        rc = mod.main(["crawler", "abc1234", "--template", str(template)])
+        assert rc == 1
+        assert called == [], "the cluster was touched despite an unresolved tag"

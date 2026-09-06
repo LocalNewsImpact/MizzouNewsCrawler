@@ -801,14 +801,24 @@ jobs:
             fi
           fi
 
-  update-versions-env:
-    name: Update versions.env
-    # The build-* jobs must be listed here, not just reached transitively via
-    # wait-for-builds: the `needs` context contains ONLY direct dependencies,
-    # so `needs.build-crawler.outputs.build_id` resolved to empty and this job
-    # reported success while updating nothing. k8s/versions.env consequently
-    # went un-updated from 2026-04-03 until this fix, leaving the committed
-    # tags months behind what is actually deployed.
+  report-image-tags:
+    name: Report image tags
+    # Nothing is committed. The deploy has already repointed everything that
+    # runs: Cloud Build moves the Kubernetes workloads (`kubectl set image`)
+    # and the live Argo WorkflowTemplate
+    # (gcp/cloudbuild/update-workflow-template.sh) as part of each build.
+    #
+    # This job used to write the tags back into k8s/versions.env and
+    # k8s/argo/base-pipeline-workflow.yaml and open a pull request for them,
+    # which meant a human approving bookkeeping about a change that had
+    # already happened. The manifests carry ${TAG} placeholders now
+    # (k8s/crawler-cronjob.yaml has always done so; the Argo template was the
+    # one file with a tag baked in), so there is nothing in the repository
+    # left to update.
+    #
+    # What a person actually wants -- which tag went out -- is written to the
+    # run summary and attached as an artifact for anyone applying a manifest
+    # by hand.
     needs:
       [
         detect-changes,
@@ -826,33 +836,16 @@ jobs:
       ) &&
       (needs.wait-for-builds.result == 'success' || needs.wait-for-builds.result == 'skipped')
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
 
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
 
-      - name: Prepare main branch
-        run: |
-          git checkout main
-          git pull --ff-only origin main
-
-      - name: Configure git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Update versions file
+      - name: Write the tags this deploy produced
         env:
           SHORT_SHA: ${{ github.sha }}
           PROCESSOR_BUILD_ID: ${{ needs.build-processor.outputs.build_id }}
           API_BUILD_ID: ${{ needs.build-api.outputs.build_id }}
           CRAWLER_BUILD_ID: ${{ needs.build-crawler.outputs.build_id }}
-          # Required by `gh pr create` below.
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           SHORT=${SHORT_SHA:0:7}
           ARGS=()
@@ -862,77 +855,29 @@ jobs:
           if [ ${#ARGS[@]} -eq 0 ]; then
             # This job's `if:` already established that at least one build ran,
             # so reaching here means the build IDs did not resolve -- the exact
-            # silent no-op that left versions.env stale for ~4 months. Fail
-            # loudly rather than report success while doing nothing.
+            # silent no-op that left the tags stale for ~4 months. Fail loudly
+            # rather than report success while doing nothing.
             echo "::error::Build IDs did not resolve despite this job being" \
                  "triggered by a build. Check that every build-* job is listed" \
                  "in this job's needs: -- the needs context only exposes direct" \
                  "dependencies, so transitive access via wait-for-builds is empty."
             exit 1
           fi
-          ./scripts/update-versions-env.sh "${ARGS[@]}"
-          if git diff --quiet k8s/versions.env k8s/argo/base-pipeline-workflow.yaml; then
-            echo "versions.env and Argo workflow already up to date"
-            exit 0
-          fi
-          # A direct push to main is rejected by the repository ruleset
-          # (GH013: "Repository rule violations found for refs/heads/main"),
-          # so this job resolved the tags correctly and then failed at the very
-          # last step -- leaving versions.env stale for a permissions reason
-          # after the earlier logic bug was fixed. This repo lands changes by
-          # PR, so open one.
-          # One branch, not one per commit.
-          #
-          # This was chore/image-tags-${SHORT}, which opened a new PR every
-          # deploy. Each was branched from main as it stood at the time, so
-          # none contained any other's changes and all four rewrote the same
-          # lines. By 2026-08-23 there were four open -- 8c60223, 86a73ec,
-          # d2b5008, db99260 -- mutually conflicting, none of them current,
-          # and versions.env on main a fortnight behind the cluster. The job
-          # meant to prevent that drift was producing it.
-          #
-          # A fixed branch, rebuilt from main each run and force-pushed, means
-          # exactly one open PR that always says what is deployed right now.
-          BRANCH="chore/image-tags"
-          git add k8s/versions.env k8s/argo/base-pipeline-workflow.yaml
-          git commit -m "chore: update image tags (${SHORT}) [skip ci]"
+          ./scripts/update-versions-env.sh --file versions.env "${ARGS[@]}"
 
-          # Nothing here is under review: the images are already built and
-          # rolled out, and these three strings only record which. Push it
-          # straight to main when the ruleset allows this actor to. The PR
-          # path below stays as the fallback, so a bypass that is absent or
-          # later revoked degrades to a PR that merges itself rather than to
-          # a job that stalls waiting for a human.
-          if git push origin HEAD:main 2>/dev/null; then
-            echo "Recorded the image tags directly on main."
-            exit 0
-          fi
-          echo "Direct push refused by the branch ruleset; opening a PR instead."
-          git push --force origin "HEAD:refs/heads/${BRANCH}"
+          {
+            echo "## Image tags deployed"
+            echo ""
+            echo "Commit \`${SHORT}\`. Source these before \`envsubst\` when"
+            echo "applying a manifest by hand:"
+            echo ""
+            echo '```'
+            grep '^export' versions.env || cat versions.env
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
-          # An OPEN one. `gh pr view` finds a closed pull request for the
-          # branch just as readily, and editing that one puts the tags
-          # somewhere nothing will merge them from: #467 was closed on
-          # 2026-09-05 and the next two deploys reported "Updated the open
-          # PR" onto it, which is why versions.env sat months behind what
-          # was deployed.
-          STATE="$(gh pr view "$BRANCH" --json state -q .state 2>/dev/null || true)"
-          if [ "$STATE" = "OPEN" ]; then
-            gh pr edit "$BRANCH" \
-              --title "chore: update image tags (${SHORT})" \
-              --body "Automated by the update-versions-env job after a successful build of ${SHORT}. Records the image tags now deployed, so k8s/versions.env (used by envsubst for the manifests) and the repo Argo template match production. Bookkeeping only -- the images are already built and rolled out.
-
-            This PR is rewritten by every deploy. Merging it records the tags as of that moment; leaving it open means the next deploy replaces its contents rather than opening a second one."
-            echo "Updated the open PR for ${BRANCH}."
-            gh pr merge "$BRANCH" --auto --squash 2>/dev/null \
-              && echo "Auto-merge armed." \
-              || echo "Auto-merge unavailable; the PR waits for a human."
-          else
-            gh pr create \
-              --base main \
-              --head "$BRANCH" \
-              --title "chore: update image tags (${SHORT})" \
-              --body "Automated by the update-versions-env job after a successful build of ${SHORT}. Records the image tags now deployed, so k8s/versions.env (used by envsubst for the manifests) and the repo Argo template match production. Bookkeeping only -- the images are already built and rolled out.
-
-            This PR is rewritten by every deploy. Merging it records the tags as of that moment; leaving it open means the next deploy replaces its contents rather than opening a second one."
-          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: versions-env
+          path: versions.env
+          retention-days: 90

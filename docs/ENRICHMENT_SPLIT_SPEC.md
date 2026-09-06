@@ -84,7 +84,7 @@ lnic-classify/
 ├── k8s/
 │   ├── enrichment-cronjob.yaml                 moved from k8s/enrichment-cronjob.yaml (§6.2)
 │   ├── migrate-job.tpl.yaml                    new   §6.3
-│   └── versions.env                            new   ENRICHMENT_TAG only
+│                                                     (no versions.env: manifests carry ${TAG})
 ├── pyproject.toml                              new   ruff, mypy, pytest config; no version (not a package)
 ├── requirements.txt                            new   §2.5
 ├── requirements-dev.txt                        new
@@ -300,11 +300,11 @@ with a tag input): authenticates through the same WIF provider, gets
 `k8s/migrate-job.tpl.yaml` with the built tag, applies it, waits
 (`kubectl wait --for=condition=complete --timeout=600s`), then
 `kubectl set image cronjob/mizzou-enrichment enrichment=<image>:<tag>` and
-commits the tag to `k8s/versions.env`. A failed migration job stops the
+reports the tag on the run summary. A failed migration job stops the
 workflow before the CronJob's image changes.
 
 The image tag is the composite action `image-tag`'s output (a hash of
-`inputs_to_hash`), as in datadesk; `versions.env` records it for the
+`inputs_to_hash`), as in datadesk; the run summary records it for the
 manual path.
 
 ### 2.8 GCP identity (one-time)
