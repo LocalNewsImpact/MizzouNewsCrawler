@@ -105,3 +105,71 @@ def test_every_exemption_still_earns_its_place():
         if not pinned:
             unnecessary.append(f"{name} (pins nothing now)")
     assert not unnecessary, f"Exemptions no longer needed: {unnecessary}"
+
+
+# --- what deleting the file actually broke ------------------------------------
+#
+# Removing k8s/versions.env was checked against the manifests and not
+# against anything else. Three callers wanted it:
+#
+#   scripts/apply-manifests.sh   `source k8s/versions.env` at the top
+#   scripts/deploy-services.sh   passed it to update-versions-env.sh
+#   the deploy's report job      passed it to the same script, which EDITS
+#                                an existing file and fails without one
+#
+# The last of those failed the first deploy after the merge. These check
+# that nothing sources or edits a versions file the repository does not
+# contain.
+
+REPO = K8S.parent
+SCRIPTS = REPO / "scripts"
+
+
+def _shell_sources():
+    for path in sorted(SCRIPTS.glob("*.sh")):
+        for line in path.read_text(errors="ignore").splitlines():
+            stripped = line.strip()
+            if stripped.startswith("#"):
+                continue
+            if stripped.startswith(("source ", ". ")) and "versions.env" in stripped:
+                yield path, stripped
+
+
+def test_no_script_unconditionally_sources_a_versions_file():
+    """Sourcing a file that is not in the repository fails the script on
+    its first line. Guarded with a test rather than a `-f` check alone so
+    the reason is written down: the tags are the caller's to supply."""
+    unguarded = [
+        (p.name, line) for p, line in _shell_sources() if not line.startswith("[ -f")
+    ]
+    assert not unguarded, (
+        f"These source a versions file that may not exist: {unguarded}. "
+        "Guard it and require the tag variables instead."
+    )
+
+
+def test_the_apply_script_refuses_without_tags():
+    """It applied whatever the stale file said. Now it says what it needs."""
+    text = (SCRIPTS / "apply-manifests.sh").read_text()
+    for var in ("PROCESSOR_TAG", "CRAWLER_TAG", "API_TAG"):
+        assert var in text
+    assert "is not set" in text, "the script does not say what is missing"
+
+
+def test_nothing_calls_the_removed_versions_script():
+    """`update-versions-env.sh` edited the committed file in place and
+    rewrote the Argo template's tags back to literals. Both of those are
+    gone, so it is too."""
+    assert not (SCRIPTS / "update-versions-env.sh").exists()
+
+    # Invocations, not mentions. Written the blunt way first, this failed
+    # on the comment in the workflow that explains why the script is gone
+    # -- a guard that cannot tell a caller from an explanation is one
+    # people learn to work around by deleting the explanation.
+    callers = []
+    for path in [*SCRIPTS.glob("*.sh"), *(REPO / ".github/workflows").glob("*.yml")]:
+        for line in path.read_text(errors="ignore").splitlines():
+            code = line.split("#", 1)[0]
+            if "update-versions-env.sh" in code:
+                callers.append(f"{path.name}: {line.strip()}")
+    assert not callers, f"these still call it: {callers}"

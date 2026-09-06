@@ -9,8 +9,35 @@ set -e
 #   ./scripts/apply-manifests.sh all               # All manifests (same as no args)
 #   ./scripts/apply-manifests.sh                   # All manifests
 
-# Source versions
-source k8s/versions.env
+# The tags to apply.
+#
+# k8s/versions.env used to be committed and sourced here, and it went
+# stale after every deploy -- so applying by hand could move the cluster
+# BACKWARDS onto whatever the file happened to say. The repository no
+# longer records what is deployed.
+#
+# Say what you mean, in the environment:
+#
+#   CRAWLER_TAG=abc1234 PROCESSOR_TAG=abc1234 API_TAG=abc1234 \
+#     ./scripts/apply-manifests.sh crawler
+#
+# A versions.env downloaded from a deploy's run (the `versions-env`
+# artifact) still works: source it first, or leave it here and it is
+# picked up.
+[ -f versions.env ] && source versions.env
+[ -f k8s/versions.env ] && source k8s/versions.env
+
+for _needed in PROCESSOR_TAG CRAWLER_TAG API_TAG; do
+    if [ -z "${!_needed:-}" ]; then
+        echo "❌ $_needed is not set."
+        echo "   Pass the tags you mean to deploy, or source the versions-env"
+        echo "   artifact from the deploy whose images you want:"
+        echo "     gh run download <run-id> -n versions-env && source versions.env"
+        echo "   What is running now:"
+        echo "     kubectl get deploy -n production -o jsonpath='{range .items[*]}{.metadata.name}{\"\\t\"}{.spec.template.spec.containers[0].image}{\"\\n\"}{end}'"
+        exit 1
+    fi
+done
 
 apply_file() {
     local file=$1
