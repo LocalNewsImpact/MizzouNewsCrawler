@@ -863,7 +863,19 @@ jobs:
                  "dependencies, so transitive access via wait-for-builds is empty."
             exit 1
           fi
-          ./scripts/update-versions-env.sh --file versions.env "${ARGS[@]}"
+          # Written here rather than by scripts/update-versions-env.sh,
+          # which EDITS an existing k8s/versions.env in place. That file is
+          # no longer committed, so the script had nothing to edit and this
+          # job failed with "Versions file not found" on the first deploy
+          # after it was removed.
+          {
+            echo "# Image tags built by ${SHORT}."
+            echo "# Anything not listed was not built here and keeps whatever"
+            echo "# the cluster is already running."
+            [ -n "$PROCESSOR_BUILD_ID" ] && echo "export PROCESSOR_TAG=${SHORT}"
+            [ -n "$CRAWLER_BUILD_ID" ]   && echo "export CRAWLER_TAG=${SHORT}"
+            [ -n "$API_BUILD_ID" ]       && echo "export API_TAG=${SHORT}"
+          } > versions.env
 
           {
             echo "## Image tags deployed"

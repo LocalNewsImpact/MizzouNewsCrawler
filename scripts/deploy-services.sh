@@ -349,27 +349,24 @@ if [ $BUILD_FAILURES -eq 0 ]; then
         COMMIT_SHA=$(git rev-parse --short "origin/${BRANCH}" 2>/dev/null || git rev-parse --short HEAD 2>/dev/null || echo "unknown")
     fi
 
-    VERSIONS_FILE="k8s/versions.env"
+    # The tags this run built, for the manifests below. Nothing is written
+    # to the repository: k8s/versions.env used to be committed and rewritten
+    # after every deploy, which meant a file that was stale by definition and
+    # a pull request for somebody to approve. Anything not built here keeps
+    # what the cluster is already running.
+    if [ "$COMMIT_SHA" != "unknown" ]; then
+        should_build "processor" && export PROCESSOR_TAG="$COMMIT_SHA"
+        should_build "crawler"   && export CRAWLER_TAG="$COMMIT_SHA"
+        should_build "api"       && export API_TAG="$COMMIT_SHA"
 
-    if [ "$COMMIT_SHA" != "unknown" ] && [ -f "$VERSIONS_FILE" ]; then
-        echo "📝 Updating versions in $VERSIONS_FILE..."
-
-        UPDATE_ARGS=()
-        if should_build "processor"; then
-            UPDATE_ARGS+=("--processor" "$COMMIT_SHA")
-        fi
-
-        if should_build "crawler"; then
-            UPDATE_ARGS+=("--crawler" "$COMMIT_SHA")
-        fi
-
-        if should_build "api"; then
-            UPDATE_ARGS+=("--api" "$COMMIT_SHA")
-        fi
-
-        if [ ${#UPDATE_ARGS[@]} -gt 0 ]; then
-            ./scripts/update-versions-env.sh "${UPDATE_ARGS[@]}"
-        fi
+        for svc in processor crawler api; do
+            var="$(echo "$svc" | tr '[:lower:]' '[:upper:]')_TAG"
+            if [ -z "${!var:-}" ]; then
+                live=$(kubectl get deploy -n production -o jsonpath="{range .items[*]}{.spec.template.spec.containers[0].image}{'\n'}{end}" 2>/dev/null \
+                       | grep "/${svc}:" | head -1 | sed 's|.*:||')
+                [ -n "$live" ] && export "$var=$live"
+            fi
+        done
 
         # Apply manifests ONLY for services that were built
         echo "🚀 Applying manifests..."
@@ -395,7 +392,8 @@ if [ $BUILD_FAILURES -eq 0 ]; then
             ((BUILD_FAILURES++))
         fi
     else
-        echo "⚠️  Skipping version update (unknown SHA or missing versions.env)"
+        echo "⚠️  Skipping manifest apply: the commit SHA is unknown, so there"
+        echo "   is no tag to deploy."
     fi
 fi
 
