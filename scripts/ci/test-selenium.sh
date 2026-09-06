@@ -30,4 +30,15 @@ chmod +x /usr/local/bin/run-with-xvfb.sh
 owner=$(stat -c '%u:%g' /workspace)
 trap 'chown -R "$owner" /workspace' EXIT
 chown -R appuser:appuser /workspace
-su appuser -c 'export SELENIUM_EXECUTION_MODE=headful && /usr/local/bin/run-with-xvfb.sh pytest -m enable_selenium tests/test_selenium_only_feature.py -vv'
+# The files are named, not the whole suite: this runs in the crawler
+# image, which carries no test-only dependencies, and collecting
+# tests/ there fails on 24 modules before a browser is ever started.
+# Within them, `-m enable_selenium` picks the tests that need Chrome.
+#
+# test_headful_chrome_runs_in_this_image.py is the point of the job:
+# it starts a non-headless Chrome from the crawler's own driver
+# factory and uses it. Nothing did that before -- every test in
+# test_selenium_only_feature.py mocks the browser away, and the job
+# passed because one unmocked, assertionless test fell through to a
+# real browser for 177 seconds.
+su appuser -c 'export SELENIUM_EXECUTION_MODE=headful && /usr/local/bin/run-with-xvfb.sh pytest -m enable_selenium tests/test_headful_chrome_runs_in_this_image.py tests/test_selenium_only_feature.py -vv'
