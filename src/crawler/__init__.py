@@ -25,6 +25,7 @@ import requests
 from bs4 import BeautifulSoup, Tag
 from dateutil import parser as dateparser
 
+from src.pipeline.title_repair import repair as repair_split_title
 from src.utils.boilerplate import (
     CONSENT,
     MAX_CAPITALIZATION,
@@ -4293,7 +4294,11 @@ class ContentExtractor:
 
         return {
             "url": url,
-            "title": article.title,
+            # newspaper4k splits a title on a bare hyphen and keeps the
+            # longer half, so "Van-Far girls widen gap" is stored as "Far
+            # girls widen gap". Put the cut half back where the page's own
+            # markup proves it was there (src/pipeline/title_repair.py).
+            "title": repair_split_title(article.title, html),
             "author": ", ".join(article.authors) if article.authors else None,
             "publish_date": publish_date,
             "content": article.text,
@@ -4618,7 +4623,7 @@ class ContentExtractor:
                 # Build result dict
                 result = {
                     "url": url,
-                    "title": article.title or "",
+                    "title": repair_split_title(article.title, html) or "",
                     "content": article.text or "",
                     "author": ", ".join(article.authors) if article.authors else "",
                     "publish_date": (
