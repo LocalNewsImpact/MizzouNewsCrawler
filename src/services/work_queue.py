@@ -187,7 +187,22 @@ class WorkQueueCoordinator:
         Returns:
             List of dicts with keys: source, canonical_name, article_count
         """
-        query = text("""
+        # The dataset filter is APPENDED, not parameterised into a
+        # constant string, and that is deliberate on two counts.
+        #
+        # It used to read `AND (:dataset IS NULL OR cl.dataset_id =
+        # :dataset)`. Postgres could not plan that at all: `:dataset IS
+        # NULL` gives it nothing to infer a type from and pg8000 -- unlike
+        # psycopg2 -- sends none, so every call raised 42P18 and
+        # /work/request answered 500 to every worker from the day #455
+        # shipped it.
+        #
+        # Casting both sides fixes Postgres and breaks SQLite, where each
+        # occurrence of a named parameter becomes its own positional
+        # placeholder and the repeated `:dataset` no longer matches its
+        # bindings. Mentioning the parameter ONCE, and only when there is
+        # a value for it, is correct on both.
+        sql = """
             SELECT
                 cl.source,
                 s.canonical_name,
@@ -196,17 +211,23 @@ class WorkQueueCoordinator:
             JOIN sources s ON cl.source_id = s.id
             WHERE cl.status = 'article'
             AND s.status = 'active'
-            AND (:dataset IS NULL OR cl.dataset_id = :dataset)
             AND NOT EXISTS (
                 SELECT 1 FROM articles a
                 WHERE a.candidate_link_id = cl.id
             )
+        """
+        params: dict = {}
+        if dataset is not None:
+            sql += "            AND cl.dataset_id = :dataset\n"
+            params["dataset"] = dataset
+        sql += """
             GROUP BY cl.source, s.canonical_name
             HAVING COUNT(*) > 0
             ORDER BY COUNT(*) DESC
-        """)
+        """
+        query = text(sql)
 
-        result = session.execute(query, {"dataset": dataset})
+        result = session.execute(query, params)
         domains = []
         for row in result:
             domains.append(
