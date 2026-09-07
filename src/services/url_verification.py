@@ -894,7 +894,8 @@ class URLVerificationService:
         # outcomes. None of them are here.
         select = """
             SELECT cl.id, cl.url, cl.status,
-                   (a.id IS NOT NULL) AS was_fetched
+                   (a.id IS NOT NULL) AS was_fetched,
+                   a.status AS article_status
             FROM candidate_links cl
             LEFT JOIN url_verifications v ON v.candidate_link_id = cl.id
             LEFT JOIN articles a ON a.candidate_link_id = cl.id
@@ -975,7 +976,30 @@ class URLVerificationService:
                 verdict_kind = "rejected_as_wire"
             else:
                 verdict_kind = "rejected_as_not_a_story"
-            recorded_is_article = accepted
+
+            # What storysniffer is actually judged against.
+            #
+            # It answers one question -- IS THIS AN ARTICLE -- so it is
+            # not wrong when a later stage calls something wire, an
+            # obituary, opinion or weather. Those ARE articles; they are
+            # articles we do not want, which is the other question. It is
+            # wrong only when the content stage, having read the body,
+            # says the page is not a story at all.
+            #
+            # So for a fetched link the truth is the content stage's
+            # verdict, not the fact of the fetch. Measured on March
+            # Mizzou: of 29,950 accepted links the content stage calls
+            # 29,792 stories -- 9,296 of them wire -- and 158
+            # `not_article`. Reading acceptance as truth would score
+            # those 158 as agreements and hide every type I error there
+            # is in the set.
+            if row.was_fetched:
+                recorded_is_article = row.article_status != "not_article"
+            else:
+                # Nothing read the body, so the pipeline's own verdict is
+                # the only claim available. It is a claim, not truth --
+                # which is what the review is for.
+                recorded_is_article = accepted
             if sniffed is not None:
                 if verdict_kind == "rejected_as_wire":
                     # Not comparable. The wire filter did not claim this
@@ -988,7 +1012,12 @@ class URLVerificationService:
                     counts["agree"] += 1
                 else:
                     counts["disagree"] += 1
-                    if recorded_is_article:
+                    # Which error it is depends on what the pipeline
+                    # ADMITTED, not on what the thing turned out to be:
+                    # a type I is something let through that should not
+                    # have been, a type II something kept out that should
+                    # have been let in.
+                    if accepted:
                         counts["type_i"] += 1
                     else:
                         counts["type_ii"] += 1

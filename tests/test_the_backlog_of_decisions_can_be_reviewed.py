@@ -63,11 +63,15 @@ class _Row:
     verification rejected, so an article row means it was accepted --
     whatever the status has since been overwritten to."""
 
-    def __init__(self, id, url, status, was_fetched=False):
+    def __init__(self, id, url, status, was_fetched=False, article_status=None):
         self.id = id
         self.url = url
         self.status = status
         self.was_fetched = was_fetched
+        # What the content stage concluded once it had the body. The
+        # only thing that can say storysniffer was wrong about an
+        # acceptance.
+        self.article_status = article_status or ("enriched" if was_fetched else None)
 
 
 def _rows(svc, rows, monkeypatch):
@@ -509,3 +513,86 @@ def test_the_margin_is_recorded_on_every_row(monkeypatch):
     svc.backfill_decisions()
 
     assert written[0].verification_confidence == pytest.approx(4.0)
+
+
+# --- what storysniffer is judged against --------------------------------------
+
+
+def test_wire_is_not_a_storysniffer_error(monkeypatch):
+    """It answers one question: IS THIS AN ARTICLE. A wire story is an
+    article, so admitting it was correct -- calling it wire afterwards is
+    the other question and does not make the first answer wrong.
+
+    On March Mizzou, 9,296 of 29,950 accepted links end as wire. Scoring
+    those against storysniffer would invent an enormous error rate."""
+    svc = _service(_Sniffer(default=True))
+    _rows(
+        svc,
+        [_Row("c1", "https://a.example/ap", "wire", True, article_status="wire")],
+        monkeypatch,
+    )
+    monkeypatch.setattr(svc, "_ensure_job", lambda name: "job-1")
+    monkeypatch.setattr(svc, "_write_backfilled", lambda rows: len(rows))
+
+    counts = svc.backfill_decisions()
+
+    assert counts["agree"] == 1
+    assert counts["type_i"] == 0
+
+
+@pytest.mark.parametrize("later", ["obituary", "opinion", "weather", "out_of_scope"])
+def test_none_of_the_topic_calls_make_it_wrong(monkeypatch, later):
+    """Same argument, for every other thing the content stage may decide
+    an article is. They are all articles."""
+    svc = _service(_Sniffer(default=True))
+    _rows(
+        svc,
+        [_Row("c1", "https://a.example/x", "extracted", True, article_status=later)],
+        monkeypatch,
+    )
+    monkeypatch.setattr(svc, "_ensure_job", lambda name: "job-1")
+    monkeypatch.setattr(svc, "_write_backfilled", lambda rows: len(rows))
+
+    assert svc.backfill_decisions()["type_i"] == 0
+
+
+def test_not_article_after_reading_the_body_is_the_type_i(monkeypatch):
+    """The one verdict that does make it wrong. The content stage had the
+    text and said the page is not a story -- so accepting it was a false
+    positive, and it is the only kind there is.
+
+    158 of March Mizzou's 29,950 acceptances are in this state, which is
+    the 0.4% the spec predicted."""
+    svc = _service(_Sniffer(default=True))
+    _rows(
+        svc,
+        [
+            _Row(
+                "c1",
+                "https://a.example/section/",
+                "not_article",
+                True,
+                article_status="not_article",
+            )
+        ],
+        monkeypatch,
+    )
+    monkeypatch.setattr(svc, "_ensure_job", lambda name: "job-1")
+    monkeypatch.setattr(svc, "_write_backfilled", lambda rows: len(rows))
+
+    counts = svc.backfill_decisions()
+
+    assert counts["type_i"] == 1
+    assert counts["agree"] == 0
+
+
+def test_an_unfetched_link_is_judged_on_the_claim_not_the_body(monkeypatch):
+    """Nothing read it, so there is no content-stage verdict to use. The
+    pipeline's own call is the only claim available -- and it is a claim,
+    not truth, which is what the review is for."""
+    svc = _service(_Sniffer(default=True))
+    _rows(svc, [_Row("c1", "https://a.example/s", "not_article", False)], monkeypatch)
+    monkeypatch.setattr(svc, "_ensure_job", lambda name: "job-1")
+    monkeypatch.setattr(svc, "_write_backfilled", lambda rows: len(rows))
+
+    assert svc.backfill_decisions()["type_ii"] == 1
