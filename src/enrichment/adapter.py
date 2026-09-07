@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -37,6 +38,39 @@ logger = logging.getLogger(__name__)
 #: rather than in the orchestrator is what keeps the article's earlier
 #: steps, which are otherwise discarded and re-paid for.
 STEP_ATTEMPTS = 2
+
+#: The OpenRouter providers this pipeline will accept for its model.
+#:
+#: `deepseek/deepseek-v3.2` is one model name in front of a pool of
+#: providers, and OpenRouter chooses between them per request. The pool
+#: changed under us. From the trace export in
+#: gs://mizzou-openrouter-logs/openrouter-traces:
+#:
+#:     2026-08-22, 14,441 articles enriched clean
+#:         AtlasCloud 24, SiliconFlow 5, Baidu 1  (of 30 sampled)
+#:     2026-09-07, 46% of articles failing
+#:         StreamLake 90, Friendli 19, AtlasCloud 5, Baidu 5, Alibaba 1
+#:         (of 120 sampled)
+#:
+#: StreamLake appears in none of the August traces and serves three
+#: quarters of today's. The failures are all one step returning a
+#: confidence outside 0.0-1.0, which backfield's schema refuses -- so the
+#: model name, the prompts, the validator and the vendored wheels are all
+#: unchanged, and the answers are not.
+#:
+#: An article needs nine consecutive validations, so a per-call defect
+#: rate on a provider serving most of the traffic compounds into a
+#: per-article one. That is the 46%.
+#:
+#: Set ENRICHMENT_PROVIDERS to override without a deploy. Empty means no
+#: pin, which is the behaviour that produced this.
+ENRICHMENT_PROVIDERS = tuple(
+    name.strip()
+    for name in os.getenv("ENRICHMENT_PROVIDERS", "AtlasCloud,SiliconFlow,Baidu").split(
+        ","
+    )
+    if name.strip()
+)
 
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 GATE_PROMPT_VERSION = "content_gate-v1"
@@ -121,6 +155,20 @@ def _label_calls_with_the_dataset() -> None:
         dataset = _DATASET.get()
         if dataset and not kwargs.get("user"):
             kwargs["user"] = dataset
+        if ENRICHMENT_PROVIDERS:
+            # Routing goes in extra_body: litellm passes it through to
+            # OpenRouter untouched. Verified against the trace export --
+            # a pinned call was served by SiliconFlow, an unpinned control
+            # issued seconds later by AtlasCloud, so the constraint binds
+            # rather than being quietly dropped.
+            #
+            # A caller that has already asked for providers keeps its own.
+            extra = dict(kwargs.get("extra_body") or {})
+            extra.setdefault(
+                "provider",
+                {"only": list(ENRICHMENT_PROVIDERS), "allow_fallbacks": False},
+            )
+            kwargs["extra_body"] = extra
         return inner(*args, **kwargs)
 
     litellm.completion = labelled
