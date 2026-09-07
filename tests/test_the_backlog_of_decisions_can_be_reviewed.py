@@ -596,3 +596,67 @@ def test_an_unfetched_link_is_judged_on_the_claim_not_the_body(monkeypatch):
     monkeypatch.setattr(svc, "_write_backfilled", lambda rows: len(rows))
 
     assert svc.backfill_decisions()["type_ii"] == 1
+
+
+def test_the_topic_label_is_kept_verbatim(monkeypatch):
+    """Two classifiers are being trained here, not one:
+
+        storysniffer      is this a story URL?
+        topic classifier  from the URL, is this a local news article?
+
+    The content stage's verdict is the second one's training label, and
+    it already exists for every fetched link -- so that model can be
+    trained without a single human review. Reducing it to story/not-a-
+    story would throw that away: `wire` and `obituary` are both stories
+    and both excluded, for different reasons a URL model can learn to
+    tell apart.
+    """
+    svc = _service(_Sniffer(default=True))
+    _rows(
+        svc,
+        [
+            _Row("c1", "https://a.example/ap", "wire", True, article_status="wire"),
+            _Row(
+                "c2", "https://a.example/o", "obituary", True, article_status="obituary"
+            ),
+            _Row(
+                "c3",
+                "https://a.example/n",
+                "extracted",
+                True,
+                article_status="enriched",
+            ),
+        ],
+        monkeypatch,
+    )
+    written = []
+    monkeypatch.setattr(svc, "_ensure_job", lambda name: "job-1")
+    monkeypatch.setattr(
+        svc, "_write_backfilled", lambda rows: written.extend(rows) or len(rows)
+    )
+
+    svc.backfill_decisions()
+
+    assert [r.meta["article_status"] for r in written] == [
+        "wire",
+        "obituary",
+        "enriched",
+    ]
+    # And none of them counted against storysniffer: all three are stories.
+    assert all(r.meta["agrees_with_recorded"] for r in written)
+
+
+def test_an_unfetched_link_has_no_topic_label(monkeypatch):
+    """Nothing read it, so there is nothing to label it with. A guess
+    here would be a training row invented rather than observed."""
+    svc = _service(_Sniffer(default=True))
+    _rows(svc, [_Row("c1", "https://a.example/s", "not_article", False)], monkeypatch)
+    written = []
+    monkeypatch.setattr(svc, "_ensure_job", lambda name: "job-1")
+    monkeypatch.setattr(
+        svc, "_write_backfilled", lambda rows: written.extend(rows) or len(rows)
+    )
+
+    svc.backfill_decisions()
+
+    assert written[0].meta["article_status"] is None

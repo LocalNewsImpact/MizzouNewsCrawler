@@ -1052,6 +1052,20 @@ class URLVerificationService:
                         # asks both about this record at once rather
                         # than surfacing it twice.
                         "verdict_kind": verdict_kind,
+                        # What the content stage concluded once it had
+                        # the body, kept verbatim rather than reduced to
+                        # the boolean above.
+                        #
+                        # It is the training label for the SECOND
+                        # classifier -- "from the URL, is this a local
+                        # news article?" -- and it already exists for
+                        # every fetched link, so that model needs no
+                        # human review to be trained at all. Reducing it
+                        # to story/not-a-story here would throw it away:
+                        # `wire` and `obituary` are both stories and both
+                        # excluded, for different reasons a URL model can
+                        # learn to tell apart.
+                        "article_status": row.article_status,
                         "rescored_by": self._decided_by(result),
                         # Null where the two answers are not about the
                         # same question: a wire rejection and a sniffer
