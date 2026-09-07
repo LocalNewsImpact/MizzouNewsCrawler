@@ -38,6 +38,18 @@ def add_verification_backfill_parser(subparsers) -> argparse.ArgumentParser:
         help="Only links whose source belongs to this dataset slug",
     )
     parser.add_argument(
+        "--since",
+        help=(
+            "Only URLs from this date onward. An accepted link is dated by "
+            "its article's publish date, a rejected one by when it was found "
+            "-- it was never fetched, so that is the only date it has."
+        ),
+    )
+    parser.add_argument(
+        "--until",
+        help="Exclusive upper bound, same dating rule as --since.",
+    )
+    parser.add_argument(
         "--batch-size",
         type=int,
         default=500,
@@ -67,6 +79,8 @@ def handle_verification_backfill_command(args) -> int:
         limit=args.limit,
         batch_size=args.batch_size,
         dataset=args.dataset,
+        since=args.since,
+        until=args.until,
         dry_run=args.dry_run,
     )
 
@@ -77,12 +91,17 @@ def handle_verification_backfill_command(args) -> int:
 
     judged = counts["agree"] + counts["disagree"]
     if judged:
-        # The number this run exists to produce. A rescore disagreeing
-        # with the recorded verdict is where a reviewer should start.
+        # Split, never one rate. The two errors do not cost the same and
+        # are not the same finding: a type II is a story thrown away with
+        # no row, no telemetry and nothing downstream that can see it
+        # went missing; a type I is a wasted fetch that the content stage
+        # catches anyway. One aggregate percentage hides which it is.
         rate = counts["disagree"] / judged * 100
         print(
             f"agree:      {counts['agree']}\n"
-            f"disagree:   {counts['disagree']} ({rate:.1f}% of {judged} judged)"
+            f"disagree:   {counts['disagree']} ({rate:.1f}% of {judged} judged)\n"
+            f"  type I:   {counts['type_i']}  accepted, the model says not a story\n"
+            f"  type II:  {counts['type_ii']}  rejected, the model says story"
         )
     elif considered:
         print("nothing could be scored: storysniffer returned no answer")

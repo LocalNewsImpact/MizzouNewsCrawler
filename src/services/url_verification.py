@@ -777,6 +777,8 @@ class URLVerificationService:
         limit: int | None = None,
         batch_size: int = 500,
         dataset: str | None = None,
+        since: str | None = None,
+        until: str | None = None,
         dry_run: bool = False,
     ) -> dict:
         """Write a verification row for links that were decided before
@@ -809,47 +811,67 @@ class URLVerificationService:
             "agree": 0,
             "disagree": 0,
             "errors": 0,
+            # Counted apart, because one aggregate rate would hide which
+            # error it is made of -- and they are not the same finding.
+            # A type II is a story thrown away with no trace; a type I is
+            # a fetch wasted on something the next stage catches anyway.
+            "type_i": 0,
+            "type_ii": 0,
         }
 
-        # Only where the verdict is still recoverable.
+        # Both kinds of error, and the rule that separates them.
         #
         # `candidate_links.status` is the link's status NOW, not what
-        # verification concluded, and later stages overwrite it. Measured
-        # against production 2026-09-07, by whether the link has an
-        # article row -- which it can only have if verification let it
-        # through and something fetched it:
+        # verification concluded: later stages overwrite it, so a link
+        # verification accepted can read `extracted`, `paused`,
+        # `obituary` or `wire` today. Measured against production
+        # 2026-09-07, 48% of `wire` and 49% of `opinion` rows have an
+        # article, which means each of those statuses is written at both
+        # stages and neither can be read as a verdict.
         #
-        #   extracted 96% have one, paused 89%  -- accepted, verdict gone
-        #   wire      48%,          opinion 49% -- written at BOTH stages
-        #   obituary  92%,          weather 97% -- mostly content-stage
-        #   not_article 4%                      -- the rejection, intact
-        #   article   19%                       -- accepted, not yet fetched
+        # What IS provable is whether anything fetched the URL. Nothing
+        # fetches a link verification rejected, so:
         #
-        # So `wire` and `opinion` are each about half verification and
-        # half content analysis, and nothing on the row says which. A
-        # backfill that guessed would fabricate the exact quantity this
-        # queue exists to measure.
+        #   an article row        -> accepted (whatever the status says)
+        #   status 'article'      -> accepted, not fetched yet
+        #   neither, and rejected -> rejected before anything ran
         #
-        # Two cases are unambiguous and they are the ones that matter:
-        # `article` is an acceptance the pipeline has not moved past, and
-        # a rejection status with NO article row was rejected before
-        # anything fetched it -- which is the type II pile, the errors no
-        # other surface can see. `sampled_out` is discovery's budget
-        # decision rather than a classification and stays out entirely.
+        # Type I is an acceptance the model now calls not-a-story; type
+        # II is a rejection it now calls a story, and type II is the one
+        # with no other surface -- a rejected URL leaves no row at all.
+        # Both are wanted, so both are selected.
+        #
+        # `sampled_out` is discovery's budget decision rather than a
+        # judgement about the URL (DISCOVERY_REVIEW_QUEUE.md §3), and
+        # `discovered`, `404` and `skipped` are not verification
+        # outcomes. None of them are here.
         select = """
-            SELECT cl.id, cl.url, cl.status
+            SELECT cl.id, cl.url, cl.status,
+                   (a.id IS NOT NULL) AS was_fetched
             FROM candidate_links cl
             LEFT JOIN url_verifications v ON v.candidate_link_id = cl.id
+            LEFT JOIN articles a ON a.candidate_link_id = cl.id
             WHERE v.id IS NULL
               AND (
-                    cl.status = 'article'
-                 OR (cl.status IN ('not_article', 'wire')
-                     AND NOT EXISTS (
-                           SELECT 1 FROM articles a
-                            WHERE a.candidate_link_id = cl.id))
+                    a.id IS NOT NULL
+                 OR cl.status = 'article'
+                 OR cl.status IN ('not_article', 'wire')
               )
         """
         params: dict = {}
+        # When the URL is from, for a run that has to be scoped to data
+        # somebody has cleaned. The two error types date differently and
+        # there is one column for neither: an accepted link has an
+        # article with a publish date, and a rejected one was never
+        # fetched, so the only date it has is when it was found.
+        if since:
+            select += " AND coalesce(a.publish_date, cl.discovered_at) >= CAST(:since AS date)"
+            params["since"] = since
+        if until:
+            select += (
+                " AND coalesce(a.publish_date, cl.discovered_at) < CAST(:until AS date)"
+            )
+            params["until"] = until
         if dataset:
             select += """
               AND EXISTS (
@@ -882,16 +904,20 @@ class URLVerificationService:
             if result.get("error"):
                 counts["errors"] += 1
             sniffed = result.get("storysniffer_result")
-            # The verdict, in the sniffer's terms. Sound only because the
-            # select above admits nothing whose verdict was overwritten:
-            # `article` is an acceptance, and the rejection statuses that
-            # got this far never had anything fetched for them.
-            recorded_is_article = row.status == "article"
+            # The verdict, in the sniffer's terms. Read from whether
+            # anything fetched the URL rather than from the status,
+            # because the status is overwritten and this is not.
+            recorded_is_article = bool(row.was_fetched) or row.status == "article"
             if sniffed is not None:
                 if bool(sniffed) == recorded_is_article:
                     counts["agree"] += 1
                 else:
                     counts["disagree"] += 1
+                    if recorded_is_article:
+                        # Accepted, and the model now says not a story.
+                        counts["type_i"] += 1
+                    else:
+                        counts["type_ii"] += 1
 
             if dry_run:
                 continue

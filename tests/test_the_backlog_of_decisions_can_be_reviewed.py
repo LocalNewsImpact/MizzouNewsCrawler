@@ -57,10 +57,17 @@ def _service(sniffer):
 
 
 class _Row:
-    def __init__(self, id, url, status):
+    """A candidate link as the select returns it.
+
+    `was_fetched` is the whole verdict: nothing fetches a URL that
+    verification rejected, so an article row means it was accepted --
+    whatever the status has since been overwritten to."""
+
+    def __init__(self, id, url, status, was_fetched=False):
         self.id = id
         self.url = url
         self.status = status
+        self.was_fetched = was_fetched
 
 
 def _rows(svc, rows, monkeypatch):
@@ -273,33 +280,102 @@ def _select_sql():
     )
 
 
-def test_it_takes_nothing_whose_verdict_was_overwritten():
-    """`candidate_links.status` is the status NOW, not what verification
-    concluded, and later stages overwrite it.
+def test_acceptance_is_read_from_the_fetch_not_the_status():
+    """`candidate_links.status` is overwritten by later stages, so a link
+    verification accepted can read `extracted`, `paused`, `obituary` or
+    `wire` today. Measured against production 2026-09-07, 48% of `wire`
+    and 49% of `opinion` rows have an article -- each of those statuses
+    is written at both stages and neither can be read as a verdict.
 
-    Measured against production 2026-09-07 by whether a link has an
-    article row -- which it can only have if verification let it through
-    and something fetched it: `extracted` 96%, `paused` 89%. Those are
-    acceptances whose verdict is gone, and reading their status as a
-    verdict would score all 125,614 of them as rejections.
-    """
+    Nothing fetches a URL that verification rejected, so the article row
+    is the verdict and it cannot be overwritten."""
     sql = _select_sql()
-    for overwritten in ("extracted", "paused", "404", "paywall"):
-        assert f"'{overwritten}'" not in sql
+    assert "a.id IS NOT NULL" in sql
+    assert "LEFT JOIN articles a" in sql
 
 
-def test_the_ambiguous_statuses_need_the_article_check():
-    """`wire` is 48% and `opinion` 49% article-bearing, so each is about
-    half verification-stage and half content-stage, and nothing on the
-    row says which. `wire` is admitted only where nothing was fetched;
-    `opinion`, `obituary` and `weather` are not admitted at all."""
+def test_both_error_types_are_selected():
+    """A queue that only held rejections could not find a type I, and one
+    that only held acceptances could not find the type II -- which is the
+    error with no other surface, because a rejected URL leaves no row."""
     sql = _select_sql()
-    assert "NOT EXISTS" in sql and "articles a" in sql
-    for content_stage in ("opinion", "obituary", "weather"):
-        assert f"'{content_stage}'" not in sql
+    assert "cl.status = 'article'" in sql
+    assert "'not_article', 'wire'" in sql
 
 
 def test_sampled_out_is_never_in_the_queue():
     """Discovery's own budget decision, not a classification about the
     URL (DISCOVERY_REVIEW_QUEUE.md §3)."""
-    assert "sampled_out" not in _select_sql()
+    sql = _select_sql()
+    assert "sampled_out" not in sql
+    # Nor the statuses that are not verification outcomes at all.
+    for other in ("'discovered'", "'404'", "'skipped'"):
+        assert other not in sql
+
+
+# --- the two errors are counted apart -----------------------------------------
+
+
+def test_a_type_i_is_an_acceptance_the_model_rejects(monkeypatch):
+    """A fetch spent on something that was not a story. The content stage
+    catches these anyway, which is why they cost compute rather than the
+    corpus."""
+    svc = _service(_Sniffer(default=False))
+    _rows(
+        svc, [_Row("c1", "https://a.example/section/", "extracted", True)], monkeypatch
+    )
+    monkeypatch.setattr(svc, "_ensure_job", lambda name: "job-1")
+    monkeypatch.setattr(svc, "_write_backfilled", lambda rows: len(rows))
+
+    counts = svc.backfill_decisions()
+
+    assert counts["type_i"] == 1
+    assert counts["type_ii"] == 0
+
+
+def test_a_type_ii_is_a_rejection_the_model_calls_a_story(monkeypatch):
+    """The error with no other surface: no article row, no status, no
+    telemetry, and nothing downstream that can notice it went missing."""
+    svc = _service(_Sniffer(default=True))
+    _rows(
+        svc, [_Row("c1", "https://a.example/story", "not_article", False)], monkeypatch
+    )
+    monkeypatch.setattr(svc, "_ensure_job", lambda name: "job-1")
+    monkeypatch.setattr(svc, "_write_backfilled", lambda rows: len(rows))
+
+    counts = svc.backfill_decisions()
+
+    assert counts["type_ii"] == 1
+    assert counts["type_i"] == 0
+
+
+def test_a_fetched_link_is_an_acceptance_whatever_its_status_says(monkeypatch):
+    """The case that made the earlier version wrong: `wire` with an
+    article row was ACCEPTED by verification and called wire afterwards
+    by content analysis. Reading the status would score it a rejection
+    and count a type II that never happened."""
+    svc = _service(_Sniffer(default=True))
+    _rows(svc, [_Row("c1", "https://a.example/ap-story", "wire", True)], monkeypatch)
+    written = []
+    monkeypatch.setattr(svc, "_ensure_job", lambda name: "job-1")
+    monkeypatch.setattr(
+        svc, "_write_backfilled", lambda rows: written.extend(rows) or len(rows)
+    )
+
+    counts = svc.backfill_decisions()
+
+    assert counts["agree"] == 1, "accepted and called a story: no disagreement"
+    assert counts["type_ii"] == 0
+    assert written[0].new_status == "wire"
+
+
+# --- scoping to data somebody has cleaned -------------------------------------
+
+
+def test_dates_bound_the_run():
+    """An accepted link is dated by its article's publish date and a
+    rejected one by when it was found -- it was never fetched, so that is
+    the only date it has. One coalesce, not two code paths."""
+    sql = _select_sql()
+    assert "coalesce(a.publish_date, cl.discovered_at) >= CAST(:since AS date)" in sql
+    assert "coalesce(a.publish_date, cl.discovered_at) < CAST(:until AS date)" in sql
