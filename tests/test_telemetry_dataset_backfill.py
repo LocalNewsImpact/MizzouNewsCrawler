@@ -36,8 +36,11 @@ def test_the_url_join_refuses_an_ambiguous_url():
     for that URL and requires exactly one."""
     join = BACKFILL_SOURCES["extraction_telemetry_v2"]["join"]
 
-    assert "count(DISTINCT c2.dataset_id)" in join
-    assert ") = 1" in join
+    # "No other dataset claims this URL", which is the same question
+    # `count(DISTINCT ...) = 1` asked and answers it without reading every
+    # match. See test_the_url_guard_stops_at_the_first_disagreement.
+    assert "c2.dataset_id <> cl.dataset_id" in join
+    assert "NOT EXISTS" in join
 
 
 def test_the_foreign_key_joins_do_not_guess():
@@ -94,3 +97,47 @@ def test_no_backfill_statement_uses_the_shape_that_fails_to_plan():
     )
 
     assert not re.findall(r":(\w+)\s+IS\s+NULL\s+OR", source)
+
+
+def test_a_real_run_does_not_count_before_it_writes():
+    """The count is the same scan as the work.
+
+    Running it first doubled every backfill, and on `extraction_telemetry_v2`
+    the count alone exceeded the two-minute `statement_timeout` and killed
+    the production run before a single row was written. A real run reports
+    what it wrote, which is the more truthful number anyway.
+    """
+    import inspect
+
+    from src.cli.commands.telemetry_dataset_backfill import (
+        handle_telemetry_dataset_backfill_command,
+    )
+
+    source = inspect.getsource(handle_telemetry_dataset_backfill_command)
+    counted = source.index("_count_pending(")
+    guarded = source.index("if args.dry_run:")
+
+    assert guarded < counted, "the count must sit inside the dry-run branch"
+
+
+def test_the_url_guard_stops_at_the_first_disagreement():
+    """`count(DISTINCT c2.dataset_id) = 1` had to read every candidate link
+    sharing the URL before it could compare. NOT EXISTS gives the same
+    answer -- no other dataset claims this URL -- and stops at the first
+    row that disagrees. That is the difference between a batch that times
+    out and one that takes seconds."""
+    join = BACKFILL_SOURCES["extraction_telemetry_v2"]["join"]
+
+    assert "count(DISTINCT" not in join
+    assert "c2.dataset_id <> cl.dataset_id" in join
+
+
+def test_the_batches_are_given_longer_than_the_default_to_run():
+    """A batch over 193k rows is a bigger statement than the two-minute
+    session default allows."""
+    import inspect
+
+    from src.cli.commands import telemetry_dataset_backfill
+
+    source = inspect.getsource(telemetry_dataset_backfill._fill)
+    assert "statement_timeout" in source

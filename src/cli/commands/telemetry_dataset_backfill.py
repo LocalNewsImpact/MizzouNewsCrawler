@@ -87,6 +87,13 @@ BACKFILL_SOURCES: dict[str, dict[str, str]] = {
         # the candidate link either way, which is why it carries almost all
         # of the table (193,835 of 193,862; the article path adds 17).
         #
+        # The "no other dataset claims this URL" test is a NOT EXISTS
+        # rather than `count(DISTINCT ...) = 1`. Same answer; the count had
+        # to read every candidate link sharing the URL before it could
+        # compare, which on 193k rows exceeded the two-minute
+        # statement_timeout and aborted the first production run. NOT
+        # EXISTS stops at the first row that disagrees.
+        #
         # The URL is a fallback rather than the primary because a URL may
         # legitimately be discovered under several datasets -- that is two
         # discoveries, not an ambiguity -- and then the URL alone cannot
@@ -108,12 +115,12 @@ BACKFILL_SOURCES: dict[str, dict[str, str]] = {
                             SELECT 1 FROM articles a2 WHERE a2.id = {t}.article_id
                         )
                         AND cl.url = {t}.url
-                        AND (
-                            SELECT count(DISTINCT c2.dataset_id)
-                              FROM candidate_links c2
+                        AND NOT EXISTS (
+                            SELECT 1 FROM candidate_links c2
                              WHERE c2.url = {t}.url
                                AND c2.dataset_id IS NOT NULL
-                        ) = 1
+                               AND c2.dataset_id <> cl.dataset_id
+                        )
                     )
               )
         """,
@@ -219,6 +226,10 @@ def _fill(session, table: str, dataset: str, date_clause, date_params, batch_siz
          )
         """)
 
+    # A batch is a bigger statement than the two-minute default allows on
+    # a table this size. Raised for this session only.
+    session.execute(text("SET statement_timeout='900s'"))
+
     while True:
         result = session.execute(
             sql, {"dataset": dataset, "batch": batch_size, **date_params}
@@ -255,14 +266,22 @@ def handle_telemetry_dataset_backfill_command(args) -> int:
     with db.get_session() as session:
         for table in tables:
             date_clause, date_params = _date_clause(table, args.since, args.until)
-            pending = _count_pending(session, table, dataset, date_clause, date_params)
 
+            # Counted only for a dry run. The count is the same scan as the
+            # work, so running it first doubled a real backfill -- and on
+            # extraction_telemetry_v2 the count alone exceeded the
+            # two-minute statement_timeout and killed the run before a
+            # single row was written. What a real run reports is what it
+            # wrote, which is the more truthful number anyway.
             if args.dry_run:
+                pending = _count_pending(
+                    session, table, dataset, date_clause, date_params
+                )
                 print(f"  {table:36s} would fill {pending:>9,}")
                 totals[table] = pending
                 continue
 
-            print(f"  {table:36s} filling {pending:>9,} ...")
+            print(f"  {table:36s} filling ...")
             totals[table] = _fill(
                 session, table, dataset, date_clause, date_params, args.batch_size
             )
