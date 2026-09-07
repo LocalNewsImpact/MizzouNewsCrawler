@@ -56,14 +56,20 @@ class TestAvailableDomainsQuery:
 
         assert _params_of(session)[0]["dataset"] == DATASET
 
-    def test_dataset_is_none_when_omitted(self, coordinator):
-        """Historical behaviour: no dataset means draw from all of them."""
+    def test_no_dataset_means_no_filter_at_all(self, coordinator):
+        """No dataset still means draw from all of them, but the clause
+        is now absent rather than passed as NULL.
+
+        `AND (:dataset IS NULL OR ...)` is what Postgres could not plan,
+        so the parameter is mentioned only when there is a value for it.
+        """
         session = MagicMock()
         session.execute.return_value = iter([])
 
         coordinator._get_available_domains(session)
 
-        assert _params_of(session)[0]["dataset"] is None
+        assert _params_of(session)[0] == {}
+        assert "dataset" not in str(session.execute.call_args.args[0])
 
     def test_the_sql_actually_filters_on_dataset_id(self, coordinator):
         session = MagicMock()
@@ -72,7 +78,17 @@ class TestAvailableDomainsQuery:
         coordinator._get_available_domains(session, DATASET)
 
         sql = str(session.execute.call_args.args[0])
+        # The filter is present when a dataset is given, and the
+        # parameter appears exactly once.
+        #
+        # It read `AND (:dataset IS NULL OR cl.dataset_id = :dataset)`
+        # until 2026-09-07, which Postgres could not plan at all --
+        # 42P18 -- so /work/request answered 500 to every worker from
+        # the day #455 shipped it. This test passed throughout, because
+        # the session below is a MagicMock: it records the SQL and never
+        # sends it anywhere.
         assert "cl.dataset_id = :dataset" in sql
+        assert sql.count(":dataset") == 1, "repeating it breaks SQLite binding"
 
 
 class TestItemSelectionQuery:
