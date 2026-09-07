@@ -82,3 +82,52 @@ def test_the_query_casts_its_parameter():
     # Once only: SQLite turns each occurrence into its own positional
     # placeholder, so a repeated name stops matching its bindings.
     assert sql.count(":dataset") == 1
+
+
+def test_no_query_in_the_module_still_uses_the_shape_that_broke():
+    """The repair above fixed `_get_available_domains` and left the same
+    construct in the work-item query one method below, so `/work/request`
+    went on answering 500 -- the March extraction run died on it after 302
+    of 424 articles, with the queue still reporting healthy.
+
+    Whole-module rather than per-query: the defect is a shape, and a fix
+    applied to the occurrence that was noticed is how it survived once
+    already. Needs no database, so it runs everywhere the suite does.
+    """
+    import inspect
+    import re
+
+    from src.services import work_queue
+
+    # Comments describe the old shape on purpose; only executable SQL counts.
+    source = "\n".join(
+        line
+        for line in inspect.getsource(work_queue).splitlines()
+        if not line.lstrip().startswith("#")
+    )
+    offenders = re.findall(r":(\w+)\s+IS\s+NULL\s+OR", source)
+
+    assert not offenders, (
+        "a bare parameter compared to NULL cannot be typed by pg8000 and "
+        f"fails 42P18 before the statement runs: {offenders}"
+    )
+
+
+@pytest.mark.postgres
+@pytest.mark.integration
+@pytest.mark.parametrize("dataset", [None, "61ccd4d3-763f-4cc6-b85d-74b268e80a00"])
+def test_the_work_item_query_plans_on_postgres(cloud_sql_session, dataset):
+    """The second query, which the first repair missed. Both branches: the
+    failure was in planning, so it happened whichever value was passed."""
+    coordinator = WorkQueueCoordinator.__new__(WorkQueueCoordinator)
+    coordinator.worker_domains = {}
+
+    response = coordinator._request_work_with_session(
+        cloud_sql_session,
+        "test-worker",
+        batch_size=1,
+        max_articles_per_domain=1,
+        dataset=dataset,
+    )
+
+    assert response.items is not None

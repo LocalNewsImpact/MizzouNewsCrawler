@@ -73,7 +73,7 @@ def _setup_extraction_test_environment(
     monkeypatch.setattr(
         extraction,
         "ComprehensiveExtractionTelemetry",
-        lambda: FakeTelemetry(),
+        lambda **_kw: FakeTelemetry(),
     )
 
     cleaner_calls: list[str] = []
@@ -122,7 +122,7 @@ def _setup_extraction_test_environment(
     monkeypatch.setattr(
         extraction,
         "BylineCleaner",
-        lambda: FakeBylineCleaner(),
+        lambda **_kw: FakeBylineCleaner(),
     )
 
     created_extractors: list[Any] = []

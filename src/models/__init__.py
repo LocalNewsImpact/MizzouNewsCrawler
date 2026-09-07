@@ -522,6 +522,10 @@ class Job(Base):
     __tablename__ = "jobs"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    # The dataset whose work produced this row, stamped by the job that
+    # wrote it. Recorded rather than inferred: nothing else on this
+    # table reaches a dataset without a join back to candidate_links.
+    dataset_id = Column(String, index=True)
 
     # Job identification
     job_type = Column(

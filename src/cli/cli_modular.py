@@ -25,6 +25,7 @@ CommandHandler = Callable[[argparse.Namespace], int]
 COMMAND_HANDLER_ATTRS: dict[str, str] = {
     "verify-urls": "handle_verification_command",
     "backfill-verifications": "handle_verification_backfill_command",
+    "backfill-telemetry-dataset": "handle_telemetry_dataset_backfill_command",
     "discover-urls": "handle_discovery_command",
     "discovery-status": "handle_discovery_status_command",
     "extract": "handle_extraction_command",
@@ -86,6 +87,7 @@ def _load_command_parser(command: str) -> tuple[Callable, Callable] | None:
     command_modules = {
         "verify-urls": "verification",
         "backfill-verifications": "verification_backfill",
+        "backfill-telemetry-dataset": "telemetry_dataset_backfill",
         "discover-urls": "discovery",
         "discovery-status": "discovery_status",
         "extract": "extraction",

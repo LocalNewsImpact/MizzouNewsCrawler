@@ -195,7 +195,7 @@ class TestBylineTelemetryPostgreSQL:
             """)
             columns = [row["column_name"] for row in result.fetchall()]
 
-            # Expected columns from Alembic migration (32 columns)
+            # Expected columns from Alembic migration (33 columns)
             expected_columns = [
                 "id",
                 "article_id",
@@ -229,6 +229,10 @@ class TestBylineTelemetryPostgreSQL:
                 "reviewed_by",
                 "reviewed_at",
                 "created_at",
+                # The dataset whose job wrote the row, so a byline question
+                # can be asked per dataset without joining back through the
+                # article to its candidate link.
+                "dataset_id",
             ]
 
             # Verify all expected columns exist
@@ -243,10 +247,10 @@ class TestBylineTelemetryPostgreSQL:
                 not extra_columns
             ), f"Unexpected extra columns in PostgreSQL table: {extra_columns}"
 
-            # Verify exact column count (32 in Alembic migration)
+            # Verify exact column count (33 in Alembic migration)
             assert (
-                len(columns) == 32
-            ), f"Expected 32 columns in PostgreSQL table, found {len(columns)}"
+                len(columns) == 33
+            ), f"Expected 33 columns in PostgreSQL table, found {len(columns)}"
 
     def test_byline_telemetry_with_human_review_fields(
         self, postgres_store_with_alembic
@@ -393,7 +397,7 @@ class TestSchemaValidation:
         )
 
         # Verify column count is exactly 32
-        assert len(insert_columns) == 32, (
+        assert len(insert_columns) == 33, (
             f"INSERT statement should have 32 columns, found {len(insert_columns)}\n"
             f"Columns: {insert_columns}"
         )

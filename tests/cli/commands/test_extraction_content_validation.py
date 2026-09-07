@@ -62,12 +62,14 @@ class TestContentValidationIntegration:
             }
 
         monkeypatch.setattr(extraction, "ContentExtractor", FakeExtractor)
-        monkeypatch.setattr(extraction, "BylineCleaner", lambda: object())
+        monkeypatch.setattr(extraction, "BylineCleaner", lambda **_kw: object())
         monkeypatch.setattr(
             extraction, "BalancedBoundaryContentCleaner", FakeContentCleaner
         )
         monkeypatch.setattr(
-            extraction, "ComprehensiveExtractionTelemetry", lambda: FakeTelemetry()
+            extraction,
+            "ComprehensiveExtractionTelemetry",
+            lambda **_kw: FakeTelemetry(),
         )
         monkeypatch.setattr(extraction, "_process_batch", fake_process_batch)
         monkeypatch.setattr(
@@ -134,12 +136,14 @@ class TestContentValidationIntegration:
             }
 
         monkeypatch.setattr(extraction, "ContentExtractor", FakeExtractor)
-        monkeypatch.setattr(extraction, "BylineCleaner", lambda: object())
+        monkeypatch.setattr(extraction, "BylineCleaner", lambda **_kw: object())
         monkeypatch.setattr(
             extraction, "BalancedBoundaryContentCleaner", FakeContentCleaner
         )
         monkeypatch.setattr(
-            extraction, "ComprehensiveExtractionTelemetry", lambda: FakeTelemetry()
+            extraction,
+            "ComprehensiveExtractionTelemetry",
+            lambda **_kw: FakeTelemetry(),
         )
         monkeypatch.setattr(extraction, "_process_batch", fake_process_batch)
         monkeypatch.setattr(

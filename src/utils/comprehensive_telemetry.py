@@ -61,9 +61,24 @@ def proxy_status_to_int(status: str | None) -> int | None:
 class ExtractionMetrics:
     """Tracks detailed metrics for a single extraction operation."""
 
-    def __init__(self, operation_id: str, article_id: str, url: str, publisher: str):
+    def __init__(
+        self,
+        operation_id: str,
+        article_id: str,
+        url: str,
+        publisher: str,
+        candidate_link_id: str | None = None,
+    ):
         self.operation_id = operation_id
+        # Minted here, before anything has been extracted. If the extraction
+        # yields no article -- the source was paused, the URL was filtered as
+        # wire or weather, the fetch 404'd -- no row is ever written under
+        # this id and it refers to nothing. Half the table is in that state.
         self.article_id = article_id
+        # The candidate UUID, which exists for every discovered URL whether
+        # or not it becomes an article. The durable half of the pair, and
+        # the only one that can join this row back to a dataset.
+        self.candidate_link_id = candidate_link_id
         self.url = url
         self.publisher = publisher
         self.host = urlparse(url).netloc
@@ -402,8 +417,16 @@ class ComprehensiveExtractionTelemetry:
         self,
         db_path: str | None = None,
         store: TelemetryStore | None = None,
+        dataset_id: str | None = None,
     ) -> None:
-        """Initialize telemetry system."""
+        """Initialize telemetry system.
+
+        `dataset_id` is the UUID of the dataset this run is processing,
+        resolved once by the caller. Every row written through this
+        instance carries it, so a per-dataset question never has to be
+        answered by joining telemetry back to the corpus.
+        """
+        self.dataset_id = dataset_id
         if store is not None:
             self._store = store
             self._database_url = None  # Unknown when store provided directly
@@ -472,9 +495,9 @@ class ComprehensiveExtractionTelemetry:
                 final_field_attribution, alternative_extractions,
                 driver_metrics,
                 content_length, is_success, error_message, error_type,
-                created_at
+                created_at, dataset_id, candidate_link_id
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     metrics.operation_id,
@@ -522,6 +545,8 @@ class ComprehensiveExtractionTelemetry:
                     metrics.error_message,
                     metrics.error_type,
                     datetime.utcnow(),  # created_at timestamp
+                    self.dataset_id,
+                    getattr(metrics, "candidate_link_id", None),
                 ),
             )
 
@@ -847,8 +872,8 @@ class ComprehensiveExtractionTelemetry:
                         article_id, operation_id, url, publisher, host,
                         detected_type, detection_method,
                         status, confidence, confidence_score, reason,
-                        evidence, version, detected_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        evidence, version, detected_at, dataset_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         metrics.article_id,
@@ -869,6 +894,7 @@ class ComprehensiveExtractionTelemetry:
                         ),
                         detection.get("version"),
                         self._coerce_detected_at(detection.get("detected_at")),
+                        self.dataset_id,
                     ),
                 )
             elif strategy == "legacy":
@@ -884,8 +910,8 @@ class ComprehensiveExtractionTelemetry:
                         operation_id, article_id, url, host,
                         http_content_type, detected_type, detection_method,
                         confidence, file_extension, mime_type, byte_signature,
-                        content_sample, error_message
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        content_sample, error_message, dataset_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         metrics.operation_id,
@@ -901,6 +927,7 @@ class ComprehensiveExtractionTelemetry:
                         None,
                         evidence_json,
                         None,
+                        self.dataset_id,
                     ),
                 )
         except Exception:  # pragma: no cover - defensive telemetry handling

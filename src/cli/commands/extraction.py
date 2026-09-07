@@ -841,11 +841,15 @@ def handle_extraction_command(args) -> int:
         effective_selenium_mode,
         selenium_mode_source,
     )
-    byline_cleaner = BylineCleaner()
+    byline_cleaner = BylineCleaner(dataset_id=getattr(args, "dataset", None))
     content_cleaner = BalancedBoundaryContentCleaner(
         enable_telemetry=False  # Don't need telemetry for validation-only cleaning
     )
-    telemetry = ComprehensiveExtractionTelemetry()
+    # args.dataset was resolved to a UUID in handle_extraction_command before
+    # this runs, so every telemetry row this batch writes carries it.
+    telemetry = ComprehensiveExtractionTelemetry(
+        dataset_id=getattr(args, "dataset", None)
+    )
 
     # Track hosts that return 403 responses within this run
     # Use defaultdict(int) so callers can increment without extra checks
@@ -1106,6 +1110,16 @@ def handle_extract_url_command(args) -> int:
         logger.exception("Failed to initialize database connection")
         return 1
 
+    # --dataset is documented as a slug, but candidate_links.dataset_id holds
+    # a UUID everywhere else. Writing the slug would make the link invisible to
+    # every dataset-scoped query, the work queue included, so resolve it once
+    # and use the UUID for both the link and the telemetry below.
+    dataset_uuid = None
+    if getattr(args, "dataset", None):
+        from src.utils.dataset_utils import resolve_dataset_id
+
+        dataset_uuid = resolve_dataset_id(db.engine, args.dataset)
+
     session = db.session
     try:
         # Find or create candidate link record
@@ -1116,7 +1130,7 @@ def handle_extract_url_command(args) -> int:
                 source=getattr(args, "source", parsed.netloc),
                 status="article",
                 discovered_by="extract-url",
-                dataset_id=getattr(args, "dataset", None),
+                dataset_id=dataset_uuid,
             )
             session.add(candidate)
             session.commit()
@@ -1133,7 +1147,7 @@ def handle_extract_url_command(args) -> int:
             return 0
 
         extractor = ContentExtractor(selenium_mode=getattr(args, "selenium_mode", None))
-        byline_cleaner = BylineCleaner()
+        byline_cleaner = BylineCleaner(dataset_id=dataset_uuid)
         content_cleaner = BalancedBoundaryContentCleaner(enable_telemetry=False)
 
         article_id = str(uuid.uuid4())
@@ -1146,7 +1160,13 @@ def handle_extract_url_command(args) -> int:
             )
         )
         operation_id = f"ext_url_{article_id}"
-        metrics = ExtractionMetrics(operation_id, article_id, url, publisher)
+        metrics = ExtractionMetrics(
+            operation_id,
+            article_id,
+            url,
+            publisher,
+            candidate_link_id=str(candidate.id),
+        )
 
         print(f"🔍 Extracting {url}... (candidate id: {candidate.id})")
         content = extractor.extract_content(url, metrics=metrics)
@@ -1504,6 +1524,7 @@ def _process_batch(
                 article_id,
                 url,
                 publisher,
+                candidate_link_id=str(url_id),
             )
 
             try:

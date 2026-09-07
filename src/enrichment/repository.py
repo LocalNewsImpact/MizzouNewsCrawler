@@ -331,6 +331,7 @@ def persist_outcome(
     model: str,
     backfield_commit: str,
     prompt_versions: dict[str, str],
+    dataset_id: str | None = None,
 ) -> None:
     """Write one article's outcome and commit. §5.2: a 'labeled' outcome writes
     nothing but the attempt counter; partial results are discarded."""
@@ -450,7 +451,7 @@ def persist_outcome(
               timeframe, timeframe_confidence, user_need, user_need_confidence,
               rationales, point_place, point_method,
               point_geoid, point_geoid_level, point_lat, point_lon, point_zcta,
-              geoids, geo_skip_reason
+              geoids, geo_skip_reason, dataset_id
             ) VALUES (
               :article_id, :profile_version, :steps_applied, :skip_reason,
               :backfield_commit, :model, :prompt_versions, :cost_usd, :enriched_at,
@@ -460,7 +461,7 @@ def persist_outcome(
               :timeframe, :timeframe_confidence, :user_need, :user_need_confidence,
               :rationales, :point_place, :point_method,
               :point_geoid, :point_geoid_level, :point_lat, :point_lon, :point_zcta,
-              :geoids, :geo_skip_reason
+              :geoids, :geo_skip_reason, :dataset_id
             )
             ON CONFLICT (article_id) DO UPDATE SET
               profile_version = EXCLUDED.profile_version,
@@ -495,7 +496,10 @@ def persist_outcome(
               point_zcta = COALESCE(EXCLUDED.point_zcta, article_enrichment.point_zcta),
               point_lon = COALESCE(EXCLUDED.point_lon, article_enrichment.point_lon),
               geoids = COALESCE(EXCLUDED.geoids, article_enrichment.geoids),
-              geo_skip_reason = EXCLUDED.geo_skip_reason
+              geo_skip_reason = EXCLUDED.geo_skip_reason,
+              -- COALESCE so a re-enrichment that was not given a dataset
+              -- does not erase one an earlier run recorded.
+              dataset_id = COALESCE(EXCLUDED.dataset_id, article_enrichment.dataset_id)
             """),
         {
             "article_id": article.id,
@@ -524,6 +528,7 @@ def persist_outcome(
             "point_zcta": getattr(geoid, "zcta", None) if geoid else None,
             "geoids": None,  # filled below once the story set is built
             "geo_skip_reason": geo_skip_reason,
+            "dataset_id": dataset_id,
             **columns,
         },
     )

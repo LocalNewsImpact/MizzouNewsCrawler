@@ -230,7 +230,9 @@ def create_telemetry_tables(db_path: str) -> None:
             proxy_url TEXT,
             proxy_authenticated INTEGER,
             proxy_status INTEGER,
-            proxy_error TEXT
+            proxy_error TEXT,
+            dataset_id TEXT,
+            candidate_link_id TEXT
         )
     """)
 
@@ -314,7 +316,8 @@ def create_telemetry_tables(db_path: str) -> None:
             evidence TEXT,
             version TEXT,
             detected_at TIMESTAMP,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            dataset_id TEXT
         )
     """)
 
@@ -345,7 +348,8 @@ def create_telemetry_tables(db_path: str) -> None:
             cleaning_method TEXT,
             result_count INTEGER,
             extracted_names TEXT,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            dataset_id TEXT
         )
     """)
 
