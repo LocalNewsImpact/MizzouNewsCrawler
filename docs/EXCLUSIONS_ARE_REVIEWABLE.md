@@ -25,42 +25,58 @@ flag, and the review queue deliberately does not re-surface those.
 Obituaries are reviewable, and have been reviewed in quantity. That is
 the shape the rest of this should take, and the proof it works.
 
-## 1. The gap is not only the queue
+## 1. The gap was the surface, not the record
 
-The obvious reading is "the extraction review queue has no case for
-wire". It has a worse problem underneath.
+The pipeline does write down why. An earlier draft of this document said
+it did not -- that 8,367 of the 9,335 wire articles recorded no reason --
+and that was wrong. It came from reading one key, `wire.detection_method`,
+which is absent on these rows because `articles.wire` holds an array of
+services here rather than an object. The reason is in
+`metadata.wire_detection`, and the rule records what it fired on:
 
-Of the 9,335 wire articles in that window, **8,367 record no reason at
-all** -- nothing in `articles.wire`, nothing under
-`metadata.content_type_detection`, no row in
-`content_type_detection_telemetry`. 964 record `wire_service_detected`
-and 4 record obituary signals. The rest were removed from the corpus and
-the pipeline did not write down why.
-
-A queue cannot rank what has no evidence, so recording comes first.
-
-## 2. Nine writers, three of which account for themselves
-
-```
-src/utils/content_type_detector.py:1219   status="wire"       records
-src/utils/content_type_detector.py:1405   status="opinion"    records
-src/utils/content_type_detector.py:1487   status="weather"    records
-src/cli/commands/extraction.py:1177       article_status      wire_hints
-src/cli/commands/extraction.py:1600       article_status      --
-src/cli/commands/extraction.py:1702       article_status      --
-src/cli/commands/extraction.py:2732       new_status          --
-src/cli/commands/cleaning.py:157          new_status          --
-src/services/url_verification.py:858      new_status          --
+```json
+{"hearst_source_name": {
+   "detected_by": ["canonical_cross_domain"],
+   "evidence": ["canonical=https://www.npr.org/2026/03/23/nx-s1-5699407/..."],
+   "wire_services": ["NPR"]}}
 ```
 
-Only the three in `content_type_detector` write to
-`content_type_detection_telemetry`, which is exactly why coverage of
-wire is 10.4%. The others set a status and move on.
+7,555 of the March rows carry it. What was missing was a place to look at
+them: a reviewer could not open a wire exclusion, so nobody could tell a
+good one from a bad one at any volume.
 
-This is the same defect as the job counters and the missing telemetry
-dataset: a stage that can act but cannot account for itself. The fix is
-the same shape -- the writer records what it decided and on what
-evidence, because it is the only thing that knows.
+## 2. The methods, and what they are worth
+
+`detected_by` names the signal. Across the March rows carrying
+`wire_detection`:
+
+```
+canonical_cross_domain      4,807
+meta_author                 2,514
+jsonld_author               1,159
+og_distributor_category       381
+jsonld_isBasedOn               95
+jsonld_mainEntity              95
+jsonld_contentSourceCode       95
+```
+
+This is the axis precision attaches to. A syndication is not a method:
+"NPR" is not right or wrong, the rule that concluded NPR is.
+
+**`canonical_cross_domain` is measured and promoted.** 500 rows reviewed
+with no errors, then 100 drawn at random with no errors, then 200 more.
+It is the largest method in the bucket and it clears the bar, so it keeps
+a standing sample and nothing else. That is 4,807 of 9,335 removed from
+the review list on evidence.
+
+What it does is credit an article to a source named in its canonical URL
+when that source is a different outlet from the publisher. Co-ownership
+does not make that wrong: one known outlet credited, another known outlet
+publishing, is syndication whoever owns them.
+
+The remaining methods are unmeasured. The local-syndication rules --
+byline identification, copyright-text matching -- are expected to be the
+difficult ones, and they are where the review effort now goes.
 
 ## 3. What review is for, and how much of it to do
 
@@ -138,19 +154,21 @@ as well as training, and the selection probability has to be recorded at
 the moment of selection -- never recomputed later, when the ranking has
 moved.
 
-## 5. Order of work
+## 5. Where this stands
 
-1. **Record the decision.** Every writer in §2 records the method and its
-   evidence where a query can reach it. Without this nothing else is
-   possible, and every day it is not done adds rows that can never be
-   audited.
-2. **Backfill what is recoverable.** Some of the 8,367 can be attributed
-   after the fact from the URL and the byline. Some cannot, and stay
-   unattributed rather than guessed at.
-3. **A queue case per machine exclusion**, grouped by method, doubt-ranked
-   within it, with a random sample drawn and its probability recorded.
-4. **Measure precision per method** from the sample, and set each
-   method's review volume from it.
+1. **A queue case for wire** — built (datadesk #269), filterable by
+   `detected_by` and by attributed syndication. This is what was missing.
+2. **`canonical_cross_domain` measured and promoted** — 4,807 rows,
+   reviewed at 500 then 300 random, no errors. Standing sample only.
+3. **The remaining wire methods**, 2,748 rows between them, are the next
+   thing to sample. `meta_author` and `jsonld_author` are the volume;
+   the byline and copyright rules are the difficulty.
+4. **The other machine exclusions** — weather 361, opinion 277,
+   paywall 2 — have no case yet. Small enough to review outright rather
+   than sample.
+
+Not needed, contrary to an earlier draft: a recording fix. The writers
+already record. §1 explains how that was got wrong.
 
 Nothing here changes what the pipeline excludes. It changes whether
 anybody can find out that it was wrong.
