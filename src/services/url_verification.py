@@ -772,11 +772,56 @@ class URLVerificationService:
             )
             return 0
 
+    def score_margin(self, url: str) -> float | None:
+        """storysniffer's own margin for this URL, or None.
+
+        `guess()` returns a bare boolean and `predict_proba` on the same
+        model is useless -- naive Bayes saturates, and 97.5% of 3,000
+        production URLs come back at exactly 0.0 or 1.0. That is where
+        the "there is no confidence signal" conclusion came from, and it
+        was reading the wrong output: the exponential destroys the
+        information, and it survives in log space. The same 3,000 URLs
+        give 2,990 distinct margins, from -194 to +3,497.
+
+        So this is logP(story) - logP(not), computed on our side from
+        `path_only_model`. No retraining and no fork of the package.
+
+        Two things it is not, and both are recorded with it rather than
+        assumed away:
+
+        - Not a probability. Naive Bayes treats correlated character
+          n-grams as independent, so the magnitudes are wildly
+          overconfident. It orders URLs; the scale means nothing until it
+          is calibrated against human labels.
+        - Not the verdict. `guess()` applies whitelist and blacklist
+          overrides AFTER the model, so a URL can score positive and
+          still be rejected. This is what the model thought, which is the
+          point -- an override is a rule, and rules are what the queue is
+          reviewing.
+        """
+        try:
+            import pandas as pd
+
+            model = getattr(self.sniffer, "path_only_model", None)
+            if model is None:
+                return None
+            frame = pd.DataFrame([{"path": urlparse(url).path, "text": None}])
+            log_proba = model.predict_log_proba(frame)[0]
+            margin = float(log_proba[1] - log_proba[0])
+            # A model that cannot score this URL is not an error worth
+            # failing a backfill for; the row simply has no score.
+            return margin if margin == margin else None  # NaN check
+        except Exception as exc:  # pragma: no cover - defensive
+            self.logger.debug("No margin for %s: %s", url, exc)
+            return None
+
     def backfill_decisions(
         self,
         limit: int | None = None,
         batch_size: int = 500,
         dataset: str | None = None,
+        since: str | None = None,
+        until: str | None = None,
         dry_run: bool = False,
     ) -> dict:
         """Write a verification row for links that were decided before
@@ -809,47 +854,72 @@ class URLVerificationService:
             "agree": 0,
             "disagree": 0,
             "errors": 0,
+            # Counted apart, because one aggregate rate would hide which
+            # error it is made of -- and they are not the same finding.
+            # A type II is a story thrown away with no trace; a type I is
+            # a fetch wasted on something the next stage catches anyway.
+            "type_i": 0,
+            "type_ii": 0,
+            # Rejected by the wire filter, which answered the other
+            # question. Never an error on its own, and never counted as
+            # one -- it is a decision a reviewer confirms or overturns.
+            "wire_held": 0,
         }
 
-        # Only where the verdict is still recoverable.
+        # Both kinds of error, and the rule that separates them.
         #
         # `candidate_links.status` is the link's status NOW, not what
-        # verification concluded, and later stages overwrite it. Measured
-        # against production 2026-09-07, by whether the link has an
-        # article row -- which it can only have if verification let it
-        # through and something fetched it:
+        # verification concluded: later stages overwrite it, so a link
+        # verification accepted can read `extracted`, `paused`,
+        # `obituary` or `wire` today. Measured against production
+        # 2026-09-07, 48% of `wire` and 49% of `opinion` rows have an
+        # article, which means each of those statuses is written at both
+        # stages and neither can be read as a verdict.
         #
-        #   extracted 96% have one, paused 89%  -- accepted, verdict gone
-        #   wire      48%,          opinion 49% -- written at BOTH stages
-        #   obituary  92%,          weather 97% -- mostly content-stage
-        #   not_article 4%                      -- the rejection, intact
-        #   article   19%                       -- accepted, not yet fetched
+        # What IS provable is whether anything fetched the URL. Nothing
+        # fetches a link verification rejected, so:
         #
-        # So `wire` and `opinion` are each about half verification and
-        # half content analysis, and nothing on the row says which. A
-        # backfill that guessed would fabricate the exact quantity this
-        # queue exists to measure.
+        #   an article row        -> accepted (whatever the status says)
+        #   status 'article'      -> accepted, not fetched yet
+        #   neither, and rejected -> rejected before anything ran
         #
-        # Two cases are unambiguous and they are the ones that matter:
-        # `article` is an acceptance the pipeline has not moved past, and
-        # a rejection status with NO article row was rejected before
-        # anything fetched it -- which is the type II pile, the errors no
-        # other surface can see. `sampled_out` is discovery's budget
-        # decision rather than a classification and stays out entirely.
+        # Type I is an acceptance the model now calls not-a-story; type
+        # II is a rejection it now calls a story, and type II is the one
+        # with no other surface -- a rejected URL leaves no row at all.
+        # Both are wanted, so both are selected.
+        #
+        # `sampled_out` is discovery's budget decision rather than a
+        # judgement about the URL (DISCOVERY_REVIEW_QUEUE.md §3), and
+        # `discovered`, `404` and `skipped` are not verification
+        # outcomes. None of them are here.
         select = """
-            SELECT cl.id, cl.url, cl.status
+            SELECT cl.id, cl.url, cl.status,
+                   (a.id IS NOT NULL) AS was_fetched,
+                   a.status AS article_status
             FROM candidate_links cl
             LEFT JOIN url_verifications v ON v.candidate_link_id = cl.id
+            LEFT JOIN articles a ON a.candidate_link_id = cl.id
             WHERE v.id IS NULL
               AND (
-                    cl.status = 'article'
-                 OR (cl.status IN ('not_article', 'wire')
-                     AND NOT EXISTS (
-                           SELECT 1 FROM articles a
-                            WHERE a.candidate_link_id = cl.id))
+                    a.id IS NOT NULL
+                 OR cl.status = 'article'
+                 OR cl.status IN ('not_article', 'wire')
               )
         """
         params: dict = {}
+        # When the URL is from, for a run that has to be scoped to data
+        # somebody has cleaned. The two error types date differently and
+        # there is one column for neither: an accepted link has an
+        # article with a publish date, and a rejected one was never
+        # fetched, so the only date it has is when it was found.
+        if since:
+            select += " AND coalesce(a.publish_date, cl.discovered_at) >= CAST(:since AS date)"
+            params["since"] = since
+        if until:
+            select += (
+                " AND coalesce(a.publish_date, cl.discovered_at) < CAST(:until AS date)"
+            )
+            params["until"] = until
         if dataset:
             select += """
               AND EXISTS (
@@ -882,16 +952,75 @@ class URLVerificationService:
             if result.get("error"):
                 counts["errors"] += 1
             sniffed = result.get("storysniffer_result")
-            # The verdict, in the sniffer's terms. Sound only because the
-            # select above admits nothing whose verdict was overwritten:
-            # `article` is an acceptance, and the rejection statuses that
-            # got this far never had anything fetched for them.
-            recorded_is_article = row.status == "article"
+            # Two questions were answered about this URL, not one.
+            #
+            #   "is this a story?"      storysniffer, and the shape rules
+            #   "do we want it?"        the wire filter, and topic rules
+            #
+            # They are independent and both can be right at once: a wire
+            # story IS a story, so storysniffer admitting it is correct
+            # AND the wire filter rejecting it is correct. Treating that
+            # as a disagreement counts an error where nothing failed --
+            # 40,651 links are in exactly that state.
+            #
+            # So the row records which question the pipeline's decision
+            # answered, and only an article-ness decision is comparable
+            # with an article-ness rescore.
+            accepted = bool(row.was_fetched) or row.status == "article"
+            if accepted:
+                verdict_kind = "accepted"
+            elif row.status == "wire":
+                # Mechanism 1 of 4, and the only rejection whose mechanism
+                # IS recoverable: nothing else writes `wire` on a link
+                # that was never fetched.
+                verdict_kind = "rejected_as_wire"
+            else:
+                verdict_kind = "rejected_as_not_a_story"
+
+            # What storysniffer is actually judged against.
+            #
+            # It answers one question -- IS THIS AN ARTICLE -- so it is
+            # not wrong when a later stage calls something wire, an
+            # obituary, opinion or weather. Those ARE articles; they are
+            # articles we do not want, which is the other question. It is
+            # wrong only when the content stage, having read the body,
+            # says the page is not a story at all.
+            #
+            # So for a fetched link the truth is the content stage's
+            # verdict, not the fact of the fetch. Measured on March
+            # Mizzou: of 29,950 accepted links the content stage calls
+            # 29,792 stories -- 9,296 of them wire -- and 158
+            # `not_article`. Reading acceptance as truth would score
+            # those 158 as agreements and hide every type I error there
+            # is in the set.
+            if row.was_fetched:
+                recorded_is_article = row.article_status != "not_article"
+            else:
+                # Nothing read the body, so the pipeline's own verdict is
+                # the only claim available. It is a claim, not truth --
+                # which is what the review is for.
+                recorded_is_article = accepted
             if sniffed is not None:
-                if bool(sniffed) == recorded_is_article:
+                if verdict_kind == "rejected_as_wire":
+                    # Not comparable. The wire filter did not claim this
+                    # is not a story; it claimed we do not want it. The
+                    # reviewer judges that call on its own, and the
+                    # sniffer's answer is evidence for it rather than a
+                    # verdict against it.
+                    counts["wire_held"] += 1
+                elif bool(sniffed) == recorded_is_article:
                     counts["agree"] += 1
                 else:
                     counts["disagree"] += 1
+                    # Which error it is depends on what the pipeline
+                    # ADMITTED, not on what the thing turned out to be:
+                    # a type I is something let through that should not
+                    # have been, a type II something kept out that should
+                    # have been let in.
+                    if accepted:
+                        counts["type_i"] += 1
+                    else:
+                        counts["type_ii"] += 1
 
             if dry_run:
                 continue
@@ -904,7 +1033,12 @@ class URLVerificationService:
                     storysniffer_result=sniffed,
                     # Saturated GaussianNB: a number here would invite
                     # ranking on something that cannot rank.
-                    verification_confidence=None,
+                    # What the model thought, on a scale that ranks
+                    # but does not yet mean anything (see score_margin).
+                    # Recorded from the first row so the labels can say
+                    # whether it ranks better than the mechanisms'
+                    # disagreement does.
+                    verification_confidence=self.score_margin(row.url),
                     previous_status=None,
                     new_status=row.status,
                     verification_time_ms=result.get("verification_time_ms"),
@@ -913,10 +1047,32 @@ class URLVerificationService:
                         # NOT the mechanism that decided at the time --
                         # that was not recorded and cannot be recovered.
                         "decided_by": "backfill",
+                        # Which question the pipeline answered, so the
+                        # queue asks the reviewer the right one -- and
+                        # asks both about this record at once rather
+                        # than surfacing it twice.
+                        "verdict_kind": verdict_kind,
+                        # What the content stage concluded once it had
+                        # the body, kept verbatim rather than reduced to
+                        # the boolean above.
+                        #
+                        # It is the training label for the SECOND
+                        # classifier -- "from the URL, is this a local
+                        # news article?" -- and it already exists for
+                        # every fetched link, so that model needs no
+                        # human review to be trained at all. Reducing it
+                        # to story/not-a-story here would throw it away:
+                        # `wire` and `obituary` are both stories and both
+                        # excluded, for different reasons a URL model can
+                        # learn to tell apart.
+                        "article_status": row.article_status,
                         "rescored_by": self._decided_by(result),
+                        # Null where the two answers are not about the
+                        # same question: a wire rejection and a sniffer
+                        # verdict cannot agree or disagree.
                         "agrees_with_recorded": (
                             None
-                            if sniffed is None
+                            if sniffed is None or verdict_kind == "rejected_as_wire"
                             else bool(sniffed) == recorded_is_article
                         ),
                     },

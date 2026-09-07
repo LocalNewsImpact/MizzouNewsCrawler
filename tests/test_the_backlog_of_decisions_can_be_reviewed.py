@@ -57,10 +57,21 @@ def _service(sniffer):
 
 
 class _Row:
-    def __init__(self, id, url, status):
+    """A candidate link as the select returns it.
+
+    `was_fetched` is the whole verdict: nothing fetches a URL that
+    verification rejected, so an article row means it was accepted --
+    whatever the status has since been overwritten to."""
+
+    def __init__(self, id, url, status, was_fetched=False, article_status=None):
         self.id = id
         self.url = url
         self.status = status
+        self.was_fetched = was_fetched
+        # What the content stage concluded once it had the body. The
+        # only thing that can say storysniffer was wrong about an
+        # acceptance.
+        self.article_status = article_status or ("enriched" if was_fetched else None)
 
 
 def _rows(svc, rows, monkeypatch):
@@ -156,7 +167,8 @@ def test_previous_status_is_left_unknown(monkeypatch):
 
 
 def test_agreement_and_disagreement_are_counted(monkeypatch):
-    """The number this run exists to produce."""
+    """The number this run exists to produce, over the two decisions
+    that answer the same question the sniffer does."""
     sniffer = _Sniffer(
         answers={
             "https://a.example/kept": True,
@@ -167,8 +179,8 @@ def test_agreement_and_disagreement_are_counted(monkeypatch):
     _rows(
         svc,
         [
-            _Row("c1", "https://a.example/kept", "article"),
-            _Row("c2", "https://a.example/rejected", "not_article"),
+            _Row("c1", "https://a.example/kept", "article", False),
+            _Row("c2", "https://a.example/rejected", "not_article", False),
         ],
         monkeypatch,
     )
@@ -273,33 +285,378 @@ def _select_sql():
     )
 
 
-def test_it_takes_nothing_whose_verdict_was_overwritten():
-    """`candidate_links.status` is the status NOW, not what verification
-    concluded, and later stages overwrite it.
+def test_acceptance_is_read_from_the_fetch_not_the_status():
+    """`candidate_links.status` is overwritten by later stages, so a link
+    verification accepted can read `extracted`, `paused`, `obituary` or
+    `wire` today. Measured against production 2026-09-07, 48% of `wire`
+    and 49% of `opinion` rows have an article -- each of those statuses
+    is written at both stages and neither can be read as a verdict.
 
-    Measured against production 2026-09-07 by whether a link has an
-    article row -- which it can only have if verification let it through
-    and something fetched it: `extracted` 96%, `paused` 89%. Those are
-    acceptances whose verdict is gone, and reading their status as a
-    verdict would score all 125,614 of them as rejections.
-    """
+    Nothing fetches a URL that verification rejected, so the article row
+    is the verdict and it cannot be overwritten."""
     sql = _select_sql()
-    for overwritten in ("extracted", "paused", "404", "paywall"):
-        assert f"'{overwritten}'" not in sql
+    assert "a.id IS NOT NULL" in sql
+    assert "LEFT JOIN articles a" in sql
 
 
-def test_the_ambiguous_statuses_need_the_article_check():
-    """`wire` is 48% and `opinion` 49% article-bearing, so each is about
-    half verification-stage and half content-stage, and nothing on the
-    row says which. `wire` is admitted only where nothing was fetched;
-    `opinion`, `obituary` and `weather` are not admitted at all."""
+def test_both_error_types_are_selected():
+    """A queue that only held rejections could not find a type I, and one
+    that only held acceptances could not find the type II -- which is the
+    error with no other surface, because a rejected URL leaves no row."""
     sql = _select_sql()
-    assert "NOT EXISTS" in sql and "articles a" in sql
-    for content_stage in ("opinion", "obituary", "weather"):
-        assert f"'{content_stage}'" not in sql
+    assert "cl.status = 'article'" in sql
+    assert "'not_article', 'wire'" in sql
 
 
 def test_sampled_out_is_never_in_the_queue():
     """Discovery's own budget decision, not a classification about the
     URL (DISCOVERY_REVIEW_QUEUE.md §3)."""
-    assert "sampled_out" not in _select_sql()
+    sql = _select_sql()
+    assert "sampled_out" not in sql
+    # Nor the statuses that are not verification outcomes at all.
+    for other in ("'discovered'", "'404'", "'skipped'"):
+        assert other not in sql
+
+
+# --- the two errors are counted apart -----------------------------------------
+
+
+def test_a_type_i_is_an_acceptance_the_model_rejects(monkeypatch):
+    """A fetch spent on something that was not a story. The content stage
+    catches these anyway, which is why they cost compute rather than the
+    corpus."""
+    svc = _service(_Sniffer(default=False))
+    _rows(
+        svc, [_Row("c1", "https://a.example/section/", "extracted", True)], monkeypatch
+    )
+    monkeypatch.setattr(svc, "_ensure_job", lambda name: "job-1")
+    monkeypatch.setattr(svc, "_write_backfilled", lambda rows: len(rows))
+
+    counts = svc.backfill_decisions()
+
+    assert counts["type_i"] == 1
+    assert counts["type_ii"] == 0
+
+
+def test_a_type_ii_is_a_rejection_the_model_calls_a_story(monkeypatch):
+    """The error with no other surface: no article row, no status, no
+    telemetry, and nothing downstream that can notice it went missing."""
+    svc = _service(_Sniffer(default=True))
+    _rows(
+        svc, [_Row("c1", "https://a.example/story", "not_article", False)], monkeypatch
+    )
+    monkeypatch.setattr(svc, "_ensure_job", lambda name: "job-1")
+    monkeypatch.setattr(svc, "_write_backfilled", lambda rows: len(rows))
+
+    counts = svc.backfill_decisions()
+
+    assert counts["type_ii"] == 1
+    assert counts["type_i"] == 0
+
+
+def test_a_fetched_link_is_an_acceptance_whatever_its_status_says(monkeypatch):
+    """The case that made the earlier version wrong: `wire` with an
+    article row was ACCEPTED by verification and called wire afterwards
+    by content analysis. Reading the status would score it a rejection
+    and count a type II that never happened."""
+    svc = _service(_Sniffer(default=True))
+    _rows(svc, [_Row("c1", "https://a.example/ap-story", "wire", True)], monkeypatch)
+    written = []
+    monkeypatch.setattr(svc, "_ensure_job", lambda name: "job-1")
+    monkeypatch.setattr(
+        svc, "_write_backfilled", lambda rows: written.extend(rows) or len(rows)
+    )
+
+    counts = svc.backfill_decisions()
+
+    assert counts["agree"] == 1, "accepted and called a story: no disagreement"
+    assert counts["type_ii"] == 0
+    assert written[0].new_status == "wire"
+
+
+# --- scoping to data somebody has cleaned -------------------------------------
+
+
+def test_dates_bound_the_run():
+    """An accepted link is dated by its article's publish date and a
+    rejected one by when it was found -- it was never fetched, so that is
+    the only date it has. One coalesce, not two code paths."""
+    sql = _select_sql()
+    assert "coalesce(a.publish_date, cl.discovered_at) >= CAST(:since AS date)" in sql
+    assert "coalesce(a.publish_date, cl.discovered_at) < CAST(:until AS date)" in sql
+
+
+# --- two questions, one record ------------------------------------------------
+
+
+def test_a_wire_rejection_is_not_a_disagreement(monkeypatch):
+    """A wire story IS a story. storysniffer admitting it is correct and
+    the wire filter rejecting it is correct: the two answered different
+    questions -- "is this a story?" and "do we want it?" -- and both were
+    right. Counting that as a type II reports an error where nothing
+    failed, on 40,651 links."""
+    svc = _service(_Sniffer(default=True))
+    _rows(svc, [_Row("c1", "https://a.example/ap", "wire", False)], monkeypatch)
+    written = []
+    monkeypatch.setattr(svc, "_ensure_job", lambda name: "job-1")
+    monkeypatch.setattr(
+        svc, "_write_backfilled", lambda rows: written.extend(rows) or len(rows)
+    )
+
+    counts = svc.backfill_decisions()
+
+    assert counts["type_ii"] == 0
+    assert counts["disagree"] == 0
+    assert counts["wire_held"] == 1
+    # And the row says so, rather than claiming an agreement it cannot have.
+    assert written[0].meta["verdict_kind"] == "rejected_as_wire"
+    assert written[0].meta["agrees_with_recorded"] is None
+
+
+def test_the_row_says_which_question_was_answered(monkeypatch):
+    """The queue asks the reviewer about both judgements on one record,
+    in one pass. It can only do that if the row says which question the
+    pipeline's decision answered."""
+    svc = _service(_Sniffer(default=True))
+    _rows(
+        svc,
+        [
+            _Row("c1", "https://a.example/one", "extracted", True),
+            _Row("c2", "https://a.example/two", "not_article", False),
+            _Row("c3", "https://a.example/three", "wire", False),
+        ],
+        monkeypatch,
+    )
+    written = []
+    monkeypatch.setattr(svc, "_ensure_job", lambda name: "job-1")
+    monkeypatch.setattr(
+        svc, "_write_backfilled", lambda rows: written.extend(rows) or len(rows)
+    )
+
+    svc.backfill_decisions()
+
+    assert [r.meta["verdict_kind"] for r in written] == [
+        "accepted",
+        "rejected_as_not_a_story",
+        "rejected_as_wire",
+    ]
+
+
+# --- the score the model can actually give -----------------------------------
+
+
+class _Model:
+    """`path_only_model`, returning log-probabilities like the real one."""
+
+    def __init__(self, pairs):
+        self.pairs = pairs
+        self.seen = []
+
+    def predict_log_proba(self, frame):
+        self.seen.append(frame)
+        return [self.pairs]
+
+
+def test_the_margin_comes_from_log_space_not_predict_proba():
+    """`predict_proba` saturates -- 97.5% of 3,000 production URLs sit at
+    exactly 0.0 or 1.0 -- which is where "there is no confidence signal"
+    came from. It was the wrong output: the exponential destroys the
+    information and it survives in logs, 2,990 distinct margins over the
+    same 3,000 URLs."""
+    svc = _service(_Sniffer())
+    svc.sniffer.path_only_model = _Model([-12.0, 3.5])
+
+    assert svc.score_margin("https://a.example/story") == pytest.approx(15.5)
+
+
+def test_a_model_that_cannot_score_leaves_the_row_without_one():
+    """A missing score is not a reason to fail a backfill of 44,000
+    rows."""
+    svc = _service(_Sniffer())
+
+    class _Broken:
+        def predict_log_proba(self, frame):
+            raise RuntimeError("no")
+
+    svc.sniffer.path_only_model = _Broken()
+    assert svc.score_margin("https://a.example/story") is None
+
+    delattr(svc.sniffer, "path_only_model")
+    assert svc.score_margin("https://a.example/story") is None
+
+
+def test_it_scores_the_path_not_the_whole_url():
+    """The path is the only feature a pre-fetch model may use, and it is
+    what the model was fitted on."""
+    svc = _service(_Sniffer())
+    model = _Model([-1.0, 1.0])
+    svc.sniffer.path_only_model = model
+
+    svc.score_margin("https://a.example/news/story?utm=1")
+
+    frame = model.seen[0]
+    assert list(frame["path"]) == ["/news/story"]
+
+
+def test_the_margin_is_recorded_on_every_row(monkeypatch):
+    """From the first row, so the labels can later say whether it ranks
+    better than the mechanisms' disagreement does."""
+    svc = _service(_Sniffer())
+    svc.sniffer.path_only_model = _Model([-2.0, 2.0])
+    _rows(svc, [_Row("c1", "https://a.example/one", "not_article", False)], monkeypatch)
+    written = []
+    monkeypatch.setattr(svc, "_ensure_job", lambda name: "job-1")
+    monkeypatch.setattr(
+        svc, "_write_backfilled", lambda rows: written.extend(rows) or len(rows)
+    )
+
+    svc.backfill_decisions()
+
+    assert written[0].verification_confidence == pytest.approx(4.0)
+
+
+# --- what storysniffer is judged against --------------------------------------
+
+
+def test_wire_is_not_a_storysniffer_error(monkeypatch):
+    """It answers one question: IS THIS AN ARTICLE. A wire story is an
+    article, so admitting it was correct -- calling it wire afterwards is
+    the other question and does not make the first answer wrong.
+
+    On March Mizzou, 9,296 of 29,950 accepted links end as wire. Scoring
+    those against storysniffer would invent an enormous error rate."""
+    svc = _service(_Sniffer(default=True))
+    _rows(
+        svc,
+        [_Row("c1", "https://a.example/ap", "wire", True, article_status="wire")],
+        monkeypatch,
+    )
+    monkeypatch.setattr(svc, "_ensure_job", lambda name: "job-1")
+    monkeypatch.setattr(svc, "_write_backfilled", lambda rows: len(rows))
+
+    counts = svc.backfill_decisions()
+
+    assert counts["agree"] == 1
+    assert counts["type_i"] == 0
+
+
+@pytest.mark.parametrize("later", ["obituary", "opinion", "weather", "out_of_scope"])
+def test_none_of_the_topic_calls_make_it_wrong(monkeypatch, later):
+    """Same argument, for every other thing the content stage may decide
+    an article is. They are all articles."""
+    svc = _service(_Sniffer(default=True))
+    _rows(
+        svc,
+        [_Row("c1", "https://a.example/x", "extracted", True, article_status=later)],
+        monkeypatch,
+    )
+    monkeypatch.setattr(svc, "_ensure_job", lambda name: "job-1")
+    monkeypatch.setattr(svc, "_write_backfilled", lambda rows: len(rows))
+
+    assert svc.backfill_decisions()["type_i"] == 0
+
+
+def test_not_article_after_reading_the_body_is_the_type_i(monkeypatch):
+    """The one verdict that does make it wrong. The content stage had the
+    text and said the page is not a story -- so accepting it was a false
+    positive, and it is the only kind there is.
+
+    158 of March Mizzou's 29,950 acceptances are in this state, which is
+    the 0.4% the spec predicted."""
+    svc = _service(_Sniffer(default=True))
+    _rows(
+        svc,
+        [
+            _Row(
+                "c1",
+                "https://a.example/section/",
+                "not_article",
+                True,
+                article_status="not_article",
+            )
+        ],
+        monkeypatch,
+    )
+    monkeypatch.setattr(svc, "_ensure_job", lambda name: "job-1")
+    monkeypatch.setattr(svc, "_write_backfilled", lambda rows: len(rows))
+
+    counts = svc.backfill_decisions()
+
+    assert counts["type_i"] == 1
+    assert counts["agree"] == 0
+
+
+def test_an_unfetched_link_is_judged_on_the_claim_not_the_body(monkeypatch):
+    """Nothing read it, so there is no content-stage verdict to use. The
+    pipeline's own call is the only claim available -- and it is a claim,
+    not truth, which is what the review is for."""
+    svc = _service(_Sniffer(default=True))
+    _rows(svc, [_Row("c1", "https://a.example/s", "not_article", False)], monkeypatch)
+    monkeypatch.setattr(svc, "_ensure_job", lambda name: "job-1")
+    monkeypatch.setattr(svc, "_write_backfilled", lambda rows: len(rows))
+
+    assert svc.backfill_decisions()["type_ii"] == 1
+
+
+def test_the_topic_label_is_kept_verbatim(monkeypatch):
+    """Two classifiers are being trained here, not one:
+
+        storysniffer      is this a story URL?
+        topic classifier  from the URL, is this a local news article?
+
+    The content stage's verdict is the second one's training label, and
+    it already exists for every fetched link -- so that model can be
+    trained without a single human review. Reducing it to story/not-a-
+    story would throw that away: `wire` and `obituary` are both stories
+    and both excluded, for different reasons a URL model can learn to
+    tell apart.
+    """
+    svc = _service(_Sniffer(default=True))
+    _rows(
+        svc,
+        [
+            _Row("c1", "https://a.example/ap", "wire", True, article_status="wire"),
+            _Row(
+                "c2", "https://a.example/o", "obituary", True, article_status="obituary"
+            ),
+            _Row(
+                "c3",
+                "https://a.example/n",
+                "extracted",
+                True,
+                article_status="enriched",
+            ),
+        ],
+        monkeypatch,
+    )
+    written = []
+    monkeypatch.setattr(svc, "_ensure_job", lambda name: "job-1")
+    monkeypatch.setattr(
+        svc, "_write_backfilled", lambda rows: written.extend(rows) or len(rows)
+    )
+
+    svc.backfill_decisions()
+
+    assert [r.meta["article_status"] for r in written] == [
+        "wire",
+        "obituary",
+        "enriched",
+    ]
+    # And none of them counted against storysniffer: all three are stories.
+    assert all(r.meta["agrees_with_recorded"] for r in written)
+
+
+def test_an_unfetched_link_has_no_topic_label(monkeypatch):
+    """Nothing read it, so there is nothing to label it with. A guess
+    here would be a training row invented rather than observed."""
+    svc = _service(_Sniffer(default=True))
+    _rows(svc, [_Row("c1", "https://a.example/s", "not_article", False)], monkeypatch)
+    written = []
+    monkeypatch.setattr(svc, "_ensure_job", lambda name: "job-1")
+    monkeypatch.setattr(
+        svc, "_write_backfilled", lambda rows: written.extend(rows) or len(rows)
+    )
+
+    svc.backfill_decisions()
+
+    assert written[0].meta["article_status"] is None

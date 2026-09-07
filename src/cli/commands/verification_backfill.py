@@ -38,6 +38,18 @@ def add_verification_backfill_parser(subparsers) -> argparse.ArgumentParser:
         help="Only links whose source belongs to this dataset slug",
     )
     parser.add_argument(
+        "--since",
+        help=(
+            "Only URLs from this date onward. An accepted link is dated by "
+            "its article's publish date, a rejected one by when it was found "
+            "-- it was never fetched, so that is the only date it has."
+        ),
+    )
+    parser.add_argument(
+        "--until",
+        help="Exclusive upper bound, same dating rule as --since.",
+    )
+    parser.add_argument(
         "--batch-size",
         type=int,
         default=500,
@@ -67,6 +79,8 @@ def handle_verification_backfill_command(args) -> int:
         limit=args.limit,
         batch_size=args.batch_size,
         dataset=args.dataset,
+        since=args.since,
+        until=args.until,
         dry_run=args.dry_run,
     )
 
@@ -77,13 +91,30 @@ def handle_verification_backfill_command(args) -> int:
 
     judged = counts["agree"] + counts["disagree"]
     if judged:
-        # The number this run exists to produce. A rescore disagreeing
-        # with the recorded verdict is where a reviewer should start.
-        rate = counts["disagree"] / judged * 100
+        # Split, never one rate. The two errors do not cost the same and
+        # are not the same finding: a type II is a story thrown away with
+        # no row, no telemetry and nothing downstream that can see it
+        # went missing; a type I is a wasted fetch that the content stage
+        # catches anyway. One aggregate percentage hides which it is.
+        rate = counts["disagree"] / judged * 100 if judged else 0.0
         print(
             f"agree:      {counts['agree']}\n"
-            f"disagree:   {counts['disagree']} ({rate:.1f}% of {judged} judged)"
+            f"disagree:   {counts['disagree']} ({rate:.1f}% of {judged} judged)\n"
+            f"  type I:   {counts['type_i']}  accepted, the model says not a story\n"
+            f"  type II:  {counts['type_ii']}  rejected as not a story, "
+            f"the model says story"
         )
+        # Reported apart from the errors, and deliberately not as one.
+        # The wire filter answered "do we want this?", not "is this a
+        # story?", so a story it rejected is two correct decisions rather
+        # than a mistake. The reviewer confirms or overturns the wire
+        # call; the sniffer's answer is evidence for that, not a verdict
+        # against it.
+        if counts["wire_held"]:
+            print(
+                f"wire-held:  {counts['wire_held']}  the wire filter rejected "
+                f"these; the model's answer is evidence, not a disagreement"
+            )
     elif considered:
         print("nothing could be scored: storysniffer returned no answer")
     return 0
