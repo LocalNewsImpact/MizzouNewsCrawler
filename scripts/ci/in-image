@@ -20,5 +20,33 @@
 #     pull request could not pass CI at all).
 set -euo pipefail
 git config --global --add safe.directory /workspace
-pip install -q -r requirements-base.txt -r requirements-dev.txt
+
+# Retried, because one of these requirements is fetched from github.com
+# on every stage of every run.
+#
+#   requirements-base.txt:80
+#   lnic-contracts @ https://github.com/.../archive/refs/tags/vX.Y.Z.tar.gz
+#
+# A 504 from GitHub therefore fails a stage that never ran, and reports
+# it as that stage: PR #529 showed "checks / lint FAILURE" for a gateway
+# timeout, with nothing linted. pip does not retry it either -- a 504 is
+# an HTTP response rather than a connection error, so pip treats it as
+# fatal and stops.
+#
+# Three attempts with a widening gap. A real failure -- a requirement
+# that does not resolve, a conflict -- fails all three and still fails
+# the run, only later. What this removes is the class of red build that
+# has nothing to do with the commit.
+for attempt in 1 2 3; do
+    if pip install -q -r requirements-base.txt -r requirements-dev.txt; then
+        break
+    fi
+    if [ "$attempt" = 3 ]; then
+        echo "dependency install failed three times; giving up" >&2
+        exit 1
+    fi
+    echo "dependency install failed (attempt $attempt of 3), retrying" >&2
+    sleep $((attempt * 5))
+done
+
 exec "$@"
