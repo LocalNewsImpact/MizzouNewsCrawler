@@ -1070,7 +1070,17 @@ class OperationTracker:
     ) -> None:
         """Mark operation as completed."""
 
+        # The metrics the run reported through `update_progress`, carried
+        # into the job record.
+        #
+        # `_update_job_record` writes records_processed, records_created
+        # and errors_count only when it is given `metrics`, and nothing
+        # ever gave it any -- so 769 job rows say a run happened and
+        # nothing about what it did. The tracker has held the numbers all
+        # along, on `active_operations[id]["metrics"]`; they were simply
+        # not read back out at the end.
         with self._lock:
+            metrics = None
             if operation_id in self.active_operations:
                 self.active_operations[operation_id][
                     "status"
@@ -1078,11 +1088,13 @@ class OperationTracker:
                 self.active_operations[operation_id]["end_time"] = datetime.now(
                     timezone.utc
                 )
+                metrics = self.active_operations[operation_id].get("metrics")
 
         self._update_job_record(
             operation_id,
             OperationStatus.COMPLETED,
             result_summary=result_summary,
+            metrics=metrics,
         )
 
         event = OperationEvent(
@@ -1104,12 +1116,17 @@ class OperationTracker:
     ) -> None:
         """Mark operation as failed."""
 
+        # A failed run's counters matter more than a successful one's:
+        # they say how far it got before it stopped, which is the first
+        # question anybody asks about a failure.
         with self._lock:
+            metrics = None
             if operation_id in self.active_operations:
                 self.active_operations[operation_id]["status"] = OperationStatus.FAILED
                 self.active_operations[operation_id]["end_time"] = datetime.now(
                     timezone.utc
                 )
+                metrics = self.active_operations[operation_id].get("metrics")
 
         combined_error = {"message": error_message, **(error_details or {})}
 
@@ -1117,6 +1134,7 @@ class OperationTracker:
             operation_id,
             OperationStatus.FAILED,
             error_details=combined_error,
+            metrics=metrics,
         )
 
         event = OperationEvent(
