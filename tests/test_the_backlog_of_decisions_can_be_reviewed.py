@@ -389,7 +389,7 @@ def test_dates_bound_the_run():
 # --- two questions, one record ------------------------------------------------
 
 
-def test_a_wire_rejection_is_not_a_disagreement(monkeypatch):
+def test_a_topic_rule_rejection_is_not_a_disagreement(monkeypatch):
     """A wire story IS a story. storysniffer admitting it is correct and
     the wire filter rejecting it is correct: the two answered different
     questions -- "is this a story?" and "do we want it?" -- and both were
@@ -407,9 +407,9 @@ def test_a_wire_rejection_is_not_a_disagreement(monkeypatch):
 
     assert counts["type_ii"] == 0
     assert counts["disagree"] == 0
-    assert counts["wire_held"] == 1
+    assert counts["topic_held"] == 1
     # And the row says so, rather than claiming an agreement it cannot have.
-    assert written[0].meta["verdict_kind"] == "rejected_as_wire"
+    assert written[0].meta["verdict_kind"] == "rejected_by_topic_rule"
     assert written[0].meta["agrees_with_recorded"] is None
 
 
@@ -438,7 +438,7 @@ def test_the_row_says_which_question_was_answered(monkeypatch):
     assert [r.meta["verdict_kind"] for r in written] == [
         "accepted",
         "rejected_as_not_a_story",
-        "rejected_as_wire",
+        "rejected_by_topic_rule",
     ]
 
 
@@ -660,3 +660,43 @@ def test_an_unfetched_link_has_no_topic_label(monkeypatch):
     svc.backfill_decisions()
 
     assert written[0].meta["article_status"] is None
+
+
+# --- every topic rule, not only the wire one ---------------------------------
+
+
+@pytest.mark.parametrize("status", ["wire", "obituary", "opinion", "weather"])
+def test_each_topic_rule_rejection_is_held_not_scored(monkeypatch, status):
+    """Four rules answer the same question -- do we want this story --
+    and none of them disputes that it IS one. The wire filter was the
+    only one selected, so 453 obituary, opinion and weather rejections
+    in March Mizzou were missing from the queue entirely: those are the
+    pattern rules' own pre-extraction calls, and the only place the topic
+    classifier can learn what they do."""
+    svc = _service(_Sniffer(default=True))
+    _rows(
+        svc, [_Row("c1", f"https://a.example/{status}/x", status, False)], monkeypatch
+    )
+    written = []
+    monkeypatch.setattr(svc, "_ensure_job", lambda name: "job-1")
+    monkeypatch.setattr(
+        svc, "_write_backfilled", lambda rows: written.extend(rows) or len(rows)
+    )
+
+    counts = svc.backfill_decisions()
+
+    assert counts["topic_held"] == 1
+    assert counts["type_ii"] == 0
+    assert written[0].meta["verdict_kind"] == "rejected_by_topic_rule"
+    # Which rule it was stays on the row: a reviewer judges that rule,
+    # and a count per rule is what a fix is built from.
+    assert written[0].new_status == status
+
+
+def test_the_topic_statuses_are_named_once():
+    """Derived from the constant rather than repeated in the SQL and the
+    branch, which is how the two come to disagree."""
+    from src.services.url_verification import URLVerificationService
+
+    for status in URLVerificationService.TOPIC_RULE_STATUSES:
+        assert f"'{status}'" in _select_sql()
