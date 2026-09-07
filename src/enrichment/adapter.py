@@ -14,6 +14,7 @@ other litellm users in the process are unaffected.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -25,6 +26,17 @@ from typing import Any, Callable, Iterator
 
 from src.enrichment.cost import call_cost
 from src.enrichment.types import ArticleInput, StepResult
+
+logger = logging.getLogger(__name__)
+
+#: How many times one node is asked before the article is given up on.
+#:
+#: Two, not more: the failures seen are a model sampling something its own
+#: validator refuses, and a second draw is usually valid. A third would
+#: mostly pay again for a prompt the model cannot satisfy. Retrying here
+#: rather than in the orchestrator is what keeps the article's earlier
+#: steps, which are otherwise discarded and re-paid for.
+STEP_ATTEMPTS = 2
 
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 GATE_PROMPT_VERSION = "content_gate-v1"
@@ -159,38 +171,76 @@ def _run_node(
     params: dict[str, Any],
     inputs: dict[str, Any],
     model: str,
+    attempts: int = STEP_ATTEMPTS,
 ) -> StepResult:
+    """Run one node, retrying it rather than losing the article.
+
+    A step failing does not fail the step's article gracefully: the
+    orchestrator discards EVERY result it has collected and rewinds the
+    article whole, so five good steps are thrown away and paid for again
+    because the sixth returned something unparseable.
+
+    Measured on 191 articles enriched on 2026-09-07: 87 of them -- 46% --
+    came back with nothing written, and the sampled cause was one step,
+    `temporal_orientation`, returning a confidence outside 0.0-1.0 which
+    the response validator refuses. Every earlier step had passed. About
+    $0.46 of $1.38 bought results that were dropped.
+
+    The rate is per-article, not per-call: an article needs nine
+    consecutive validations, so a modest per-call defect rate compounds.
+    Retrying the one step is the cheapest place to break that chain,
+    because the model is sampling and a second draw is usually valid.
+
+    The failure is also logged. Those 87 recorded no reason anywhere --
+    the outcome carries the error and `persist_outcome` writes only the
+    attempt counter for a transient failure -- so finding this needed
+    articles re-run through the orchestrator by hand.
+    """
     _register_usage_callback()
-    token = _USAGE_ACC.set([])
-    try:
-        fn = _load(node)
-        payload = fn(params, inputs)
-        if not isinstance(payload, dict):
-            raise TypeError(f"node returned {type(payload).__name__}, expected dict")
-        usage = _USAGE_ACC.get() or []
-        tokens_in = sum(u[0] for u in usage)
-        tokens_out = sum(u[1] for u in usage)
-        return StepResult(
-            step=step,
-            ok=True,
-            payload=payload,
-            error=None,
-            input_tokens=tokens_in,
-            output_tokens=tokens_out,
-            cost_usd=call_cost(model, tokens_in, tokens_out),
-        )
-    except Exception as exc:  # a model failure is a result, not an exception
-        return StepResult(
-            step=step,
-            ok=False,
-            payload=None,
-            error=f"{type(exc).__name__}: {exc}"[:500],
-            input_tokens=0,
-            output_tokens=0,
-            cost_usd=Decimal("0"),
-        )
-    finally:
-        _USAGE_ACC.reset(token)
+    last_error: str | None = None
+
+    for attempt in range(1, attempts + 1):
+        token = _USAGE_ACC.set([])
+        try:
+            fn = _load(node)
+            payload = fn(params, inputs)
+            if not isinstance(payload, dict):
+                raise TypeError(
+                    f"node returned {type(payload).__name__}, expected dict"
+                )
+            usage = _USAGE_ACC.get() or []
+            tokens_in = sum(u[0] for u in usage)
+            tokens_out = sum(u[1] for u in usage)
+            return StepResult(
+                step=step,
+                ok=True,
+                payload=payload,
+                error=None,
+                input_tokens=tokens_in,
+                output_tokens=tokens_out,
+                cost_usd=call_cost(model, tokens_in, tokens_out),
+            )
+        except Exception as exc:  # a model failure is a result, not an exception
+            last_error = f"{type(exc).__name__}: {exc}"[:500]
+            logger.warning(
+                "enrichment step %s failed on attempt %d of %d: %s",
+                step,
+                attempt,
+                attempts,
+                last_error,
+            )
+        finally:
+            _USAGE_ACC.reset(token)
+
+    return StepResult(
+        step=step,
+        ok=False,
+        payload=None,
+        error=last_error,
+        input_tokens=0,
+        output_tokens=0,
+        cost_usd=Decimal("0"),
+    )
 
 
 @_labelled
