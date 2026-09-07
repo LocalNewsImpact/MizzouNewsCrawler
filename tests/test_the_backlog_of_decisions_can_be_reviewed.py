@@ -163,7 +163,8 @@ def test_previous_status_is_left_unknown(monkeypatch):
 
 
 def test_agreement_and_disagreement_are_counted(monkeypatch):
-    """The number this run exists to produce."""
+    """The number this run exists to produce, over the two decisions
+    that answer the same question the sniffer does."""
     sniffer = _Sniffer(
         answers={
             "https://a.example/kept": True,
@@ -174,8 +175,8 @@ def test_agreement_and_disagreement_are_counted(monkeypatch):
     _rows(
         svc,
         [
-            _Row("c1", "https://a.example/kept", "article"),
-            _Row("c2", "https://a.example/rejected", "not_article"),
+            _Row("c1", "https://a.example/kept", "article", False),
+            _Row("c2", "https://a.example/rejected", "not_article", False),
         ],
         monkeypatch,
     )
@@ -379,3 +380,59 @@ def test_dates_bound_the_run():
     sql = _select_sql()
     assert "coalesce(a.publish_date, cl.discovered_at) >= CAST(:since AS date)" in sql
     assert "coalesce(a.publish_date, cl.discovered_at) < CAST(:until AS date)" in sql
+
+
+# --- two questions, one record ------------------------------------------------
+
+
+def test_a_wire_rejection_is_not_a_disagreement(monkeypatch):
+    """A wire story IS a story. storysniffer admitting it is correct and
+    the wire filter rejecting it is correct: the two answered different
+    questions -- "is this a story?" and "do we want it?" -- and both were
+    right. Counting that as a type II reports an error where nothing
+    failed, on 40,651 links."""
+    svc = _service(_Sniffer(default=True))
+    _rows(svc, [_Row("c1", "https://a.example/ap", "wire", False)], monkeypatch)
+    written = []
+    monkeypatch.setattr(svc, "_ensure_job", lambda name: "job-1")
+    monkeypatch.setattr(
+        svc, "_write_backfilled", lambda rows: written.extend(rows) or len(rows)
+    )
+
+    counts = svc.backfill_decisions()
+
+    assert counts["type_ii"] == 0
+    assert counts["disagree"] == 0
+    assert counts["wire_held"] == 1
+    # And the row says so, rather than claiming an agreement it cannot have.
+    assert written[0].meta["verdict_kind"] == "rejected_as_wire"
+    assert written[0].meta["agrees_with_recorded"] is None
+
+
+def test_the_row_says_which_question_was_answered(monkeypatch):
+    """The queue asks the reviewer about both judgements on one record,
+    in one pass. It can only do that if the row says which question the
+    pipeline's decision answered."""
+    svc = _service(_Sniffer(default=True))
+    _rows(
+        svc,
+        [
+            _Row("c1", "https://a.example/one", "extracted", True),
+            _Row("c2", "https://a.example/two", "not_article", False),
+            _Row("c3", "https://a.example/three", "wire", False),
+        ],
+        monkeypatch,
+    )
+    written = []
+    monkeypatch.setattr(svc, "_ensure_job", lambda name: "job-1")
+    monkeypatch.setattr(
+        svc, "_write_backfilled", lambda rows: written.extend(rows) or len(rows)
+    )
+
+    svc.backfill_decisions()
+
+    assert [r.meta["verdict_kind"] for r in written] == [
+        "accepted",
+        "rejected_as_not_a_story",
+        "rejected_as_wire",
+    ]

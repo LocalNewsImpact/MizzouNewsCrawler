@@ -817,6 +817,10 @@ class URLVerificationService:
             # a fetch wasted on something the next stage catches anyway.
             "type_i": 0,
             "type_ii": 0,
+            # Rejected by the wire filter, which answered the other
+            # question. Never an error on its own, and never counted as
+            # one -- it is a decision a reviewer confirms or overturns.
+            "wire_held": 0,
         }
 
         # Both kinds of error, and the rule that separates them.
@@ -904,17 +908,44 @@ class URLVerificationService:
             if result.get("error"):
                 counts["errors"] += 1
             sniffed = result.get("storysniffer_result")
-            # The verdict, in the sniffer's terms. Read from whether
-            # anything fetched the URL rather than from the status,
-            # because the status is overwritten and this is not.
-            recorded_is_article = bool(row.was_fetched) or row.status == "article"
+            # Two questions were answered about this URL, not one.
+            #
+            #   "is this a story?"      storysniffer, and the shape rules
+            #   "do we want it?"        the wire filter, and topic rules
+            #
+            # They are independent and both can be right at once: a wire
+            # story IS a story, so storysniffer admitting it is correct
+            # AND the wire filter rejecting it is correct. Treating that
+            # as a disagreement counts an error where nothing failed --
+            # 40,651 links are in exactly that state.
+            #
+            # So the row records which question the pipeline's decision
+            # answered, and only an article-ness decision is comparable
+            # with an article-ness rescore.
+            accepted = bool(row.was_fetched) or row.status == "article"
+            if accepted:
+                verdict_kind = "accepted"
+            elif row.status == "wire":
+                # Mechanism 1 of 4, and the only rejection whose mechanism
+                # IS recoverable: nothing else writes `wire` on a link
+                # that was never fetched.
+                verdict_kind = "rejected_as_wire"
+            else:
+                verdict_kind = "rejected_as_not_a_story"
+            recorded_is_article = accepted
             if sniffed is not None:
-                if bool(sniffed) == recorded_is_article:
+                if verdict_kind == "rejected_as_wire":
+                    # Not comparable. The wire filter did not claim this
+                    # is not a story; it claimed we do not want it. The
+                    # reviewer judges that call on its own, and the
+                    # sniffer's answer is evidence for it rather than a
+                    # verdict against it.
+                    counts["wire_held"] += 1
+                elif bool(sniffed) == recorded_is_article:
                     counts["agree"] += 1
                 else:
                     counts["disagree"] += 1
                     if recorded_is_article:
-                        # Accepted, and the model now says not a story.
                         counts["type_i"] += 1
                     else:
                         counts["type_ii"] += 1
@@ -939,10 +970,18 @@ class URLVerificationService:
                         # NOT the mechanism that decided at the time --
                         # that was not recorded and cannot be recovered.
                         "decided_by": "backfill",
+                        # Which question the pipeline answered, so the
+                        # queue asks the reviewer the right one -- and
+                        # asks both about this record at once rather
+                        # than surfacing it twice.
+                        "verdict_kind": verdict_kind,
                         "rescored_by": self._decided_by(result),
+                        # Null where the two answers are not about the
+                        # same question: a wire rejection and a sniffer
+                        # verdict cannot agree or disagree.
                         "agrees_with_recorded": (
                             None
-                            if sniffed is None
+                            if sniffed is None or verdict_kind == "rejected_as_wire"
                             else bool(sniffed) == recorded_is_article
                         ),
                     },

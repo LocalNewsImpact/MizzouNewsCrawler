@@ -96,13 +96,25 @@ def handle_verification_backfill_command(args) -> int:
         # no row, no telemetry and nothing downstream that can see it
         # went missing; a type I is a wasted fetch that the content stage
         # catches anyway. One aggregate percentage hides which it is.
-        rate = counts["disagree"] / judged * 100
+        rate = counts["disagree"] / judged * 100 if judged else 0.0
         print(
             f"agree:      {counts['agree']}\n"
             f"disagree:   {counts['disagree']} ({rate:.1f}% of {judged} judged)\n"
             f"  type I:   {counts['type_i']}  accepted, the model says not a story\n"
-            f"  type II:  {counts['type_ii']}  rejected, the model says story"
+            f"  type II:  {counts['type_ii']}  rejected as not a story, "
+            f"the model says story"
         )
+        # Reported apart from the errors, and deliberately not as one.
+        # The wire filter answered "do we want this?", not "is this a
+        # story?", so a story it rejected is two correct decisions rather
+        # than a mistake. The reviewer confirms or overturns the wire
+        # call; the sniffer's answer is evidence for that, not a verdict
+        # against it.
+        if counts["wire_held"]:
+            print(
+                f"wire-held:  {counts['wire_held']}  the wire filter rejected "
+                f"these; the model's answer is evidence, not a disagreement"
+            )
     elif considered:
         print("nothing could be scored: storysniffer returned no answer")
     return 0
