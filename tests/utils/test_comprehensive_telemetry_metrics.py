@@ -400,7 +400,8 @@ def _create_sqlite_tables(store: TelemetryStore) -> None:
                 error_message TEXT,
                 error_type TEXT,
                 created_at TIMESTAMP,
-                dataset_id TEXT
+                dataset_id TEXT,
+                candidate_link_id TEXT
             )
             """)
 

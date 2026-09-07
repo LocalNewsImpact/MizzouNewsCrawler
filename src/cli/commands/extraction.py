@@ -1160,7 +1160,13 @@ def handle_extract_url_command(args) -> int:
             )
         )
         operation_id = f"ext_url_{article_id}"
-        metrics = ExtractionMetrics(operation_id, article_id, url, publisher)
+        metrics = ExtractionMetrics(
+            operation_id,
+            article_id,
+            url,
+            publisher,
+            candidate_link_id=str(candidate.id),
+        )
 
         print(f"🔍 Extracting {url}... (candidate id: {candidate.id})")
         content = extractor.extract_content(url, metrics=metrics)
@@ -1518,6 +1524,7 @@ def _process_batch(
                 article_id,
                 url,
                 publisher,
+                candidate_link_id=str(url_id),
             )
 
             try:

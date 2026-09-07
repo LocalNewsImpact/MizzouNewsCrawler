@@ -122,9 +122,9 @@ def test_the_work_item_query_plans_on_postgres(cloud_sql_session, dataset):
     coordinator = WorkQueueCoordinator.__new__(WorkQueueCoordinator)
     coordinator.worker_domains = {}
 
-    response = coordinator._handle_work_request_with_session(
-        session=cloud_sql_session,
-        worker_id="test-worker",
+    response = coordinator._request_work_with_session(
+        cloud_sql_session,
+        "test-worker",
         batch_size=1,
         max_articles_per_domain=1,
         dataset=dataset,

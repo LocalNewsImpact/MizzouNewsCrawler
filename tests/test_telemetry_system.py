@@ -231,7 +231,8 @@ def create_telemetry_tables(db_path: str) -> None:
             proxy_authenticated INTEGER,
             proxy_status INTEGER,
             proxy_error TEXT,
-            dataset_id TEXT
+            dataset_id TEXT,
+            candidate_link_id TEXT
         )
     """)
 

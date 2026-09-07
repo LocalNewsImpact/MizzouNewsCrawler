@@ -118,3 +118,37 @@ def test_every_telemetry_table_gained_the_column(table):
     ).read_text()
 
     assert f'("{table}"' in migration, f"{table} is not in the migration"
+
+
+def test_extraction_telemetry_records_the_candidate_uuid():
+    """`article_id` is minted before the extraction runs, so it names a row
+    that may never be written: a paused source, a URL filtered as wire or
+    weather, a 404. 156,712 of 315,631 production rows point at nothing.
+
+    The candidate UUID exists for every discovered URL and is already in
+    hand when telemetry starts -- the extraction loop passes the same value
+    as `candidate_link_id` a few lines later -- so the row can name the
+    thing it actually worked on."""
+    from src.utils.comprehensive_telemetry import ExtractionMetrics
+
+    metrics = ExtractionMetrics(
+        "op-1",
+        "article-uuid",
+        "https://example.com/story",
+        "Example",
+        candidate_link_id="candidate-uuid",
+    )
+
+    assert metrics.candidate_link_id == "candidate-uuid"
+    assert metrics.article_id == "article-uuid", "the pair, not a replacement"
+
+
+def test_the_extraction_loop_passes_the_candidate_it_holds():
+    """The value was already in the loop as `url_id`, used for
+    `candidate_link_id=` on three writes below. It just never reached
+    telemetry."""
+    from src.cli.commands import extraction
+
+    source = inspect.getsource(extraction)
+    assert "candidate_link_id=str(url_id)" in source
+    assert "candidate_link_id=str(candidate.id)" in source

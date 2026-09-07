@@ -393,7 +393,7 @@ class TestSchemaValidation:
         )
 
         # Verify column count is exactly 32
-        assert len(insert_columns) == 32, (
+        assert len(insert_columns) == 33, (
             f"INSERT statement should have 32 columns, found {len(insert_columns)}\n"
             f"Columns: {insert_columns}"
         )

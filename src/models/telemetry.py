@@ -18,6 +18,11 @@ class ExtractionTelemetryV2(Base):
     # table reaches a dataset without a join back to candidate_links.
     dataset_id = Column(String, index=True)
 
+    # The candidate UUID this extraction worked on. `article_id` is
+    # minted before the extraction and refers to nothing when no article
+    # results; this one exists for every discovered URL.
+    candidate_link_id = Column(String, index=True)
+
     operation_id = Column(String, nullable=False, index=True)
     article_id = Column(String, nullable=False, index=True)
     url = Column(String, nullable=False, index=True)

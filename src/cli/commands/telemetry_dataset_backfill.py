@@ -72,19 +72,50 @@ BACKFILL_SOURCES: dict[str, dict[str, str]] = {
     },
     "extraction_telemetry_v2": {
         "key": "id",
-        # Only where the URL resolves to exactly one dataset. A URL
-        # discovered under two datasets has no single right answer, and a
-        # null is the honest record of that.
+        # Three paths, in order of how directly each names the record.
+        #
+        # `candidate_link_id` is the candidate UUID and is exact, but it is
+        # only present on rows written after it was added; every historical
+        # row is null there, which is what the two paths below are for.
+        #
+        # `article_id` is populated on every row but resolves only where the
+        # article still exists, and for most of these rows it never did:
+        # the source was paused, or the URL was filtered as wire, weather or
+        # obituary. Those are decisions that worked, not failures -- of the
+        # Mizzou 2026 rows with no article, paused sources and correct
+        # filtering account for the bulk and 404s for 2,712. The URL reaches
+        # the candidate link either way, which is why it carries almost all
+        # of the table (193,835 of 193,862; the article path adds 17).
+        #
+        # The URL is a fallback rather than the primary because a URL may
+        # legitimately be discovered under several datasets -- that is two
+        # discoveries, not an ambiguity -- and then the URL alone cannot
+        # say which dataset's job did the extraction. The article FK can,
+        # so it wins wherever it resolves, and the URL is used only where
+        # no article row exists and the URL belongs to one dataset.
         "join": """
             FROM candidate_links cl
-            WHERE cl.url = {t}.url
-              AND cl.dataset_id = :dataset
+            WHERE cl.dataset_id = :dataset
               AND (
-                SELECT count(DISTINCT c2.dataset_id)
-                  FROM candidate_links c2
-                 WHERE c2.url = {t}.url
-                   AND c2.dataset_id IS NOT NULL
-              ) = 1
+                    cl.id = {t}.candidate_link_id
+                 OR cl.id = (
+                        SELECT a.candidate_link_id FROM articles a
+                         WHERE a.id = {t}.article_id
+                    )
+                 OR (
+                        {t}.candidate_link_id IS NULL
+                        AND NOT EXISTS (
+                            SELECT 1 FROM articles a2 WHERE a2.id = {t}.article_id
+                        )
+                        AND cl.url = {t}.url
+                        AND (
+                            SELECT count(DISTINCT c2.dataset_id)
+                              FROM candidate_links c2
+                             WHERE c2.url = {t}.url
+                               AND c2.dataset_id IS NOT NULL
+                        ) = 1
+                    )
+              )
         """,
     },
 }

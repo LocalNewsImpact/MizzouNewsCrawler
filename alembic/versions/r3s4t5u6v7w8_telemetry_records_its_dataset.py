@@ -64,6 +64,22 @@ TELEMETRY_TABLES = (
 
 
 def upgrade() -> None:
+    # `extraction_telemetry_v2.article_id` is a UUID minted before the
+    # extraction runs. Where the extraction yields no article -- a paused
+    # source, a URL filtered as wire or weather, a 404 -- no row is ever
+    # written under it, and 156,712 of 315,631 rows point at nothing. The
+    # candidate UUID exists for every discovered URL and is in hand at the
+    # moment telemetry starts, so the row can name what it worked on.
+    op.add_column(
+        "extraction_telemetry_v2",
+        sa.Column("candidate_link_id", sa.String(), nullable=True),
+    )
+    op.create_index(
+        "ix_extraction_telemetry_v2_candidate_link_id",
+        "extraction_telemetry_v2",
+        ["candidate_link_id"],
+    )
+
     for table, ordered_by in TELEMETRY_TABLES:
         op.add_column(table, sa.Column("dataset_id", sa.String(), nullable=True))
         op.create_index(
@@ -74,6 +90,12 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.drop_index(
+        "ix_extraction_telemetry_v2_candidate_link_id",
+        table_name="extraction_telemetry_v2",
+    )
+    op.drop_column("extraction_telemetry_v2", "candidate_link_id")
+
     for table, _ordered_by in TELEMETRY_TABLES:
         op.drop_index(f"ix_{table}_dataset_id", table_name=table)
         op.drop_column(table, "dataset_id")
