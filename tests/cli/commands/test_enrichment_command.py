@@ -272,7 +272,7 @@ def test_dry_run_plans_and_writes_nothing(db, monkeypatch, capsys):
     )
     monkeypatch.setattr(
         "src.enrichment.repository.select_candidates",
-        lambda s, slug, limit, attempts: candidates,
+        lambda s, slug, limit, attempts, since=None: candidates,
     )
 
     def never(
@@ -302,7 +302,7 @@ def test_run_processes_and_reports(db, monkeypatch, capsys):
     )
     monkeypatch.setattr(
         "src.enrichment.repository.select_candidates",
-        lambda s, slug, limit, attempts: seen.setdefault(
+        lambda s, slug, limit, attempts, since=None: seen.setdefault(
             "select", (slug, limit, attempts)
         )
         and [_Article("a")],
@@ -339,7 +339,7 @@ def test_a_halted_run_exits_one(db, monkeypatch):
     )
     monkeypatch.setattr(
         "src.enrichment.repository.select_candidates",
-        lambda s, slug, limit, attempts: [_Article("a")],
+        lambda s, slug, limit, attempts, since=None: [_Article("a")],
     )
     monkeypatch.setattr(
         enrichment,
