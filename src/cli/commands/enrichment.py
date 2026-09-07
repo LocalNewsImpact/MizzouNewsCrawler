@@ -2,7 +2,8 @@
 
 Subcommands per docs/BACKFIELD_IMPLEMENTATION.md Phase 5:
 
-  enrich run        --dataset SLUG [--limit N] [--dry-run] [--concurrency N]
+  enrich run        --dataset SLUG [--since YYYY-MM-DD] [--limit N]
+                    [--dry-run] [--concurrency N]
   enrich backfill   --ids-file PATH [--dry-run]
   enrich status     [--dataset SLUG]
   enrich reprocess  --dataset SLUG --profile-version N [--dry-run]
@@ -36,6 +37,14 @@ def add_enrichment_parser(subparsers):
 
     run = actions.add_parser("run", help="Enrich candidates for one dataset")
     run.add_argument("--dataset", required=True)
+    run.add_argument(
+        "--since",
+        help=(
+            "Only articles created on or after this date (YYYY-MM-DD). "
+            "The selection is oldest-first, so --limit alone takes the "
+            "oldest N of the backlog, not the newest."
+        ),
+    )
     run.add_argument("--limit", type=int, default=200)
     run.add_argument(
         "--concurrency",
@@ -164,7 +173,11 @@ def handle_enrichment_command(args) -> int:
             if action == "run":
                 profile = repository.dataset_profile(session, args.dataset)
                 candidates = repository.select_candidates(
-                    session, args.dataset, args.limit, _max_attempts()
+                    session,
+                    args.dataset,
+                    args.limit,
+                    _max_attempts(),
+                    since=getattr(args, "since", None),
                 )
             elif action == "reprocess":
                 # Keyed on status. `--profile-version` no longer selects
