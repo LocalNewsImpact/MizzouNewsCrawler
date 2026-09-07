@@ -436,3 +436,76 @@ def test_the_row_says_which_question_was_answered(monkeypatch):
         "rejected_as_not_a_story",
         "rejected_as_wire",
     ]
+
+
+# --- the score the model can actually give -----------------------------------
+
+
+class _Model:
+    """`path_only_model`, returning log-probabilities like the real one."""
+
+    def __init__(self, pairs):
+        self.pairs = pairs
+        self.seen = []
+
+    def predict_log_proba(self, frame):
+        self.seen.append(frame)
+        return [self.pairs]
+
+
+def test_the_margin_comes_from_log_space_not_predict_proba():
+    """`predict_proba` saturates -- 97.5% of 3,000 production URLs sit at
+    exactly 0.0 or 1.0 -- which is where "there is no confidence signal"
+    came from. It was the wrong output: the exponential destroys the
+    information and it survives in logs, 2,990 distinct margins over the
+    same 3,000 URLs."""
+    svc = _service(_Sniffer())
+    svc.sniffer.path_only_model = _Model([-12.0, 3.5])
+
+    assert svc.score_margin("https://a.example/story") == pytest.approx(15.5)
+
+
+def test_a_model_that_cannot_score_leaves_the_row_without_one():
+    """A missing score is not a reason to fail a backfill of 44,000
+    rows."""
+    svc = _service(_Sniffer())
+
+    class _Broken:
+        def predict_log_proba(self, frame):
+            raise RuntimeError("no")
+
+    svc.sniffer.path_only_model = _Broken()
+    assert svc.score_margin("https://a.example/story") is None
+
+    delattr(svc.sniffer, "path_only_model")
+    assert svc.score_margin("https://a.example/story") is None
+
+
+def test_it_scores_the_path_not_the_whole_url():
+    """The path is the only feature a pre-fetch model may use, and it is
+    what the model was fitted on."""
+    svc = _service(_Sniffer())
+    model = _Model([-1.0, 1.0])
+    svc.sniffer.path_only_model = model
+
+    svc.score_margin("https://a.example/news/story?utm=1")
+
+    frame = model.seen[0]
+    assert list(frame["path"]) == ["/news/story"]
+
+
+def test_the_margin_is_recorded_on_every_row(monkeypatch):
+    """From the first row, so the labels can later say whether it ranks
+    better than the mechanisms' disagreement does."""
+    svc = _service(_Sniffer())
+    svc.sniffer.path_only_model = _Model([-2.0, 2.0])
+    _rows(svc, [_Row("c1", "https://a.example/one", "not_article", False)], monkeypatch)
+    written = []
+    monkeypatch.setattr(svc, "_ensure_job", lambda name: "job-1")
+    monkeypatch.setattr(
+        svc, "_write_backfilled", lambda rows: written.extend(rows) or len(rows)
+    )
+
+    svc.backfill_decisions()
+
+    assert written[0].verification_confidence == pytest.approx(4.0)

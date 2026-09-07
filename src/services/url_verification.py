@@ -772,6 +772,49 @@ class URLVerificationService:
             )
             return 0
 
+    def score_margin(self, url: str) -> float | None:
+        """storysniffer's own margin for this URL, or None.
+
+        `guess()` returns a bare boolean and `predict_proba` on the same
+        model is useless -- naive Bayes saturates, and 97.5% of 3,000
+        production URLs come back at exactly 0.0 or 1.0. That is where
+        the "there is no confidence signal" conclusion came from, and it
+        was reading the wrong output: the exponential destroys the
+        information, and it survives in log space. The same 3,000 URLs
+        give 2,990 distinct margins, from -194 to +3,497.
+
+        So this is logP(story) - logP(not), computed on our side from
+        `path_only_model`. No retraining and no fork of the package.
+
+        Two things it is not, and both are recorded with it rather than
+        assumed away:
+
+        - Not a probability. Naive Bayes treats correlated character
+          n-grams as independent, so the magnitudes are wildly
+          overconfident. It orders URLs; the scale means nothing until it
+          is calibrated against human labels.
+        - Not the verdict. `guess()` applies whitelist and blacklist
+          overrides AFTER the model, so a URL can score positive and
+          still be rejected. This is what the model thought, which is the
+          point -- an override is a rule, and rules are what the queue is
+          reviewing.
+        """
+        try:
+            import pandas as pd
+
+            model = getattr(self.sniffer, "path_only_model", None)
+            if model is None:
+                return None
+            frame = pd.DataFrame([{"path": urlparse(url).path, "text": None}])
+            log_proba = model.predict_log_proba(frame)[0]
+            margin = float(log_proba[1] - log_proba[0])
+            # A model that cannot score this URL is not an error worth
+            # failing a backfill for; the row simply has no score.
+            return margin if margin == margin else None  # NaN check
+        except Exception as exc:  # pragma: no cover - defensive
+            self.logger.debug("No margin for %s: %s", url, exc)
+            return None
+
     def backfill_decisions(
         self,
         limit: int | None = None,
@@ -961,7 +1004,12 @@ class URLVerificationService:
                     storysniffer_result=sniffed,
                     # Saturated GaussianNB: a number here would invite
                     # ranking on something that cannot rank.
-                    verification_confidence=None,
+                    # What the model thought, on a scale that ranks
+                    # but does not yet mean anything (see score_margin).
+                    # Recorded from the first row so the labels can say
+                    # whether it ranks better than the mechanisms'
+                    # disagreement does.
+                    verification_confidence=self.score_margin(row.url),
                     previous_status=None,
                     new_status=row.status,
                     verification_time_ms=result.get("verification_time_ms"),
