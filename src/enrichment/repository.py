@@ -496,7 +496,10 @@ def persist_outcome(
               point_zcta = COALESCE(EXCLUDED.point_zcta, article_enrichment.point_zcta),
               point_lon = COALESCE(EXCLUDED.point_lon, article_enrichment.point_lon),
               geoids = COALESCE(EXCLUDED.geoids, article_enrichment.geoids),
-              geo_skip_reason = EXCLUDED.geo_skip_reason
+              geo_skip_reason = EXCLUDED.geo_skip_reason,
+              -- COALESCE so a re-enrichment that was not given a dataset
+              -- does not erase one an earlier run recorded.
+              dataset_id = COALESCE(EXCLUDED.dataset_id, article_enrichment.dataset_id)
             """),
         {
             "article_id": article.id,

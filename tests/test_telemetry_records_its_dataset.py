@@ -152,3 +152,16 @@ def test_the_extraction_loop_passes_the_candidate_it_holds():
     source = inspect.getsource(extraction)
     assert "candidate_link_id=str(url_id)" in source
     assert "candidate_link_id=str(candidate.id)" in source
+
+
+def test_re_enriching_does_not_erase_the_dataset():
+    """`article_enrichment` upserts on article_id, and 33 columns update on
+    conflict. A dataset written by the first run has to survive a second
+    one that was not given a dataset, or a reprocess quietly nulls it."""
+    from src.enrichment import repository
+
+    source = inspect.getsource(repository)
+    assert (
+        "dataset_id = COALESCE(EXCLUDED.dataset_id, article_enrichment.dataset_id)"
+        in source
+    )
