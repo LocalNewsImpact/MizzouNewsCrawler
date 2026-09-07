@@ -530,7 +530,7 @@ def test_county_pipeline_golden_path(
     monkeypatch.setattr(
         extraction,
         "BylineCleaner",
-        lambda: FakeBylineCleaner(),
+        lambda **_kw: FakeBylineCleaner(),
     )
 
     extraction_telemetry_records: list[str] = []
@@ -542,7 +542,7 @@ def test_county_pipeline_golden_path(
     monkeypatch.setattr(
         extraction,
         "ComprehensiveExtractionTelemetry",
-        lambda: FakeTelemetry(),
+        lambda **_kw: FakeTelemetry(),
     )
 
     cleaner_calls: list[str] = []

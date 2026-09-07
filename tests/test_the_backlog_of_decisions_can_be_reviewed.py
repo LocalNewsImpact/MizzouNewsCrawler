@@ -63,11 +63,22 @@ class _Row:
     verification rejected, so an article row means it was accepted --
     whatever the status has since been overwritten to."""
 
-    def __init__(self, id, url, status, was_fetched=False, article_status=None):
+    def __init__(
+        self,
+        id,
+        url,
+        status,
+        was_fetched=False,
+        article_status=None,
+        dataset_id=None,
+    ):
         self.id = id
         self.url = url
         self.status = status
         self.was_fetched = was_fetched
+        # The link's own dataset. A verification run sweeps every dataset,
+        # so the decision takes this from the row rather than from the run.
+        self.dataset_id = dataset_id
         # What the content stage concluded once it had the body. The
         # only thing that can say storysniffer was wrong about an
         # acceptance.
@@ -731,3 +742,25 @@ def test_a_fetch_is_proved_by_telemetry_not_only_by_an_article():
     assert "t.url = cl.url" in sql
     # And the article row still counts, for the rows that kept one.
     assert "a.id IS NOT NULL" in sql
+
+
+def test_a_backfilled_row_records_the_dataset_of_the_link(monkeypatch):
+    """Not the dataset of the run. A verification pass sweeps every
+    `discovered` link rather than one dataset, so the run has no single
+    dataset to claim and the link does."""
+    svc = _service(_Sniffer())
+    svc.dataset_id = "the-run-was-not-scoped-to-this"
+    _rows(
+        svc,
+        [_Row("c1", "https://a.example/one", "article", dataset_id="ds-mizzou")],
+        monkeypatch,
+    )
+    written = []
+    monkeypatch.setattr(svc, "_ensure_job", lambda name: "job-1")
+    monkeypatch.setattr(
+        svc, "_write_backfilled", lambda rows: written.extend(rows) or len(rows)
+    )
+
+    svc.backfill_decisions()
+
+    assert written[0].dataset_id == "ds-mizzou"
