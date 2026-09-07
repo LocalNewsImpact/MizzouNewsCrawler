@@ -110,7 +110,36 @@ if not _database_url and all([DATABASE_HOST, DATABASE_NAME, DATABASE_USER]):
         f"{DATABASE_NAME}{query}"
     )
 
-DATABASE_URL: str = _database_url or "sqlite:///data/mizzou.db"
+#: Where the corpus lives. There is no default.
+#:
+#: This fell back to `sqlite:///data/mizzou.db` when nothing was
+#: configured, which is a file inside the container. A job missing its
+#: database settings therefore did not fail: it created an empty
+#: database, wrote a corpus into it, reported success, and lost
+#: everything when the pod exited. Observed 2026-09-07 on an extraction
+#: job that set the Cloud SQL connector variables but not DATABASE_URL --
+#: the connector saved it, and the only symptom was a warning on every
+#: `DatabaseManager()` that looked like noise.
+#:
+#: A missing database is a configuration error and says so. The three
+#: ways to supply one are unchanged: DATABASE_URL, the HOST/NAME/USER
+#: triple this assembles above, or the Cloud SQL connector -- which
+#: builds its own connection and needs no URL, so it is accepted here
+#: without one.
+if _database_url:
+    DATABASE_URL: str = _database_url
+elif USE_CLOUD_SQL_CONNECTOR and CLOUD_SQL_INSTANCE:
+    # The connector does not use a URL. Naming the instance keeps the
+    # value honest for anything that logs or inspects it, and keeps
+    # "postgresql" in it so nothing downstream reads it as SQLite.
+    DATABASE_URL = f"postgresql+cloudsql://{CLOUD_SQL_INSTANCE}"
+else:
+    raise RuntimeError(
+        "No database configured. Set DATABASE_URL, or DATABASE_HOST with "
+        "DATABASE_NAME and DATABASE_USER, or USE_CLOUD_SQL_CONNECTOR with "
+        "CLOUD_SQL_INSTANCE. There is no local fallback: one silently "
+        "wrote a corpus into a container file that vanished with the pod."
+    )
 
 
 # Core configuration values

@@ -32,27 +32,34 @@ def test_create_engine_from_env_uses_database_url(monkeypatch):
     assert str(engine.url) == test_db_url or str(engine.url).startswith("sqlite:///")
 
 
-def test_create_engine_from_env_defaults_to_sqlite(monkeypatch):
-    """create_engine_from_env() should default to SQLite if DATABASE_URL not set."""
-    from src.models import create_engine_from_env
+def test_create_engine_from_env_refuses_to_invent_a_database(monkeypatch):
+    """With nothing configured, this used to hand back a SQLite engine
+    over a file in the working directory.
 
-    # Clear DATABASE_URL
-    monkeypatch.delenv("DATABASE_URL", raising=False)
-    monkeypatch.delenv("DATABASE_HOST", raising=False)
-    monkeypatch.delenv("DATABASE_NAME", raising=False)
-    monkeypatch.delenv("DATABASE_USER", raising=False)
+    That is what made a misconfigured job look healthy: it created the
+    file, wrote a corpus into it, reported success, and lost all of it
+    when the container exited. Seen in production 2026-09-07 on an
+    extraction job that set the Cloud SQL connector variables but not
+    DATABASE_URL.
 
-    # Force reload of config module
+    Configuring no database is a configuration error now.
+    """
     import importlib
 
     import src.config
 
-    importlib.reload(src.config)
+    for var in (
+        "DATABASE_URL",
+        "DATABASE_HOST",
+        "DATABASE_NAME",
+        "DATABASE_USER",
+        "USE_CLOUD_SQL_CONNECTOR",
+        "CLOUD_SQL_INSTANCE",
+    ):
+        monkeypatch.delenv(var, raising=False)
 
-    engine = create_engine_from_env()
-
-    # Should default to SQLite
-    assert "sqlite" in str(engine.url)
+    with pytest.raises(RuntimeError, match="No database configured"):
+        importlib.reload(src.config)
 
 
 def test_create_engine_from_env_constructs_postgres_url(monkeypatch):
