@@ -110,10 +110,11 @@ def handle_verification_backfill_command(args) -> int:
         # than a mistake. The reviewer confirms or overturns the wire
         # call; the sniffer's answer is evidence for that, not a verdict
         # against it.
-        if counts["wire_held"]:
+        if counts["topic_held"]:
             print(
-                f"wire-held:  {counts['wire_held']}  the wire filter rejected "
-                f"these; the model's answer is evidence, not a disagreement"
+                f"topic-held: {counts['topic_held']}  a topic rule rejected "
+                f"these (wire, obituary, opinion, weather); the model's "
+                f"answer is evidence, not a disagreement"
             )
     elif considered:
         print("nothing could be scored: storysniffer returned no answer")

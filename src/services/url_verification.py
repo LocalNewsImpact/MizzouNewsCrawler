@@ -772,6 +772,21 @@ class URLVerificationService:
             )
             return 0
 
+    #: Statuses that mean a URL rule excluded this on TOPIC, before
+    #: extraction -- the second of the two questions asked here.
+    #:
+    #: "Is this a story?" is storysniffer's. "Do we want this story?" is
+    #: these rules', and they are the wire filter plus the pattern rules
+    #: for obituaries, opinion and weather. A story they exclude is two
+    #: correct decisions, not an error, so none of them is ever scored
+    #: against the model.
+    #:
+    #: Only meaningful on a link nothing fetched. The same words are
+    #: written by the CONTENT stage after extraction, where they describe
+    #: an article that was read -- which is why every use of this is
+    #: paired with a check that there is no article row.
+    TOPIC_RULE_STATUSES = ("wire", "obituary", "opinion", "weather")
+
     def score_margin(self, url: str) -> float | None:
         """storysniffer's own margin for this URL, or None.
 
@@ -860,10 +875,10 @@ class URLVerificationService:
             # a fetch wasted on something the next stage catches anyway.
             "type_i": 0,
             "type_ii": 0,
-            # Rejected by the wire filter, which answered the other
+            # Rejected by a topic rule, which answered the other
             # question. Never an error on its own, and never counted as
             # one -- it is a decision a reviewer confirms or overturns.
-            "wire_held": 0,
+            "topic_held": 0,
         }
 
         # Both kinds of error, and the rule that separates them.
@@ -876,8 +891,33 @@ class URLVerificationService:
         # article, which means each of those statuses is written at both
         # stages and neither can be read as a verdict.
         #
-        # What IS provable is whether anything fetched the URL. Nothing
-        # fetches a link verification rejected, so:
+        # What IS provable is whether anything fetched the URL -- and an
+        # article row is not the only proof of it.
+        #
+        # `candidate_links.status` has TWO writers and records neither:
+        #
+        #   url_verification.py:609  pre-extraction, on the URL alone
+        #   extraction.py:1265       post-extraction, writing back the
+        #                            article status -- which is `wire`
+        #                            when the byline or copyright line
+        #                            says so
+        #
+        # So a `wire` link with no article can be either: rejected by a
+        # URL rule before anything ran, or fetched, judged wire from its
+        # content, and its article since removed. Measured on March
+        # Mizzou, 480 of 9,320 are the second kind.
+        #
+        # `extraction_telemetry_v2` is written per fetch and keyed on the
+        # URL, so it survives the article. Against it the two mechanisms
+        # separate almost exactly: 8,835 match a URL pattern and have no
+        # telemetry, 480 have telemetry and match no URL pattern, 1 is
+        # neither.
+        #
+        # This matters because storysniffer only ever sees the URL.
+        # Scoring its rescore against a verdict reached from the byline
+        # compares two stages that never saw the same evidence.
+        #
+        # So:
         #
         #   an article row        -> accepted (whatever the status says)
         #   status 'article'      -> accepted, not fetched yet
@@ -894,7 +934,9 @@ class URLVerificationService:
         # outcomes. None of them are here.
         select = """
             SELECT cl.id, cl.url, cl.status,
-                   (a.id IS NOT NULL) AS was_fetched,
+                   (a.id IS NOT NULL
+                    OR EXISTS (SELECT 1 FROM extraction_telemetry_v2 t
+                                WHERE t.url = cl.url)) AS was_fetched,
                    a.status AS article_status
             FROM candidate_links cl
             LEFT JOIN url_verifications v ON v.candidate_link_id = cl.id
@@ -903,7 +945,9 @@ class URLVerificationService:
               AND (
                     a.id IS NOT NULL
                  OR cl.status = 'article'
-                 OR cl.status IN ('not_article', 'wire')
+                 OR cl.status IN (
+                        'not_article', 'wire', 'obituary', 'opinion', 'weather'
+                    )
               )
         """
         params: dict = {}
@@ -969,11 +1013,17 @@ class URLVerificationService:
             accepted = bool(row.was_fetched) or row.status == "article"
             if accepted:
                 verdict_kind = "accepted"
-            elif row.status == "wire":
-                # Mechanism 1 of 4, and the only rejection whose mechanism
-                # IS recoverable: nothing else writes `wire` on a link
-                # that was never fetched.
-                verdict_kind = "rejected_as_wire"
+            elif row.status in self.TOPIC_RULE_STATUSES:
+                # A URL rule excluded this on topic before extraction.
+                # These are the only rejections whose mechanism is
+                # recoverable: nothing else writes these words on a link
+                # that was never fetched, because the content stage
+                # cannot run without a body.
+                #
+                # `wire` is the filter; the rest are pattern rules. The
+                # status says which, so the row keeps it and a reviewer
+                # judges that rule rather than the model.
+                verdict_kind = "rejected_by_topic_rule"
             else:
                 verdict_kind = "rejected_as_not_a_story"
 
@@ -1001,13 +1051,13 @@ class URLVerificationService:
                 # which is what the review is for.
                 recorded_is_article = accepted
             if sniffed is not None:
-                if verdict_kind == "rejected_as_wire":
-                    # Not comparable. The wire filter did not claim this
-                    # is not a story; it claimed we do not want it. The
-                    # reviewer judges that call on its own, and the
-                    # sniffer's answer is evidence for it rather than a
-                    # verdict against it.
-                    counts["wire_held"] += 1
+                if verdict_kind == "rejected_by_topic_rule":
+                    # Not comparable. The rule did not claim this is not
+                    # a story; it claimed we do not want it. The reviewer
+                    # judges that call on its own, and the sniffer's
+                    # answer is evidence for it rather than a verdict
+                    # against it.
+                    counts["topic_held"] += 1
                 elif bool(sniffed) == recorded_is_article:
                     counts["agree"] += 1
                 else:
@@ -1072,7 +1122,8 @@ class URLVerificationService:
                         # verdict cannot agree or disagree.
                         "agrees_with_recorded": (
                             None
-                            if sniffed is None or verdict_kind == "rejected_as_wire"
+                            if sniffed is None
+                            or verdict_kind == "rejected_by_topic_rule"
                             else bool(sniffed) == recorded_is_article
                         ),
                     },
