@@ -387,14 +387,21 @@ class WorkQueueCoordinator:
         # Single domain with max 3 articles (below bot thresholds)
         # Use FOR UPDATE SKIP LOCKED for parallel processing safety
         # LEFT JOIN more efficient than NOT IN for large articles table
-        query = text("""
+        # The dataset clause is appended only when there is a dataset, for
+        # the reason spelled out on _get_available_domains: `:dataset IS NULL`
+        # gives Postgres nothing to infer a type from, pg8000 sends none, and
+        # the statement fails 42P18 before it runs. #533 repaired the domain
+        # query and left this one, so /work/request kept answering 500 -- the
+        # same fault, one query further down, and the reason the March
+        # extraction run died after 302 of 424 articles.
+        dataset_clause = " AND cl.dataset_id = :dataset" if dataset else ""
+        query = text(f"""
             SELECT cl.id, cl.url, cl.source, s.canonical_name
             FROM candidate_links cl
             LEFT JOIN sources s ON cl.source_id = s.id
             LEFT JOIN articles a ON cl.id = a.candidate_link_id
             WHERE cl.status = 'article'
-            AND cl.source = ANY(:domains)
-            AND (:dataset IS NULL OR cl.dataset_id = :dataset)
+            AND cl.source = ANY(:domains){dataset_clause}
             AND a.candidate_link_id IS NULL
             ORDER BY RANDOM()
             LIMIT :limit
@@ -413,7 +420,8 @@ class WorkQueueCoordinator:
             {
                 "domains": list(assigned_domains),
                 "limit": max_articles,
-                "dataset": dataset,
+                # Mentioned once, and only when the clause above uses it.
+                **({"dataset": dataset} if dataset else {}),
             },
         )
 

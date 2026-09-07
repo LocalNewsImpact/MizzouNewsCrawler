@@ -81,7 +81,7 @@ def test_handle_extraction_command_success(monkeypatch):
         }
 
     monkeypatch.setattr(extraction, "ContentExtractor", FakeExtractor)
-    monkeypatch.setattr(extraction, "BylineCleaner", lambda: object())
+    monkeypatch.setattr(extraction, "BylineCleaner", lambda **_kw: object())
     monkeypatch.setattr(
         extraction,
         "BalancedBoundaryContentCleaner",
@@ -92,7 +92,7 @@ def test_handle_extraction_command_success(monkeypatch):
     monkeypatch.setattr(
         extraction,
         "ComprehensiveExtractionTelemetry",
-        lambda: FakeTelemetry(),
+        lambda **_kw: FakeTelemetry(),
     )
     monkeypatch.setattr(extraction, "_process_batch", fake_process)
     monkeypatch.setattr(
@@ -142,12 +142,12 @@ def test_handle_extraction_command_handles_exception(monkeypatch):
         }
 
     monkeypatch.setattr(extraction, "ContentExtractor", FakeExtractor)
-    monkeypatch.setattr(extraction, "BylineCleaner", lambda: object())
+    monkeypatch.setattr(extraction, "BylineCleaner", lambda **_kw: object())
     monkeypatch.setattr(extraction, "_analyze_dataset_domains", fake_domain_analysis)
     monkeypatch.setattr(
         extraction,
         "ComprehensiveExtractionTelemetry",
-        lambda: FakeTelemetry(),
+        lambda **_kw: FakeTelemetry(),
     )
     monkeypatch.setattr(extraction, "_process_batch", failing_process)
     monkeypatch.setattr(

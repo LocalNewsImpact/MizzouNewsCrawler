@@ -540,8 +540,13 @@ class BylineCleaner:
             return text
         return ", ".join(people)
 
-    def __init__(self, enable_telemetry: bool = True):
-        """Initialize the byline cleaner."""
+    def __init__(self, enable_telemetry: bool = True, dataset_id: str | None = None):
+        """Initialize the byline cleaner.
+
+        `dataset_id` is stamped on the telemetry this cleaner writes, so a
+        byline question can be asked per dataset without joining back
+        through the article to its candidate link.
+        """
         # Compile regex patterns for efficiency
         self.compiled_patterns = [
             re.compile(pattern, re.IGNORECASE) for pattern in self.BYLINE_PATTERNS
@@ -556,7 +561,9 @@ class BylineCleaner:
         self.title_pattern = re.compile(titles_pattern, re.IGNORECASE)
 
         # Initialize telemetry
-        self.telemetry = BylineCleaningTelemetry(enable_telemetry=enable_telemetry)
+        self.telemetry = BylineCleaningTelemetry(
+            enable_telemetry=enable_telemetry, dataset_id=dataset_id
+        )
 
         # Dynamic publication filter cache
         self._publication_cache: set[Any] | None = None

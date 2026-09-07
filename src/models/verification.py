@@ -29,6 +29,10 @@ class VerificationJob(Base):
     job_name = Column(String, nullable=False)
     # Links to the original discovery job
     discovery_job_id = Column(String, index=True)
+    # The dataset this run processed, resolved to a UUID when the job
+    # started. Recorded here so per-dataset questions never join back to
+    # candidate_links to recover a fact the job already knew.
+    dataset_id = Column(String, index=True)
 
     # Job execution details
     # running, completed, failed
@@ -69,6 +73,10 @@ class URLVerification(Base):
     verification_job_id = Column(
         String, ForeignKey("verification_jobs.id"), nullable=False, index=True
     )
+    # The dataset this run processed, resolved to a UUID when the job
+    # started. Recorded here so per-dataset questions never join back to
+    # candidate_links to recover a fact the job already knew.
+    dataset_id = Column(String, index=True)
 
     # Verification results
     url = Column(String, nullable=False, index=True)
@@ -116,6 +124,10 @@ class VerificationTelemetry(Base):
     verification_job_id = Column(
         String, ForeignKey("verification_jobs.id"), nullable=False, index=True
     )
+    # The dataset this run processed, resolved to a UUID when the job
+    # started. Recorded here so per-dataset questions never join back to
+    # candidate_links to recover a fact the job already knew.
+    dataset_id = Column(String, index=True)
 
     # Source-level breakdown
     source_name = Column(String, index=True)

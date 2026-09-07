@@ -45,6 +45,11 @@ class BylineCleaningTelemetry(Base):
     # Primary key
     id = Column(String, primary_key=True)
 
+    # The dataset whose work produced this row, stamped by the job that
+    # wrote it. Recorded rather than inferred: nothing else on this
+    # table reaches a dataset without a join back to candidate_links.
+    dataset_id = Column(String, index=True)
+
     # Article identifiers
     article_id = Column(String, nullable=True, index=True)
     candidate_link_id = Column(String, nullable=True, index=True)
@@ -116,6 +121,11 @@ class ExtractionTelemetryV2(Base):
 
     # Primary key
     id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # The dataset whose work produced this row, stamped by the job that
+    # wrote it. Recorded rather than inferred: nothing else on this
+    # table reaches a dataset without a join back to candidate_links.
+    dataset_id = Column(String, index=True)
 
     # Operation tracking
     operation_id = Column(String, nullable=False, index=True)
@@ -199,6 +209,11 @@ class ContentTypeDetectionTelemetry(Base):
 
     # Primary key
     id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # The dataset whose work produced this row, stamped by the job that
+    # wrote it. Recorded rather than inferred: nothing else on this
+    # table reaches a dataset without a join back to candidate_links.
+    dataset_id = Column(String, index=True)
 
     # Article identifiers
     article_id = Column(String, nullable=False, index=True)

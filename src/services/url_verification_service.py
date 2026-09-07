@@ -138,7 +138,7 @@ class URLVerificationService:
         """Get candidate links that need verification."""
         query = """
             SELECT id, url, source_name, source_city, source_county,
-                   discovered_by, status
+                   discovered_by, status, dataset_id
             FROM candidate_links
             WHERE status = 'discovered'
             ORDER BY created_at ASC
@@ -241,6 +241,7 @@ class URLVerificationService:
                 else "not_article"
             ),
             verification_error=verification_result.get("error"),
+            dataset_id=candidate.get("dataset_id"),
         )
 
         # Use the existing session from DatabaseManager

@@ -41,15 +41,24 @@ class _Report:
 
 
 class _Session:
-    """Enough of a SQLAlchemy session for the status query."""
+    """Enough of a SQLAlchemy session for the status query, and for the
+    dataset lookup that resolves `--dataset` to the UUID telemetry keys on."""
+
+    DATASET_UUID = "61ccd4d3-763f-4cc6-b85d-74b268e80a00"
 
     def __init__(self, rows=()):
         self.rows = list(rows)
         self.statements: list[tuple[str, dict]] = []
+        self._last_was_dataset_lookup = False
 
     def execute(self, statement, params=None):
-        self.statements.append((str(statement), params or {}))
+        text = str(statement)
+        self.statements.append((text, params or {}))
+        self._last_was_dataset_lookup = "FROM datasets WHERE" in text
         return self
+
+    def fetchone(self):
+        return (self.DATASET_UUID,) if self._last_was_dataset_lookup else None
 
     def fetchall(self):
         return self.rows
@@ -301,7 +310,9 @@ def test_run_processes_and_reports(db, monkeypatch, capsys):
     monkeypatch.setenv("ENRICHMENT_MAX_ATTEMPTS", "4")
     monkeypatch.setenv("ENRICHMENT_MODEL", "test/model")
 
-    def process(session_factory, articles, profile, model, concurrency):
+    def process(
+        session_factory, articles, profile, model, concurrency, dataset_id=None
+    ):
         seen["process"] = (len(articles), model, concurrency)
         return {"counts": {"enriched": 1}, "spent": "0.01", "halted": False}
 
@@ -333,7 +344,7 @@ def test_a_halted_run_exits_one(db, monkeypatch):
     monkeypatch.setattr(
         enrichment,
         "_process",
-        lambda *a: {"counts": {"enriched": 1}, "spent": "1", "halted": True},
+        lambda *a, **_kw: {"counts": {"enriched": 1}, "spent": "1", "halted": True},
     )
     assert (
         enrichment.handle_enrichment_command(
@@ -371,7 +382,7 @@ def test_reprocess_selects_by_status_under_the_dataset_profile(db, monkeypatch):
     monkeypatch.setattr(
         enrichment,
         "_process",
-        lambda *a: {"counts": {"enriched": 1}, "spent": "0", "halted": False},
+        lambda *a, **_kw: {"counts": {"enriched": 1}, "spent": "0", "halted": False},
     )
 
     code = enrichment.handle_enrichment_command(
@@ -425,7 +436,7 @@ def test_backfill_accounts_for_every_id(db, monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(
         enrichment,
         "_process",
-        lambda *a: {"counts": {"enriched": 1}, "spent": "0.01", "halted": False},
+        lambda *a, **_kw: {"counts": {"enriched": 1}, "spent": "0.01", "halted": False},
     )
 
     code = enrichment.handle_enrichment_command(

@@ -139,6 +139,7 @@ class URLVerificationService:
         http_backoff_seconds: float = 0.5,
         http_headers: Mapping[str, str] | None = None,
         telemetry_tracker: OperationTracker | None = None,
+        dataset_id: str | None = None,
     ):
         """Initialize the verification service.
 
@@ -146,7 +147,11 @@ class URLVerificationService:
             batch_size: Number of URLs to process in each batch
             sleep_interval: Seconds to wait between batches when no work
             telemetry_tracker: Optional telemetry tracker for recording metrics
+            dataset_id: UUID of the dataset this run verifies. The job row
+                records it; individual decisions take theirs from the
+                candidate link, which is authoritative per row.
         """
+        self.dataset_id = dataset_id
         self.batch_size = batch_size
         self.sleep_interval = sleep_interval
 
@@ -245,7 +250,7 @@ class URLVerificationService:
         """
         query = """
             SELECT cl.id, cl.url, cl.source_name, cl.source_city,
-                   cl.source_county, cl.status
+                   cl.source_county, cl.status, cl.dataset_id
             FROM candidate_links cl
             LEFT JOIN sources s ON cl.source_id = s.id
             WHERE cl.status = 'discovered'
@@ -734,7 +739,11 @@ class URLVerificationService:
             return self._job_id
         try:
             with self.db.get_session() as session:
-                job = VerificationJob(job_name=job_name, status="running")
+                job = VerificationJob(
+                    job_name=job_name,
+                    status="running",
+                    dataset_id=self.dataset_id,
+                )
                 session.add(job)
                 session.flush()
                 self._job_id = str(job.id)
@@ -933,7 +942,7 @@ class URLVerificationService:
         # `discovered`, `404` and `skipped` are not verification
         # outcomes. None of them are here.
         select = """
-            SELECT cl.id, cl.url, cl.status,
+            SELECT cl.id, cl.url, cl.status, cl.dataset_id,
                    (a.id IS NOT NULL
                     OR EXISTS (SELECT 1 FROM extraction_telemetry_v2 t
                                 WHERE t.url = cl.url)) AS was_fetched,
@@ -969,7 +978,7 @@ class URLVerificationService:
               AND EXISTS (
                     SELECT 1 FROM dataset_sources ds
                       JOIN datasets d ON d.id = ds.dataset_id
-                     WHERE ds.source_id = cl.source_id AND d.slug = :dataset
+                     WHERE ds.source_id = cl.source_id AND d.id = :dataset
               )
             """
             params["dataset"] = dataset
@@ -1089,6 +1098,7 @@ class URLVerificationService:
                     # whether it ranks better than the mechanisms'
                     # disagreement does.
                     verification_confidence=self.score_margin(row.url),
+                    dataset_id=row.dataset_id,
                     previous_status=None,
                     new_status=row.status,
                     verification_time_ms=result.get("verification_time_ms"),
@@ -1285,6 +1295,7 @@ class URLVerificationService:
                         "verification_time_ms"
                     ),
                     "verification_error": error_message,
+                    "dataset_id": candidate.get("dataset_id"),
                     "meta": {
                         "decided_by": self._decided_by(verification_result),
                         "pattern_id": verification_result.get("pattern_id"),

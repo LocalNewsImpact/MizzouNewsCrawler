@@ -87,7 +87,9 @@ def _backfield_commit() -> str:
     return os.getenv("BACKFIELD_COMMIT", "unknown")
 
 
-def _process(session_factory, articles, profile, model, concurrency) -> dict:
+def _process(
+    session_factory, articles, profile, model, concurrency, dataset_id=None
+) -> dict:
     """Enrich a list of candidates: model calls in parallel threads, writes on
     the caller's thread, one commit per article, ceiling between articles."""
     from src.enrichment.orchestrator import enrich_article
@@ -115,6 +117,7 @@ def _process(session_factory, articles, profile, model, concurrency) -> dict:
                     model=model,
                     backfield_commit=_backfield_commit(),
                     prompt_versions={"content_gate": "content_gate-v1"},
+                    dataset_id=dataset_id,
                 )
                 counts[outcome.status] = counts.get(outcome.status, 0) + 1
                 spent += outcome.total_cost_usd
@@ -218,7 +221,22 @@ def handle_enrichment_command(args) -> int:
             print("  no model call made, nothing written")
             return 0
 
-        result = _process(db.get_session, candidates, profile, model, args.concurrency)
+        # The CLI takes a slug; telemetry keys on the UUID. Resolve once here
+        # so every enrichment row this run writes carries the same dataset.
+        from src.utils.dataset_utils import resolve_dataset_id
+
+        with db.get_session() as resolving_session:
+            dataset_uuid = resolve_dataset_id(
+                resolving_session, getattr(args, "dataset", None)
+            )
+        result = _process(
+            db.get_session,
+            candidates,
+            profile,
+            model,
+            args.concurrency,
+            dataset_id=dataset_uuid,
+        )
         print(
             f"processed: {sum(result['counts'].values())}  "
             f"spent: ${result['spent']}  halted: {result['halted']}"

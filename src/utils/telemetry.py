@@ -478,7 +478,8 @@ _JOBS_SCHEMA = (
         records_processed INTEGER,
         records_created INTEGER,
         records_updated INTEGER,
-        errors_count INTEGER
+        errors_count INTEGER,
+        dataset_id TEXT
     )
     """,
 )
@@ -498,7 +499,8 @@ _VERIFICATION_SCHEMA = (
         avg_verification_time_ms REAL NOT NULL,
         total_time_ms REAL NOT NULL,
         sources_processed TEXT,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        dataset_id TEXT
     )
     """,
     """
@@ -625,8 +627,13 @@ class OperationTracker:
         *,
         telemetry_reporter: TelemetryReporter | None = None,
         database_url: str | None = None,
+        dataset_id: str | None = None,
     ) -> None:
         self.logger = logging.getLogger(__name__)
+        # Resolved once by the caller when the run starts. Every row this
+        # tracker writes carries it, so no consumer has to rediscover the
+        # dataset by joining telemetry back to the corpus.
+        self.dataset_id = dataset_id
 
         # If no database_url provided, use DatabaseManager to get Cloud SQL connection
         if database_url is None:
@@ -1233,8 +1240,9 @@ class OperationTracker:
                             commit_sha,
                             environment,
                             artifact_paths,
-                            logs_path
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            logs_path,
+                            dataset_id
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT (id) DO NOTHING
                         """,
                         (
@@ -1247,6 +1255,7 @@ class OperationTracker:
                             _safe_json_dumps(job_defaults["environment"]),
                             _safe_json_dumps(job_defaults["artifact_paths"]),
                             job_defaults["logs_path"],
+                            kwargs.get("dataset_id") or self.dataset_id,
                         ),
                     )
 
@@ -1693,6 +1702,7 @@ class OperationTracker:
             "total_time_ms": total_time_ms,
             "sources_processed": json.dumps(sources_processed),
             "timestamp": datetime.now(timezone.utc),
+            "dataset_id": self.dataset_id,
         }
 
         insert_sql = """
@@ -1700,12 +1710,12 @@ class OperationTracker:
                 timestamp, job_name, batch_size, verified_articles,
                 verified_non_articles, verification_errors, total_processed,
                 batch_time_seconds, avg_verification_time_ms, total_time_ms,
-                sources_processed
+                sources_processed, dataset_id
             ) VALUES (
                 :timestamp, :job_name, :batch_size, :verified_articles,
                 :verified_non_articles, :verification_errors, :total_processed,
                 :batch_time_seconds, :avg_verification_time_ms, :total_time_ms,
-                :sources_processed
+                :sources_processed, :dataset_id
             )
         """
 

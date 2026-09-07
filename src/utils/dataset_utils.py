@@ -71,8 +71,17 @@ def resolve_dataset_id(
         pass
 
     # Query database to find dataset by slug or name
-    # Use parameterized query to prevent SQL injection
-    with engine.connect() as conn:
+    # Use parameterized query to prevent SQL injection.
+    #
+    # `engine` may be an Engine or a Session. A caller that already holds a
+    # session should not have to open a second connection to name the dataset
+    # it is about to write against, and a Session has no `.connect()`.
+    from contextlib import nullcontext
+
+    connectable = (
+        engine.connect() if hasattr(engine, "connect") else nullcontext(engine)
+    )
+    with connectable as conn:
         # Try exact match on slug first (most common case)
         result = safe_execute(
             conn,

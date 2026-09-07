@@ -74,11 +74,18 @@ def handle_verification_backfill_command(args) -> int:
     # The HTTP pre-check is what would make this reach the network. Off
     # explicitly rather than by default, because a default is a thing
     # somebody changes for the live path without knowing this rides on it.
-    service = URLVerificationService(run_http_precheck=False)
+    # --dataset accepts a name, slug or UUID; everything downstream keys on
+    # the UUID, so resolve once here rather than letting three spellings of
+    # the same dataset reach three different queries.
+    from src.models.database import DatabaseManager
+    from src.utils.dataset_utils import resolve_dataset_id
+
+    dataset_uuid = resolve_dataset_id(DatabaseManager().engine, args.dataset)
+    service = URLVerificationService(run_http_precheck=False, dataset_id=dataset_uuid)
     counts = service.backfill_decisions(
         limit=args.limit,
         batch_size=args.batch_size,
-        dataset=args.dataset,
+        dataset=dataset_uuid,
         since=args.since,
         until=args.until,
         dry_run=args.dry_run,

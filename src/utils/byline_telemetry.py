@@ -23,14 +23,18 @@ class BylineCleaningTelemetry:
         enable_telemetry: bool = True,
         store: TelemetryStore | None = None,
         database_url: str = DATABASE_URL,
+        dataset_id: str | None = None,
     ) -> None:
         """
         Initialize telemetry collector.
 
         Args:
             enable_telemetry: Whether to actually collect and store telemetry
+            dataset_id: UUID of the dataset this run is processing, resolved
+                once by the caller and stamped on every row written here.
         """
         self.enable_telemetry = enable_telemetry
+        self.dataset_id = dataset_id
         self.session_id = str(uuid.uuid4())
         self.step_counter = 0
         self._store: TelemetryStore | None = store
@@ -130,7 +134,8 @@ class BylineCleaningTelemetry:
                         human_notes TEXT,
                         reviewed_by TEXT,
                         reviewed_at TIMESTAMP,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        dataset_id TEXT
                     )
                     """)
 
@@ -382,9 +387,10 @@ class BylineCleaningTelemetry:
                         likely_valid_authors, likely_noise,
                         requires_manual_review, cleaning_errors,
                         parsing_warnings, human_label, human_notes,
-                        reviewed_by, reviewed_at, created_at
+                        reviewed_by, reviewed_at, created_at, dataset_id
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                             ?)
                     """,
                     (
                         session["telemetry_id"],
@@ -419,6 +425,7 @@ class BylineCleaningTelemetry:
                         session.get("reviewed_by"),
                         session.get("reviewed_at"),
                         datetime.utcnow(),
+                        self.dataset_id,
                     ),
                 )
 

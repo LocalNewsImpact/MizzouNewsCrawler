@@ -13,6 +13,11 @@ class ExtractionTelemetryV2(Base):
     __tablename__ = "extraction_telemetry_v2"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    # The dataset whose work produced this row, stamped by the job that
+    # wrote it. Recorded rather than inferred: nothing else on this
+    # table reaches a dataset without a join back to candidate_links.
+    dataset_id = Column(String, index=True)
+
     operation_id = Column(String, nullable=False, index=True)
     article_id = Column(String, nullable=False, index=True)
     url = Column(String, nullable=False, index=True)

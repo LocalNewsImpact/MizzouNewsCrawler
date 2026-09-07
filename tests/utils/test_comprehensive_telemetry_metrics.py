@@ -399,7 +399,8 @@ def _create_sqlite_tables(store: TelemetryStore) -> None:
                 is_success INTEGER,
                 error_message TEXT,
                 error_type TEXT,
-                created_at TIMESTAMP
+                created_at TIMESTAMP,
+                dataset_id TEXT
             )
             """)
 
@@ -432,7 +433,8 @@ def _create_sqlite_tables(store: TelemetryStore) -> None:
                 evidence TEXT,
                 version TEXT,
                 detected_at TIMESTAMP,
-                created_at TIMESTAMP
+                created_at TIMESTAMP,
+                dataset_id TEXT
             )
             """)
 

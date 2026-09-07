@@ -85,6 +85,29 @@ def extract_columns_from_alembic_migration(migration_file: Path) -> set[str]:
     return set(columns)
 
 
+def columns_added_by_later_migrations(versions_dir: Path, table: str) -> set[str]:
+    """Columns a migration adds to `table` after it was first created.
+
+    The comparison above reads a single migration -- the one that created
+    the table -- so every later `add_column` registered as drift in the
+    code. A column added in 2026 is not drift from a 2025 migration; it is
+    the schema.
+
+    A migration counts only if it both names the table and adds a column.
+    That covers the two forms in this tree: `op.add_column("table", ...)`
+    with the name inline, and a loop over a tuple of tables adding the same
+    column to each, where the name is a variable by the time add_column
+    sees it.
+    """
+    added: set[str] = set()
+    for path in versions_dir.glob("*.py"):
+        content = path.read_text()
+        if table not in content or "add_column(" not in content:
+            continue
+        added.update(re.findall(r'sa\.Column\(\s*["\']([^"\']+)["\']', content))
+    return added
+
+
 class TestSchemaDrift:
     """Tests to detect schema drift between code and migrations."""
 
@@ -114,6 +137,9 @@ class TestSchemaDrift:
         )
 
         alembic_columns = extract_columns_from_alembic_migration(migration_file)
+        alembic_columns |= columns_added_by_later_migrations(
+            migration_file.parent, "byline_cleaning_telemetry"
+        )
 
         # Compare schemas
         missing_in_code = alembic_columns - code_columns
