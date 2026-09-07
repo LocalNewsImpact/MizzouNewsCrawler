@@ -700,3 +700,34 @@ def test_the_topic_statuses_are_named_once():
 
     for status in URLVerificationService.TOPIC_RULE_STATUSES:
         assert f"'{status}'" in _select_sql()
+
+
+# --- which stage made the call ------------------------------------------------
+
+
+def test_a_fetch_is_proved_by_telemetry_not_only_by_an_article():
+    """`candidate_links.status` has two writers and records neither:
+
+        url_verification.py:609   pre-extraction, on the URL alone
+        extraction.py:1265        post-extraction, writing back the
+                                  article status -- `wire` when the
+                                  byline or copyright line says so
+
+    So a `wire` link with no article row can be either. Measured on March
+    Mizzou, 480 of 9,320 were fetched and judged on their content, and
+    their article has since gone.
+
+    `extraction_telemetry_v2` is written per fetch and keyed on the URL,
+    so it outlives the article. Against it the two mechanisms separate
+    almost exactly: 8,835 match a URL pattern with no telemetry, 480 have
+    telemetry and match no URL pattern, 1 is neither.
+
+    It matters because storysniffer only ever sees the URL. Scoring its
+    rescore against a verdict reached from a byline compares two stages
+    that never saw the same evidence.
+    """
+    sql = _select_sql()
+    assert "extraction_telemetry_v2" in sql
+    assert "t.url = cl.url" in sql
+    # And the article row still counts, for the rows that kept one.
+    assert "a.id IS NOT NULL" in sql

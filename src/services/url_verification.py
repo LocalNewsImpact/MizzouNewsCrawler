@@ -891,8 +891,33 @@ class URLVerificationService:
         # article, which means each of those statuses is written at both
         # stages and neither can be read as a verdict.
         #
-        # What IS provable is whether anything fetched the URL. Nothing
-        # fetches a link verification rejected, so:
+        # What IS provable is whether anything fetched the URL -- and an
+        # article row is not the only proof of it.
+        #
+        # `candidate_links.status` has TWO writers and records neither:
+        #
+        #   url_verification.py:609  pre-extraction, on the URL alone
+        #   extraction.py:1265       post-extraction, writing back the
+        #                            article status -- which is `wire`
+        #                            when the byline or copyright line
+        #                            says so
+        #
+        # So a `wire` link with no article can be either: rejected by a
+        # URL rule before anything ran, or fetched, judged wire from its
+        # content, and its article since removed. Measured on March
+        # Mizzou, 480 of 9,320 are the second kind.
+        #
+        # `extraction_telemetry_v2` is written per fetch and keyed on the
+        # URL, so it survives the article. Against it the two mechanisms
+        # separate almost exactly: 8,835 match a URL pattern and have no
+        # telemetry, 480 have telemetry and match no URL pattern, 1 is
+        # neither.
+        #
+        # This matters because storysniffer only ever sees the URL.
+        # Scoring its rescore against a verdict reached from the byline
+        # compares two stages that never saw the same evidence.
+        #
+        # So:
         #
         #   an article row        -> accepted (whatever the status says)
         #   status 'article'      -> accepted, not fetched yet
@@ -909,7 +934,9 @@ class URLVerificationService:
         # outcomes. None of them are here.
         select = """
             SELECT cl.id, cl.url, cl.status,
-                   (a.id IS NOT NULL) AS was_fetched,
+                   (a.id IS NOT NULL
+                    OR EXISTS (SELECT 1 FROM extraction_telemetry_v2 t
+                                WHERE t.url = cl.url)) AS was_fetched,
                    a.status AS article_status
             FROM candidate_links cl
             LEFT JOIN url_verifications v ON v.candidate_link_id = cl.id
