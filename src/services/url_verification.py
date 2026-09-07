@@ -772,6 +772,182 @@ class URLVerificationService:
             )
             return 0
 
+    def backfill_decisions(
+        self,
+        limit: int | None = None,
+        batch_size: int = 500,
+        dataset: str | None = None,
+        dry_run: bool = False,
+    ) -> dict:
+        """Write a verification row for links that were decided before
+        anything recorded the decision.
+
+        245,473 URLs were verified and only their verdict was kept, in
+        `candidate_links.status`. The queue that reviews those verdicts
+        has nothing to show for any of them, and discovery has been idle
+        since 2026-08-12, so waiting for crawling to resume means waiting
+        indefinitely.
+
+        storysniffer is a local model -- `verify_url` with
+        `run_http_precheck` off calls `sniffer.guess()` and nothing else,
+        so this makes no request, needs no proxy and cannot be blocked.
+
+        A rescore is NOT the original decision and is never presented as
+        one. The pattern filter ran first and both rules and model
+        version have changed since, so where a rescore disagrees with the
+        recorded verdict that disagreement is the finding: it is the
+        first estimate of the error rate before any person opens a row.
+        Every row written here says `backfill` in its `decided_by`, so
+        nothing downstream can mistake it for what the pipeline decided
+        at the time.
+        """
+        from src.models.verification import URLVerification
+
+        counts = {
+            "considered": 0,
+            "written": 0,
+            "agree": 0,
+            "disagree": 0,
+            "errors": 0,
+        }
+
+        # Only where the verdict is still recoverable.
+        #
+        # `candidate_links.status` is the link's status NOW, not what
+        # verification concluded, and later stages overwrite it. Measured
+        # against production 2026-09-07, by whether the link has an
+        # article row -- which it can only have if verification let it
+        # through and something fetched it:
+        #
+        #   extracted 96% have one, paused 89%  -- accepted, verdict gone
+        #   wire      48%,          opinion 49% -- written at BOTH stages
+        #   obituary  92%,          weather 97% -- mostly content-stage
+        #   not_article 4%                      -- the rejection, intact
+        #   article   19%                       -- accepted, not yet fetched
+        #
+        # So `wire` and `opinion` are each about half verification and
+        # half content analysis, and nothing on the row says which. A
+        # backfill that guessed would fabricate the exact quantity this
+        # queue exists to measure.
+        #
+        # Two cases are unambiguous and they are the ones that matter:
+        # `article` is an acceptance the pipeline has not moved past, and
+        # a rejection status with NO article row was rejected before
+        # anything fetched it -- which is the type II pile, the errors no
+        # other surface can see. `sampled_out` is discovery's budget
+        # decision rather than a classification and stays out entirely.
+        select = """
+            SELECT cl.id, cl.url, cl.status
+            FROM candidate_links cl
+            LEFT JOIN url_verifications v ON v.candidate_link_id = cl.id
+            WHERE v.id IS NULL
+              AND (
+                    cl.status = 'article'
+                 OR (cl.status IN ('not_article', 'wire')
+                     AND NOT EXISTS (
+                           SELECT 1 FROM articles a
+                            WHERE a.candidate_link_id = cl.id))
+              )
+        """
+        params: dict = {}
+        if dataset:
+            select += """
+              AND EXISTS (
+                    SELECT 1 FROM dataset_sources ds
+                      JOIN datasets d ON d.id = ds.dataset_id
+                     WHERE ds.source_id = cl.source_id AND d.slug = :dataset
+              )
+            """
+            params["dataset"] = dataset
+        select += " ORDER BY cl.id"
+
+        job_id = None if dry_run else self._ensure_job("backfill-decisions")
+        if job_id is None and not dry_run:
+            self.logger.error("Could not open a backfill job; nothing written")
+            return counts
+
+        # safe_execute, like every other statement in this module: it is
+        # what handles the named-parameter styles the two drivers differ
+        # on, and a bare text() here would work on one and not the other.
+        with self.db.get_session() as session:
+            rows = safe_execute(session, select, params).fetchall()
+
+        if limit is not None:
+            rows = rows[:limit]
+
+        pending: list[URLVerification] = []
+        for row in rows:
+            counts["considered"] += 1
+            result = self.verify_url(row.url)
+            if result.get("error"):
+                counts["errors"] += 1
+            sniffed = result.get("storysniffer_result")
+            # The verdict, in the sniffer's terms. Sound only because the
+            # select above admits nothing whose verdict was overwritten:
+            # `article` is an acceptance, and the rejection statuses that
+            # got this far never had anything fetched for them.
+            recorded_is_article = row.status == "article"
+            if sniffed is not None:
+                if bool(sniffed) == recorded_is_article:
+                    counts["agree"] += 1
+                else:
+                    counts["disagree"] += 1
+
+            if dry_run:
+                continue
+
+            pending.append(
+                URLVerification(
+                    candidate_link_id=row.id,
+                    verification_job_id=job_id,
+                    url=row.url,
+                    storysniffer_result=sniffed,
+                    # Saturated GaussianNB: a number here would invite
+                    # ranking on something that cannot rank.
+                    verification_confidence=None,
+                    previous_status=None,
+                    new_status=row.status,
+                    verification_time_ms=result.get("verification_time_ms"),
+                    verification_error=result.get("error"),
+                    meta={
+                        # NOT the mechanism that decided at the time --
+                        # that was not recorded and cannot be recovered.
+                        "decided_by": "backfill",
+                        "rescored_by": self._decided_by(result),
+                        "agrees_with_recorded": (
+                            None
+                            if sniffed is None
+                            else bool(sniffed) == recorded_is_article
+                        ),
+                    },
+                )
+            )
+            if len(pending) >= batch_size:
+                counts["written"] += self._write_backfilled(pending)
+                pending = []
+
+        if pending:
+            counts["written"] += self._write_backfilled(pending)
+        return counts
+
+    def _write_backfilled(self, rows: list) -> int:
+        """Commit one batch, and say so when it fails.
+
+        `record_verifications` swallows its failures on purpose -- a
+        verification run must not stop because it could not write its own
+        audit row. That is wrong here: this run exists only to write
+        those rows, so a failure it hid would be a backfill that reported
+        success and produced nothing.
+        """
+        try:
+            with self.db.get_session() as session:
+                session.add_all(rows)
+                session.commit()
+            return len(rows)
+        except Exception as exc:
+            self.logger.error("Backfill batch of %d failed: %s", len(rows), exc)
+            raise
+
     def update_candidate_status(
         self, candidate_id: str, new_status: str, error_message: str | None = None
     ):
