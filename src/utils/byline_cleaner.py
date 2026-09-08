@@ -1935,11 +1935,31 @@ class BylineCleaner:
         filtered_words = []
         wire_services_lower = {name.lower() for name in self.WIRE_SERVICES}
 
+        # The names STEP 2 protected, as words.
+        #
+        # `protected_spans` was built above and then never read, so this
+        # filter ran over names the code had already decided were people.
+        # `WIRE_SERVICES` holds bare brand tokens -- "fox", "ap", "nbc",
+        # "abc", "cbs", "hearst" -- and every one of those is also a
+        # surname. "Jeffrey Fox" of The Examiner lost his surname on 371
+        # articles: the byline was stored as "Jeffrey" and each story was
+        # excluded as wire syndicated by "fox". Madeline Fox at KCUR and
+        # Molly Fox at the Columbia Missourian went the same way, 460
+        # articles in all.
+        #
+        # A word inside a protected name is a name. The brand is still
+        # matched everywhere else, including as part of a multi-word
+        # service ("Fox News"), which STEP 2 handles before this runs.
+        protected_words: set[str] = set()
+        for start, end in protected_spans:
+            for name_word in " ".join(words)[start:end].split():
+                protected_words.add(name_word.lower().strip())
+
         for word in words:
             word_lower = word.lower().strip()
 
             # Check if this word is a wire service
-            if word_lower in wire_services_lower:
+            if word_lower in wire_services_lower and word_lower not in protected_words:
                 # Track removed wire service with normalization
                 # Find the original service name from WIRE_SERVICES
                 for service in self.WIRE_SERVICES:
