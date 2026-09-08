@@ -457,10 +457,14 @@ def _capture_raw_html(extractor: Any) -> tuple[str | bytes | None, str | None]:
 
 
 ARTICLE_INSERT_SQL = text(
-    "INSERT INTO articles (id, candidate_link_id, url, title, author, "
+    "INSERT INTO articles (id, candidate_link_id, dataset_id, url, title, author, "
     "publish_date, content, text, status, metadata, wire, wire_check_status, "
     "wire_check_attempted_at, wire_check_error, wire_check_metadata, extracted_at, "
-    "created_at, text_hash, raw_gcs_path) VALUES (:id, :candidate_link_id, :url, :title, "
+    "created_at, text_hash, raw_gcs_path) VALUES (:id, :candidate_link_id, "
+    # The article's dataset is its link's, read by primary key at insert
+    # so no caller has to carry it and none can carry a different one.
+    "(SELECT cl.dataset_id FROM candidate_links cl WHERE cl.id = :candidate_link_id), "
+    ":url, :title, "
     ":author, :publish_date, :content, :text, :status, :metadata, :wire, "
     ":wire_check_status, :wire_check_attempted_at, :wire_check_error, :wire_check_metadata, "
     ":extracted_at, :created_at, :text_hash, :raw_gcs_path) "
