@@ -27,6 +27,9 @@ from src.cli.commands.link_status_repair import COUNT_SQL
 from src.cli.commands.link_status_repair import REPAIR_SQL as LINK_REPAIR_SQL
 from src.cli.commands.rot47_body_repair import FIND_SQL as ROT47_FIND_SQL
 from src.cli.commands.rot47_body_repair import REPAIR_SQL as ROT47_REPAIR_SQL
+from src.cli.commands.wire_signal_alignment import FIND_SQL as WIRE_FIND_SQL
+from src.cli.commands.wire_signal_alignment import RESOLVE_SQL as WIRE_RESOLVE_SQL
+from src.cli.commands.wire_signal_alignment import WRITE_SQL as WIRE_WRITE_SQL
 
 POSTGRES_TEST_URL = os.getenv("TEST_DATABASE_URL")
 HAS_POSTGRES = POSTGRES_TEST_URL and "postgres" in POSTGRES_TEST_URL
@@ -69,6 +72,13 @@ STATEMENTS = [
         "link repair",
         LINK_REPAIR_SQL,
         {"statuses": ["enriched"], "new_status": "extracted", "batch": 1},
+    ),
+    ("wire resolve", WIRE_RESOLVE_SQL, {}),
+    ("wire find", WIRE_FIND_SQL, {"needle": '%"komu.com"%', "batch": 1}),
+    (
+        "wire write",
+        WIRE_WRITE_SQL,
+        {"wire": '["KOMU"]', "id": "no-such-article"},
     ),
 ]
 
