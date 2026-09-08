@@ -165,3 +165,26 @@ def test_re_enriching_does_not_erase_the_dataset():
         "dataset_id = COALESCE(EXCLUDED.dataset_id, article_enrichment.dataset_id)"
         in source
     )
+
+
+def test_an_article_knows_how_long_it_is_without_being_read():
+    """Every question about how much text an article holds was answered
+    by reading the body. On a queue page that asks for every row of every
+    count, that was the whole cost of the page: 254 seconds measured, 16.7
+    of them in band chips that count rows BY length.
+
+    A generated column: Postgres maintains it, so it cannot fall out of
+    step with the four code paths that write `content` and `text`."""
+    migration = (
+        Path(__file__).resolve().parents[1]
+        / "alembic"
+        / "versions"
+        / "s4t5u6v7w8x9_an_article_knows_how_long_it_is.py"
+    ).read_text()
+
+    assert "GENERATED ALWAYS AS" in migration
+    assert "STORED" in migration, "virtual cannot be indexed"
+    assert (
+        "length(coalesce(content, text, text_excerpt, ''))" in migration
+    ), "the same fallback order the queue always used"
+    assert "ix_articles_text_length" in migration
