@@ -46,6 +46,32 @@ FIND_SQL = text("""
     """)
 
 
+#: Hoisted to a module constant so something can execute it.
+#:
+#: This lived inside the function, which is why nothing ever asked a
+#: database to parse it: the tests read the SQL as text and the command
+#: shipped carrying `:note::jsonb`, which pg8000 will not accept. A
+#: statement no test can reach is a statement no test is checking.
+REPAIR_SQL = text("""
+    UPDATE articles
+       SET author = :name,
+           status = :rewind,
+           wire = NULL,
+           metadata = CAST(jsonb_set(
+               CAST(metadata AS jsonb),
+               '{byline_surname_repair}',
+               -- CAST, not `:note::jsonb`. pg8000 rewrites named
+               -- parameters to positional ones and the `::` immediately
+               -- after one does not survive it: 42601, syntax error at
+               -- ":". The same driver quirk behind the 42P18 failures
+               -- in services/work_queue.py.
+               CAST(:note AS jsonb),
+               true
+           ) AS json)
+     WHERE id = :id
+    """)
+
+
 def add_byline_surname_repair_parser(subparsers) -> argparse.ArgumentParser:
     parser = subparsers.add_parser(
         "repair-byline-surnames",
@@ -121,19 +147,7 @@ def handle_byline_surname_repair_command(args) -> int:
                 continue
             if not args.dry_run:
                 session.execute(
-                    text("""
-                        UPDATE articles
-                           SET author = :name,
-                               status = :rewind,
-                               wire = NULL,
-                               metadata = jsonb_set(
-                                   metadata::jsonb,
-                                   '{byline_surname_repair}',
-                                   :note::jsonb,
-                                   true
-                               )::json
-                         WHERE id = :id
-                        """),
+                    REPAIR_SQL,
                     {
                         "name": name,
                         "rewind": REWIND_TO,
