@@ -29,11 +29,17 @@ def test_a_row_already_named_is_left_alone():
     assert _renamed('["The Associated Press"]', NAMES) is None
 
 
-def test_a_host_with_no_source_record_is_left_alone():
-    """tvinsider.com and fooddrinklife.com are real syndicators nobody
-    has a record for. Inventing a display name here would put a publisher
-    in the corpus that no source row backs."""
+def test_a_host_with_no_name_is_the_syndicator_of_record():
+    """287 hosts appear that nothing else records -- tvinsider.com,
+    liveinformed.com, theconversation.com, talker.news -- and they are
+    real syndicators. The domain stands as the name: exact, checkable,
+    and better than an invented spelling or a row dropped for want of a
+    label."""
     assert _renamed('["tvinsider.com"]', NAMES) is None
+    assert _renamed('["theconversation.com", "kbia.org"]', NAMES) == [
+        "theconversation.com",
+        "KBIA",
+    ]
 
 
 def test_both_spellings_on_one_row_collapse_to_one():

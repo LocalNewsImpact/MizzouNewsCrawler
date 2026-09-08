@@ -27,10 +27,22 @@ are already being identified, accurately, and a content pattern on
 either in passing -- a new way to be wrong about work already being got
 right. The signal exists; it just is not written down the same way twice.
 
-Domains with no source row are left alone. tvinsider.com,
-liveinformed.com and fooddrinklife.com are real syndicators nobody has a
-record for, and inventing a display name for them here would put a
-publisher in the corpus that no source row backs.
+THE DOMAIN IS THE SYNDICATOR OF RECORD
+--------------------------------------
+Where no name exists in the database, the domain stands as the name.
+That is the rule, not a shortfall: 287 hosts appear here that nothing
+else records -- tvinsider.com, liveinformed.com, fooddrinklife.com,
+theconversation.com, talker.news -- and they are real syndicators. A
+controlled vocabulary for them would mean somebody writing 287 display
+names, keeping them current as the list grows, and deciding case by case
+whether legacy.com and buzzsprout.com are syndicators or infrastructure.
+
+`tvinsider.com` is a worse name than "TV Insider" and a much better one
+than a blank, an invented spelling, or a row quietly dropped for want of
+a label. It is also exact: it is what the canonical tag said, so a
+reviewer can check it. Where the corpus does hold a name -- because the
+publisher is a source we crawl -- that name wins, because it is the
+name the rest of the console already uses for them.
 """
 
 import argparse
@@ -111,6 +123,8 @@ def _renamed(raw, names):
     if not isinstance(value, list):
         return None
 
+    # A host with no name in the database keeps its host. That is the
+    # syndicator of record, not a gap waiting to be filled.
     out, seen = [], set()
     for item in value:
         if not isinstance(item, str):
