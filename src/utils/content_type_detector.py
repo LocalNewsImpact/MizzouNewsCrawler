@@ -163,51 +163,76 @@ class ContentTypeDetector:
         "letters",
         "perspective",
     )
+    # `column`, `columns` and `columnists` are deliberately absent.
+    #
+    # A columnist path says who wrote it, not what it is. Reviewed
+    # decisions on 69 articles under such paths split by the columnist
+    # rather than by the content: stltoday's joe-holleman ran 17 restores
+    # to 2 keeps -- a news-notes column, where "Ex-St. Louis lawyer Ed
+    # Martin faces disciplinary action" and "U.S. Rep. Sam Graves won't
+    # seek reelection" are reported news filed under a byline -- while
+    # tony-messenger ran 13 keeps to 1, an opinion column. No feature of
+    # the text separates them: first-person voice, argument words and
+    # attribution were each measured across the labelled set and none
+    # divide a beat column from a news-notes column.
+    #
+    # So the path is not read, and the trade is taken on purpose: 45 more
+    # opinion columns reach the queue, where excluding one is a click,
+    # and 20 of 33 wrongly-excluded news stories stop being lost, where
+    # losing one leaves no row and nothing downstream that can see it
+    # went missing. A column that says so in its own headline
+    # ("Column: ...") is still caught, by the title.
     _OPINION_URL_SEGMENTS = (
         "opinion",
         "opinions",
         "editorial",
         "editorials",
-        "column",
-        "columns",
-        "columnists",
         "commentary",
         "letters",
         "letters-to-the-editor",
         "perspective",
     )
 
-    _WEATHER_TITLE_KEYWORDS = (
-        "weather",
-        "forecast",
-        "temperature",
-        "temperatures",
-        "warm-up",
-        "warmup",
-        "cool-down",
-        "cooldown",
-        "rain",
-        "snow",
-        "storm",
-        "radar",
+    # A weather BULLETIN announces itself: it is issued, it runs until a
+    # time, or it names the slot rather than the story -- "PM Weather
+    # Update For Thursday 3/19/2026", "Winter Weather Advisory issued
+    # March 1 at 11:58AM CST until March 2 at 9:00AM".
+    #
+    # This replaced a list of topic words (weather, forecast, rain, snow,
+    # storm, temperature, radar) matched as substrings, where one hit was
+    # enough to exclude an article. Measured against 385 reviewed
+    # decisions, that rule was right 15% of the time. It took "Salute to
+    # Veterans (Desert Storm/Desert Shield)", "A Hands-On Look Inside the
+    # Brain for Annapolis Students" (b-RAIN), "Active Shooter Training"
+    # (t-RAIN-ing), "Trophy rainbow takes unusual path to Roaring River"
+    # and "Snowplowing in St. Louis is on track" -- 18,468 characters of
+    # reported news. Weather is the subject of a great deal of local
+    # journalism: fires, floods, accidents, closures, emergency
+    # declarations. A word in a headline cannot tell those from a
+    # forecast, and the cost of the two mistakes is not symmetric -- a
+    # forecast that gets through is a click, a flood story that does not
+    # is gone with no row and nothing downstream that can see it went
+    # missing.
+    _WEATHER_BULLETIN_TITLE = re.compile(
+        r"("
+        r"\b(advisory|warning|watch|statement|alert)\s+issued\b"
+        r"|\bissued\b.{0,40}\buntil\b"
+        r"|\b(update|forecast|outlook)\s+for\s+"
+        r"(mon|tues|wednes|thurs|fri|satur|sun)day\b"
+        r"|\b(update|forecast)\s+for\s+\d{1,2}/\d{1,2}"
+        r"|^(mon|tues|wednes|thurs|fri|satur|sun)day,\s+\w+\s+\d{1,2}\b"
+        r".*\bforecast\b"
+        r"|\b\d{1,2}/\d{1,2}/\d{2,4}\s*$"
+        r")",
+        re.IGNORECASE,
     )
-    _WEATHER_URL_SEGMENTS = (
-        "weather",
-        "forecast",
-        "forecasts",
-    )
-    _WEATHER_CONTENT_KEYWORDS = (
-        "weather forecast",
-        "forecast temperatures",
-        "high temperature",
-        "low temperature",
-        "chance of rain",
-        "chance of snow",
-        "weather outlook",
-        "extended forecast",
-        "weekly forecast",
-        "weekend forecast",
-    )
+
+    #: Written text, not a filled-in template. A byline and a body of
+    #: real sentences is the line the reviewer drew: everything above it
+    #: goes through, whatever the headline says about the weather.
+    _AUTHORED_MIN_CHARS = 1200
+    _AUTHORED_MIN_SENTENCES = 5
+    _SENTENCE_BREAK = re.compile(r"[.!?][\"\u201d)]?\s+[A-Z]")
 
     _TITLE_CONFIDENCE_WEIGHT = 2
     _URL_CONFIDENCE_WEIGHT = 2
@@ -560,6 +585,7 @@ class ContentTypeDetector:
             keywords=keywords,
             meta_description=meta_description,
             content=content,
+            author=author,
         )
         if weather_result:
             return weather_result
@@ -1178,14 +1204,28 @@ class ContentTypeDetector:
                 # - "Fort Worth Star-Telegram" -> "star-telegram" in URL
                 url_belongs_to_pub = False
 
-                if pub_slug in url_lower.replace("-", "").replace("_", ""):
+                # Both sides stripped of separators before comparing.
+                #
+                # The full slug and the URL were normalized this way, but
+                # the shorter check below compared "news-tribune" against
+                # a hyphenless "www.newstribune.com" and missed -- so the
+                # Jefferson City News Tribune was read as syndicating to
+                # itself on 87 of its own articles, bylined Trevor Hahn,
+                # Anna Campbell, Tom Rackers and other staff reporters.
+                # A paper is not a wire service to its own newsroom.
+                flat_url = url_lower.replace("-", "").replace("_", "")
+
+                if pub_slug in flat_url:
                     url_belongs_to_pub = True
                 # Also check for partial matches (e.g., "star-telegram")
                 pub_words = pub_name_lower.split()
                 if len(pub_words) >= 2:
                     # Check last 2 words (e.g., "Star-Telegram")
                     last_words = "-".join(pub_words[-2:])
-                    if last_words in url_lower:
+                    if (
+                        last_words in url_lower
+                        or last_words.replace("-", "") in flat_url
+                    ):
                         url_belongs_to_pub = True
 
                 # If URL belongs to publication, it's local (not syndicated)
@@ -1418,90 +1458,62 @@ class ContentTypeDetector:
         keywords: Iterable[str],
         meta_description: str | None,
         content: str | None = None,
+        author: str | None = None,
     ) -> ContentTypeResult | None:
+        """Detect an automated weather bulletin -- not weather as a subject.
+
+        Two things have to be true. The headline has to be templated: a
+        bulletin issued at a time and running until another, or a slot
+        named by its weekday. And the article must not be written: no
+        byline, or too short to be prose.
+
+        Either alone is not enough, and that is deliberate. "Winter
+        Weather Advisory issued March 1 at 11:58AM CST" carries a
+        templated headline and no byline; "FIRST ALERT WEATHER: Strong to
+        severe storms tonight" carries a byline and 2,900 characters
+        somebody wrote, and goes through.
+
+        `keywords` and `meta_description` are no longer read. A page's own
+        metadata says the topic is weather, which is exactly the fact that
+        does not decide this.
         """
-        Detect if content is a weather forecast.
-
-        Similar to opinion detection, requires strong signals (title OR url match)
-        plus supporting evidence from keywords/description.
-        """
-        matches: dict[str, list[str]] = {}
-        score = 0
-        strong_signal_detected = False
-
-        # Check title for weather keywords
-        title_matches = self._find_weather_title_matches(title)
-        if title_matches:
-            matches["title"] = title_matches
-            score += self._TITLE_CONFIDENCE_WEIGHT  # +2
-            strong_signal_detected = True
-
-        # Check URL for weather/forecast segments
-        url_matches = self._find_segment_matches(url, self._WEATHER_URL_SEGMENTS)
-        if url_matches:
-            matches["url"] = url_matches
-            score += self._URL_CONFIDENCE_WEIGHT  # +2
-            strong_signal_detected = True
-
-        # Check metadata keywords
-        keyword_matches = self._matches_from_iterable(
-            keywords,
-            self._WEATHER_TITLE_KEYWORDS,
-        )
-        if keyword_matches:
-            matches["keywords"] = keyword_matches
-            score += self._METADATA_CONFIDENCE_WEIGHT
-
-        # Check meta description
-        description_matches = self._find_keyword_matches(
-            meta_description,
-            self._WEATHER_TITLE_KEYWORDS,
-        )
-        if description_matches:
-            matches["meta_description"] = description_matches
-            score += self._METADATA_CONFIDENCE_WEIGHT
-
-        # Optional: Check content lead for weather forecast keywords
-        if content:
-            lead = content[:300]
-            content_matches = self._find_keyword_matches(
-                lead,
-                self._WEATHER_CONTENT_KEYWORDS,
-            )
-            if content_matches:
-                matches["content"] = content_matches
-                score += self._METADATA_CONFIDENCE_WEIGHT
-
-        if not matches:
+        title_text = (title or "").strip()
+        if not title_text:
             return None
 
-        if not strong_signal_detected:
+        templated = self._WEATHER_BULLETIN_TITLE.search(title_text)
+        if not templated:
             return None
 
-        if score < self._TITLE_CONFIDENCE_WEIGHT:
+        if self._is_authored(author, content):
             return None
 
-        confidence_score = normalize_score(score, self._WEATHER_MAX_SCORE)
-        confidence = score_to_label(score)
+        matches = {"title": [templated.group(0).strip()]}
+        # One signal, deliberately: the headline. Scored at the title
+        # weight so the number keeps meaning what it meant.
+        score = self._TITLE_CONFIDENCE_WEIGHT
         return ContentTypeResult(
             status="weather",
-            confidence_score=confidence_score,
-            confidence=confidence,
-            reason="matched_weather_signals",
+            confidence_score=normalize_score(score, self._WEATHER_MAX_SCORE),
+            confidence=score_to_label(score),
+            reason="matched_weather_bulletin",
             evidence=matches,
             detector_version=self.VERSION,
         )
 
-    def _find_weather_title_matches(self, title: str | None) -> list[str]:
-        """Find weather-related keywords in title."""
-        if not title:
-            return []
-        title_lower = title.lower()
-        matches = []
-        for keyword in self._WEATHER_TITLE_KEYWORDS:
-            if keyword in title_lower:
-                matches.append(keyword)
-        return matches
+    def _is_authored(self, author: str | None, content: str | None) -> bool:
+        """A byline over enough sentences to be somebody's writing.
+
+        The test is the same one a reader applies: is there a person's
+        name on it, and is there prose under it. A filled-in template has
+        neither -- an NWS repost runs 738 characters with no byline.
+        """
+        if not (author or "").strip():
+            return False
+        body = content or ""
+        if len(body) < self._AUTHORED_MIN_CHARS:
+            return False
+        return len(self._SENTENCE_BREAK.findall(body)) >= self._AUTHORED_MIN_SENTENCES
 
     @staticmethod
     def _normalize_keywords(raw_keywords: str | list[str] | None) -> list[str]:
