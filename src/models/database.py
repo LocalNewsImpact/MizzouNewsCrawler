@@ -924,7 +924,10 @@ def upsert_article(session, candidate_id: str, text: str, **kwargs) -> Article:
         logger.debug(f"Updated existing article for candidate: {candidate_id}")
         return existing
     else:
-        # Create new record
+        # Create new record; the dataset is the link's, same as the SQL path.
+        if "dataset_id" not in kwargs:
+            link = session.get(CandidateLink, candidate_link_id)
+            kwargs["dataset_id"] = link.dataset_id if link is not None else None
         article = Article(
             candidate_link_id=candidate_link_id,
             text=text,

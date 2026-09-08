@@ -138,6 +138,11 @@ class Article(Base):
         ForeignKey("candidate_links.id"),
         nullable=False,
     )
+    # The dataset the article was extracted for: its candidate link's.
+    # Recorded here so a dataset's articles are one index range, not a
+    # join through candidate_links. Derived, never chosen -- the insert
+    # reads it off the link by primary key.
+    dataset_id: Mapped[str | None] = mapped_column(String, nullable=True)
 
     # Core content
     url = Column(String, index=True, unique=True)  # Unique to prevent duplicates
