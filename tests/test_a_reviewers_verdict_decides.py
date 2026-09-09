@@ -47,10 +47,14 @@ def test_a_json_string_column_is_read_too():
         {},
         "not json at all",
         {"review_verdict": None},
-        {"review_verdict": {"verdict": "story"}},
+        {"review_verdict": {"verdict": "story"}},  # no decided_at
+        # A rejection with no kind. Since v0.6.0 `kind` is required only
+        # where the verdict is a rejection: a story without one is an
+        # ordinary story and a complete answer, which is the commonest
+        # thing a reviewer says.
         {
             "review_verdict": {
-                "verdict": "story",
+                "verdict": "not_story",
                 "kind": None,
                 "decided_at": "2026-09-09",
             }
@@ -120,3 +124,34 @@ def test_wire_never_loses_to_a_verdict():
     applied = source[source.index("A REVIEWER'S VERDICT DECIDES") :]
     applied = applied[: applied.index("now = datetime.utcnow()")]
     assert 'article_status != "wire"' in applied, applied[:400]
+
+
+def test_an_ordinary_story_is_recorded_and_decides_nothing():
+    """v0.6.0: "It is a story" with no category is a complete answer.
+
+    Under v0.5.0 an empty `kind` read as unusable, so the commonest
+    verdict a reviewer can give -- an ordinary news, sport or business
+    story -- was dropped on the floor here. It is now kept, so the
+    article carries what the person said, and it decides no status: the
+    pipeline classifies it as it would any other.
+    """
+    note = discovery_verdict.build(verdict=discovery_verdict.IS_A_STORY)
+    found = _reviewers_verdict({discovery_verdict.METADATA_KEY: note})
+    assert found == note, "an ordinary story's verdict was dropped"
+    assert discovery_verdict.status_for(found) is None
+
+
+def test_a_rejection_without_a_kind_is_still_unusable():
+    """The other half of the same rule: a rejection has to say what it is
+    instead, or the count that a fix is built from cannot be made."""
+    assert (
+        _reviewers_verdict(
+            {
+                discovery_verdict.METADATA_KEY: {
+                    "verdict": discovery_verdict.NOT_A_STORY,
+                    "decided_at": "2026-09-09T00:00:00+00:00",
+                }
+            }
+        )
+        is None
+    )
