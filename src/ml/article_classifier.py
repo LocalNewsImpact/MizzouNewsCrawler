@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import torch
+from lnic_contracts import cin_labels
 from transformers import (
     AutoModelForSequenceClassification,
     AutoTokenizer,
@@ -21,18 +22,20 @@ from transformers import (
 logger = logging.getLogger(__name__)
 
 
-CRITICAL_INFORMATION_NEEDS_LABELS: list[str] = [
-    "Civic Life",
-    "Civic information",
-    "Emergencies and Public Safety",
-    "Health",
-    "Transportation Systems",
-    "Sports",
-    "Environment and Planning",
-    "Education",
-    "Political life",
-    "Economic Development",
-]
+#: The ten CIN categories, in the order that IS the model's class ids.
+#:
+#: `label2id` below is built with `enumerate()`, so position 0 means
+#: "Civic Life" because that is what position 0 meant when this
+#: checkpoint was trained. Reordering does not raise and does not fail a
+#: build; it silently relabels every prediction.
+#:
+#: Held in lnic-contracts because three services compare these as
+#: strings -- the crawler writes `articles.primary_label`, the review
+#: console shows them to a coder and stores what was picked, and the two
+#: are then compared. A rename in one is a silent mismatch in the
+#: others. The console had already grown a copy in a different order
+#: before this moved.
+CRITICAL_INFORMATION_NEEDS_LABELS: list[str] = list(cin_labels.LABELS)
 
 _BASE_MODEL_NAME = "bert-base-uncased"
 
