@@ -338,6 +338,8 @@ For detailed documentation on the new architecture, deployment strategy, and cre
 
 - [scripts/migrations/README.md](scripts/migrations/README.md) - Migration scripts and tools
 
+- [docs/CIN_MODEL_BASELINE.md](docs/CIN_MODEL_BASELINE.md) - What the CIN classifier is, how it was trained, and what is not known about it
+
 ## Recent Maintenance (2025-09-27)
 
 ### Obituary and opinion detection
