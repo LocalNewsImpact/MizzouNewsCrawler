@@ -118,6 +118,7 @@ def test_successful_extraction_saves_to_articles_table():
                 "Test Source",
                 "article",
                 "Example Site",
+                None,
             )
         ]
 
@@ -178,6 +179,7 @@ def test_opinion_detection_sets_status():
                 "Test Source",
                 "article",
                 "Example Site",
+                None,
             )
         ]
 
@@ -280,6 +282,7 @@ def test_extraction_failure_no_content_no_database_changes():
                 "Test Source",
                 "article",
                 "Example Site",
+                None,
             )
         ]
         env.session.execute.return_value = mock_result
@@ -319,6 +322,7 @@ def test_database_error_rollback_and_no_status_update():
                 "Test Source",
                 "article",
                 "Example Site",
+                None,
             )
         ]
         count_result = Mock()
@@ -357,6 +361,7 @@ def test_foreign_key_constraint_violation_rollback():
                 "Test Source",
                 "article",
                 "Example Site",
+                None,
             )
         ]
         count_result = Mock()
@@ -395,6 +400,7 @@ def test_duplicate_article_constraint_rollback():
                 "Test Source",
                 "article",
                 "Example Site",
+                None,
             )
         ]
         count_result = Mock()
@@ -465,6 +471,7 @@ def test_content_extraction_exception_handling():
                 "Test Source",
                 "article",
                 "Example Site",
+                None,
             )
         ]
         env.session.execute.return_value = mock_result
