@@ -279,6 +279,7 @@ def test_process_batch_success_path(monkeypatch):
             "Example",
             "article",
             "Example Canonical",
+            None,
         )
     ]
     session = _FakeSession(rows)
@@ -419,7 +420,14 @@ def test_capture_raw_html_tolerates_extractors_without_support():
 def test_process_batch_archives_raw_html(monkeypatch):
     """The archived object's URI is persisted on the article row."""
     rows = [
-        ("cand-1", "https://example.com/a", "Example", "article", "Example Canonical")
+        (
+            "cand-1",
+            "https://example.com/a",
+            "Example",
+            "article",
+            "Example Canonical",
+            None,
+        )
     ]
     session = _FakeSession(rows)
 
@@ -515,7 +523,7 @@ def test_process_batch_archives_raw_html(monkeypatch):
 
 
 def test_process_batch_rate_limited(monkeypatch):
-    rows = [("cand-1", "https://blocked.com/a", "Example", "article", None)]
+    rows = [("cand-1", "https://blocked.com/a", "Example", "article", None, None)]
     session = _FakeSession(rows)
 
     def fake_db_manager():

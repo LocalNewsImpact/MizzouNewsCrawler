@@ -332,6 +332,37 @@ def _get_work_from_queue(
                 time.sleep(backoff)
 
 
+def _reviewers_verdict(meta):
+    """What a person decided about this URL before anything was fetched.
+
+    The discovery review queue asks "is this a story, and what kind", and
+    the console writes the answer onto the link
+    (`lnic_contracts.discovery_verdict`). Without reading it, a reviewer
+    who said "opinion" watched the pipeline re-run the same classifier
+    that had misjudged the URL and reach its own conclusion.
+
+    Takes the value, not the session. Two earlier versions ran a query --
+    one per article, then one per batch -- and both sat in front of the
+    block that catches an article's own database errors, where a broad
+    `except` swallowed the failure that block exists to see. Three
+    rollback tests caught it by setting a side effect the query consumed
+    first, and moving the query did not fix it because any query would
+    consume it. `meta` now comes down with the row that was already being
+    selected, so there is nothing to consume and nothing to mask.
+    """
+    from lnic_contracts import discovery_verdict
+
+    if isinstance(meta, str):
+        try:
+            meta = json.loads(meta)
+        except ValueError:
+            return None
+    if not isinstance(meta, dict):
+        return None
+    note = meta.get(discovery_verdict.METADATA_KEY)
+    return note if discovery_verdict.is_readable(note) else None
+
+
 def _send_heartbeat(worker_id: str):
     """Send heartbeat to work queue to prevent timeout.
 
@@ -1391,6 +1422,9 @@ def _process_batch(
                     item["source"],
                     "article",
                     item.get("canonical_name"),
+                    # The work queue does not carry it; a link reviewed
+                    # in the console is read through the direct path.
+                    item.get("meta"),
                 )
                 for item in work_items
             ]
@@ -1398,7 +1432,7 @@ def _process_batch(
             # Direct database query (original logic, used when work queue disabled)
             # Get articles with domain diversity to avoid rate-limit lockups
             q = """
-            SELECT cl.id, cl.url, cl.source, cl.status, s.canonical_name
+            SELECT cl.id, cl.url, cl.source, cl.status, s.canonical_name, cl.meta
             FROM candidate_links cl
             LEFT JOIN sources s ON cl.source_id = s.id
             WHERE cl.status = 'article'
@@ -1483,7 +1517,10 @@ def _process_batch(
             if processed >= per_batch:
                 break
 
-            url_id, url, source, status, canonical_name = row
+            # Six, not five. Unpacking is the guard: extraction builds
+            # its rows two ways, and a column added to one and not the
+            # other fails here loudly rather than silently going None.
+            url_id, url, source, status, canonical_name, link_meta = row
 
             # Extract domain for failure tracking
             from urllib.parse import urlparse
@@ -1800,6 +1837,42 @@ def _process_batch(
                             )
                             article_status = "extracted"
                             wire_service_info = None
+
+                    # A REVIEWER'S VERDICT DECIDES, WHERE THEY GAVE ONE
+                    #
+                    # The discovery queue asks a person "is this a story,
+                    # and what kind" before anything is fetched. Restoring
+                    # the URL used to be the whole of the answer that
+                    # survived: the type went into the console's own
+                    # records, the pipeline re-ran the classifier that had
+                    # misjudged the URL badly enough to put it in the
+                    # queue, and whatever it decided is what stuck. A
+                    # reviewer who said "opinion" watched the article land
+                    # in `labeled` and get enriched.
+                    #
+                    # Only for the types no enrichment stage selects --
+                    # obituary, opinion, weather. `news` and `column` are
+                    # the ordinary pipeline and decide nothing here, so
+                    # the detector's answer stands for them.
+                    #
+                    # Never over wire. Wire is settled by evidence in the
+                    # body -- a byline, a canonical pointing elsewhere --
+                    # which is exactly what the reviewer could not see
+                    # when they judged a bare URL.
+                    if article_status != "wire":
+                        from lnic_contracts import discovery_verdict
+
+                        verdict = _reviewers_verdict(link_meta)
+                        decided = discovery_verdict.status_for(verdict)
+                        if decided:
+                            logger.info(
+                                "Reviewer's verdict decides %s: %s (was %s)",
+                                url,
+                                decided,
+                                article_status,
+                            )
+                            article_status = decided
+                            metadata_value[discovery_verdict.METADATA_KEY] = verdict
 
                     now = datetime.utcnow()
                     content_text = content.get("content", "")

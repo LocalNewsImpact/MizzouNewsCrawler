@@ -60,8 +60,8 @@ def test_extraction_loop_resilience(
 
     # Define the rows for the main extraction query
     extraction_rows = [
-        (1, "http://example.com/1", "example.com", "article", "Example"),
-        (2, "http://example.com/2", "example.com", "article", "Example"),
+        (1, "http://example.com/1", "example.com", "article", "Example", None),
+        (2, "http://example.com/2", "example.com", "article", "Example", None),
     ]
 
     # Define a side effect to return appropriate results

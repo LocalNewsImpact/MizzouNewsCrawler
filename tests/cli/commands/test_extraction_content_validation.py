@@ -172,6 +172,7 @@ class TestContentValidationLogic:
                 "example.com",
                 "article",
                 "Example Site",
+                None,
             )
         ]
 
@@ -305,6 +306,7 @@ class TestContentValidationLogic:
                 "example.com",
                 "article",
                 "Example Site",
+                None,
             )
         ]
 
@@ -432,6 +434,7 @@ class TestContentValidationLogic:
                 "stltoday.com",
                 "article",
                 "STL Today",
+                None,
             )
         ]
 
@@ -568,6 +571,7 @@ class TestContentValidationLogic:
                 "example.com",
                 "article",
                 "Example Site",
+                None,
             )
         ]
 
@@ -690,6 +694,7 @@ class TestContentValidationLogic:
                 "example.com",
                 "article",
                 "Example",
+                None,
             )
         ]
 
@@ -970,6 +975,7 @@ class TestFurnitureShapeGate:
                 "example.com",
                 "article",
                 "Example Site",
+                None,
             )
         ]
 
