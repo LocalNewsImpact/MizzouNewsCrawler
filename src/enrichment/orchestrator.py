@@ -7,8 +7,8 @@ adapter: no database, no environment. Rules encoded here:
   discarded and the article retries whole (steps cost $0.0008; partial-resume
   bookkeeping is not worth its bugs).
 - Gate rejection is terminal and does not count as an attempt.
-- places runs for the point scopes, regional, and the two crossing scopes;
-  statewide and broader skip it. The exclusion is the cost model.
+- places runs for every article a profile asks it for. It is not gated on
+  scope: a story with local content is local whatever it is about.
 - Attempts exhaustion is decided here so the rule is testable: the caller
   passes the current attempt count.
 """
@@ -24,30 +24,39 @@ from src.enrichment.resolve import resolve_point
 from src.enrichment.types import ArticleInput, EnrichmentOutcome, StepResult
 
 POINT_SCOPES = frozenset({"city_municipality", "neighborhood_community"})
-# Place extraction also runs for regional: a regional story's geography is its
-# mentioned cities (each gets a per-place GEOID), though no single point is
-# resolved for it. Statewide and broader still skip extraction entirely.
+
+# PLACE EXTRACTION IS NO LONGER GATED ON SCOPE.
 #
-# It also runs for the two crossing scopes, which it did not until now.
-# `local_to_elsewhere` is a local outlet covering somewhere else and
-# `elsewhere_to_local` is an outside event reported for its effect here --
-# the two categories that are ABOUT the relationship between places, and
-# so the ones most certain to name a county other than the publisher's.
-# Skipping them was the one guaranteed way for a story to contribute
-# nothing to a map of where an outlet reports.
+# A story that names a local person, place or institution is a local
+# story, whatever it is ABOUT. It can be about an international topic and
+# still have a central point here, and that point has to be recorded.
 #
-# Measured on March 2026 in Audrain, Boone and Osage: 27 stories, every
-# one naming a codeable place in its headline alone -- "Bombers from
-# Whiteman Air Force Base used in attack on Iran" (Johnson County),
-# "security concerns for Jewish communities in Mid-Missouri". The step
-# was never attempted on any of them, and because it was never attempted
-# no `geo_skip_reason` was written either, so the rows looked like
-# failures rather than exclusions.
+# Scope answered a different question. Its prompt classifies "geographic
+# scope of impact -- who is affected", and says so: "Mention is not
+# impact." That is a reasonable thing to measure and the wrong gate for
+# geography, because it discards exactly the mentions this pipeline
+# exists to record.
 #
-# The cost is why they were out, and the cost is small: the two scopes
-# are 176 articles, 1.2% of everything scoped, against 48.8% for
-# city_municipality alone.
-PLACES_SCOPES = POINT_SCOPES | {"regional", "local_to_elsewhere", "elsewhere_to_local"}
+# Measured on March 2026:
+#
+#   "College student in Columbia speaks of her family still in Gaza"
+#       -> international, geography dropped
+#   "Demonstrators gather at Boone County Courthouse for No Kings"
+#       -> national, geography dropped, rationale: "a local protest that
+#          is part of a coordinated, nationwide movement"
+#   "Another 'No Kings' protest in Springfield"
+#       -> city_municipality, geography kept
+#
+# The last two are the same event in different towns. The rule is not
+# only wrong for our purpose, it is not applied consistently.
+#
+# `POINT_SCOPES` survives because it still decides something real: which
+# scopes get a single central point resolved. A statewide story has
+# mentions worth recording and no meaningful centre.
+#
+# The cost this gate bought was the scopes that now also extract:
+# statewide 13.6%, national 3.9%, other 3.4%, international 0.5% -- about
+# 21% more articles paying for one more step.
 
 # A gate verdict is an EXTRACTION finding, not a judgment that the article
 # does not exist. A paywall stub still carries a CIN label, a byline, and a
@@ -162,7 +171,7 @@ def enrich_article(
             return outcome("enrichment_skipped", f"scope_excluded_{scope_category}")
 
     # ---- steps 2–3: places and point resolution ------------------------------
-    if profile.places and scope_category in PLACES_SCOPES:
+    if profile.places:
         places = adapter.run_places(article, model)
         results.append(places)
         if not places.ok or places.payload is None:

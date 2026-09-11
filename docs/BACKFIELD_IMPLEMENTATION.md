@@ -258,7 +258,7 @@ The decision logic, still with no database and no CLI.
 - Full profile → `enriched`; empty → `enrichment_skipped` / `profile_none`
 - Gate rejection → `not_article` or `paywall`
 - Failure → `labeled`, attempts incremented; exhausted → `failed_max_attempts`
-- `regional`, `statewide`, `national`, `international`, `other` never reach places
+- every scope reaches places; a story with local content is local whatever it is about
 - Point resolution matches the four cases in §3
 - Invalid profiles rejected per §3's table
 
@@ -486,6 +486,53 @@ Keys verified against real node output on 2026-08-20.
 Payload fields not listed (`needs_review`, `review_*`, `nature_secondary_tags`,
 `geocode_hints`) are dropped, deliberately: they serve backfield's review UI,
 which is not deployed.
+
+### 5.4a Place extraction is not gated on scope
+
+Changed 2026-09-11. §5.2 gated place extraction on the scope
+classification, excluding `statewide`, `national`, `international` and
+`other`, and the exclusion was the cost model.
+
+**A story that names a local person, place or institution is a local
+story, whatever it is ABOUT.** It can be about an international topic and
+still have a central point here, and that point has to be recorded.
+
+Scope answers a different question. Its prompt classifies "the geographic
+scope of impact -- the primary level at which the story's events,
+decisions, or effects matter", and states the rule plainly: "Mention is
+not impact." That is a reasonable thing to measure, and the wrong gate
+for geography, because the mentions it discards are what this pipeline
+exists to record.
+
+It is also not applied consistently. Measured on March 2026:
+
+| story | scope | geography |
+|---|---|---|
+| College student in Columbia speaks of her family still in Gaza | `international` | dropped |
+| Demonstrators gather at Boone County Courthouse for No Kings | `national` | dropped |
+| Another "No Kings" protest in Springfield | `city_municipality` | kept |
+| Area residents say "No Kings" (Cassville) | `city_municipality` | kept |
+
+The last three are the same national protest movement in three Missouri
+towns. The model's own rationale for the Boone County one reads "a local
+protest that is part of a coordinated, nationwide movement" -- it
+identifies the local anchor and then classifies by the movement.
+
+`POINT_SCOPES` survives and still decides something real: which scopes
+get a single central point resolved. A statewide story has mentions worth
+recording and no meaningful centre.
+
+**Cost.** The scopes that now also extract are statewide 13.6%, national
+3.9%, other 3.4% and international 0.5% of everything scoped -- about 21%
+more articles paying for one more step.
+
+**`places` no longer requires `scope` in a profile.** That requirement
+existed to enforce this gate. Removing it makes a places-only profile
+legal, which is how geography can be re-derived without re-running the
+scope classification -- and scope is not stable enough to re-run
+casually: on 156 March articles re-enriched under an unchanged profile,
+22% landed in a different scope, at the same ~0.89 confidence as the ones
+that held.
 
 ### 5.4b Mention → GEOID, the FIPS ladder
 

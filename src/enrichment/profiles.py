@@ -168,10 +168,17 @@ def parse_profile(raw: dict | None) -> Profile:
         raise ConfigurationError(
             "geocode requires places: geocoding needs extracted places"
         )
-    if profile.places and not profile.scope:
-        raise ConfigurationError(
-            "places requires scope: the scope gate on 54% of articles is the cost model (§5.2)"
-        )
+    # `places` no longer requires `scope`. The gate it named is gone: a
+    # story with local content is local whatever it is about, so place
+    # extraction is not decided by the scope classification any more.
+    #
+    # Dropping the requirement is what makes a places-only profile legal,
+    # and that is the point. Re-running geography used to mean re-running
+    # scope as well, and scope is not stable: on 156 March articles
+    # re-enriched under an unchanged profile, 22% landed in a different
+    # scope, at the same ~0.89 confidence as the ones that held. A
+    # profile that asks only for places re-derives geography without
+    # putting a settled classification back in play.
     if profile.geocode:
         raise ConfigurationError(
             "geocode is not implemented in this phase: it requires a geocoder "
