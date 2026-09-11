@@ -131,42 +131,95 @@ three thousand URLs give 2,990 distinct margins across a range of -194 to
 So there is a usable ordering signal and no calibrated one. That is the
 opening.
 
-### Four improvements, cheapest first
+### What the upstream training looks like
 
-**1. Calibrate the margin.** The margin orders URLs; the scale means
-nothing. Fitting isotonic or Platt calibration against outcome labels
-turns it into a probability that can be reasoned about. No retraining, no
-fork of the package. This alone gives a meaningful confidence column in
-the discovery queue, a fetch queue that can be prioritised, and a
-threshold that can be set against cost.
+The repository is public and carries its notebooks and its labelled data,
+so none of this is guesswork.
 
-**2. Set the threshold to our cost asymmetry.** `guess()` decides at the
-model's default. A wasted fetch is cheap; a missed local story is the
-whole point of the project. Those are not symmetric and the current
-threshold does not know it. Calibration is what makes this choosable
-rather than guessed.
+- **2,838 usable labelled URLs** across 499 hosts, 41.8% of them stories.
+  Sampled in 2022 from a global mix -- Nikkei, Times of India, Stern,
+  Punjab Kesari, SF Chronicle. Broad, and almost nothing like a Missouri
+  weekly.
+- `CountVectorizer(min_df=0.1, max_df=0.9, ngram_range=(1,8),
+  analyzer="char")`. A character n-gram must appear in at least a tenth
+  of all documents to become a feature, which leaves about **180
+  features**.
+- `GaussianNB()` on those dense counts.
+- A random row-wise train/test split.
 
-**3. Retrain the same architecture on our corpus.** The shipped model is
-trained on general US news. This corpus is Missouri, Vermont and
-Washington community papers running BLOX, Newzware and PMP, whose URL
-conventions are specific and repetitive. The same pipeline shape retrained
-on outcome labels should beat it, and drops in as a `skops` file with no
-code change.
+Two of those look like mistakes and, tested, are not:
 
-**4. Give it the host.** Only the path is used, so the same path at two
-publishers scores identically. Publisher or CMS as a feature is a real
-gain, with the obvious hazard: a model that memorises publishers rather
-than learning URL shape. Held-out publishers, not just held-out URLs, is
-how that gets caught.
+- **GaussianNB on count features.** The textbook choice is multinomial.
+  Swapped, it is markedly worse here: f1 0.830 against 0.921. With only
+  180 dense features, Gaussian is the right call and the aggressive
+  `min_df` is what makes it one.
+- **A row-wise split across 499 hosts** puts the same publisher on both
+  sides, which should flatter the score. Splitting by host instead, it
+  goes *up* -- 0.934 against 0.921. The model is not memorising
+  publishers.
+
+Both were worth testing rather than asserting. Neither is the problem.
+
+### The problem is the confidence, and it is fixable
+
+`score_margin` computes a log-space margin because `predict_proba`
+saturates. Measured on eight host-grouped splits of the upstream data,
+that saturation is **97.6%** of predictions at exactly 0 or 1. The
+margin hack exists because of it.
+
+Keep the features and change the classifier, and it goes away:
+
+| | f1 | AUC | saturated | Brier |
+| --- | --- | --- | --- | --- |
+| GaussianNB, `min_df=0.1` (shipped) | 0.898 ±0.024 | 0.956 ±0.012 | 97.6% | 0.085 |
+| LogisticRegression, `min_df=3` | 0.898 ±0.034 | 0.977 ±0.006 | 3.1% | 0.069 |
+
+Eight host-grouped splits, mean and standard deviation. Identical
+classification accuracy. Better ranking on **8 splits out of 8**, and a
+better Brier score on 6 of 8.
+
+That is the whole finding. The shipped model is not less accurate; it is
+unable to say how sure it is, and that is the one thing this project
+needs from it. A calibrated probability makes the discovery queue's
+confidence column mean something, lets the fetch queue be ordered by
+expected value, and lets the accept threshold be set against a cost
+asymmetry rather than left at the default.
+
+It also removes two workarounds rather than adding a layer: the log-space
+margin in `score_margin`, and the post-hoc calibration that would
+otherwise be needed.
+
+### What to do, in order
+
+**1. Change the classifier, not the features.** Logistic regression over
+`min_df=3` character n-grams. Same accuracy, usable probabilities. This
+is a change to the training notebook, not to the corpus.
+
+**2. Set the threshold to our cost asymmetry.** A wasted fetch is cheap;
+a missed local story is the point of the project. Only possible once (1)
+gives a probability to threshold.
+
+**3. Retrain on our corpus.** 2,838 globally-sampled URLs is a small set,
+and community papers running BLOX, Newzware and PMP are exactly what it
+does not contain. Our outcome labels are the contribution -- the same
+architecture retrained on them should beat a general model on our URLs,
+and drops in as a `skops` file with no code change.
+
+**4. Consider the host as a feature.** Only the path is used, so the same
+path at two publishers scores identically. Worth testing, with the hazard
+in mind: the grouped split above shows no memorisation today, and adding
+the host is exactly the change that could introduce it. Any test of it is
+grouped by host or it is meaningless.
 
 ### Contributing upstream
 
-`storysniffer` is a general-purpose package and (1) is useful to everyone
-using it. `guess()` returning only a boolean is the limitation; a
-`score()` returning the log-space margin, with the saturation documented,
-is a small and self-contained pull request. Worth offering rather than
-carrying a private fork -- and the calibration, which is corpus-specific,
-stays here.
+(1) is a general improvement, not a local preference -- the evidence is
+from upstream's own data and notebook, and it costs them nothing in
+accuracy. A pull request changing the classifier and exposing a `score()`
+alongside `guess()` would let every user of the package have a confidence
+signal, and would retire our margin workaround rather than entrench it.
+
+The retrained weights from (3) are corpus-specific and stay here.
 
 ## Order of work
 
