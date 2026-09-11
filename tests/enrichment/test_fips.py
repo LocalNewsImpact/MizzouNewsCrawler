@@ -649,3 +649,71 @@ def test_the_state_in_the_key_is_what_makes_aliasing_safe():
 
     assert place_geoid("Lexington", "MO").geoid == "2941870"
     assert place_geoid("Lexington", "KY").geoid != place_geoid("Lexington", "MO").geoid
+
+
+# --- geography a person puts in ----------------------------------------------
+
+
+def test_a_human_contribution_is_read_on_every_persist():
+    """It is rebuilt into the geoid set, never left to survive in it.
+
+    `persist_outcome` deletes and rewrites an article's geoid set on
+    every enrichment run, so a human row kept only there is destroyed by
+    the next re-enrichment -- including one that produces worse geography
+    than the person did. Reading the durable table each time is what
+    makes the contribution outlast the runs.
+    """
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    src = (root / "src/enrichment/repository.py").read_text()
+    assert "def manual_geoids(" in src
+    assert "FROM article_places_manual" in src
+    # Read at persist time, after the extracted set is built.
+    assert src.index("manual_geoids(session, article.id)") > src.index(
+        "story_geoids = build_story_geoids("
+    )
+
+
+def test_a_human_contribution_says_it_is_one():
+    """Used identically, marked plainly.
+
+    Every consumer reads it in the same shape as an extracted place, on
+    the same ladder. `source` is what lets an analysis that wants to tell
+    them apart still do it -- the column already distinguishes `point`,
+    `mention`, `scope_state` and `county_rollup`.
+    """
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    src = (root / "src/enrichment/repository.py").read_text()
+    block = src.split("manual_geoids(session, article.id)")[1].split("\n\n")[0]
+    assert '"human"' in block
+
+
+def test_a_place_the_pipeline_already_found_is_not_doubled():
+    """Both stand where both exist, but one row per code: the set is a
+    distinct set of geoids, and a person naming a place the extractor
+    also found is agreement, not a second place."""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    src = (root / "src/enrichment/repository.py").read_text()
+    block = src.split("manual_geoids(session, article.id)")[1].split("\n\n")[0]
+    assert "if code in claimed:" in block
+    assert "continue" in block
+
+
+def test_the_manual_table_allows_one_centre_per_article():
+    """A story has one centre by definition. Two rows claiming it is a
+    contradiction rather than a disagreement worth keeping."""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    migration = next(
+        (root / "alembic/versions").glob("*geography_a_person_puts_in.py")
+    ).read_text()
+    assert "uq_manual_one_point_per_article" in migration
+    assert 'postgresql_where=sa.text("is_point")' in migration
+    # And the same place entered twice is a duplicate, not two mentions.
+    assert "uq_manual_place_per_article" in migration

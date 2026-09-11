@@ -258,6 +258,26 @@ def _geoid_for(places_payload: dict, point):
     )
 
 
+def manual_geoids(session, article_id) -> list[tuple[str, str, bool]]:
+    """(geoid, level, is_point) a person contributed for this article.
+
+    Read on every persist rather than trusted to survive one: the geoid
+    set is DELETEd and rewritten each run, so a human row kept only there
+    would be destroyed by the next re-enrichment -- including one that
+    produced worse geography than the person did.
+
+    See docs/MANUAL_GEOGRAPHY.md.
+    """
+    rows = session.execute(
+        text(
+            "SELECT geoid, geoid_level, is_point FROM article_places_manual "
+            "WHERE article_id = :id AND geoid IS NOT NULL"
+        ),
+        {"id": article_id},
+    ).fetchall()
+    return [(r[0], r[1] or "place", bool(r[2])) for r in rows]
+
+
 def build_story_geoids(
     point_geoid,  # GeoidResult | None
     place_rows: list[tuple[str | None, str | None]],  # (geoid, level) per mention
@@ -719,6 +739,25 @@ def persist_outcome(
         point_place_name=point[0] if point else None,
         place_row_names=mention_names,
     )
+    # WHAT A PERSON PUT IN.
+    #
+    # Rebuilt into the set rather than left to survive in it, because the
+    # set is deleted and rewritten on every run. `source = 'human'` is
+    # what keeps this honest: every consumer -- the story map, the
+    # BigQuery export, any query against article_geoids -- reads a human
+    # contribution in exactly the same shape as an extracted one, on the
+    # same ladder, resolved by the same crosswalk, and an analysis that
+    # wants to tell them apart still can.
+    #
+    # Neither outranks the other. Where the pipeline also found the
+    # place, both rows stand: one is what was extracted and one is what a
+    # person said, and neither is evidence the other is wrong.
+    claimed = {g for g, _lvl, _p, _src in story_geoids}
+    for code, level, is_point in manual_geoids(session, article.id):
+        if code in claimed:
+            continue
+        story_geoids.append((code, level, is_point and geoid is None, "human"))
+        claimed.add(code)
     # Two columns (decided 2026-08-21): point_geoid is the central-location
     # claim; the flat geoids column carries ONLY the mentioned FIPS — the
     # claim is never repeated there. article_geoids keeps the superset with
