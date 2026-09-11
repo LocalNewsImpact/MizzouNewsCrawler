@@ -7,8 +7,8 @@ adapter: no database, no environment. Rules encoded here:
   discarded and the article retries whole (steps cost $0.0008; partial-resume
   bookkeeping is not worth its bugs).
 - Gate rejection is terminal and does not count as an attempt.
-- places never runs without a point-level scope: the 54% exclusion is the cost
-  model.
+- places runs for the point scopes, regional, and the two crossing scopes;
+  statewide and broader skip it. The exclusion is the cost model.
 - Attempts exhaustion is decided here so the rule is testable: the caller
   passes the current attempt count.
 """
@@ -27,7 +27,27 @@ POINT_SCOPES = frozenset({"city_municipality", "neighborhood_community"})
 # Place extraction also runs for regional: a regional story's geography is its
 # mentioned cities (each gets a per-place GEOID), though no single point is
 # resolved for it. Statewide and broader still skip extraction entirely.
-PLACES_SCOPES = POINT_SCOPES | {"regional"}
+#
+# It also runs for the two crossing scopes, which it did not until now.
+# `local_to_elsewhere` is a local outlet covering somewhere else and
+# `elsewhere_to_local` is an outside event reported for its effect here --
+# the two categories that are ABOUT the relationship between places, and
+# so the ones most certain to name a county other than the publisher's.
+# Skipping them was the one guaranteed way for a story to contribute
+# nothing to a map of where an outlet reports.
+#
+# Measured on March 2026 in Audrain, Boone and Osage: 27 stories, every
+# one naming a codeable place in its headline alone -- "Bombers from
+# Whiteman Air Force Base used in attack on Iran" (Johnson County),
+# "security concerns for Jewish communities in Mid-Missouri". The step
+# was never attempted on any of them, and because it was never attempted
+# no `geo_skip_reason` was written either, so the rows looked like
+# failures rather than exclusions.
+#
+# The cost is why they were out, and the cost is small: the two scopes
+# are 176 articles, 1.2% of everything scoped, against 48.8% for
+# city_municipality alone.
+PLACES_SCOPES = POINT_SCOPES | {"regional", "local_to_elsewhere", "elsewhere_to_local"}
 
 # A gate verdict is an EXTRACTION finding, not a judgment that the article
 # does not exist. A paywall stub still carries a CIN label, a byline, and a

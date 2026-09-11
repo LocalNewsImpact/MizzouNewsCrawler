@@ -25,6 +25,8 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
+from lnic_contracts.geography import county_for_place
+
 from src.enrichment.resolve import norm
 
 # `reference/` rather than `data/`: .gitignore excludes every directory named
@@ -247,6 +249,26 @@ def county_geoid(county: str, state: str) -> GeoidResult | None:
     if hit is None:
         return None
     return GeoidResult(hit[0], "county", hit[1], hit[2])
+
+
+# Which county a place is in is a shared contract, not a local helper.
+# The rule -- primary county wins, span returned alongside -- and the
+# crosswalk it reads both live in `lnic_contracts.geography`, because the
+# review console answers the same question and two implementations of one
+# judgement call is how two services come to disagree about which county
+# a town is in.
+#
+# Re-exported under the name this module already used so callers here
+# read the ladder in one place: state, county, place, tract, block, and
+# the one rung that needs a table.
+def county_of_place(place: str) -> tuple[str, int] | None:
+    """The county a place sits in, and how many counties it spans.
+
+    `None` where the place is not in the crosswalk -- a gap, never a
+    guess. See `lnic_contracts.geography` for the rule and why.
+    """
+    county, span = county_for_place(place)
+    return (county, span) if county else None
 
 
 def state_geoid(state: str) -> GeoidResult | None:
