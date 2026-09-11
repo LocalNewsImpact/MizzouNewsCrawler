@@ -188,6 +188,7 @@ from decimal import Decimal  # noqa: E402
 
 from src.enrichment.profiles import Profile  # noqa: E402
 from src.enrichment.repository import (  # noqa: E402
+    apply_manual_geography,
     persist_outcome,
     select_by_ids,
     select_candidates,
@@ -396,6 +397,8 @@ class TestRepository:
                 "article_organizations",
                 "article_people",
                 "article_places",
+                "article_places_manual",
+                "article_geoids",
                 "article_enrichment",
             ):
                 s.execute(sa.text(f"DELETE FROM {table}"))
@@ -406,6 +409,124 @@ class TestRepository:
             s.execute(sa.text("DELETE FROM datasets WHERE id='ds1'"))
             s.commit()
         engine.dispose()
+
+    # --- geography a person put in, and the road to BigQuery ------------
+
+    def _contribute(self, s, article_id, rows):
+        for full_name, geoid, is_point in rows:
+            s.execute(
+                sa.text(
+                    "INSERT INTO article_places_manual "
+                    "(article_id, full_name, city, state, geoid, geoid_level, "
+                    " is_point, added_by) VALUES "
+                    "(:a, :n, :n, 'MO', :g, 'place', :p, 'someone@example.org')"
+                ),
+                {"a": article_id, "n": full_name, "g": geoid, "p": is_point},
+            )
+        s.commit()
+
+    def test_a_contribution_reaches_the_table_bigquery_reads(self, db):
+        """`article_geoids` is what BigQuery reads -- the scheduled query
+        "Sync Article Geoids from Cloud SQL" is `SELECT * FROM
+        article_geoids`, daily, with no filter of its own. A contribution
+        that does not land here does not reach BigQuery."""
+        with db() as s:
+            article_id = s.execute(
+                sa.text("SELECT id FROM articles LIMIT 1")
+            ).scalar_one()
+            self._contribute(
+                s,
+                article_id,
+                [("Linn", "2943238", True), ("Westphalia", "2978910", False)],
+            )
+            result = apply_manual_geography(s)
+            assert result["contributions"] == 2
+            assert result["written"] == 2
+
+        with db() as s:
+            rows = s.execute(
+                sa.text(
+                    "SELECT geoid, is_primary, source FROM article_geoids "
+                    "WHERE article_id=:a ORDER BY geoid"
+                ),
+                {"a": article_id},
+            ).fetchall()
+        assert [(r.geoid, r.is_primary, r.source) for r in rows] == [
+            ("2943238", True, "human"),
+            ("2978910", False, "human"),
+        ]
+
+    def test_it_does_not_need_the_article_to_be_labeled(self, db):
+        """The whole point. `persist_outcome` is the only other route to
+        a human row, and it is reachable only through `select_by_ids`,
+        which rejects anything whose status is not 'labeled'. The review
+        queue exists for articles enrichment has already FINISHED with --
+        0 of the 1,266 March articles it offers are 'labeled' -- so that
+        route could never have carried one."""
+        with db() as s:
+            article_id = s.execute(
+                sa.text("SELECT id FROM articles LIMIT 1")
+            ).scalar_one()
+            s.execute(
+                sa.text("UPDATE articles SET status='enrichment_skipped' WHERE id=:a"),
+                {"a": article_id},
+            )
+            self._contribute(s, article_id, [("Linn", "2943238", True)])
+            assert apply_manual_geography(s)["written"] == 1
+
+        # And `select_by_ids` still refuses it, which is why this exists.
+        with db() as s:
+            report = select_by_ids(s, [article_id], 3)
+            assert report.candidates == []
+            assert "enrichment_skipped" in report.rejected[article_id]
+
+    def test_running_it_twice_writes_nothing_the_second_time(self, db):
+        """Additive and idempotent: it runs on a schedule beside a queue
+        people are still working, so it meets rows it has already seen."""
+        with db() as s:
+            article_id = s.execute(
+                sa.text("SELECT id FROM articles LIMIT 1")
+            ).scalar_one()
+            self._contribute(s, article_id, [("Linn", "2943238", True)])
+            assert apply_manual_geography(s)["written"] == 1
+            assert apply_manual_geography(s)["written"] == 0
+
+    def test_it_never_removes_what_enrichment_wrote(self, db):
+        """`persist_outcome` DELETEs an article's geoid set and rewrites
+        it. This runs outside enrichment and must not: a merge that
+        cleared the set would destroy the pipeline's own geography every
+        time somebody added a mention."""
+        with db() as s:
+            article_id = s.execute(
+                sa.text("SELECT id FROM articles LIMIT 1")
+            ).scalar_one()
+            s.execute(
+                sa.text(
+                    "INSERT INTO article_geoids "
+                    "(article_id, geoid, geoid_level, is_primary, source) "
+                    "VALUES (:a, '29019', 'county', true, 'point')"
+                ),
+                {"a": article_id},
+            )
+            s.commit()
+            self._contribute(s, article_id, [("Linn", "2943238", True)])
+            apply_manual_geography(s)
+
+        with db() as s:
+            rows = s.execute(
+                sa.text(
+                    "SELECT geoid, is_primary, source FROM article_geoids "
+                    "WHERE article_id=:a ORDER BY geoid"
+                ),
+                {"a": article_id},
+            ).fetchall()
+        # The pipeline's row is untouched and keeps the primary claim;
+        # the human centre stands beside it as a non-primary row, because
+        # two primaries for one article is a contradiction.
+        assert [(r.geoid, r.is_primary, r.source) for r in rows] == [
+            ("29019", True, "point"),
+            ("2943238", False, "human"),
+        ]
 
     def test_writes_all_four_tables_and_flips_status(self, db):
         with db() as s:

@@ -85,12 +85,47 @@ So the contribution lives in its own table, and the geoid set is
 `build_story_geoids` reads it alongside the extracted places and emits
 those rows into `article_geoids` with `source = 'human'`.
 
+## Two consumers, two paths — and neither was free
+
+The first cut of this claimed that writing to `article_geoids` was
+enough because every consumer reads it. **That was wrong**, and it is
+recorded here because it is the kind of wrong that looks finished: the
+row was written, the audit entry was made, and nothing drew it.
+
+**The story map does not read `article_geoids`.** `run_story_map` draws
+its dots from `article_enrichment.point_lat` / `point_lon` and shades
+its counties from `article_enrichment.geoids`. The datadesk console
+therefore reads `article_places_manual` directly and merges it into both
+layers — a human centre becomes a dot with coordinates from the Census
+internal point for its geoid, and every manual row shades its county.
+
+**BigQuery does read `article_geoids`**, and nothing else. The scheduled
+query "Sync Article Geoids from Cloud SQL" is `SELECT * FROM
+article_geoids`, daily at 07:00 UTC, with no filter of its own.
+
+**The merge in `persist_outcome` cannot reach these articles.** It is
+the only other caller of `manual_geoids()`, and the only route to it is
+`select_by_ids`, which rejects anything whose `status != 'labeled'`. Of
+the 1,266 March articles the review queue offers, **zero** are `labeled`
+— 850 `enrichment_skipped`, 157 `not_article`, 150 `enriched`, 65
+`cleaned`, 44 other — because the queue exists precisely for articles
+enrichment has already finished with.
+
+So there is a third path, `enrich apply-manual`:
+
+    enrich apply-manual [--dataset SLUG] [--since YYYY-MM-DD] [--dry-run]
+
+It inserts the contribution into `article_geoids` with `source =
+'human'`, additively and idempotently — `ON CONFLICT DO NOTHING`, never
+the DELETE-and-rewrite `persist_outcome` does, because it runs outside
+enrichment and must not touch what enrichment wrote. **It must run
+before 07:00 UTC** for a contribution to appear in that day's BigQuery
+sync.
+
 ## Used identically, marked plainly
 
-Every consumer — the story map, the BigQuery export, any query against
-`article_geoids` — sees a human contribution in exactly the same shape as
-an extracted one, on the same ladder, resolved by the same crosswalk. No
-consumer needs to know, and none has to be changed.
+Every consumer sees a human contribution in exactly the same shape as an
+extracted one, on the same ladder, resolved by the same crosswalk.
 
 `source` is what keeps it honest. The column already distinguishes
 `point`, `mention`, `scope_state` and `county_rollup`; `human` joins

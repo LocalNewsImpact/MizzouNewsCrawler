@@ -67,6 +67,19 @@ def add_enrichment_parser(subparsers):
     status = actions.add_parser("status", help="Candidate and outcome counts")
     status.add_argument("--dataset", default=None)
 
+    # Geography a person contributed, into the table BigQuery reads.
+    # Separate from every other verb here because it calls no model and
+    # spends nothing: it moves rows that already exist.
+    manual = actions.add_parser(
+        "apply-manual",
+        help="Put reviewed geography into article_geoids (and so BigQuery)",
+    )
+    manual.add_argument("--dataset", default=None)
+    manual.add_argument(
+        "--since", help="Only articles published on or after this date (YYYY-MM-DD)"
+    )
+    manual.add_argument("--dry-run", action="store_true")
+
     reprocess = actions.add_parser(
         "reprocess", help="Re-enrich under a newer profile version"
     )
@@ -153,6 +166,23 @@ def handle_enrichment_command(args) -> int:
 
     try:
         with db.get_session() as session:
+            if action == "apply-manual":
+                from src.enrichment.repository import apply_manual_geography
+
+                result = apply_manual_geography(
+                    session,
+                    dataset=args.dataset,
+                    since=getattr(args, "since", None),
+                    dry_run=args.dry_run,
+                )
+                print(
+                    f"contributions: {result['contributions']}  "
+                    f"articles: {result['articles']}  "
+                    f"written: {result['written']}"
+                    + ("  (dry run)" if args.dry_run else "")
+                )
+                return 0
+
             if action == "status":
                 where = "AND d.slug = :slug" if args.dataset else ""
                 rows = session.execute(
