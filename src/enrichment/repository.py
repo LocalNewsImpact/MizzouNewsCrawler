@@ -585,11 +585,24 @@ def persist_outcome(
                 state = state.get("abbr") or state.get("name")
             city = components.get("city")
             row_state = state or article.publication_state
+            # The ladder, deepest rung first (§5.4b). The state rung was
+            # missing: a mention whose type is `state` carries no city
+            # and no county, so neither branch below fired and the row
+            # resolved to nothing -- while `state_geoid("MO")` returns 29
+            # and was simply never called. "Missouri" and "Illinois" were
+            # extracted, recorded, and dropped.
+            #
+            # Nothing beneath a state is a gap rather than a failure: a
+            # river, a mountain range, a region, a foreign city are real
+            # geography with no Census code at the rung they name. The
+            # place row still carries the name and the mention text.
             row_geoid = None
             if city and row_state:
                 row_geoid = place_geoid(city, row_state)
             if row_geoid is None and components.get("county") and row_state:
                 row_geoid = county_geoid(components["county"], row_state)
+            if row_geoid is None and row_state and not city:
+                row_geoid = state_geoid(row_state)
             session.execute(
                 text("""
                     INSERT INTO article_places
@@ -725,9 +738,27 @@ def persist_outcome(
             {"a": article.id, "g": g_code, "l": g_level, "p": g_primary, "s": g_source},
         )
 
+    # A SKIP REASON MUST AGREE WITH WHAT WAS WRITTEN (§5.4b).
+    #
+    # `regional_uses_place_set` asserts a story's geography lives in its
+    # place set rather than in a point. Chosen up at the point-resolution
+    # step, which is 200 lines before the set exists, so it was asserted
+    # for six March stories whose set came out EMPTY -- four having
+    # extracted real places that failed to resolve, two having extracted
+    # none at all. From the outside those were indistinguishable from a
+    # working regional story, which is why they had to be found by
+    # querying the database rather than by reading a status.
+    #
+    # Now that the set is known, the reason says which happened.
+    if not mention_set and geo_skip_reason == "regional_uses_place_set":
+        geo_skip_reason = "places_unresolved" if mention_geoids else "no_places_found"
+
     session.execute(
-        text("UPDATE article_enrichment SET geoids = :g WHERE article_id = :id"),
-        {"g": geoids_json, "id": article.id},
+        text(
+            "UPDATE article_enrichment SET geoids = :g, geo_skip_reason = :r "
+            "WHERE article_id = :id"
+        ),
+        {"g": geoids_json, "r": geo_skip_reason, "id": article.id},
     )
 
     session.execute(
