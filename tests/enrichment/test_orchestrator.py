@@ -249,21 +249,38 @@ class TestScopeGating:
         assert "places" in stub.calls
 
     @pytest.mark.parametrize(
-        "scope_value",
-        [
-            "statewide",
-            "national",
-            "international",
-            "other",
-            "elsewhere_to_local",
-            "local_to_elsewhere",
-        ],
+        "scope_value", ["statewide", "national", "international", "other"]
     )
     def test_non_places_scopes_never_reach_places(self, scope_value):
+        """A statewide story's geography is the state, and a national
+        one's is not codeable to a county. Extracting places from them
+        buys nothing and is where the cost model comes from."""
         result, stub = run(FULL, scope=ok("scope", meta(scope_value)))
         assert result.status == "enriched"
         assert "places" not in stub.calls
         assert "places" not in result.steps_applied
+
+    @pytest.mark.parametrize(
+        "scope_value", ["elsewhere_to_local", "local_to_elsewhere"]
+    )
+    def test_the_crossing_scopes_reach_places(self, scope_value):
+        """These two are ABOUT the relationship between places -- a local
+        outlet covering somewhere else, and an outside event reported for
+        its effect here -- so they are the stories most certain to name a
+        county other than the publisher's.
+
+        They were excluded on cost, which made them the one category
+        guaranteed to contribute nothing to a map of where an outlet
+        reports. Measured on March 2026 in Audrain, Boone and Osage: 27
+        stories, every one naming a codeable place in its headline alone.
+        "Bombers from Whiteman Air Force Base used in attack on Iran" is
+        Johnson County, and recorded no geography at all.
+
+        The cost that excluded them is 1.2% of everything scoped.
+        """
+        result, stub = run(FULL, scope=ok("scope", meta(scope_value)))
+        assert "places" in stub.calls
+        assert "places" in result.steps_applied
 
     @pytest.mark.parametrize(
         "scope_value", ["city_municipality", "neighborhood_community"]
