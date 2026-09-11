@@ -103,6 +103,45 @@ silently mixing two things it thinks are one.
 county. A reviewer never types a FIPS, and a human entry cannot land on a
 rung the pipeline could not have reached.
 
+## What a reviewer may type, and what is offered back
+
+A typed place name is worth nothing until it resolves, and a name that
+resolves to the wrong place is worse than one that does not resolve at
+all. So the queue does not take free text and hope.
+
+**Suggestions come from the table the writer resolves against.** If the
+console offered names from its own copy of the gazetteer while the
+crawler resolved against another, a reviewer could pick a suggestion that
+then failed, with no way to understand why. Both read
+`lnic_contracts.geography`, so what is offered is what will resolve, by
+construction rather than by both being careful.
+
+**Same state first, never only.** Suggestions rank the publisher's own
+state at the top and still offer everywhere else below.
+
+Ranking catches the error the pipeline actually made. A story about the
+sewer trustees of Freeburg -- a village in Osage County, Missouri -- was
+extracted as `Freeburg, IL`. Illinois genuinely has a Freeburg, the
+lookup succeeded, and the story shaded a county three hundred miles away.
+Nothing downstream could catch it, because the answer was internally
+valid. A reviewer typing `Freeburg` while working a Missouri outlet is
+offered Missouri's first, and cannot make that mistake by accident.
+
+Filtering would be wrong, and this corpus proves it: Whiteman Air Force
+Base, Nashville, Wichita State, the University of Pittsburgh and Seattle
+are all places Missouri outlets genuinely covered in one month. A
+Missouri-only list would make real coverage unenterable, which is how a
+queue teaches people to work around it.
+
+**Typos are offered corrections, not rejections.** `suggest_places` and
+`suggest_counties` return close names for a value that did not match --
+the same `difflib` pass the county normalization already uses.
+
+**A reviewer never types a FIPS.** They write a name; the contract
+resolves it. A human entry cannot land on a rung the pipeline could not
+have reached, and the stored row keeps what was typed beside the code it
+resolved to, so a wrong resolution can be told from a wrong entry.
+
 ## Precedence
 
 Enrichment outranks nothing and is outranked by nothing — they coexist.
