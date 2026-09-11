@@ -487,6 +487,83 @@ Payload fields not listed (`needs_review`, `review_*`, `nature_secondary_tags`,
 `geocode_hints`) are dropped, deliberately: they serve backfield's review UI,
 which is not deployed.
 
+### 5.4b Mention → GEOID, the FIPS ladder
+
+Added 2026-09-11. §5.4 above maps an extracted location onto
+`article_places` columns and stops; §5.5 resolves a single central point
+and takes its coordinates from GNIS. Neither says how a *mention*
+becomes a Census GEOID, and the ladder was built (2026-08-21) against a
+write path this document had already frozen. Every geography fault found
+since has lived in that gap, so the rule is written down here.
+
+**The ladder.** The deepest available code, one rung per location:
+
+    state (2) → county (5) → place (7) → tract (11) / block (15)
+
+Every rung except one is readable from the code itself: a county GEOID
+begins with its state, a tract and a block begin with their county. A
+place is the exception -- `2938000` says state 29 and place 38000 and
+nothing about which county that is -- so its county comes from the
+crosswalk in `lnic_contracts.geography`, never from the digits.
+
+**Which mention resolves to which rung.** Driven by what
+`place_extract` returned in `components`, deepest first:
+
+| the mention has | resolves to | by |
+|---|---|---|
+| city + state | place | `place_geoid` |
+| county + state | county | `county_geoid` |
+| state only | state | `state_geoid` |
+| none of those | nothing | see below |
+
+The third row was missing. The write path tried city, then county, and
+had no branch for a mention whose type is `state`, so "Missouri" and
+"Illinois" were extracted, recorded in `article_places`, and dropped --
+while `state_geoid("MO")` returns `29` correctly and was simply never
+called.
+
+**What cannot resolve, and must say so.** Some mentions are real
+geography with no Census code at the rung they name: a river, a mountain
+range, a region ("the Midwest"), a foreign city. These are not failures
+and must not be silently dropped. The place row stays, carrying the name
+and the mention text, and contributes no GEOID.
+
+**Consolidated city-counties are a known miss.** The gazetteer holds the
+legal Census name, which for a consolidated government is not the name
+anybody writes:
+
+    KY  Lexington-Fayette urban county
+    TN  Nashville-Davidson metropolitan government (balance)
+    MO  Columbia city
+
+`_strip_suffix` removes the LSAD descriptor, so the first becomes
+`Lexington-Fayette` and a lookup for `Lexington` misses. This affects
+every consolidated city-county -- Louisville, Indianapolis, Jacksonville,
+Athens, Augusta. Not yet implemented: matching the leading segment risks
+false positives (`Lexington` in Missouri is a different place), so it
+needs a rule narrower than "split on the hyphen".
+
+**A skip reason must agree with what was written.** This is the rule
+that would have made the rest visible without a database query.
+
+`geo_skip_reason = "regional_uses_place_set"` asserts that a story's
+geography lives in its place set rather than in a point. Writing that
+beside an EMPTY place set asserts something untrue, and six March stories
+did exactly that -- four having extracted real places that failed to
+resolve, two having extracted none. From the outside they were
+indistinguishable from a working regional story.
+
+So where the set comes out empty, the reason names which happened:
+
+| situation | reason |
+|---|---|
+| places extracted, none resolved | `places_unresolved` |
+| no places extracted | `no_places_found` |
+| resolved, geography is the set | `regional_uses_place_set` |
+
+A reason that claims a set which is not there is a bug, and it is worth
+asserting in a test rather than trusting the write path to stay honest.
+
 ### 5.5 Point resolution
 
 ```

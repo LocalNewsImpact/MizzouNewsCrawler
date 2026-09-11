@@ -545,3 +545,62 @@ def test_a_rolled_up_county_obeys_the_ancestor_rule():
         None, [("2938000", "place"), ("29095001100", "tract")], None, None
     )
     assert not [g for g, lvl, _p, src in out if src == "county_rollup"]
+
+
+# --- the ladder, §5.4b -------------------------------------------------------
+
+
+def test_a_state_mention_resolves_to_the_state():
+    """The ladder's third rung was missing. A mention whose type is
+    `state` carries no city and no county, so the city branch and the
+    county branch both passed it over and it resolved to nothing --
+    while `state_geoid` returns the code correctly and was never called.
+
+    Measured in March: "Missouri" and "Illinois" were extracted from a
+    Columbia Missourian story about the Mississippi and Missouri rivers,
+    recorded in `article_places`, and dropped.
+    """
+    from src.enrichment.fips import state_geoid
+
+    assert state_geoid("MO").geoid == "29"
+    assert state_geoid("IL").geoid == "17"
+
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    src = (root / "src/enrichment/repository.py").read_text()
+    assert "row_geoid = state_geoid(row_state)" in src, "the state rung is missing"
+
+
+def test_a_river_is_a_gap_and_not_a_failure():
+    """Some mentions are real geography with no Census code at the rung
+    they name -- a river, a mountain range, a region, a foreign city.
+    The place row keeps the name and the mention text and contributes no
+    GEOID. Nothing is invented for it."""
+    from src.enrichment.fips import county_geoid, place_geoid
+
+    assert place_geoid("Mississippi River", "MO") is None
+    assert county_geoid("Mississippi River", "MO") is None
+
+
+def test_an_empty_place_set_does_not_claim_to_be_one():
+    """`regional_uses_place_set` asserts the geography lives in the place
+    set. Written beside an EMPTY set it asserts something untrue, and six
+    March stories did exactly that -- four having extracted real places
+    that failed to resolve, two having extracted none.
+
+    From the outside they looked like working regional stories, which is
+    why they had to be found by querying the database instead of by
+    reading a status.
+    """
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    src = (root / "src/enrichment/repository.py").read_text()
+    assert 'geo_skip_reason == "regional_uses_place_set"' in src
+    # Which of the two happened, named apart.
+    assert '"places_unresolved" if mention_geoids else "no_places_found"' in src
+    # And corrected where the set is known, not where the reason is guessed.
+    assert src.index("if not mention_set and geo_skip_reason") > src.index(
+        "mention_set = [g for g"
+    )
