@@ -11,26 +11,134 @@ them needs anybody to read an article and decide.
 
 ## Three kinds of task
 
-### Outcome-labelled: storysniffer
+### Outcome-labelled, but only on one side: storysniffer
 
-The label already exists, downstream of the prediction.
+Storysniffer guesses whether a URL is a story *before* the fetch, and
+extraction then finds out. A URL that came back a real article is a
+positive. The pipeline mints that continuously and nobody reads anything.
 
-Storysniffer guesses whether a URL is a story *before* the fetch.
-Extraction then finds out. A URL that came back a real article is a
-positive; a 404, a feed, a search page, a section index is a negative.
-The pipeline mints this ground truth continuously and nobody reads
-anything.
+It does not mint the other half, and the reason is structural rather than
+a shortage. **A rejected URL is never fetched, so nobody ever learns
+whether it was a story.** Outcomes exist only for URLs the model already
+accepted. The cases where its judgement actually matters are exactly the
+ones with no label.
 
-**No labelling interface. A harvest query, a retraining job, and one
-screen where a person promotes a model or does not.**
+Measured on March 2026, Missouri State News Sources, 50,091 URLs
+discovered in the month:
 
-One trap, and it is the obvious query. `candidate_links.status` has two
-writers: a pre-extraction URL rule, which is storysniffer's own decision,
-and a post-extraction content rule, which is the outcome. Harvesting that
-column without separating them trains the model on its own predictions.
-It will score extremely well and have learned nothing.
-`extraction_telemetry_v2` is what tells the two apart, so the harvest
-joins through it.
+| | count |
+| --- | ---: |
+| Positive -- fetched, was a story | 34,391 |
+| Negative -- fetched, was not | 498 |
+| Unlabelled -- rejected on the URL rule, never fetched | 4,232 |
+| Unlabelled -- never fetched, other reasons | 10,938 |
+
+Sixty-nine positives per negative, and 426 of those 498 negatives are
+`404` -- dead links, not "this URL was never a story". Trained on this
+alone a model learns to say yes to everything, scores about 99% against
+its own evaluation, and is worthless.
+
+So the harvest is worth doing for what it is good for -- precision and
+calibration in the region the model already accepts -- and it cannot
+settle the decision boundary on its own.
+
+**One trap in the harvest**, and it is the obvious query.
+`candidate_links.status` has two writers: a pre-extraction URL rule,
+which is storysniffer's own decision, and a post-extraction content rule,
+which is the outcome. Harvesting that column without separating them
+trains the model on its own predictions. `extraction_telemetry_v2` is
+what tells them apart -- a row with no telemetry was never fetched and
+has no outcome, whatever its status says.
+
+### The review queue is already the missing half
+
+The discovery review queue asks a person about a candidate link and
+offers two verbs, "It is a story" and "Not a story". That is a human
+binary label on the same URLs the model decided about, **including the
+ones it rejected** -- which is the class the outcome data cannot contain.
+
+Two days of reviewing, 553 decisions:
+
+| | human: is a story | human: not a story |
+| --- | ---: | ---: |
+| pipeline accepted | 309 | 72 |
+| pipeline rejected | **96** | 76 |
+
+Ninety-six confirmed false negatives: real stories thrown away before
+anyone saw them. Seventy-six confirmed true negatives, against 498 in a
+month of outcomes, most of which were dead links.
+
+Two days of review produced a better-shaped training set than a month of
+pipeline outcomes. It is balanced across both kinds of error and it
+samples where the model is actually wrong, because a person is looking at
+the ambiguous cases rather than a sampler drawing at random.
+
+The exploration mechanism this note was going to propose already exists.
+What is missing is that nothing harvests it.
+
+#### Where the signals are
+
+| | |
+| --- | --- |
+| datadesk, `review_reviewdecision` | `queue='discovery'`, `subject_type='candidate_link'`, verb `story` or `not_story`, the prior status in `before`, a story kind in `value` |
+| crawler, `url_verifications` | `storysniffer_result`, the bool with overrides applied; `verification_confidence`, the log-odds margin; `previous_status` and `new_status` |
+
+Joined on the candidate link, that is the model's verdict, its margin and
+a person's answer on the same URL. Two databases on one instance, so the
+harvest reads both rather than joining in SQL.
+
+#### What the 96 lost stories were killed by
+
+`UrlVerification` records that 12,464 of March's 13,764 rejections carry
+a *positive* margin -- the model wanted to accept and a hand-written
+blacklist overruled it. That invites the conclusion that the rule list is
+the problem. On the 96 confirmed false negatives it is not:
+
+| | count | mean margin |
+| --- | ---: | ---: |
+| the model itself said no | 91 | -12.3 |
+| an override killed it despite a positive margin | 5 | +829.8 |
+
+Ninety-five percent were the model's own call, and only just -- a mean
+margin of -12 is a hair below its own line. The overrides are noisy
+across all rejections and are not what loses stories.
+
+#### The review data cannot measure the model
+
+The margin separates story from not-story on reviewed URLs at an AUC of
+**0.489** -- worse than a coin. That is not a dead model, it is the
+queue working as designed.
+
+| | n | AUC of the margin |
+| --- | ---: | ---: |
+| all reviewed | 553 | 0.489 |
+| inside the doubtful band, `abs(margin) <= 25` | 503 | 0.499 |
+| outside it | 50 | 0.717 |
+
+The doubtful stratum filters on `verification_confidence` between -25 and
++25, so 91% of what a reviewer sees is drawn from the band where the
+score is uninformative *by selection*. Outside the band the same margin
+separates at 0.717. Human attention is being spent precisely where the
+model has nothing to say, which is the right place to spend it.
+
+The consequence is a discipline, not a defect. **Review decisions are
+training data for the boundary. They are not an evaluation set, and they
+cannot be used to tune a threshold**, because which URLs got reviewed
+depended on the score being thresholded. Any measurement of whether a new
+model is better has to come from a separately drawn random sample. This
+is the same selective-labels problem as the unfetched rejects, one level
+up, and it is easier to miss because the labels here are real and
+plentiful.
+
+#### What this changes
+
+Storysniffer is not an outcome-labelled task with a promotion gate. It is
+**outcome-labelled for positives and human-labelled at the boundary**,
+and the review queue is what supplies the second. The promotion gate
+still holds; what changes is that the queue is a training input and
+should be treated as one, including the discipline that follows: reviewed
+URLs are not a random sample, and a model evaluated on them will read
+better than it is. The held-out evaluation set stays separate and random.
 
 ### Weakly-labelled: topic
 
@@ -223,11 +331,26 @@ The retrained weights from (3) are corpus-specific and stay here.
 
 ## Order of work
 
-Storysniffer first. It needs no labelling, the data exists already, and
-the first two improvements need no retraining at all. Topic second, via
-heuristic bootstrap and a verification queue. CIN stays on its own track
-because its cost structure is not like either.
+Storysniffer first, and the counting is done: 34,391 confirmed positives
+in one month of Missouri, 498 negatives worth little, and 553 human
+decisions in two days that are worth a great deal more.
 
-Before any of it: measure how many outcome-labelled URLs there actually
-are, and score the current model against them. That is a read-only query,
-and it decides whether this is a week of work or a quarter.
+1. **Harvest the review queue.** It is the only source of the labels that
+   decide the boundary, it is already being produced, and nothing reads
+   it. This is a join across two databases, not a new interface.
+2. **Draw a random evaluation sample.** Nothing can be measured
+   without one. The reviewed URLs cannot serve, because the queue
+   selected them on the score any new model would be judged against, and
+   the fetched outcomes cannot either, because they exist only where the
+   model said yes. A few hundred URLs drawn at random and reviewed is the
+   missing instrument, and it is small.
+
+   The overrides are not the place to start: of the 96 confirmed false
+   negatives, 91 were the model's own call and 5 were overrides.
+3. **Change the classifier**, per the measurements below: same accuracy,
+   usable probabilities, retires the margin workaround.
+4. **Retrain on our corpus**, once there are enough boundary labels to
+   evaluate honestly.
+
+Topic second, via heuristic bootstrap and a verification queue. CIN stays
+on its own track because its cost structure is not like either.
