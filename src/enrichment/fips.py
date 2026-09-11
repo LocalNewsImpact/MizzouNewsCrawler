@@ -35,6 +35,11 @@ from src.enrichment.resolve import norm
 # copy. Reference data the code cannot run without belongs in the repository.
 DATA = Path(__file__).parent / "reference"
 
+# A trailing parenthetical, which sits AFTER the descriptor and so stops
+# `_SUFFIX` matching at all: "Nashville-Davidson metropolitan government
+# (balance)" kept its whole name as the key and matched nothing.
+_PAREN = re.compile(r"\s*\([^)]*\)\s*$")
+
 # LSAD descriptors appearing as name suffixes in the place gazetteer.
 _SUFFIX = re.compile(
     r"\s+(city|town|village|borough|cdp|municipality|comunidad|"
@@ -180,13 +185,38 @@ def _load() -> None:
     places: dict[tuple[str, str], tuple[str, float, float]] = {}
     with open(DATA / "census_places.csv", newline="") as fh:
         for row in csv.DictReader(fh):
-            key = (row["USPS"], norm(_strip_suffix(row["NAME"])))
+            bare = _strip_suffix(_PAREN.sub("", row["NAME"]))
+            value = (
+                row["GEOID"],
+                float(row["INTPTLAT"]),
+                float(row["INTPTLONG"]),
+            )
+            key = (row["USPS"], norm(bare))
             if key not in places:  # first (lowest GEOID) wins on bare-name ties
-                places[key] = (
-                    row["GEOID"],
-                    float(row["INTPTLAT"]),
-                    float(row["INTPTLONG"]),
-                )
+                places[key] = value
+            # A consolidated government is filed under its legal name and
+            # written under a shorter one. Nobody says "Lexington-Fayette"
+            # or "Nashville-Davidson"; they say Lexington and Nashville,
+            # and neither resolved. It affects every consolidated
+            # city-county -- Louisville, Indianapolis, Jacksonville,
+            # Athens, Augusta -- and a Mizzou basketball story recorded
+            # Nashville, Lexington, Bridgestone Arena and Rupp Arena and
+            # resolved none of them.
+            #
+            # Each half is registered as well. The key already carries
+            # the state, so Lexington KY and Lexington MO are different
+            # keys and cannot collide; 216 names are compound and 451 of
+            # their segments are free.
+            #
+            # First wins here too, which is what keeps the other 25
+            # honest: California has a real Sunnyside CDP, so
+            # "Sunnyside-Tahoe City" does not get to claim the name.
+            if "-" not in bare:
+                continue
+            for segment in bare.split("-"):
+                alias = (row["USPS"], norm(segment))
+                if alias[1] and alias not in places:
+                    places[alias] = value
     counties: dict[tuple[str, str], tuple[str, float, float]] = {}
     with open(DATA / "census_counties.csv", newline="") as fh:
         for row in csv.DictReader(fh):
