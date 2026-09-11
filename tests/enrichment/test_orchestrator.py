@@ -162,7 +162,6 @@ class TestProfiles:
                 "not implemented",
             ),
             ({"version": 1, "geocode": True}, "requires places"),
-            ({"version": 1, "places": True}, "requires scope"),
             ({"version": 1, "scope": "yes"}, "must be a boolean"),
         ],
     )
@@ -251,14 +250,25 @@ class TestScopeGating:
     @pytest.mark.parametrize(
         "scope_value", ["statewide", "national", "international", "other"]
     )
-    def test_non_places_scopes_never_reach_places(self, scope_value):
-        """A statewide story's geography is the state, and a national
-        one's is not codeable to a county. Extracting places from them
-        buys nothing and is where the cost model comes from."""
+    def test_every_scope_reaches_places(self, scope_value):
+        """A story that names a local person, place or institution is a
+        local story, whatever it is ABOUT. It can be about an
+        international topic and still have a central point here.
+
+        These four scopes used to skip extraction, and the scopes are
+        what the model assigns -- so the rule discarded exactly the
+        mentions this pipeline exists to record. Measured on March 2026:
+        "College student in Columbia speaks of her family still in Gaza"
+        was scoped international and recorded no geography, and
+        "Demonstrators gather at Boone County Courthouse for No Kings"
+        was scoped national while "Another 'No Kings' protest in
+        Springfield" was scoped city_municipality. The same event in two
+        towns, one keeping its geography and one losing it.
+        """
         result, stub = run(FULL, scope=ok("scope", meta(scope_value)))
         assert result.status == "enriched"
-        assert "places" not in stub.calls
-        assert "places" not in result.steps_applied
+        assert "places" in stub.calls
+        assert "places" in result.steps_applied
 
     @pytest.mark.parametrize(
         "scope_value", ["elsewhere_to_local", "local_to_elsewhere"]
@@ -477,3 +487,24 @@ class TestScopeExportExclusion:
             }
         )
         assert profile.export_exclude_scopes == ("international", "national")
+
+
+def test_a_places_only_profile_is_legal():
+    """Dropping the scope gate is what makes this legal, and it is the
+    reason to want it: re-running geography no longer means re-running
+    scope.
+
+    Scope is not stable. On 156 March articles re-enriched under an
+    unchanged profile, 22% landed in a different scope -- at the same
+    ~0.89 confidence as the ones that held, so the confidence cannot tell
+    them apart. A profile that asks only for places re-derives geography
+    without putting a settled classification back in play.
+    """
+    from src.enrichment.profiles import configured_steps, parse_profile
+
+    profile = parse_profile({"version": 4, "places": True})
+    assert profile.places and not profile.scope
+    steps = configured_steps(profile)
+    assert "places" in steps
+    assert "scope" not in steps
+    assert not [s for s in steps if s in ("subject", "topic", "format")]
