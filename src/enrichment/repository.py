@@ -16,7 +16,13 @@ from datetime import datetime, timezone
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from src.enrichment.fips import county_geoid, place_geoid, resolve_geoid, state_geoid
+from src.enrichment.fips import (
+    county_geoid,
+    county_of_place,
+    place_geoid,
+    resolve_geoid,
+    state_geoid,
+)
 from src.enrichment.profiles import Profile, parse_profile
 from src.enrichment.resolve import norm, resolve_point
 from src.enrichment.types import ArticleInput, EnrichmentOutcome
@@ -311,6 +317,38 @@ def build_story_geoids(
         ):
             continue
         kept.append((g, lvl, primary, src))
+
+    # THE COUNTY A PLACE SITS IN.
+    #
+    # Every other rung of the ladder can be read off the code: state
+    # prefixes county, county prefixes tract and block. A place cannot --
+    # 2942182 says state 29 and place 42182 and nothing about the county
+    # -- so a story that mentioned a town contributed no county at all,
+    # and a question as ordinary as "which counties does this story
+    # touch" could not be answered from the set.
+    #
+    # Rolled up here rather than at read time, because the crawler is
+    # where the codes are minted and every consumer -- datadesk, the
+    # BigQuery export, the CIN work -- should get the same answer rather
+    # than each carrying the crosswalk and making the call again.
+    #
+    # `source` is what keeps this honest: a rolled-up county was never
+    # mentioned, and `county_rollup` says so. See `fips.county_of_place`
+    # for the multi-county rule.
+    have = {g for g, _, _, _ in kept}
+    for g, lvl, _primary, _src in list(kept):
+        if lvl != "place":
+            continue
+        hit = county_of_place(g)
+        if hit is None or hit[0] in have:
+            continue
+        county = hit[0]
+        # The same ancestor rule the rest of the set obeys: a county is
+        # redundant where a tract or block already carries its digits.
+        if any(len(o) in (11, 15) and o.startswith(county) for o in have):
+            continue
+        kept.append((county, "county", False, "county_rollup"))
+        have.add(county)
     return kept
 
 

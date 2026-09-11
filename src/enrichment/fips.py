@@ -249,6 +249,56 @@ def county_geoid(county: str, state: str) -> GeoidResult | None:
     return GeoidResult(hit[0], "county", hit[1], hit[2])
 
 
+#: Place GEOID -> [containing county GEOID, how many counties it spans].
+#: Built from the Census place-county relationship file; vendored here for
+#: the same reason the gazetteers are, and kept in `reference/` because
+#: .gitignore excludes every directory named `data`.
+_PLACE_COUNTY = DATA / "place_to_county.json"
+_place_county: dict[str, list] | None = None
+
+
+def county_of_place(place: str) -> tuple[str, int] | None:
+    """The county a place sits in, and how many counties it spans.
+
+    A place GEOID does not encode its county. State and county nest by
+    prefix -- 29151 is state 29, county 151 -- and tract and block nest
+    under county, so every other rung of the ladder can be read off the
+    code itself. A place cannot: 2942182 says state 29 and place 42182,
+    and nothing about which county that is. This file is the only way to
+    know, which is why a story could mention a town and contribute no
+    county at all.
+
+    MULTI-COUNTY PLACES, AND THE RULE (decided 2026-09-11)
+    ------------------------------------------------------
+    A place is not obliged to sit inside one county. Of 32,188 places,
+    30,884 do; 1,199 span two, 87 span three, 15 span four and 3 span
+    five. Kansas City is in four.
+
+    **The primary county wins, and the span is returned alongside so a
+    caller can tell that it was a choice.** The primary is the Census's
+    own, which is the county the place is principally in.
+
+    The alternative -- contributing every county a place touches -- was
+    rejected. It would put Cass, Clay, Jackson and Platte on any story
+    that says "Kansas City", and three of those four would be wrong about
+    what the story is about. A wrong county is worse than a missing one
+    here, because the missing one is visible as a gap and the wrong one
+    reads as a finding.
+
+    The span is recorded rather than discarded so the 4% of places where
+    this is a judgement call can be found again, and so a later decision
+    to treat them differently does not have to start by identifying them.
+    """
+    global _place_county
+    if _place_county is None:
+        with open(_PLACE_COUNTY) as fh:
+            _place_county = json.load(fh)
+    hit = _place_county.get(place)
+    if not hit:
+        return None
+    return hit[0], int(hit[1])
+
+
 def state_geoid(state: str) -> GeoidResult | None:
     fips = STATE_FIPS.get(_usps(state) or "")
     return GeoidResult(fips, "state", None, None) if fips else None

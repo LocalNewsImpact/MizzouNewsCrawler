@@ -406,7 +406,16 @@ class TestStoryGeoidSet:
         assert out[0] == ("2915670", "place", True, "point")
         assert ("2938000", "place", False, "mention") in out
         assert ("29019", "county", False, "mention") in out
-        assert len(out) == 3  # deduped, no state row for city scope
+        # Deduped, and no state row for a city-scope story. Was three
+        # rows; the fourth is Kansas City's county, which no code in the
+        # set declares -- a place GEOID does not carry one.
+        assert len(out) == 4
+        assert ("29095", "county", False, "county_rollup") in out
+        # Columbia's county is already here as a MENTION, so the rollup
+        # adds nothing for it: what was said outranks what was derived.
+        assert [(g, src) for g, lvl, _p, src in out if g == "29019"] == [
+            ("29019", "mention")
+        ]
 
     def test_regional_story_is_its_mentions(self):
         from src.enrichment.repository import build_story_geoids
@@ -414,8 +423,19 @@ class TestStoryGeoidSet:
         out = build_story_geoids(
             None, [("2970000", "place"), ("2907966", "place")], "regional", "29"
         )
-        assert [g for g, *_ in out] == ["2970000", "2907966"]
+        # The mentions, in order, still first and still the story.
+        assert [g for g, _lvl, _p, src in out if src == "mention"] == [
+            "2970000",
+            "2907966",
+        ]
         assert not any(p for _, _, p, _ in out)  # no primary: no single point
+        # Each town now also contributes the county containing it. Before
+        # this, a regional story naming two towns and no county was
+        # absent from every count of stories touching a county.
+        assert [g for g, _lvl, _p, src in out if src == "county_rollup"] == [
+            "29077",
+            "29213",
+        ]
 
     def test_statewide_contributes_the_state_code(self):
         from src.enrichment.repository import build_story_geoids
@@ -427,3 +447,101 @@ class TestStoryGeoidSet:
         from src.enrichment.repository import build_story_geoids
 
         assert build_story_geoids(None, [], "other", None) == []
+
+
+# --- a place knows its county ------------------------------------------------
+
+
+def test_a_place_geoid_does_not_say_which_county_it_is_in():
+    """Every other rung of the ladder is readable from the code. State
+    prefixes county, county prefixes tract and block. A place does not:
+    2938000 says state 29 and place 38000, and nothing about the county.
+
+    That is why a story mentioning a town contributed no county at all,
+    and why "which counties does this story touch" could not be answered
+    from the geoid set.
+    """
+    from src.enrichment.fips import county_of_place
+
+    # Kansas City: state 29, and the county is nowhere in the code.
+    assert county_of_place("2938000")[0] == "29095"
+    assert not "2938000".startswith("29095")
+    # A county code does prefix its tracts, which is the contrast.
+    assert "29095001100".startswith("29095")
+
+
+def test_a_place_in_several_counties_takes_its_primary_one():
+    """A place is not obliged to sit in one county: 1,199 span two, 87
+    span three, 15 span four, 3 span five. Kansas City is in four.
+
+    The primary wins and the span rides along, so a caller can tell the
+    answer was a choice. Contributing all four would put Cass, Clay and
+    Platte on any story that says "Kansas City", and a wrong county is
+    worse than a missing one -- the missing one reads as a gap and the
+    wrong one reads as a finding.
+    """
+    from src.enrichment.fips import county_of_place
+
+    county, span = county_of_place("2938000")
+    assert county == "29095"
+    assert span == 4, "the span is what says this was a judgement call"
+
+    # The ordinary case still reports its span, so a caller never has to
+    # special-case the shape.
+    assert county_of_place("0100100") == ("01017", 1)
+
+
+def test_a_place_outside_the_crosswalk_contributes_nothing():
+    """A missing place is a gap, not a guess."""
+    from src.enrichment.fips import county_of_place
+
+    assert county_of_place("9999999") is None
+    assert county_of_place("") is None
+
+
+def test_a_mentioned_town_now_carries_its_county():
+    """The question this was built for: a story that names only a town
+    used to contribute no county, so it could not be counted among the
+    stories touching one."""
+    from src.enrichment.repository import build_story_geoids
+
+    out = build_story_geoids(None, [("2938000", "place")], None, None)
+    assert ("2938000", "place", False, "mention") in out
+    assert ("29095", "county", False, "county_rollup") in out
+
+
+def test_a_rolled_up_county_says_it_was_rolled_up():
+    """It was never mentioned. `source` is what keeps the set honest, and
+    what lets an analysis count literal mentions or containment and say
+    which it did."""
+    from src.enrichment.repository import build_story_geoids
+
+    out = build_story_geoids(None, [("2938000", "place")], None, None)
+    sources = {g: src for g, _lvl, _p, src in out}
+    assert sources["2938000"] == "mention"
+    assert sources["29095"] == "county_rollup"
+
+
+def test_a_county_already_in_the_set_is_not_added_twice():
+    """A story that names both the town and its county gets one county
+    row, and it stays the mention -- what was said outranks what was
+    derived from it."""
+    from src.enrichment.repository import build_story_geoids
+
+    out = build_story_geoids(
+        None, [("2938000", "place"), ("29095", "county")], None, None
+    )
+    counties = [(g, src) for g, lvl, _p, src in out if lvl == "county"]
+    assert counties == [("29095", "mention")]
+
+
+def test_a_rolled_up_county_obeys_the_ancestor_rule():
+    """The set drops a county where a tract or block already carries its
+    digits. A rolled-up one is no different -- it would be the same
+    redundant ancestor, arriving by another route."""
+    from src.enrichment.repository import build_story_geoids
+
+    out = build_story_geoids(
+        None, [("2938000", "place"), ("29095001100", "tract")], None, None
+    )
+    assert not [g for g, lvl, _p, src in out if src == "county_rollup"]
