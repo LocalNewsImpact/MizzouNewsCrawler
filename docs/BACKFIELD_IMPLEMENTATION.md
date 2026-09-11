@@ -528,20 +528,29 @@ range, a region ("the Midwest"), a foreign city. These are not failures
 and must not be silently dropped. The place row stays, carrying the name
 and the mention text, and contributes no GEOID.
 
-**Consolidated city-counties are a known miss.** The gazetteer holds the
-legal Census name, which for a consolidated government is not the name
-anybody writes:
+**A consolidated city-county resolves under the name people use.** The
+gazetteer holds the legal Census name, which for a consolidated
+government is not what anybody writes:
 
     KY  Lexington-Fayette urban county
     TN  Nashville-Davidson metropolitan government (balance)
     MO  Columbia city
 
-`_strip_suffix` removes the LSAD descriptor, so the first becomes
-`Lexington-Fayette` and a lookup for `Lexington` misses. This affects
-every consolidated city-county -- Louisville, Indianapolis, Jacksonville,
-Athens, Augusta. Not yet implemented: matching the leading segment risks
-false positives (`Lexington` in Missouri is a different place), so it
-needs a rule narrower than "split on the hyphen".
+Two things broke here. A trailing parenthetical sits AFTER the LSAD
+descriptor, so `_SUFFIX` never matched Nashville at all and its whole
+legal name became the key. And `Lexington-Fayette` normalises to
+"lexington fayette", which a lookup for `Lexington` misses.
+
+So the parenthetical is removed before the descriptor, and each half of
+a compound name is registered as an alias. 216 names are compound and
+451 of their segments are free.
+
+**The state is what makes that safe.** The key is `(state, name)`, so
+Lexington in Kentucky and Lexington in Missouri are different keys and
+cannot reach each other. Within one state, first wins, exactly as it
+does for bare-name ties: 25 segments collide with a real place in the
+same state, and the real place keeps the name -- California has a
+Sunnyside CDP, so `Sunnyside-Tahoe City` does not get to claim it.
 
 **A skip reason must agree with what was written.** This is the rule
 that would have made the rest visible without a database query.

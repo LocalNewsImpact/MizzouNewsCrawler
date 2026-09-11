@@ -604,3 +604,48 @@ def test_an_empty_place_set_does_not_claim_to_be_one():
     assert src.index("if not mention_set and geo_skip_reason") > src.index(
         "mention_set = [g for g"
     )
+
+
+def test_a_consolidated_city_county_resolves_under_the_name_people_use():
+    """The gazetteer files a consolidated government under its legal
+    name -- "Lexington-Fayette urban county", "Nashville-Davidson
+    metropolitan government (balance)" -- and nobody writes that.
+
+    Both failed, for two different reasons. The parenthetical sits AFTER
+    the LSAD descriptor, so `_SUFFIX` never matched Nashville at all.
+    And `Lexington-Fayette` normalises to "lexington fayette", which a
+    lookup for "Lexington" misses.
+
+    A Mizzou basketball story recorded Nashville, Lexington, Bridgestone
+    Arena and Rupp Arena and resolved none of them.
+    """
+    from src.enrichment.fips import place_geoid
+
+    assert place_geoid("Lexington", "KY").geoid == "2146027"
+    assert place_geoid("Nashville", "TN").geoid == "4752006"
+    # Every consolidated city-county, not just the two that were noticed.
+    assert place_geoid("Louisville", "KY") is not None
+    assert place_geoid("Indianapolis", "IN") is not None
+    assert place_geoid("Jacksonville", "FL") is not None
+    assert place_geoid("Athens", "GA") is not None
+
+
+def test_an_alias_cannot_take_a_name_a_real_place_already_has():
+    """451 segments are free to alias and 25 would collide with a
+    different place in the same state. First wins, so the real place
+    keeps its name: California has a Sunnyside CDP, and
+    "Sunnyside-Tahoe City" does not get to claim it."""
+    from src.enrichment.fips import place_geoid
+
+    assert place_geoid("Sunnyside", "CA").geoid == "0675994"
+    assert place_geoid("Davis", "CA").geoid == "0618100"
+
+
+def test_the_state_in_the_key_is_what_makes_aliasing_safe():
+    """Lexington, Kentucky and Lexington, Missouri are different places.
+    The lookup is keyed on (state, name), so registering Kentucky's
+    consolidated government under "Lexington" cannot reach Missouri's."""
+    from src.enrichment.fips import place_geoid
+
+    assert place_geoid("Lexington", "MO").geoid == "2941870"
+    assert place_geoid("Lexington", "KY").geoid != place_geoid("Lexington", "MO").geoid
