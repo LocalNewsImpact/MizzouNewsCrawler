@@ -73,6 +73,26 @@ spec:
                 --verbose
 
               RESULT=$?
+
+              # GEOGRAPHY A PERSON PUT IN, INTO THE TABLE BIGQUERY READS.
+              #
+              # `article_geoids` is what BigQuery reads: the scheduled
+              # query "Sync Article Geoids from Cloud SQL" is
+              # `SELECT * FROM article_geoids`, daily at 07:00 UTC, with
+              # no filter of its own. This runs at 02:00, so a
+              # contribution made on any day reaches BigQuery that
+              # morning.
+              #
+              # It belongs here rather than in a cron of its own: it
+              # calls no model, spends nothing, and moves rows that
+              # already exist. Additive and idempotent -- ON CONFLICT DO
+              # NOTHING -- so meeting rows it has already applied costs
+              # nothing, which matters beside a queue people are still
+              # working.
+              echo ""
+              echo "🗺  Applying reviewed geography"
+              python -m src.cli.cli_modular enrich apply-manual
+
               echo ""
               echo "Housekeeping completed with exit code: $RESULT"
               exit $RESULT
