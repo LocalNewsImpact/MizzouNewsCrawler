@@ -57,8 +57,6 @@ spec:
       # ceiling caps the night whatever that set's size.
       - name: enrich-ceiling
         value: "10"
-      - name: log-level
-        value: "INFO"
     # EVERY STAGE READS `pipeline_rework` AND NOTHING ELSE.
     #
     # Every pipeline stage selects by status, and a rewound record shares
@@ -76,14 +74,30 @@ spec:
         template: anything-owed-step
 
     # 1. Links a decision rewound to `article`, and only those.
+    #
+    # Every step passes what its template declares, explicitly. A step
+    # that passes nothing is not defaulted: Argo REFUSES the workflow --
+    # `templates.classify-step inputs.parameters.limit was not supplied`
+    # -- at submit, before any stage runs. The schedule was suspended, so
+    # that error waited to be the first thing a resumed run did.
     - - name: extract
         template: extraction-step
         when: "{{steps.anything-owed.outputs.result}} != 0"
+        arguments:
+          parameters:
+          - name: limit
+            value: "{{inputs.parameters.extract-limit}}"
+          - name: batches
+            value: "{{inputs.parameters.extract-batches}}"
 
     # 2. Articles a decision sent back to `cleaned`, and only those.
     - - name: classify
         template: classify-step
         when: "{{steps.anything-owed.outputs.result}} != 0"
+        arguments:
+          parameters:
+          - name: limit
+            value: "{{inputs.parameters.classify-limit}}"
 
     # 3. Articles owing enrichment, and only those -- through `backfill`,
     #    which takes a named set. Never `enrich run`, which takes every
@@ -92,6 +106,10 @@ spec:
     - - name: enrich
         template: enrich-step
         when: "{{steps.anything-owed.outputs.result}} != 0"
+        arguments:
+          parameters:
+          - name: ceiling
+            value: "{{inputs.parameters.enrich-ceiling}}"
 
   # --- the stages this workflow defines for itself ---------------------
   #
@@ -101,6 +119,13 @@ spec:
   # dataset it is in.
 
   - name: extraction-step
+    inputs:
+      parameters:
+      # Required, no defaults: the caller passes them. A default here
+      # would let a step that passes nothing look correct, which is the
+      # shape that made `classify-step` fail at submit.
+      - name: limit
+      - name: batches
     metadata:
       labels:
         stage: extraction
@@ -125,9 +150,9 @@ spec:
         # written, against 45 that a decision had rewound.
         - --rework
         - --limit
-        - "25"
+        - "{{inputs.parameters.limit}}"
         - --batches
-        - "8"
+        - "{{inputs.parameters.batches}}"
       envFrom:
         - configMapRef:
             name: crawler-config
@@ -183,6 +208,8 @@ spec:
   - name: classify-step
     inputs:
       parameters:
+      # Required. Argo refuses the whole workflow at submit when a caller
+      # does not pass it, which is what made this file unsubmittable.
       - name: limit
     metadata:
       labels:
@@ -222,8 +249,12 @@ spec:
   - name: enrich-step
     inputs:
       parameters:
+      # No default, and NOT `{{workflow.parameters.enrich-ceiling}}`:
+      # nothing declares a workflow parameter by that name, so it
+      # resolved to nothing and the ceiling this step spends against was
+      # whatever an unresolved template string becomes. Required, and
+      # passed by the caller, so a missing one fails at submit.
       - name: ceiling
-        value: "{{workflow.parameters.enrich-ceiling}}"
     metadata:
       labels:
         stage: enrichment
