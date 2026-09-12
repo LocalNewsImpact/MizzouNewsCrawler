@@ -36,6 +36,7 @@ jobs:
       crawler: ${{ steps.detect.outputs.crawler }}
       migrator: ${{ steps.detect.outputs.migrator }}
       enrichment: ${{ steps.detect.outputs.enrichment }}
+      manifests: ${{ steps.detect.outputs.manifests }}
       base: ${{ steps.detect.outputs.base }}
       ml_base: ${{ steps.detect.outputs.ml_base }}
       any_changed: ${{ steps.detect.outputs.any_changed }}
@@ -125,6 +126,7 @@ jobs:
           CRAWLER=false
           MIGRATOR=false
           ENRICHMENT=false
+          MANIFESTS=false
 
           # Base image: only for OS/dependency changes
           if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.base|Dockerfile\.ci-base|requirements-base\.txt|requirements-dev\.txt'; then
@@ -195,6 +197,24 @@ jobs:
             echo "✅ Enrichment changed (enrichment code or vendored backfield)"
           fi
 
+          # Manifests: what the cluster runs, as opposed to what is inside an
+          # image. Kubernetes and Argo objects reach production ONLY through
+          # scripts/apply-manifests.sh, and each image's Cloud Build patches
+          # nothing but its own tag (`kubectl set image`, and
+          # gcp/cloudbuild/update-workflow-template.sh for the one pipeline
+          # template it names). So a structural change -- a new workflow step,
+          # a changed limit, a suspend -- is applied by nothing at all unless
+          # this flag fires.
+          #
+          # That is not hypothetical. The corrected housekeeping workflow sat
+          # on main for hours while production kept running the version that
+          # swept 4,802 candidate links, because the deploy built images and
+          # applied no manifest.
+          if echo "$CHANGED_FILES" | grep -qE '^k8s/'; then
+            MANIFESTS=true
+            echo "✅ Manifests changed (what the cluster runs)"
+          fi
+
           # Cascade rebuilds down the image dependency graph so base/dependency/
           # security updates actually reach the running services. Without this, a
           # change to only requirements-base.txt rebuilds base:latest but leaves
@@ -222,6 +242,7 @@ jobs:
           echo "crawler=$CRAWLER" >> $GITHUB_OUTPUT
           echo "migrator=$MIGRATOR" >> $GITHUB_OUTPUT
           echo "enrichment=$ENRICHMENT" >> $GITHUB_OUTPUT
+          echo "manifests=$MANIFESTS" >> $GITHUB_OUTPUT
 
           # Check if anything changed
           if [ -n "$CHANGED_FILES" ]; then
@@ -800,6 +821,91 @@ jobs:
               exit 1
             fi
           fi
+
+  apply-manifests:
+    name: Apply Manifests
+    # The missing deploy step. Images reach production from their own Cloud
+    # Build (`kubectl set image`); everything else in k8s/ reached it only
+    # when a person ran scripts/apply-manifests.sh by hand, which no
+    # workflow called. So a change to a Deployment, a CronJob or an Argo
+    # template was merged, reported as deployed, and applied by nothing.
+    #
+    # Runs when the manifests themselves changed, independent of whether an
+    # image was built: a structural change -- a new workflow step, a
+    # changed limit, a suspend -- builds no image and would otherwise never
+    # be applied. It waits for the builds so a manifest that names a tag
+    # this push produced is applied after that tag exists.
+    needs:
+      [
+        detect-changes,
+        wait-for-builds,
+        build-processor,
+        build-api,
+        build-crawler,
+        build-enrichment,
+      ]
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      needs.detect-changes.outputs.manifests == 'true' &&
+      (needs.wait-for-builds.result == 'success' || needs.wait-for-builds.result == 'skipped')
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          # Without the plugin every kubectl command fails on "Install
+          # gke-gcloud-auth-plugin", which names a missing plugin rather
+          # than a missing permission and is raised after the images built.
+          install_components: 'gke-gcloud-auth-plugin'
+
+      - name: Configure kubectl
+        run: |
+          PROJECT="$(gcloud config get-value project 2>/dev/null)"
+          if [ -z "$PROJECT" ] || [ "$PROJECT" = "(unset)" ]; then
+            echo "::error::gcloud has no default project; the service-account" \
+                 "key should supply one."
+            exit 1
+          fi
+          gcloud container clusters get-credentials mizzou-cluster \
+            --zone=us-central1-a \
+            --project="$PROJECT"
+
+      - name: Apply the manifests
+        env:
+          # A tag this push built wins; anything else keeps what the cluster
+          # is already running, so an apply never moves an image the push
+          # did not change. Empty build ids mean that image was not built.
+          SHORT_SHA: ${{ github.sha }}
+          PROCESSOR_BUILD_ID: ${{ needs.build-processor.outputs.build_id }}
+          API_BUILD_ID: ${{ needs.build-api.outputs.build_id }}
+          CRAWLER_BUILD_ID: ${{ needs.build-crawler.outputs.build_id }}
+          ENRICHMENT_BUILD_ID: ${{ needs.build-enrichment.outputs.build_id }}
+        run: |
+          SHORT=${SHORT_SHA:0:7}
+          [ -n "$PROCESSOR_BUILD_ID" ]  && export BUILT_PROCESSOR="$SHORT"
+          [ -n "$API_BUILD_ID" ]        && export BUILT_API="$SHORT"
+          [ -n "$CRAWLER_BUILD_ID" ]    && export BUILT_CRAWLER="$SHORT"
+          [ -n "$ENRICHMENT_BUILD_ID" ] && export BUILT_ENRICHMENT="$SHORT"
+
+          ./scripts/resolve-image-tags.sh > versions.env
+          cat versions.env
+          . ./versions.env
+
+          ./scripts/apply-manifests.sh all
+
+          {
+            echo "## Manifests applied"
+            echo ""
+            grep '^export' versions.env
+          } >> "$GITHUB_STEP_SUMMARY"
 
   report-image-tags:
     name: Report image tags
