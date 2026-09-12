@@ -63,7 +63,7 @@ RUN :=
 endif
 
 .PHONY: help setup .venv ci-image crawler-image lint typecheck test test-integration \
-    test-db check format test-selenium test-firestore firestore-emulator \
+    test-db check format fmt test-selenium test-firestore firestore-emulator \
     security stress test-file test-migrations test-alembic test-docker \
     test-docker-work-queue test-docker-proxy test-docker-all \
     test-production-readiness
@@ -220,6 +220,13 @@ format:
 	black src/ tests/ web/
 	isort --profile black src/ tests/ web/
 	ruff check --fix .
+
+# The other repository calls this `fmt`, and make answers an unknown
+# target with "No rule to make target" only when nothing matches -- so
+# `make fmt` here was a no-op that exited 0. Suppress its output and it
+# reads as success, and the unformatted commit is found four minutes
+# later by the pre-push hook. Both names work in both repositories now.
+fmt: format
 
 # ---- the other suites ------------------------------------------------------
 
