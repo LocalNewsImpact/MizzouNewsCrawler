@@ -13,10 +13,20 @@ four minutes later by the pre-push hook.
 """
 
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
+
+#: `checks / test` runs inside ci-base, which has no `make` -- the same
+#: reason that image has no curl. The three assertions above read the
+#: Makefile and run everywhere; only this one needs the binary.
+#:
+#: Skipping in CI costs little, because the place this check matters most
+#: is the pre-push hook, which runs on a machine that has make and gates
+#: every push.
+MAKE = shutil.which("make")
 
 MAKEFILE = Path(__file__).resolve().parent.parent / "Makefile"
 
@@ -49,11 +59,12 @@ def test_both_are_phony(makefile):
         assert re.search(rf"\b{name}\b", phony), f"{name} is not in .PHONY"
 
 
+@pytest.mark.skipif(MAKE is None, reason="no make in this image (ci-base)")
 def test_make_resolves_the_alias():
     """Asked of make itself rather than of the text, because the text
     can look right while the target is unreachable."""
     result = subprocess.run(
-        ["make", "-n", "fmt"],
+        [MAKE, "-n", "fmt"],
         cwd=MAKEFILE.parent,
         capture_output=True,
         text=True,
