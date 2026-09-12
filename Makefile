@@ -136,15 +136,14 @@ endif
 # The `install` input of python-checks.yml. The image is a private GHCR
 # package; the caller grants packages: read and the workflow puts
 # GITHUB_TOKEN in this step's environment. Off CI, `gh auth token`.
+# Both go through scripts/ci/pull-image.sh, which retries the transient
+# failures: a runner whose DNS did not answer for `ghcr.io` failed a whole
+# job in 25 seconds and reported it as a lint failure.
 ci-image:
-	@echo "$${GITHUB_TOKEN:-$$(gh auth token)}" | docker login ghcr.io \
-	    -u "$${GITHUB_ACTOR:-$$USER}" --password-stdin
-	docker pull $(CI_IMAGE)
+	scripts/ci/pull-image.sh $(CI_IMAGE)
 
 crawler-image:
-	@echo "$${GITHUB_TOKEN:-$$(gh auth token)}" | docker login ghcr.io \
-	    -u "$${GITHUB_ACTOR:-$$USER}" --password-stdin
-	docker pull $(CRAWLER_IMAGE)
+	scripts/ci/pull-image.sh $(CRAWLER_IMAGE)
 
 # ---- the four stages -------------------------------------------------------
 
