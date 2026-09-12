@@ -146,7 +146,33 @@ that a rule is wrong.
 — before the 07:00 BigQuery sync, so a story removed in the morning is
 gone from BigQuery the same day.
 
-`--dry-run` reports every change without making it. The first run should
-be a dry run whose output is read, because the backlog is four months
-of decisions and the first reconciliation is the largest one this will
-ever do.
+`--dry-run` reports every change without making it. It is a tool for
+checking a rule that has just been edited, not a required first step.
+
+## Two halves, and only one of them is unusual
+
+Most of what this does is the ordinary pipeline. 93 articles go back for
+a fetch, 49 for a clean, the wrongly-parked are unparked, and 516 links
+sit at `discovered` waiting for verification — every one of those
+records then moves the way every record moves. There is nothing to
+preview about it.
+
+The other half is not processing. It is retraction:
+
+| rule | articles leaving BigQuery | of those, carrying geography |
+|---|---:|---:|
+| discovery: "not a story" | 20 | 16 |
+| extraction: "reject" | 139 | 18 |
+| **total** | **159** | **34** |
+
+159 articles currently published as local news stop being published, 34
+of them carrying county geography that has been feeding coverage
+figures. That is the number worth knowing before the first run, and it
+is written here rather than left for a dry run to discover.
+
+**The geoids filter has to land first.** Without it those 34 articles
+disappear from the BigQuery articles table while their counties go on
+being counted — a state worse than either leaving them published or
+retracting them properly. It is a change to a GCP scheduled query, so it
+arrives outside any pull request or deploy, and nothing in this
+repository will tell you whether it has happened.
