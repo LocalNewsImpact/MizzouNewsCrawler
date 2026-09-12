@@ -1466,6 +1466,12 @@ def _process_batch(
         db = DatabaseManager()
     session = db.session
 
+    # The links this batch was TOLD to fetch, under `--rework`; None on
+    # every other path. Declared here, not inside the branch that fills
+    # it: the work-queue path skips that branch entirely and read it at
+    # the end of the batch, which is an UnboundLocalError.
+    rework_ids = None
+
     # Track domain failures and articles processed per domain in this batch
     domain_failures = {}  # domain -> consecutive_failures
     domain_article_count = {}  # domain -> articles_processed_in_batch
@@ -1545,7 +1551,6 @@ def _process_batch(
             # `is True`, not truthiness: a Mock stands in for `args` across
             # the extraction tests and answers any attribute with a truthy
             # Mock, which walked every one of them into this branch.
-            rework_ids = None
             if getattr(args, "rework", False) is True:
                 rework_ids = _links_owed_a_fetch(session)
                 if not rework_ids:

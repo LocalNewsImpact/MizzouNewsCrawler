@@ -89,6 +89,20 @@ def test_a_missing_rowcount_is_zero_not_none():
     assert _settle_fetches(session, ["l1"]) == (0, 0)
 
 
+def test_the_work_queue_path_settles_nothing_and_raises_nothing():
+    """`rework_ids` is read at the end of every batch, and the work-queue
+    path never enters the branch that fills it. Declared at the top of
+    the batch, not in the branch: otherwise the read is an
+    UnboundLocalError and the batch dies after doing the work."""
+    import inspect
+
+    from src.cli.commands import extraction
+
+    body = inspect.getsource(extraction._process_batch)
+    before_branch = body.split('if getattr(args, "rework", False) is True:')[0]
+    assert "rework_ids = None" in before_branch
+
+
 # --- classification ---------------------------------------------------------------
 
 
