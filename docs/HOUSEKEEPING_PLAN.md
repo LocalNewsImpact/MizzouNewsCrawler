@@ -129,24 +129,34 @@ instruction rather than a report.
 
 Each step has the test that proves it, and the test is written first.
 
-| # | step | repo | proves |
-|---|---|---|---|
-| 1 | `pipeline_rework` table | crawler | migration applies and downgrades on real Postgres |
-| 2 | `extract --rework` reads it, settles rows | crawler | with rows, only those links are selected; with none, nothing is; settled rows are closed with an outcome |
-| 3 | `analyze --rework` likewise | crawler | same three, on articles |
-| 4 | `enrich backfill --rework` | crawler | same three; `enrich run` is never invoked by housekeeping |
-| 5 | workflow: every stage `--rework`, first step exits on empty | crawler | manifest test: no stage runs a bare sweeping command; the guard step exists |
-| 6 | reconciler writes rework rows | datadesk | a disposition that rewinds produces a row naming the stage; one that reaches terminal produces none |
-| 7 | reconciler plans by record, refuses conflicts | datadesk | two rules disagreeing on one record → skipped and reported, not last-wins |
-| 8 | **end to end** | both | disposition → reconciler → rework row → stage → terminal status, on the test databases |
-| 9 | `fetch_with_browser` stage for the refused | crawler | a `null_text` article gets a rework row for that stage, not a log line |
-| 10 | rules to `lnic_contracts` | contracts, both | one definition read by both repos |
+| # | step | repo | proves | state |
+|---|---|---|---|---|
+| 1 | `pipeline_rework` table | crawler | migration applies and downgrades on real Postgres | DONE #564 |
+| 2 | `extract --rework` reads it, settles rows | crawler | with rows, only those links are selected; with none, nothing is; settled rows are closed with an outcome | DONE #564 |
+| 3 | `analyze --rework` likewise | crawler | same three, on articles | DONE #564 |
+| 4 | `enrich backfill --rework` | crawler | same three; `enrich run` is never invoked by housekeeping | DONE #564 |
+| 5 | workflow: every stage `--rework`, first step exits on empty | crawler | manifest test: no stage runs a bare sweeping command; the guard step exists | DONE #564 |
+| 6 | reconciler writes rework rows | datadesk | a disposition that rewinds produces a row naming the stage; one that reaches terminal produces none | DONE datadesk#336 |
+| 7 | reconciler plans by record, refuses conflicts | datadesk | two rules disagreeing on one record → skipped and reported, not last-wins | DONE datadesk#336 |
+| 8 | **end to end** | both | a reconciler-written row → stage → stage → the status the BigQuery sync selects, with the guard count checked between stages | DONE, `tests/integration/test_housekeeping_carries_a_record_to_the_export.py` |
+| 9 | `fetch_with_browser` stage for the refused | crawler | a `null_text` article gets a rework row for that stage, not a log line | |
+| 10 | rules to `lnic_contracts` | contracts, both | one definition read by both repos | |
 
-Steps 1–5 are one crawler PR. Steps 6–7 are one datadesk PR. Step 8 is in
-both. Steps 9–10 follow.
+Steps 1–5 were one crawler PR, steps 6–7 one datadesk PR, step 8 a
+crawler test that stands in for the seam neither repository's own tests
+can see. Steps 9–10 follow.
 
-Nothing is applied to the cluster until step 8 passes. The CronWorkflow
-stays suspended until then.
+Two things step 8 did NOT find, and one it did. The chain holds and an
+empty night costs nothing. What it exposed is that `_settle_fetches` was
+never called by the batch: the function was written and unit-tested on its
+own, so a fetched link would have stayed "owed" forever and the guard
+would have fired on nothing every night after the first.
+
+The CronWorkflow is `suspend: true` in its own manifest, not patched on
+the cluster -- a patch is invisible here and undone by the next apply.
+Resuming it is a change to `k8s/argo/housekeeping-cronworkflow.yaml`,
+reviewed like anything else, and a test asserts the line is there until
+then.
 
 ## What this does not change
 
