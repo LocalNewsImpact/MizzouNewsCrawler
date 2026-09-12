@@ -63,6 +63,11 @@ spec:
         value: "200"
       - name: enrich-ceiling
         value: "2"
+      # Off until the step targets the reconciler's set rather than
+      # sweeping the backlog. The stage is wired and bounded; what it is
+      # missing is a list of which records it is for.
+      - name: enrich-enabled
+        value: "false"
       - name: log-level
         value: "INFO"
     steps:
@@ -84,13 +89,24 @@ spec:
 
     # 3. Enrichment, per dataset.
     #
-    #    `enrich run` requires `--dataset`, so the datasets are named
-    #    here rather than the flag being relaxed. That is the better
-    #    shape anyway: each dataset gets its own limit and its own
-    #    ceiling, so one dataset's backlog cannot spend another's
-    #    budget -- which is exactly what a single global ceiling would
-    #    do, given Mizzou has 83,048 articles waiting and VT has 1,017.
+    #    NOT YET TARGETED, AND THAT IS A DEFECT. `enrich run` selects any
+    #    article at `labeled` in the dataset, so this works through the
+    #    ordinary backlog rather than the records a reviewer rewound.
+    #    Measured: of 3,607 disposed articles only 97 sit at `labeled`
+    #    (72 discovery-disposed, 25 extraction-disposed), while a swept
+    #    run would enrich 800 a day -- nearly all of them records nobody
+    #    asked about, in datasets with no dispositions at all.
+    #
+    #    The fix is `enrich backfill --ids-file`, which already exists,
+    #    pointed at the set the reconciler marked. It waits on the
+    #    reconciler because the crawler cannot build that list alone:
+    #    discovery dispositions leave a verdict in `candidate_links.meta`
+    #    and are visible here, but extraction dispositions live only in
+    #    the console's database.
+    #
+    #    Until then this step is DISABLED rather than left to sweep.
     - - name: enrich
+        when: "{{inputs.parameters.enrich-enabled}} == true"
         template: enrich-step
         arguments:
           parameters:

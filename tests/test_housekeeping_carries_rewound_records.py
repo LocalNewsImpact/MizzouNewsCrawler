@@ -102,6 +102,30 @@ def test_each_stage_runs_the_command_it_claims(by_name):
     assert enrich[-6:-4] == ["enrich", "run"] or "run" in enrich
 
 
+def test_enrichment_is_off_until_it_is_targeted(steps, template):
+    """`enrich run` selects ANY article at `labeled` in the dataset, so
+    enabling it sweeps the ordinary backlog rather than carrying the
+    records a reviewer rewound.
+
+    Measured: 3,607 articles carry a disposition and only 97 of them sit
+    at `labeled` -- 72 discovery-disposed, 25 extraction-disposed --
+    while a swept run enriches 800 a day, nearly all of them in datasets
+    with no dispositions at all. Lehigh and WSU have none whatsoever.
+
+    The step stays wired and bounded, and off, until it points at the set
+    the reconciler marks."""
+    enrich = next(s for s in steps if s["name"] == "enrich")
+    assert "when" in enrich, "the enrich step sweeps the backlog unguarded"
+
+    params = {
+        p["name"]: p.get("value")
+        for p in next(
+            t for t in template["spec"]["templates"] if t["name"] == "housekeeping"
+        )["inputs"]["parameters"]
+    }
+    assert params["enrich-enabled"] == "false"
+
+
 def test_enrichment_is_bounded_by_a_ceiling_and_a_limit(by_name, steps):
     """The only stage that spends money. Unbounded it would work through
     a backlog this workflow has no business touching."""
