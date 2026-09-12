@@ -1,0 +1,305 @@
+# Carrying rewound records to their terminal status.
+#
+# This is not a new pipeline. It is the same stages, in the same order,
+# selecting on the same statuses -- run small and daily so that a record
+# whose status a reviewer changed still reaches the end while the
+# production crons are suspended. With the crons running these records
+# are picked up in the ordinary way and this workflow finds nothing to
+# do, which is the correct outcome rather than a wasted run.
+#
+# It is the pipeline MINUS DISCOVERY AND VERIFICATION, and that is what
+# makes it housekeeping rather than a second copy of the thing.
+#
+# Extraction is collection -- it goes out and fetches -- and housekeeping
+# does it, because a record waiting at `article` has a URL already found
+# and already verified, and fetching it is the next step of finishing
+# it. What housekeeping does not do is look for URLs that are not yet
+# known: discovery walks a publisher's site, verification judges what it
+# found, and both belong to the dataset crons that do that at scale.
+#
+# IT STARTS AT EXTRACTION, on records whose URL is already found and
+# already verified.
+#
+# Every stage selects by STATUS, so nothing here needs a list of ids:
+#
+#     candidate_links.status = 'article'  -> extract
+#     (cleaned, unlabelled)              -> analyze
+#     articles.status        = 'labeled'  -> enrich
+#
+# Put a record in the right status and the pipeline carries it. A link a
+# reviewer restores to `discovered` is not this workflow's business; it
+# waits for verification to run as part of ordinary collection.
+#
+# Idempotent by construction. A stage that fails leaves its records in
+# the status they were already in, so tomorrow's run picks up exactly
+# what today's did not, and nothing is processed twice.
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: housekeeping-template
+  namespace: production
+  labels:
+    type: housekeeping
+spec:
+  templates:
+  - name: housekeeping
+    inputs:
+      parameters:
+      # Bounds, not targets. The free stages are limited to keep a run
+      # short; enrichment is limited because it is the only stage that
+      # spends money.
+      - name: extract-limit
+        value: "25"
+      - name: extract-batches
+        value: "8"
+      - name: classify-limit
+        value: "500"
+      # 200 per dataset per day. At the measured $0.0075/article that is
+      # about $6 a day across the four datasets -- enough to carry a few
+      # hundred rewound records through within a week, and far too small
+      # to make an impression on the ordinary backlog, which is not this
+      # workflow's business.
+      - name: enrich-limit
+        value: "200"
+      - name: enrich-ceiling
+        value: "2"
+      # Off until the step targets the reconciler's set rather than
+      # sweeping the backlog. The stage is wired and bounded; what it is
+      # missing is a list of which records it is for.
+      - name: enrich-enabled
+        value: "false"
+      - name: log-level
+        value: "INFO"
+    steps:
+    # 1. Records already waiting at `article`, plus anything a reviewer
+    #    unparked. No dataset: the whole point is that a rewound record
+    #    is carried whichever dataset it belongs to, and `extract` treats
+    #    `--dataset` as an optional narrowing.
+    - - name: extract
+        template: extraction-step
+
+    # 2. CIN labels for what extraction produced. `analyze` classifies
+    #    across every dataset when `--dataset-id` is omitted.
+    - - name: classify
+        template: classify-step
+        arguments:
+          parameters:
+          - name: limit
+            value: "{{inputs.parameters.classify-limit}}"
+
+    # 3. Enrichment, per dataset.
+    #
+    #    NOT YET TARGETED, AND THAT IS A DEFECT. `enrich run` selects any
+    #    article at `labeled` in the dataset, so this works through the
+    #    ordinary backlog rather than the records a reviewer rewound.
+    #    Measured: of 3,607 disposed articles only 97 sit at `labeled`
+    #    (72 discovery-disposed, 25 extraction-disposed), while a swept
+    #    run would enrich 800 a day -- nearly all of them records nobody
+    #    asked about, in datasets with no dispositions at all.
+    #
+    #    The fix is `enrich backfill --ids-file`, which already exists,
+    #    pointed at the set the reconciler marked. It waits on the
+    #    reconciler because the crawler cannot build that list alone:
+    #    discovery dispositions leave a verdict in `candidate_links.meta`
+    #    and are visible here, but extraction dispositions live only in
+    #    the console's database.
+    #
+    #    Until then this step is DISABLED rather than left to sweep.
+    - - name: enrich
+        when: "{{inputs.parameters.enrich-enabled}} == true"
+        template: enrich-step
+        arguments:
+          parameters:
+          - name: dataset
+            value: "{{item}}"
+          - name: limit
+            value: "{{inputs.parameters.enrich-limit}}"
+          - name: ceiling
+            value: "{{inputs.parameters.enrich-ceiling}}"
+        withItems:
+        - Mizzou-Missouri-State
+        - Penn-State-Lehigh
+        - VT-Community-News
+        - WSU-Washington-State
+
+  # --- the stages this workflow defines for itself ---------------------
+  #
+  # Not reused from `news-pipeline-template`: its extraction step takes a
+  # dataset, because that template exists to work one publisher set hard.
+  # This one takes none, because a rewound record is carried whichever
+  # dataset it is in.
+
+  - name: extraction-step
+    metadata:
+      labels:
+        stage: extraction
+        housekeeping: "true"
+    retryStrategy:
+      limit: 2
+      retryPolicy: "OnFailure"
+      backoff:
+        duration: "5m"
+        factor: 2
+        maxDuration: "20m"
+    container:
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:${CRAWLER_TAG}
+      imagePullPolicy: IfNotPresent
+      command:
+        - python
+        - -m
+        - src.cli.cli_modular
+        - extract
+        - --limit
+        - "25"
+        - --batches
+        - "8"
+      envFrom:
+        - configMapRef:
+            name: crawler-config
+            optional: true
+      env: &db_env
+        - name: DATABASE_ENGINE
+          value: "postgresql+pg8000"
+        - name: DATABASE_HOST
+          value: "127.0.0.1"
+        - name: DATABASE_PORT
+          value: "5432"
+        - name: DATABASE_USER
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: username
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: password
+        - name: DATABASE_NAME
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: database
+        - name: USE_CLOUD_SQL_CONNECTOR
+          value: "true"
+        - name: CLOUD_SQL_INSTANCE
+          value: "mizzou-news-crawler:us-central1:mizzou-db-prod-ssd"
+        - name: PROXY_PROVIDER
+          value: "squid"
+        - name: SQUID_PROXY_URL
+          valueFrom:
+            secretKeyRef:
+              name: squid-proxy-credentials
+              key: squid-proxy-url
+        - name: LOG_LEVEL
+          value: "INFO"
+      resources:
+        requests:
+          cpu: 250m
+          memory: 1Gi
+        limits:
+          cpu: "1"
+          memory: 2Gi
+
+  - name: classify-step
+    inputs:
+      parameters:
+      - name: limit
+    metadata:
+      labels:
+        stage: classification
+        housekeeping: "true"
+    retryStrategy:
+      limit: 2
+      retryPolicy: "OnFailure"
+      backoff:
+        duration: "5m"
+        factor: 2
+        maxDuration: "20m"
+    container:
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:${PROCESSOR_TAG}
+      imagePullPolicy: IfNotPresent
+      command:
+        - python
+        - -m
+        - src.cli.cli_modular
+        - analyze
+        - --limit
+        - "{{inputs.parameters.limit}}"
+      env: *db_env
+      resources:
+        requests:
+          cpu: 250m
+          memory: 2Gi
+        limits:
+          cpu: "1"
+          memory: 4Gi
+
+  - name: enrich-step
+    inputs:
+      parameters:
+      - name: dataset
+      - name: limit
+      - name: ceiling
+    metadata:
+      labels:
+        stage: enrichment
+        housekeeping: "true"
+        dataset: "{{inputs.parameters.dataset}}"
+    # No retry. Enrichment spends money per article, and a retried batch
+    # is a batch paid for twice: `enrich run` is resumable by status, so
+    # tomorrow's run continues from wherever this one stopped.
+    container:
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/enrichment:${ENRICHMENT_TAG}
+      imagePullPolicy: IfNotPresent
+      command:
+        - python
+        - -m
+        - src.cli.cli_modular
+        - enrich
+        - run
+        - --dataset
+        - "{{inputs.parameters.dataset}}"
+        - --limit
+        - "{{inputs.parameters.limit}}"
+      env:
+        - name: ENRICHMENT_SPEND_CEILING_USD
+          value: "{{inputs.parameters.ceiling}}"
+        - name: OPENROUTER_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openrouter-credentials
+              key: api-key
+        - name: DATABASE_ENGINE
+          value: "postgresql+pg8000"
+        - name: DATABASE_HOST
+          value: "127.0.0.1"
+        - name: DATABASE_PORT
+          value: "5432"
+        - name: DATABASE_USER
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: username
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: password
+        - name: DATABASE_NAME
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: database
+        - name: USE_CLOUD_SQL_CONNECTOR
+          value: "true"
+        - name: CLOUD_SQL_INSTANCE
+          value: "mizzou-news-crawler:us-central1:mizzou-db-prod-ssd"
+        - name: LOG_LEVEL
+          value: "INFO"
+      resources:
+        requests:
+          cpu: 250m
+          memory: 1Gi
+        limits:
+          cpu: "1"
+          memory: 2Gi
