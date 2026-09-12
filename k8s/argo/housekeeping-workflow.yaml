@@ -45,82 +45,53 @@ spec:
   - name: housekeeping
     inputs:
       parameters:
-      # Bounds, not targets. The free stages are limited to keep a run
-      # short; enrichment is limited because it is the only stage that
-      # spends money.
+      # Bounds on a run, not on what it selects: what it selects is
+      # `pipeline_rework`. These keep one night's run inside its window.
       - name: extract-limit
         value: "25"
       - name: extract-batches
         value: "8"
       - name: classify-limit
         value: "500"
-      # 200 per dataset per day. At the measured $0.0075/article that is
-      # about $6 a day across the four datasets -- enough to carry a few
-      # hundred rewound records through within a week, and far too small
-      # to make an impression on the ordinary backlog, which is not this
-      # workflow's business.
-      - name: enrich-limit
-        value: "200"
+      # Enrichment spends money. `backfill` takes the named set and the
+      # ceiling caps the night whatever that set's size.
       - name: enrich-ceiling
-        value: "2"
-      # Off until the step targets the reconciler's set rather than
-      # sweeping the backlog. The stage is wired and bounded; what it is
-      # missing is a list of which records it is for.
-      - name: enrich-enabled
-        value: "false"
+        value: "10"
       - name: log-level
         value: "INFO"
+    # EVERY STAGE READS `pipeline_rework` AND NOTHING ELSE.
+    #
+    # Every pipeline stage selects by status, and a rewound record shares
+    # its status with the whole backlog -- so a stage told nothing takes
+    # everything. A run of this began extracting 4,802 links when the
+    # dispositions accounted for 45. `--rework` on each stage reads the
+    # table that names the records a decision rewound, and an empty table
+    # means nothing to do, never "everything".
+    #
+    # The first step counts what is owed and stops the run if nothing is.
+    # An empty night costs a few seconds.
     steps:
-    # 1. Records already waiting at `article`, plus anything a reviewer
-    #    unparked. No dataset: the whole point is that a rewound record
-    #    is carried whichever dataset it belongs to, and `extract` treats
-    #    `--dataset` as an optional narrowing.
+    # 0. Is anything owed? A run with nothing to carry stops here.
+    - - name: anything-owed
+        template: anything-owed-step
+
+    # 1. Links a decision rewound to `article`, and only those.
     - - name: extract
         template: extraction-step
+        when: "{{steps.anything-owed.outputs.result}} != 0"
 
-    # 2. CIN labels for what extraction produced. `analyze` classifies
-    #    across every dataset when `--dataset-id` is omitted.
+    # 2. Articles a decision sent back to `cleaned`, and only those.
     - - name: classify
         template: classify-step
-        arguments:
-          parameters:
-          - name: limit
-            value: "{{inputs.parameters.classify-limit}}"
+        when: "{{steps.anything-owed.outputs.result}} != 0"
 
-    # 3. Enrichment, per dataset.
-    #
-    #    NOT YET TARGETED, AND THAT IS A DEFECT. `enrich run` selects any
-    #    article at `labeled` in the dataset, so this works through the
-    #    ordinary backlog rather than the records a reviewer rewound.
-    #    Measured: of 3,607 disposed articles only 97 sit at `labeled`
-    #    (72 discovery-disposed, 25 extraction-disposed), while a swept
-    #    run would enrich 800 a day -- nearly all of them records nobody
-    #    asked about, in datasets with no dispositions at all.
-    #
-    #    The fix is `enrich backfill --ids-file`, which already exists,
-    #    pointed at the set the reconciler marked. It waits on the
-    #    reconciler because the crawler cannot build that list alone:
-    #    discovery dispositions leave a verdict in `candidate_links.meta`
-    #    and are visible here, but extraction dispositions live only in
-    #    the console's database.
-    #
-    #    Until then this step is DISABLED rather than left to sweep.
+    # 3. Articles owing enrichment, and only those -- through `backfill`,
+    #    which takes a named set. Never `enrich run`, which takes every
+    #    article at `labeled`: 85,189 of them, and a ceiling that would be
+    #    spent on records nobody asked about.
     - - name: enrich
-        when: "{{inputs.parameters.enrich-enabled}} == true"
         template: enrich-step
-        arguments:
-          parameters:
-          - name: dataset
-            value: "{{item}}"
-          - name: limit
-            value: "{{inputs.parameters.enrich-limit}}"
-          - name: ceiling
-            value: "{{inputs.parameters.enrich-ceiling}}"
-        withItems:
-        - Mizzou-Missouri-State
-        - Penn-State-Lehigh
-        - VT-Community-News
-        - WSU-Washington-State
+        when: "{{steps.anything-owed.outputs.result}} != 0"
 
   # --- the stages this workflow defines for itself ---------------------
   #
@@ -149,6 +120,10 @@ spec:
         - -m
         - src.cli.cli_modular
         - extract
+        # THE RECORDS, NOT THE STATUS. Without --rework `extract` takes
+        # every link at `article` -- 4,802 of them the day this was
+        # written, against 45 that a decision had rewound.
+        - --rework
         - --limit
         - "25"
         - --batches
@@ -192,13 +167,18 @@ spec:
               key: squid-proxy-url
         - name: LOG_LEVEL
           value: "INFO"
+      # THE PIPELINE'S OWN NUMBERS, not smaller ones because the batches
+      # are smaller. A single article is what costs the memory here --
+      # parsing one large page, not the size of the batch around it -- so
+      # extraction needs what extraction needs whether it runs 25 or
+      # 20,000. The first run of this was OOMKilled at 2Gi.
       resources:
         requests:
           cpu: 250m
-          memory: 1Gi
-        limits:
-          cpu: "1"
           memory: 2Gi
+        limits:
+          cpu: 1000m
+          memory: 6Gi
 
   - name: classify-step
     inputs:
@@ -223,28 +203,31 @@ spec:
         - -m
         - src.cli.cli_modular
         - analyze
+        # Same rule: 450 articles sit at `cleaned` and 14 of them were put
+        # there by a review decision.
+        - --rework
         - --limit
         - "{{inputs.parameters.limit}}"
       env: *db_env
+      # The processor deployment's numbers: classification loads a model,
+      # and the model does not get smaller with the batch either.
       resources:
         requests:
           cpu: 250m
           memory: 2Gi
         limits:
-          cpu: "1"
+          cpu: 1000m
           memory: 4Gi
 
   - name: enrich-step
     inputs:
       parameters:
-      - name: dataset
-      - name: limit
       - name: ceiling
+        value: "{{workflow.parameters.enrich-ceiling}}"
     metadata:
       labels:
         stage: enrichment
         housekeeping: "true"
-        dataset: "{{inputs.parameters.dataset}}"
     # No retry. Enrichment spends money per article, and a retried batch
     # is a batch paid for twice: `enrich run` is resumable by status, so
     # tomorrow's run continues from wherever this one stopped.
@@ -256,11 +239,10 @@ spec:
         - -m
         - src.cli.cli_modular
         - enrich
-        - run
-        - --dataset
-        - "{{inputs.parameters.dataset}}"
-        - --limit
-        - "{{inputs.parameters.limit}}"
+        # `backfill --rework`, never `run`: `run` selects every article at
+        # `labeled`; `backfill` takes the named set from pipeline_rework.
+        - backfill
+        - --rework
       env:
         - name: ENRICHMENT_SPEND_CEILING_USD
           value: "{{inputs.parameters.ceiling}}"
@@ -296,10 +278,42 @@ spec:
           value: "mizzou-news-crawler:us-central1:mizzou-db-prod-ssd"
         - name: LOG_LEVEL
           value: "INFO"
+      # Enrichment holds one article and calls a model over the network,
+      # which is what the enrichment CronJob asks for and has never
+      # exceeded.
       resources:
         requests:
           cpu: 250m
-          memory: 1Gi
+          memory: 512Mi
         limits:
-          cpu: "1"
-          memory: 2Gi
+          cpu: 1000m
+          memory: 1Gi
+
+  # Counts what is owed. Its result is what every later step is gated on,
+  # so a run with nothing to carry ends here in seconds rather than
+  # starting three pods to find out.
+  - name: anything-owed-step
+    metadata:
+      labels:
+        stage: guard
+        housekeeping: "true"
+    script:
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:${PROCESSOR_TAG}
+      imagePullPolicy: IfNotPresent
+      command: [python]
+      source: |
+        from sqlalchemy import text
+        from src.models.database import DatabaseManager
+        with DatabaseManager().get_session() as s:
+            n = s.execute(text(
+                "SELECT count(*) FROM pipeline_rework WHERE done_at IS NULL"
+            )).scalar()
+        print(n)
+      env: *db_env
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi

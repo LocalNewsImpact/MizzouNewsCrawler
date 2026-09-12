@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Protocol
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from src.ml.article_classifier import Prediction
@@ -50,6 +50,60 @@ class ArticleClassificationService:
         self.session = session
         self.logger = logging.getLogger(self.__class__.__name__)
 
+    @staticmethod
+    def _articles_owed_a_classification(session):
+        """The articles `pipeline_rework` says still need classifying.
+
+        Read from the database, not from a file handed between pods: a
+        file and the database disagree the moment a run dies halfway. An
+        empty result means nothing to do -- never "no filter".
+        """
+        rows = session.execute(
+            text(
+                "SELECT record_id FROM pipeline_rework "
+                "WHERE record_type = 'article' AND stage = 'classify' "
+                "AND done_at IS NULL ORDER BY requested_at"
+            )
+        ).fetchall()
+        return [r[0] for r in rows]
+
+    @staticmethod
+    def _settle_rework(session, record_ids, outcome):
+        """Close this stage's rework rows for the articles it classified,
+        and queue the same articles for enrichment.
+
+        Each stage hands off to the next: the reconciler writes only the
+        row for the stage a record re-enters at, and a stage that
+        finishes queues the one after it. Enrichment selects `labeled`,
+        which is what classification just wrote, so the row is written
+        for the article as it now is. A duplicate request is the same
+        request (partial unique index; `ON CONFLICT DO NOTHING`).
+        """
+        if not record_ids:
+            return
+        ids = [str(i) for i in record_ids]
+        session.execute(
+            text(
+                "UPDATE pipeline_rework SET done_at = now(), outcome = :outcome "
+                "WHERE record_type = 'article' AND stage = 'classify' "
+                "AND record_id = ANY(:ids) AND done_at IS NULL"
+            ),
+            {"outcome": outcome, "ids": ids},
+        )
+        session.execute(
+            text(
+                "INSERT INTO pipeline_rework "
+                "(record_type, record_id, stage, reason, requested_by) "
+                "SELECT 'article', r.record_id, 'enrich', "
+                "'classified for rework: ' || COALESCE(r.reason, ''), 'housekeeping' "
+                "FROM pipeline_rework r "
+                "WHERE r.record_type = 'article' AND r.stage = 'classify' "
+                "AND r.record_id = ANY(:ids) AND r.outcome = :outcome "
+                "ON CONFLICT DO NOTHING"
+            ),
+            {"outcome": outcome, "ids": ids},
+        )
+
     def _select_articles(
         self,
         statuses: Sequence[str] | None,
@@ -59,8 +113,23 @@ class ArticleClassificationService:
         excluded_statuses: Sequence[str] | None = None,
         excluded_article_ids: Sequence[str] | None = None,
         dataset_id: str | None = None,
+        only_article_ids: Sequence[str] | None = None,
     ) -> list[Article]:
         stmt = select(Article)
+
+        # ONLY THESE ARTICLES, WHEN NAMED.
+        #
+        # Every other argument here narrows a population; this replaces
+        # it. A caller that knows which records it is for -- housekeeping,
+        # carrying the handful a review decision rewound -- must be able
+        # to say so, or it classifies whatever else shares a status. An
+        # empty list means "none", not "no filter": those are opposite
+        # instructions and conflating them is how a targeted run becomes
+        # a sweep.
+        if only_article_ids is not None:
+            if not only_article_ids:
+                return []
+            stmt = stmt.where(Article.id.in_(list(only_article_ids)))
 
         if statuses:
             stmt = stmt.where(Article.status.in_(list(statuses)))
@@ -164,8 +233,16 @@ class ArticleClassificationService:
         dry_run: bool = False,
         include_existing: bool = False,
         dataset_id: str | None = None,
+        rework: bool = False,
     ) -> ClassificationStats:
         """Classify eligible articles and persist results.
+
+        `rework=True` classifies ONLY the articles `pipeline_rework` says
+        owe it -- the records a review decision rewound -- and closes
+        those rows when done. Without it every article at an eligible
+        status is taken, which is the pipeline's job and not
+        housekeeping's: 450 sat at `cleaned` the night 14 of them were
+        put there by a decision.
 
         Parallel Processing with Row-Level Locking:
         ------------------------------------------
@@ -219,6 +296,18 @@ class ArticleClassificationService:
                 list(attempted_article_ids) if attempted_article_ids else None
             )
 
+            only_ids = None
+            if rework:
+                only_ids = self._articles_owed_a_classification(self.session)
+                if not only_ids:
+                    logger.info("rework: nothing owes a classification")
+                    break
+
+            # The kwarg is passed only when rework is on. Every existing
+            # caller and test double of `_select_articles` predates it, and
+            # a positional-only fake that is handed an unexpected keyword
+            # raises before it can select anything.
+            select_kwargs = {"only_article_ids": only_ids} if rework else {}
             articles = self._select_articles(
                 effective_statuses,
                 label_version,
@@ -227,6 +316,7 @@ class ArticleClassificationService:
                 list(excluded_statuses),
                 excluded_ids,
                 dataset_id,
+                **select_kwargs,
             )
 
             if not articles:
@@ -276,6 +366,7 @@ class ArticleClassificationService:
                 self.session.rollback()
                 continue
 
+            labeled_ids: list[str] = []
             for article, predictions in zip(
                 article_refs, predictions_batch, strict=False
             ):
@@ -339,6 +430,15 @@ class ArticleClassificationService:
                     autocommit=False,
                 )
                 stats.labeled += 1
+                labeled_ids.append(str(article_id_value))
+
+            # A rework row is closed by the batch that labelled it, in the
+            # same commit. Closed after the commit, a crash between the two
+            # leaves a labelled article still "owing" work, and tomorrow
+            # labels it again; closed before, a rollback leaves a row
+            # closed for work that never landed.
+            if rework and not dry_run:
+                self._settle_rework(self.session, labeled_ids, "classified")
 
             # Commit batch to release locks for parallel workers
             self.session.commit()

@@ -295,6 +295,18 @@ def add_analysis_parser(subparsers) -> None:
         ),
     )
     parser.add_argument(
+        "--rework",
+        action="store_true",
+        default=False,
+        help=(
+            "Classify only the articles pipeline_rework says owe it -- "
+            "the records a review decision rewound -- and close those "
+            "rows when done. Without it every article at an eligible "
+            "status is taken, which is the pipeline's job and not "
+            "housekeeping's."
+        ),
+    )
+    parser.add_argument(
         "--report-path",
         help=(
             "Optional CSV path for label-change report. If omitted, a "
@@ -354,6 +366,7 @@ def handle_analysis_command(args) -> int:
             dry_run=args.dry_run,
             include_existing=args.force,
             dataset_id=dataset_id,
+            rework=getattr(args, "rework", False) is True,
         )
 
         print("\n=== Classification Summary ===")

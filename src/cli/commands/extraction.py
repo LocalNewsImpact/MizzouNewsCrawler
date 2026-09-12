@@ -674,6 +674,79 @@ def _analyze_dataset_domains(args, session):
         }
 
 
+def _links_owed_a_fetch(session):
+    """The candidate links `pipeline_rework` says still need extracting.
+
+    Working state lives in the database, not in a file handed between
+    pods: a file and the database disagree the moment a run dies halfway.
+    Whoever rewound the record wrote the row; this reads it and
+    `_settle_fetches` closes it. An empty result means nothing to do --
+    never "no filter".
+    """
+    rows = safe_session_execute(
+        session,
+        text(
+            "SELECT record_id FROM pipeline_rework "
+            "WHERE record_type = 'candidate_link' AND stage = 'extract' "
+            "AND done_at IS NULL ORDER BY requested_at"
+        ),
+    ).fetchall()
+    return [r[0] for r in rows]
+
+
+def _settle_fetches(session, link_ids):
+    """Close the `extract` rows whose fetch is decided, and queue the
+    classification of the articles it produced.
+
+    Settled on the link's status, not on "we tried": a link still at
+    `article` still owes the fetch and tomorrow's run finds it again.
+    One that reached `extracted` has an article -- cleaning runs inside
+    extraction, so it is at `cleaned` -- and that article now owes a
+    classification. The reconciler wrote the first row; this writes the
+    next, because nobody else knows the article's id. A link that
+    landed anywhere else (`paused`, `proxy_blocked`, ...) is closed
+    with that status as its outcome and nothing is queued: what it
+    needs is a method, not another stage.
+
+    Closed rather than deleted, so "what did housekeeping do" can be
+    answered afterwards. Only this stage's rows: a record owing a fetch
+    and, later, a classification is two rows, and finishing one must
+    not finish the other.
+    """
+    if not link_ids:
+        return 0, 0
+    ids = list(link_ids)
+    settled = safe_session_execute(
+        session,
+        text(
+            "UPDATE pipeline_rework r SET done_at = now(), outcome = cl.status "
+            "FROM candidate_links cl "
+            "WHERE r.record_type = 'candidate_link' AND r.stage = 'extract' "
+            "AND r.done_at IS NULL AND r.record_id = cl.id "
+            "AND cl.id = ANY(:ids) AND cl.status <> 'article'"
+        ),
+        {"ids": ids},
+    ).rowcount
+    queued = safe_session_execute(
+        session,
+        text(
+            "INSERT INTO pipeline_rework "
+            "(record_type, record_id, stage, reason, requested_by) "
+            "SELECT 'article', a.id, 'classify', "
+            "'extracted for rework: ' || COALESCE(r.reason, ''), 'housekeeping' "
+            "FROM pipeline_rework r "
+            "JOIN articles a ON a.candidate_link_id = r.record_id "
+            "WHERE r.record_type = 'candidate_link' AND r.stage = 'extract' "
+            "AND r.record_id = ANY(:ids) AND r.outcome = 'extracted' "
+            "AND a.status IN ('cleaned', 'local') "
+            "ON CONFLICT DO NOTHING"
+        ),
+        {"ids": ids},
+    ).rowcount
+    session.commit()
+    return settled or 0, queued or 0
+
+
 def add_extraction_parser(subparsers):
     """Add extraction command parser to CLI."""
     extract_parser = subparsers.add_parser(
@@ -692,6 +765,17 @@ def add_extraction_parser(subparsers):
         "--source",
         type=str,
         help="Limit to a specific source",
+    )
+    extract_parser.add_argument(
+        "--rework",
+        action="store_true",
+        default=False,
+        help=(
+            "Extract only the links pipeline_rework says owe a fetch -- "
+            "the records a review decision rewound. Without it every "
+            "link awaiting extraction is taken, which is the pipeline's "
+            "job and not housekeeping's."
+        ),
     )
     extract_parser.add_argument(
         "--dataset",
@@ -1382,6 +1466,12 @@ def _process_batch(
         db = DatabaseManager()
     session = db.session
 
+    # The links this batch was TOLD to fetch, under `--rework`; None on
+    # every other path. Declared here, not inside the branch that fills
+    # it: the work-queue path skips that branch entirely and read it at
+    # the end of the batch, which is an UnboundLocalError.
+    rework_ids = None
+
     # Track domain failures and articles processed per domain in this batch
     domain_failures = {}  # domain -> consecutive_failures
     domain_article_count = {}  # domain -> articles_processed_in_batch
@@ -1448,6 +1538,31 @@ def _process_batch(
             # Request more articles than we need to allow for domain skipping
             buffer_multiplier = 3
             params = {"limit_with_buffer": per_batch * buffer_multiplier}
+
+            # ONLY THE RECORDS THAT OWE A FETCH, WHEN ASKED.
+            #
+            # Without `--rework` `extract` takes every link at `article`,
+            # which is the whole extraction backlog. Right for the
+            # pipeline, wrong for housekeeping, whose job is the handful
+            # of records a review decision rewound: a housekeeping run
+            # swept 4,802 links when the dispositions accounted for 45.
+            # `--rework` reads `pipeline_rework` and nothing else, and an
+            # empty table means nothing to do -- never "take everything".
+            # `is True`, not truthiness: a Mock stands in for `args` across
+            # the extraction tests and answers any attribute with a truthy
+            # Mock, which walked every one of them into this branch.
+            if getattr(args, "rework", False) is True:
+                rework_ids = _links_owed_a_fetch(session)
+                if not rework_ids:
+                    logger.info("rework: nothing owes a fetch")
+                    return {"processed": 0}
+                q = q.replace(
+                    "WHERE cl.status = 'article'",
+                    """WHERE cl.status = 'article'
+                    AND cl.id = ANY(:link_ids)""",
+                )
+                params["link_ids"] = rework_ids
+                logger.info("rework: %d links owe a fetch", len(rework_ids))
 
             # Add dataset filter if specified (dataset is already resolved to UUID)
             if getattr(args, "dataset", None):
@@ -2661,6 +2776,17 @@ def _process_batch(
                     batch_num,
                     failure_summary,
                 )
+
+        # A rework row is closed by the batch that decided its fetch, and
+        # the article it produced is queued for classification here,
+        # where its id is known.
+        if rework_ids:
+            settled, queued = _settle_fetches(session, rework_ids)
+            logger.info(
+                "rework: %d fetches settled, %d articles queued for classification",
+                settled,
+                queued,
+            )
 
         return {
             "processed": processed,
