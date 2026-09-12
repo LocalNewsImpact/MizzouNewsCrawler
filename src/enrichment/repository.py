@@ -258,6 +258,87 @@ def _geoid_for(places_payload: dict, point):
     )
 
 
+def apply_manual_geography(session, dataset=None, since=None, dry_run=False) -> dict:
+    """Put what a person contributed into `article_geoids`, so it reaches
+    BigQuery.
+
+    THE MERGE IN `persist_outcome` CANNOT REACH THESE ARTICLES. It is the
+    only other caller of `manual_geoids()`, and the only route to it is
+    `select_by_ids`, which rejects anything whose `status != 'labeled'`.
+    Of the 1,266 March articles the review queue offers, ZERO are
+    'labeled' -- 850 enrichment_skipped, 157 not_article, 150 enriched,
+    65 cleaned, 44 other -- because the queue exists precisely for
+    articles enrichment has already finished with. A contribution had
+    nowhere to go.
+
+    `article_geoids` is what BigQuery reads: the scheduled query "Sync
+    Article Geoids from Cloud SQL" is `SELECT * FROM article_geoids`,
+    daily at 07:00 UTC, with no filter of its own. So a row here is a row
+    in BigQuery the next morning.
+
+    ADDITIVE, never the DELETE-and-rewrite `persist_outcome` does. This
+    runs outside enrichment and must not touch what enrichment wrote:
+    `ON CONFLICT DO NOTHING` means re-running it is free, and a later
+    re-enrichment rebuilds the same rows from the same source table
+    rather than fighting with these.
+    """
+    where, params = ["m.geoid IS NOT NULL"], {}
+    if dataset:
+        where.append("d.slug = :dataset")
+        params["dataset"] = dataset
+    if since:
+        where.append("a.publish_date >= :since")
+        params["since"] = since
+
+    rows = session.execute(
+        text(f"""
+            SELECT m.article_id, m.geoid, m.geoid_level, m.is_point,
+                   EXISTS (
+                       SELECT 1 FROM article_geoids g
+                       WHERE g.article_id = m.article_id AND g.is_primary
+                   ) AS already_primary
+            FROM article_places_manual m
+            JOIN articles a ON a.id = m.article_id
+            LEFT JOIN candidate_links cl ON cl.id = a.candidate_link_id
+            LEFT JOIN dataset_sources ds ON ds.source_id = cl.source_id
+            LEFT JOIN datasets d ON d.id = ds.dataset_id
+            WHERE {" AND ".join(where)}
+            """),
+        params,
+    ).fetchall()
+
+    written = 0
+    for row in rows:
+        if dry_run:
+            continue
+        # A human centre is primary only where nothing else claims to be,
+        # which is the rule `persist_outcome` uses (`is_point and geoid is
+        # None`). Two primaries for one article is a contradiction rather
+        # than a disagreement worth keeping.
+        primary = bool(row.is_point) and not row.already_primary
+        result = session.execute(
+            text(
+                "INSERT INTO article_geoids "
+                "(article_id, geoid, geoid_level, is_primary, source) "
+                "VALUES (:a, :g, :l, :p, 'human') ON CONFLICT DO NOTHING"
+            ),
+            {
+                "a": row.article_id,
+                "g": row.geoid,
+                "l": row.geoid_level,
+                "p": primary,
+            },
+        )
+        written += result.rowcount or 0
+    if not dry_run:
+        session.commit()
+    return {
+        "contributions": len(rows),
+        "articles": len({r.article_id for r in rows}),
+        "written": written,
+    }
+
+
 def manual_geoids(session, article_id) -> list[tuple[str, str, bool]]:
     """(geoid, level, is_point) a person contributed for this article.
 
