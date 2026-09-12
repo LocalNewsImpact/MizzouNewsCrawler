@@ -339,6 +339,49 @@ def apply_manual_geography(session, dataset=None, since=None, dry_run=False) -> 
     }
 
 
+def articles_owed_enrichment(session) -> list[str]:
+    """The articles `pipeline_rework` says still need enriching.
+
+    Read from the database, not a file handed between pods. An empty
+    result means nothing to do -- never "no filter", which is the
+    inversion that turns a targeted run into a sweep of 85,000 rows.
+    """
+    rows = session.execute(
+        text(
+            "SELECT record_id FROM pipeline_rework "
+            "WHERE record_type = 'article' AND stage = 'enrich' "
+            "AND done_at IS NULL ORDER BY requested_at"
+        )
+    ).fetchall()
+    return [r[0] for r in rows]
+
+
+def settle_enrichment_rework(session, article_ids) -> int:
+    """Close the rework rows for articles that reached a terminal status.
+
+    Settled on the article's status rather than on "we tried": an
+    article whose enrichment failed is still at `labeled` and still owes
+    the work, and tomorrow's run should find it. One whose status is
+    `enriched` or `enrichment_skipped` is finished, whichever of those
+    the pipeline decided.
+    """
+    if not article_ids:
+        return 0
+    result = session.execute(
+        text(
+            "UPDATE pipeline_rework r SET done_at = now(), outcome = a.status "
+            "FROM articles a "
+            "WHERE r.record_type = 'article' AND r.stage = 'enrich' "
+            "AND r.done_at IS NULL AND r.record_id = a.id "
+            "AND a.id = ANY(:ids) "
+            "AND a.status IN ('enriched', 'enrichment_skipped')"
+        ),
+        {"ids": list(article_ids)},
+    )
+    session.commit()
+    return result.rowcount or 0
+
+
 def manual_geoids(session, article_id) -> list[tuple[str, str, bool]]:
     """(geoid, level, is_point) a person contributed for this article.
 

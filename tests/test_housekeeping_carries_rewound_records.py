@@ -51,10 +51,15 @@ def by_name(template):
 
 
 def test_the_stages_run_in_pipeline_order(steps):
-    """A record moves `article` -> extracted -> labeled -> enriched.
+    """A guard first, then `article` -> extracted -> labeled -> enriched.
     Classify before extract would label yesterday's work and leave
     today's, and the run would still report success."""
-    assert [s["name"] for s in steps] == ["extract", "classify", "enrich"]
+    assert [s["name"] for s in steps] == [
+        "anything-owed",
+        "extract",
+        "classify",
+        "enrich",
+    ]
 
 
 def test_it_does_no_discovery_or_verification(steps, template):
@@ -75,13 +80,21 @@ def test_it_does_no_discovery_or_verification(steps, template):
         assert f"- {collection}" not in body, f"{collection} is a collection stage"
 
 
-def test_enrichment_names_every_dataset_by_its_slug(steps):
-    """`enrich run` requires `--dataset` and matches `datasets.slug`.
-    Naming the datasets here rather than relaxing the flag gives each its
-    own limit and its own ceiling, so Mizzou's 83,048 waiting articles
-    cannot spend the budget that would otherwise carry VT's 1,017."""
+def test_enrichment_takes_the_named_set_not_a_dataset(steps, by_name):
+    """`enrich backfill --rework` takes the articles pipeline_rework
+    names, whatever dataset they are in. Iterating datasets with
+    `enrich run` was the earlier design, and it swept: `run` selects
+    every article at `labeled` in the dataset, 85,189 of them, and the
+    ceiling would have been spent on records nobody asked about.
+
+    Cost by dataset survives: `article_enrichment.cost_usd` is per
+    article and `articles.dataset_id` is populated, so attribution is a
+    GROUP BY afterwards and does not need the run to be per dataset."""
     enrich = next(s for s in steps if s["name"] == "enrich")
-    assert set(enrich["withItems"]) == SLUGS
+    assert "withItems" not in enrich
+    command = " ".join(by_name["enrich-step"]["container"]["command"])
+    assert "backfill" in command and "--rework" in command
+    assert "--dataset" not in command
 
 
 def test_extraction_and_classification_are_not_dataset_scoped(by_name):
@@ -99,53 +112,73 @@ def test_each_stage_runs_the_command_it_claims(by_name):
     assert "extract" in by_name["extraction-step"]["container"]["command"]
     assert "analyze" in by_name["classify-step"]["container"]["command"]
     enrich = by_name["enrich-step"]["container"]["command"]
-    assert enrich[-6:-4] == ["enrich", "run"] or "run" in enrich
+    assert "backfill" in enrich and "run" not in enrich
 
 
-def test_enrichment_is_off_until_it_is_targeted(steps, template):
-    """`enrich run` selects ANY article at `labeled` in the dataset, so
-    enabling it sweeps the ordinary backlog rather than carrying the
-    records a reviewer rewound.
-
-    Measured: 3,607 articles carry a disposition and only 97 of them sit
-    at `labeled` -- 72 discovery-disposed, 25 extraction-disposed --
-    while a swept run enriches 800 a day, nearly all of them in datasets
-    with no dispositions at all. Lehigh and WSU have none whatsoever.
-
-    The step stays wired and bounded, and off, until it points at the set
-    the reconciler marks."""
+def test_enrichment_is_on_because_it_is_targeted(steps):
+    """It was off while `enrich run` was the only verb wired, because
+    `run` sweeps. `backfill --rework` takes a named set, so the reason to
+    keep it off is gone -- and a step that stays off after its reason is
+    gone is a step nobody remembers to turn on."""
     enrich = next(s for s in steps if s["name"] == "enrich")
-    assert "when" in enrich, "the enrich step sweeps the backlog unguarded"
+    assert "enrich-enabled" not in enrich.get("when", "")
+    assert "anything-owed" in enrich["when"]
 
-    params = {
-        p["name"]: p.get("value")
-        for p in next(
-            t for t in template["spec"]["templates"] if t["name"] == "housekeeping"
-        )["inputs"]["parameters"]
+
+def test_enrichment_is_bounded_by_a_ceiling(by_name, template):
+    """The only stage that spends money. The set is bounded by
+    pipeline_rework; the ceiling bounds the night whatever that set's
+    size."""
+    env = {
+        e["name"]: e.get("value") for e in by_name["enrich-step"]["container"]["env"]
     }
-    assert params["enrich-enabled"] == "false"
-
-
-def test_enrichment_is_bounded_by_a_ceiling_and_a_limit(by_name, steps):
-    """The only stage that spends money. Unbounded it would work through
-    a backlog this workflow has no business touching."""
-    enrich_step = by_name["enrich-step"]
-    env = {e["name"]: e.get("value") for e in enrich_step["container"]["env"]}
     assert "ENRICHMENT_SPEND_CEILING_USD" in env
-    assert "--limit" in enrich_step["container"]["command"]
+    entry = next(
+        t for t in template["spec"]["templates"] if t["name"] == "housekeeping"
+    )
+    params = {p["name"]: p.get("value") for p in entry["inputs"]["parameters"]}
+    assert float(params["enrich-ceiling"]) <= 25, "a nightly top-up, not a backfill"
 
-    entry_inputs = {
-        p["name"]: p.get("value")
-        for p in next(
-            t
-            for t in yaml.safe_load(TEMPLATE.read_text())["spec"]["templates"]
-            if t["name"] == "housekeeping"
-        )["inputs"]["parameters"]
+
+def test_each_stage_gets_the_memory_its_work_needs(by_name):
+    """The first run was OOMKilled at 2Gi on extraction.
+
+    The batches here are small, and the memory is not about the batch: a
+    single article is what costs it -- parsing one large page -- so
+    extraction needs what extraction needs whether it runs 25 or 20,000.
+    These are the numbers the pipeline and the processor deployment
+    already use in production, rather than smaller ones chosen to match
+    the smaller batches.
+    """
+    floors = {
+        "extraction-step": (2, 6),
+        "classify-step": (2, 4),
+        "enrich-step": (0.5, 1),
     }
-    assert (
-        int(entry_inputs["enrich-limit"]) <= 500
-    ), "a housekeeping run, not a backfill"
-    assert float(entry_inputs["enrich-ceiling"]) <= 10
+
+    def gigabytes(value):
+        if value.endswith("Mi"):
+            return int(value[:-2]) / 1024
+        return float(value.rstrip("Gi"))
+
+    for stage, (want_request, want_limit) in floors.items():
+        resources = by_name[stage]["container"]["resources"]
+        assert gigabytes(resources["requests"]["memory"]) >= want_request, stage
+        assert gigabytes(resources["limits"]["memory"]) >= want_limit, stage
+
+
+def test_extraction_asks_for_what_the_pipeline_asks_for(by_name):
+    """Read from the pipeline template rather than repeated here, so the
+    two cannot drift apart silently -- which is how they started."""
+    import yaml
+
+    pipeline = yaml.safe_load((ARGO / "base-pipeline-workflow.yaml").read_text())
+    theirs = next(
+        t for t in pipeline["spec"]["templates"] if t["name"] == "extraction-step"
+    )["container"]["resources"]
+    mine = by_name["extraction-step"]["container"]["resources"]
+    assert mine["limits"]["memory"] == theirs["limits"]["memory"]
+    assert mine["requests"]["memory"] == theirs["requests"]["memory"]
 
 
 def test_enrichment_is_not_retried(by_name):

@@ -674,6 +674,52 @@ def _analyze_dataset_domains(args, session):
         }
 
 
+def _links_owed_a_fetch(session):
+    """The candidate links `pipeline_rework` says still need extracting.
+
+    Working state lives in the database, not in a file handed between
+    pods: a file and the database disagree the moment a run dies halfway.
+    Whoever rewound the record wrote the row; this reads it and
+    `_settle_rework` closes it. An empty result means nothing to do --
+    never "no filter".
+    """
+    rows = safe_session_execute(
+        session,
+        text(
+            "SELECT record_id FROM pipeline_rework "
+            "WHERE record_type = 'candidate_link' AND stage = 'extract' "
+            "AND done_at IS NULL ORDER BY requested_at"
+        ),
+    ).fetchall()
+    return [r[0] for r in rows]
+
+
+def _settle_rework(session, record_type, stage, record_ids, outcome):
+    """Close the rework rows for records a stage has handled.
+
+    Closed rather than deleted, so "what did housekeeping do" can be
+    answered afterwards. Only this stage's rows: a record owing a fetch
+    and, later, a classification is two rows, and finishing one must not
+    finish the other.
+    """
+    if not record_ids:
+        return
+    safe_session_execute(
+        session,
+        text(
+            "UPDATE pipeline_rework SET done_at = now(), outcome = :outcome "
+            "WHERE record_type = :rt AND stage = :stage "
+            "AND record_id = ANY(:ids) AND done_at IS NULL"
+        ),
+        {
+            "outcome": outcome,
+            "rt": record_type,
+            "stage": stage,
+            "ids": list(record_ids),
+        },
+    )
+
+
 def add_extraction_parser(subparsers):
     """Add extraction command parser to CLI."""
     extract_parser = subparsers.add_parser(
@@ -692,6 +738,17 @@ def add_extraction_parser(subparsers):
         "--source",
         type=str,
         help="Limit to a specific source",
+    )
+    extract_parser.add_argument(
+        "--rework",
+        action="store_true",
+        default=False,
+        help=(
+            "Extract only the links pipeline_rework says owe a fetch -- "
+            "the records a review decision rewound. Without it every "
+            "link awaiting extraction is taken, which is the pipeline's "
+            "job and not housekeeping's."
+        ),
     )
     extract_parser.add_argument(
         "--dataset",
@@ -1448,6 +1505,31 @@ def _process_batch(
             # Request more articles than we need to allow for domain skipping
             buffer_multiplier = 3
             params = {"limit_with_buffer": per_batch * buffer_multiplier}
+
+            # ONLY THE RECORDS THAT OWE A FETCH, WHEN ASKED.
+            #
+            # Without `--rework` `extract` takes every link at `article`,
+            # which is the whole extraction backlog. Right for the
+            # pipeline, wrong for housekeeping, whose job is the handful
+            # of records a review decision rewound: a housekeeping run
+            # swept 4,802 links when the dispositions accounted for 45.
+            # `--rework` reads `pipeline_rework` and nothing else, and an
+            # empty table means nothing to do -- never "take everything".
+            # `is True`, not truthiness: a Mock stands in for `args` across
+            # the extraction tests and answers any attribute with a truthy
+            # Mock, which walked every one of them into this branch.
+            if getattr(args, "rework", False) is True:
+                rework_ids = _links_owed_a_fetch(session)
+                if not rework_ids:
+                    logger.info("rework: nothing owes a fetch")
+                    return {"processed": 0}
+                q = q.replace(
+                    "WHERE cl.status = 'article'",
+                    """WHERE cl.status = 'article'
+                    AND cl.id = ANY(:link_ids)""",
+                )
+                params["link_ids"] = rework_ids
+                logger.info("rework: %d links owe a fetch", len(rework_ids))
 
             # Add dataset filter if specified (dataset is already resolved to UUID)
             if getattr(args, "dataset", None):

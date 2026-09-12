@@ -55,7 +55,17 @@ def add_enrichment_parser(subparsers):
 
     backfill = actions.add_parser("backfill", help="Enrich an explicit id list")
     backfill.add_argument(
-        "--ids-file", required=True, help="file of article ids, one per line"
+        "--ids-file", default=None, help="file of article ids, one per line"
+    )
+    backfill.add_argument(
+        "--rework",
+        action="store_true",
+        default=False,
+        help=(
+            "Enrich only the articles pipeline_rework says owe it -- the "
+            "records a review decision rewound -- and close those rows "
+            "when done. Housekeeping uses this and never `enrich run`."
+        ),
     )
     backfill.add_argument(
         "--concurrency",
@@ -230,11 +240,31 @@ def handle_enrichment_command(args) -> int:
                     _max_attempts(),
                 )
             else:  # backfill
-                ids = [
-                    line.strip()
-                    for line in open(args.ids_file)
-                    if line.strip() and not line.startswith("#")
-                ]
+                # THE IDS, FROM THE DATABASE WHEN ASKED.
+                #
+                # `--rework` reads `pipeline_rework` -- the articles a
+                # review decision rewound that still owe enrichment -- so
+                # housekeeping never runs `enrich run`, which selects every
+                # article at `labeled` and would spend the ceiling on
+                # 85,000 records nobody asked about. An empty table means
+                # nothing to do, never "everything".
+                if getattr(args, "rework", False) is True:
+                    ids = repository.articles_owed_enrichment(session)
+                    if not ids:
+                        print("rework: nothing owes enrichment")
+                        return 0
+                elif args.ids_file:
+                    ids = [
+                        line.strip()
+                        for line in open(args.ids_file)
+                        if line.strip() and not line.startswith("#")
+                    ]
+                else:
+                    raise ConfigurationError(
+                        "backfill needs --ids-file or --rework: with neither "
+                        "there is nothing to say which articles, and no "
+                        "default that is not a sweep"
+                    )
                 report = repository.select_by_ids(session, ids, _max_attempts())
                 print(
                     f"supplied: {len(ids)}  candidates: {len(report.candidates)}  "
@@ -280,6 +310,16 @@ def handle_enrichment_command(args) -> int:
             args.concurrency,
             dataset_id=dataset_uuid,
         )
+        # Close the rework rows for articles that reached a terminal
+        # status. Judged on the status, not on having been attempted: one
+        # whose enrichment failed is still `labeled`, still owes the work,
+        # and tomorrow's run should find it.
+        if action == "backfill" and getattr(args, "rework", False) is True:
+            with db.get_session() as session:
+                settled = repository.settle_enrichment_rework(
+                    session, [c.id for c in candidates]
+                )
+            print(f"rework: {settled} rows settled")
         print(
             f"processed: {sum(result['counts'].values())}  "
             f"spent: ${result['spent']}  halted: {result['halted']}"

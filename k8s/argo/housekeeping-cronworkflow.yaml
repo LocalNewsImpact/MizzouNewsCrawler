@@ -20,10 +20,22 @@ metadata:
 spec:
   schedule: "0 3 * * *"
   timezone: "UTC"
+  # SUSPENDED until the end-to-end test in docs/HOUSEKEEPING_PLAN.md
+  # (step 8) has passed with datadesk writing pipeline_rework rows.
+  # Declared here, not patched on the cluster: a patch is undone by the
+  # next apply, and the first run of this workflow swept 4,802 links it
+  # was never asked for. Resuming is a change to this file.
+  suspend: true
   concurrencyPolicy: "Forbid"
   successfulJobsHistoryLimit: 5
   failedJobsHistoryLimit: 5
   workflowSpec:
+    # THREE HOURS, so it is finished before the 07:00 UTC BigQuery sync
+    # reads the result. Better to stop at 06:00 with rows still open --
+    # tomorrow's run takes them, because they are still in
+    # pipeline_rework -- than to overrun the sync with a run still going
+    # and publish the night's work a day late.
+    activeDeadlineSeconds: 10800
     ttlStrategy:
       secondsAfterSuccess: 43200
       secondsAfterFailure: 43200
