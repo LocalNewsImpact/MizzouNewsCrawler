@@ -1,0 +1,42 @@
+# Daily, and deliberately after the other housekeeping.
+#
+# `mizzou-housekeeping` (k8s/housekeeping-cronjob.yaml) runs at 02:00 and
+# applies reviewed geography; this runs at 03:00 so a record it carries to
+# `enriched` is not one that job was still working on.
+#
+# Before the 07:00 BigQuery sync either way, so a record that reaches its
+# terminal status overnight is published the same morning.
+#
+# `Forbid`, not `Replace`: a run that is still going is doing real work
+# with a spend ceiling attached, and replacing it would start a second
+# ceiling rather than continue the first.
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: news-housekeeping
+  namespace: production
+  labels:
+    type: housekeeping
+spec:
+  schedule: "0 3 * * *"
+  timezone: "UTC"
+  concurrencyPolicy: "Forbid"
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 5
+  workflowSpec:
+    ttlStrategy:
+      secondsAfterSuccess: 43200
+      secondsAfterFailure: 43200
+    entrypoint: housekeeping-wrapper
+    serviceAccountName: argo-workflow
+    workflowMetadata:
+      labels:
+        type: housekeeping
+        schedule: daily
+    templates:
+    - name: housekeeping-wrapper
+      steps:
+      - - name: run-housekeeping
+          templateRef:
+            name: housekeeping-template
+            template: housekeeping
