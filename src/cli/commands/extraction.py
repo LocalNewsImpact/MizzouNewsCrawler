@@ -680,7 +680,7 @@ def _links_owed_a_fetch(session):
     Working state lives in the database, not in a file handed between
     pods: a file and the database disagree the moment a run dies halfway.
     Whoever rewound the record wrote the row; this reads it and
-    `_settle_rework` closes it. An empty result means nothing to do --
+    `_settle_fetches` closes it. An empty result means nothing to do --
     never "no filter".
     """
     rows = safe_session_execute(
@@ -694,30 +694,57 @@ def _links_owed_a_fetch(session):
     return [r[0] for r in rows]
 
 
-def _settle_rework(session, record_type, stage, record_ids, outcome):
-    """Close the rework rows for records a stage has handled.
+def _settle_fetches(session, link_ids):
+    """Close the `extract` rows whose fetch is decided, and queue the
+    classification of the articles it produced.
+
+    Settled on the link's status, not on "we tried": a link still at
+    `article` still owes the fetch and tomorrow's run finds it again.
+    One that reached `extracted` has an article -- cleaning runs inside
+    extraction, so it is at `cleaned` -- and that article now owes a
+    classification. The reconciler wrote the first row; this writes the
+    next, because nobody else knows the article's id. A link that
+    landed anywhere else (`paused`, `proxy_blocked`, ...) is closed
+    with that status as its outcome and nothing is queued: what it
+    needs is a method, not another stage.
 
     Closed rather than deleted, so "what did housekeeping do" can be
     answered afterwards. Only this stage's rows: a record owing a fetch
-    and, later, a classification is two rows, and finishing one must not
-    finish the other.
+    and, later, a classification is two rows, and finishing one must
+    not finish the other.
     """
-    if not record_ids:
-        return
-    safe_session_execute(
+    if not link_ids:
+        return 0, 0
+    ids = list(link_ids)
+    settled = safe_session_execute(
         session,
         text(
-            "UPDATE pipeline_rework SET done_at = now(), outcome = :outcome "
-            "WHERE record_type = :rt AND stage = :stage "
-            "AND record_id = ANY(:ids) AND done_at IS NULL"
+            "UPDATE pipeline_rework r SET done_at = now(), outcome = cl.status "
+            "FROM candidate_links cl "
+            "WHERE r.record_type = 'candidate_link' AND r.stage = 'extract' "
+            "AND r.done_at IS NULL AND r.record_id = cl.id "
+            "AND cl.id = ANY(:ids) AND cl.status <> 'article'"
         ),
-        {
-            "outcome": outcome,
-            "rt": record_type,
-            "stage": stage,
-            "ids": list(record_ids),
-        },
-    )
+        {"ids": ids},
+    ).rowcount
+    queued = safe_session_execute(
+        session,
+        text(
+            "INSERT INTO pipeline_rework "
+            "(record_type, record_id, stage, reason, requested_by) "
+            "SELECT 'article', a.id, 'classify', "
+            "'extracted for rework: ' || COALESCE(r.reason, ''), 'housekeeping' "
+            "FROM pipeline_rework r "
+            "JOIN articles a ON a.candidate_link_id = r.record_id "
+            "WHERE r.record_type = 'candidate_link' AND r.stage = 'extract' "
+            "AND r.record_id = ANY(:ids) AND r.outcome = 'extracted' "
+            "AND a.status IN ('cleaned', 'local') "
+            "ON CONFLICT DO NOTHING"
+        ),
+        {"ids": ids},
+    ).rowcount
+    session.commit()
+    return settled or 0, queued or 0
 
 
 def add_extraction_parser(subparsers):
@@ -1518,6 +1545,7 @@ def _process_batch(
             # `is True`, not truthiness: a Mock stands in for `args` across
             # the extraction tests and answers any attribute with a truthy
             # Mock, which walked every one of them into this branch.
+            rework_ids = None
             if getattr(args, "rework", False) is True:
                 rework_ids = _links_owed_a_fetch(session)
                 if not rework_ids:
@@ -2743,6 +2771,17 @@ def _process_batch(
                     batch_num,
                     failure_summary,
                 )
+
+        # A rework row is closed by the batch that decided its fetch, and
+        # the article it produced is queued for classification here,
+        # where its id is known.
+        if rework_ids:
+            settled, queued = _settle_fetches(session, rework_ids)
+            logger.info(
+                "rework: %d fetches settled, %d articles queued for classification",
+                settled,
+                queued,
+            )
 
         return {
             "processed": processed,

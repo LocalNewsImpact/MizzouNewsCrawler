@@ -77,7 +77,12 @@ def db():
         s.commit()
     yield factory
     with factory() as s:
-        s.execute(sa.text("DELETE FROM pipeline_rework WHERE requested_by='test'"))
+        s.execute(
+            sa.text(
+                "DELETE FROM pipeline_rework WHERE requested_by='test' "
+                "OR record_id LIKE 'hk-%'"
+            )
+        )
         s.execute(
             sa.text("DELETE FROM articles WHERE candidate_link_id LIKE 'hk-link-%'")
         )
@@ -176,33 +181,94 @@ def test_extraction_with_rework_and_nothing_owed_selects_nothing(db):
         assert _links_owed_a_fetch(s) == []
 
 
-def test_extraction_settles_what_it_handled(db):
-    """A handled row is closed with an outcome, so "what is left" stays
-    true and "what did housekeeping do" can be answered."""
-    from src.cli.commands.extraction import _settle_rework
+def test_extraction_settles_on_the_links_status_and_queues_the_article(db):
+    """A row is closed by what the link BECAME, not by having been tried:
+    a link still at `article` still owes the fetch. One that reached
+    `extracted` has an article at `cleaned` (cleaning runs inside
+    extraction), and that article now owes a classification -- a row
+    only this stage can write, because only now does the id exist."""
+    from src.cli.commands.extraction import _settle_fetches
 
     with db() as s:
-        _settle_rework(
-            s, "candidate_link", "extract", ["hk-link-0", "hk-link-1"], "extracted"
+        # link 0 fetched and cleaned; link 1 failed and paused; link 2 untouched
+        s.execute(
+            sa.text(
+                "INSERT INTO articles (id, candidate_link_id, status, wire_check_status, "
+                "title, text, created_at, extracted_at) VALUES "
+                "('hk-art-from-0', 'hk-link-0', 'cleaned', 'local', 'S', 'Body.', now(), now())"
+            )
+        )
+        s.execute(
+            sa.text(
+                "UPDATE candidate_links SET status = CASE id "
+                "WHEN 'hk-link-0' THEN 'extracted' WHEN 'hk-link-1' THEN 'paused' "
+                "ELSE status END WHERE id LIKE 'hk-link-%'"
+            )
         )
         s.commit()
+        settled, queued = _settle_fetches(s, ["hk-link-0", "hk-link-1", "hk-link-2"])
         rows = s.execute(
             sa.text(
-                "SELECT record_id, done_at IS NOT NULL, outcome FROM pipeline_rework "
-                "WHERE requested_by='test' ORDER BY record_id"
+                "SELECT record_type, record_id, stage, done_at IS NOT NULL, outcome, "
+                "requested_by FROM pipeline_rework WHERE record_id LIKE 'hk-%' "
+                "ORDER BY record_type, record_id"
             )
         ).fetchall()
-    assert [(r[0], r[1], r[2]) for r in rows] == [
-        ("hk-link-0", True, "extracted"),
-        ("hk-link-1", True, "extracted"),
-        ("hk-link-2", False, None),
+    assert (settled, queued) == (2, 1)
+    assert [tuple(r) for r in rows] == [
+        ("article", "hk-art-from-0", "classify", False, None, "housekeeping"),
+        ("candidate_link", "hk-link-0", "extract", True, "extracted", "test"),
+        ("candidate_link", "hk-link-1", "extract", True, "paused", "test"),
+        ("candidate_link", "hk-link-2", "extract", False, None, "test"),
     ]
+
+
+def test_a_paused_link_queues_nothing(db):
+    """`paused`, `proxy_blocked`: the fetch is decided and the article
+    does not exist. Closed with that outcome; nothing downstream."""
+    from src.cli.commands.extraction import _settle_fetches
+
+    with db() as s:
+        s.execute(
+            sa.text("UPDATE candidate_links SET status='paused' WHERE id='hk-link-1'")
+        )
+        s.commit()
+        assert _settle_fetches(s, ["hk-link-1"]) == (1, 0)
+
+
+def test_settling_twice_queues_the_article_once(db):
+    """A duplicate request is the same request: the partial unique index
+    holds and the second settle is a no-op."""
+    from src.cli.commands.extraction import _settle_fetches
+
+    with db() as s:
+        s.execute(
+            sa.text(
+                "INSERT INTO articles (id, candidate_link_id, status, wire_check_status, "
+                "title, text, created_at, extracted_at) VALUES "
+                "('hk-art-from-0', 'hk-link-0', 'cleaned', 'local', 'S', 'Body.', now(), now())"
+            )
+        )
+        s.execute(
+            sa.text(
+                "UPDATE candidate_links SET status='extracted' WHERE id='hk-link-0'"
+            )
+        )
+        s.commit()
+        assert _settle_fetches(s, ["hk-link-0"]) == (1, 1)
+        assert _settle_fetches(s, ["hk-link-0"]) == (0, 0)
+        n = s.execute(
+            sa.text(
+                "SELECT count(*) FROM pipeline_rework WHERE record_id='hk-art-from-0'"
+            )
+        ).scalar()
+    assert n == 1
 
 
 def test_settling_does_not_touch_other_stages(db):
     """A link that owes both a fetch and, later, a classification is two
     rows. Closing one must not close the other."""
-    from src.cli.commands.extraction import _settle_rework
+    from src.cli.commands.extraction import _settle_fetches
 
     with db() as s:
         s.execute(
@@ -211,9 +277,13 @@ def test_settling_does_not_touch_other_stages(db):
                 "VALUES ('article', 'hk-link-0', 'classify', 'test')"
             )
         )
+        s.execute(
+            sa.text(
+                "UPDATE candidate_links SET status='extracted' WHERE id='hk-link-0'"
+            )
+        )
         s.commit()
-        _settle_rework(s, "candidate_link", "extract", ["hk-link-0"], "extracted")
-        s.commit()
+        _settle_fetches(s, ["hk-link-0"])
         still_open = s.execute(
             sa.text(
                 "SELECT stage FROM pipeline_rework WHERE record_id='hk-link-0' AND done_at IS NULL"
@@ -328,10 +398,39 @@ def test_classification_settles_only_its_own_stage(articles_db):
         s.commit()
         open_stages = s.execute(
             sa.text(
-                "SELECT stage FROM pipeline_rework WHERE record_id='hk-art-0' AND done_at IS NULL"
+                "SELECT stage, requested_by FROM pipeline_rework "
+                "WHERE record_id='hk-art-0' AND done_at IS NULL"
             )
         ).fetchall()
-    assert [r[0] for r in open_stages] == ["enrich"]
+    # the pre-existing enrich row survives, and the settle's own queue of
+    # the same (record, stage) collapsed into it
+    assert [tuple(r) for r in open_stages] == [("enrich", "test")]
+
+
+def test_classification_queues_enrichment_for_what_it_labelled(articles_db):
+    """Each stage hands off to the next. The reconciler wrote `classify`;
+    the classifier, done, writes `enrich`."""
+    from src.services.classification_service import ArticleClassificationService
+
+    with articles_db() as s:
+        ArticleClassificationService._settle_rework(s, ["hk-art-1"], "classified")
+        s.commit()
+        rows = s.execute(
+            sa.text(
+                "SELECT stage, done_at IS NOT NULL, outcome, requested_by, reason "
+                "FROM pipeline_rework WHERE record_id='hk-art-1' ORDER BY stage"
+            )
+        ).fetchall()
+    assert [tuple(r) for r in rows] == [
+        ("classify", True, "classified", "test", "test: accepted"),
+        (
+            "enrich",
+            False,
+            None,
+            "housekeeping",
+            "classified for rework: test: accepted",
+        ),
+    ]
 
 
 # --- step 4: enrichment reads it ------------------------------------------------

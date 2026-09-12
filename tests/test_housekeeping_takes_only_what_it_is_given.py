@@ -146,3 +146,133 @@ def test_no_stage_runs_a_bare_sweeping_command(stages):
             ), f"{name} runs `enrich run`, which sweeps every article at labeled"
         if re.search(r"\bextract\b|\banalyze\b|\bbackfill\b", command):
             assert "--rework" in command, f"{name} sweeps by status"
+
+
+# --- the command settles what it read, not just the function --------------------
+
+
+def _one_link_batch(env, link_id):
+    """Drive one candidate link through the mocked batch loop."""
+    from unittest.mock import Mock
+
+    candidate = Mock()
+    candidate.fetchall.return_value = [
+        (link_id, "https://example.com/a", "Src", "article", "Example", None)
+    ]
+    empty = Mock()
+    empty.fetchall.return_value = []
+    empty.scalar.return_value = None
+    empty.rowcount = 0
+    served = {"batch": False}
+
+    def execute(*args, **kwargs):
+        sql = str(args[0]) if args else ""
+        if "SELECT cl.id, cl.url, cl.source, cl.status" in sql and not served["batch"]:
+            served["batch"] = True
+            return candidate
+        return empty
+
+    env.session.execute.side_effect = execute
+    env.extractor.extract_content.return_value = {
+        "title": "T",
+        "content": "Body about county services. " * 10,
+        "author": "A",
+        "publish_date": "2025-09-20T10:00:00",
+        "metadata": {"source": "test"},
+    }
+
+
+def test_the_batch_settles_the_fetches_it_was_given():
+    """`_settle_fetches` existed, was tested on its own, and was never
+    called: the batch read the owed links and closed none of them, so a
+    fetched link stayed "owed" forever and the nightly guard fired on
+    nothing. The test that proves a function works is not the test that
+    proves the command uses it."""
+    from unittest.mock import patch
+
+    from src.cli.commands.extraction import handle_extraction_command
+    from tests.test_extraction_command import _build_args, mocked_extraction_env
+
+    args = _build_args()
+    args.rework = True
+    with (
+        mocked_extraction_env() as env,
+        patch(
+            "src.cli.commands.extraction._links_owed_a_fetch",
+            return_value=["link-1"],
+        ),
+        patch(
+            "src.cli.commands.extraction._settle_fetches", return_value=(1, 1)
+        ) as settle,
+    ):
+        _one_link_batch(env, "link-1")
+        assert handle_extraction_command(args) == 0
+        settle.assert_called_once()
+        assert settle.call_args.args[1] == ["link-1"]
+
+
+def test_without_rework_nothing_is_settled_and_nothing_is_read():
+    """The pipeline's own `extract` must not read or write the rework
+    table: it is not housekeeping and its links owe nothing."""
+    from unittest.mock import patch
+
+    from src.cli.commands.extraction import handle_extraction_command
+    from tests.test_extraction_command import _build_args, mocked_extraction_env
+
+    args = _build_args()
+    args.rework = False
+    with (
+        mocked_extraction_env() as env,
+        patch("src.cli.commands.extraction._links_owed_a_fetch") as owed,
+        patch("src.cli.commands.extraction._settle_fetches") as settle,
+    ):
+        _one_link_batch(env, "link-1")
+        assert handle_extraction_command(args) == 0
+        owed.assert_not_called()
+        settle.assert_not_called()
+
+
+def test_a_mock_for_args_does_not_switch_rework_on():
+    """`Mock().rework` is a truthy Mock. `getattr(args, "rework", False)`
+    read as truthiness walked every extraction test into the rework
+    branch; the check is `is True`."""
+    from unittest.mock import Mock, patch
+
+    from src.cli.commands.extraction import handle_extraction_command
+    from tests.test_extraction_command import _build_args, mocked_extraction_env
+
+    args = _build_args()
+    assert isinstance(args.rework, Mock)
+    with (
+        mocked_extraction_env() as env,
+        patch("src.cli.commands.extraction._links_owed_a_fetch") as owed,
+    ):
+        _one_link_batch(env, "link-1")
+        handle_extraction_command(args)
+        owed.assert_not_called()
+
+
+# --- each stage queues the next ----------------------------------------------------
+
+
+def test_extraction_queues_classification_for_the_article_it_made():
+    """The reconciler cannot: the article does not exist until the fetch."""
+    body = EXTRACTION.read_text()
+    settle = body.split("def _settle_fetches(")[1].split("\ndef ")[0]
+    assert "'article', a.id, 'classify'" in settle
+    assert "a.status IN ('cleaned', 'local')" in settle, "only a classifiable article"
+    assert "ON CONFLICT DO NOTHING" in settle, "a duplicate request is the same request"
+
+
+def test_classification_queues_enrichment_for_what_it_labelled():
+    body = CLASSIFIER.read_text()
+    settle = body.split("def _settle_rework(")[1].split("\n    def ")[0]
+    assert "'article', r.record_id, 'enrich'" in settle
+    assert "ON CONFLICT DO NOTHING" in settle
+
+
+def test_enrichment_is_the_end_of_the_chain():
+    """Nothing after `enriched`; a settle that queued more would loop."""
+    body = (ROOT / "src/enrichment/repository.py").read_text()
+    settle = body.split("def settle_enrichment_rework(")[1].split("\ndef ")[0]
+    assert "INSERT INTO pipeline_rework" not in settle

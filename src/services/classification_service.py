@@ -69,16 +69,39 @@ class ArticleClassificationService:
 
     @staticmethod
     def _settle_rework(session, record_ids, outcome):
-        """Close this stage's rework rows for the articles it classified."""
+        """Close this stage's rework rows for the articles it classified,
+        and queue the same articles for enrichment.
+
+        Each stage hands off to the next: the reconciler writes only the
+        row for the stage a record re-enters at, and a stage that
+        finishes queues the one after it. Enrichment selects `labeled`,
+        which is what classification just wrote, so the row is written
+        for the article as it now is. A duplicate request is the same
+        request (partial unique index; `ON CONFLICT DO NOTHING`).
+        """
         if not record_ids:
             return
+        ids = [str(i) for i in record_ids]
         session.execute(
             text(
                 "UPDATE pipeline_rework SET done_at = now(), outcome = :outcome "
                 "WHERE record_type = 'article' AND stage = 'classify' "
                 "AND record_id = ANY(:ids) AND done_at IS NULL"
             ),
-            {"outcome": outcome, "ids": [str(i) for i in record_ids]},
+            {"outcome": outcome, "ids": ids},
+        )
+        session.execute(
+            text(
+                "INSERT INTO pipeline_rework "
+                "(record_type, record_id, stage, reason, requested_by) "
+                "SELECT 'article', r.record_id, 'enrich', "
+                "'classified for rework: ' || COALESCE(r.reason, ''), 'housekeeping' "
+                "FROM pipeline_rework r "
+                "WHERE r.record_type = 'article' AND r.stage = 'classify' "
+                "AND r.record_id = ANY(:ids) AND r.outcome = :outcome "
+                "ON CONFLICT DO NOTHING"
+            ),
+            {"outcome": outcome, "ids": ids},
         )
 
     def _select_articles(
