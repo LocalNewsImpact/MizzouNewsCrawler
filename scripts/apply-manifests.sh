@@ -49,7 +49,12 @@ apply_file() {
     echo "🚀 Applying $file with substitutions..."
     # Use envsubst to replace variables defined in versions.env
     # We only substitute variables that are defined to avoid breaking other $VARs in the yaml
-    envsubst '${PROCESSOR_TAG} ${CRAWLER_TAG} ${API_TAG}' < "$file" | kubectl apply -n production -f -
+    # ENRICHMENT_TAG is here because the housekeeping workflow runs the
+    # enrichment image. Left out, envsubst passes `${ENRICHMENT_TAG}`
+    # through as a literal and the applied template names an image that
+    # cannot be pulled -- which surfaces as a workflow that fails at its
+    # last step, long after the apply reported success.
+    envsubst '${PROCESSOR_TAG} ${CRAWLER_TAG} ${API_TAG} ${ENRICHMENT_TAG}' < "$file" | kubectl apply -n production -f -
 }
 
 apply_api() {
@@ -66,6 +71,20 @@ apply_crawler() {
     apply_file k8s/housekeeping-cronjob.yaml
     # Apply Minnesota Argo workflow (runs on demand, not continuously)
     kubectl apply -n production -f k8s/argo/minnesota-processing-workflow.yaml
+    # The daily housekeeping workflow, and the schedule that fires it.
+    #
+    # Both, and in this order: the CronWorkflow references the template by
+    # name, so a schedule applied without it fires and fails on a missing
+    # templateRef -- which reports as a workflow error rather than as
+    # "nothing is deployed", and reads like a bug in the pipeline.
+    #
+    # Without these lines the workflow lives in the repository and nowhere
+    # else. The reconciler sets statuses nightly and nothing picks them
+    # up: 4,805 links sat at `article` and 450 articles at `cleaned` after
+    # the first reconciliation, waiting for a stage that was never
+    # deployed.
+    apply_file k8s/argo/housekeeping-workflow.yaml
+    apply_file k8s/argo/housekeeping-cronworkflow.yaml
 }
 
 apply_all() {
