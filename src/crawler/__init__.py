@@ -42,6 +42,7 @@ from src.utils.boilerplate import (
 from src.utils.bot_sensitivity_manager import BotSensitivityManager
 from src.utils.comprehensive_telemetry import ExtractionMetrics
 
+from .browser_errors import interstitial_error
 from .fingerprint_profile import (
     FingerprintProfile,
     load_fingerprint_profile,
@@ -4707,6 +4708,41 @@ class ContentExtractor:
 
             with self._phase("extract_page_source"):
                 html = driver.page_source
+
+            # Did the page load at all? An expired certificate, a DNS failure
+            # or a refused connection all leave Chrome's own interstitial in
+            # page_source, and nothing here used to ask -- so thebannerpress's
+            # expired cert was stored 22 times as an article whose body is a
+            # PEM chain and whose headline is "Privacy error", 20 of them
+            # CIN-classified. A browser error is a FETCH FAILURE: it is
+            # reported as one, with the code, and no article is created.
+            #
+            # The raw HTML is still archived first: the interstitial is the
+            # evidence for why this URL failed, and throwing it away would
+            # make the failure unexplainable later.
+            try:
+                current_url = driver.current_url
+            except Exception:  # pragma: no cover - driver already gone
+                current_url = None
+            browser_error = interstitial_error(html, current_url)
+            if browser_error:
+                self._record_raw_html(html, "selenium")
+                logger.warning(
+                    "Browser error page for %s: %s -- recorded as a fetch "
+                    "failure, no article created",
+                    url,
+                    browser_error,
+                )
+                return self._create_error_result(
+                    url,
+                    f"browser error page: net::{browser_error}",
+                    {
+                        "extraction_method": "selenium",
+                        "browser_error": browser_error,
+                        "stealth_method": stealth_method,
+                        "page_source_length": len(html),
+                    },
+                )
 
             self._update_wire_hints_from_html(html, url)
             self._record_raw_html(html, "selenium")
