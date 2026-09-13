@@ -116,6 +116,41 @@ def test_every_workflow_parameter_referenced_is_declared(path, doc):
 
 
 @pytest.mark.parametrize("path,doc", MANIFESTS, ids=lambda v: getattr(v, "name", ""))
+def test_every_input_reference_is_declared_by_its_own_template(path, doc):
+    """`{{inputs.parameters.x}}` resolves against the template it appears
+    in, and nowhere else.
+
+    A YAML anchor makes that easy to get wrong: the queue env was appended
+    to `&db_env`, which every stage aliases, and it carried
+    `{{inputs.parameters.worker}}` -- declared only by the extraction step
+    -- into two guard templates that have no inputs at all. Argo refused
+    the whole workflow:
+
+        templates.anything-owed-step: failed to resolve
+        {{inputs.parameters.worker}}
+
+    An anchor copies TEXT, so a reference inside one is resolved by each
+    template that aliases it, not by the one that wrote it.
+    """
+    spec = _spec(doc)
+    for template in spec.get("templates", []):
+        declared = {
+            p["name"] for p in (template.get("inputs") or {}).get("parameters", [])
+        }
+        used = set(
+            re.findall(
+                r"\{\{inputs\.parameters\.([A-Za-z0-9_-]+)\}\}",
+                yaml.dump(template),
+            )
+        )
+        missing = used - declared
+        assert not missing, (
+            f"{path.name}: {template['name']} references {sorted(missing)} "
+            "and declares no such input. Argo refuses this at submit."
+        )
+
+
+@pytest.mark.parametrize("path,doc", MANIFESTS, ids=lambda v: getattr(v, "name", ""))
 def test_every_step_names_a_template_that_exists(path, doc):
     spec = _spec(doc)
     templates = {t["name"]: t for t in spec.get("templates", [])}
