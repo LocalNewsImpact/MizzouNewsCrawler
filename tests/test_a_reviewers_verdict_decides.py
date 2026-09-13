@@ -135,10 +135,19 @@ def test_an_ordinary_story_leaves_the_detector_alone(kind):
 @pytest.mark.parametrize("kind", discovery_verdict.UNFETCHED_TYPES)
 def test_an_unfetched_kind_never_reaches_the_fetch_queue(kind):
     """Also from the contract's set. A kind it calls unfetched must not
-    land on the status extraction selects, whichever kinds those are."""
+    land on the status extraction selects, whichever kinds those are.
+
+    "Unfetched" is a rule about the LINK. It read as "so no article row
+    exists", which is false of the record: articles exist for all of these,
+    extracted before the verdict was given or given a verdict afterwards.
+    v0.16.0 makes `status_for` answer for them, so the article reaches a
+    terminal status instead of parking at `labeled` -- a status enrichment
+    selects and no settle can close."""
     note = discovery_verdict.build(verdict=discovery_verdict.IS_A_STORY, kind=kind)
     assert discovery_verdict.link_status_for(note) != "article"
-    assert discovery_verdict.status_for(note) is None, "no article is created"
+    decided = discovery_verdict.status_for(note)
+    assert decided is not None, "an article that exists must reach a status"
+    assert decided not in ("labeled", "cleaned", "local", "extracted"), decided
 
 
 def test_every_kind_lands_in_a_status_this_pipeline_has():
@@ -154,9 +163,22 @@ def test_every_kind_lands_in_a_status_this_pipeline_has():
     the contract against itself and assert nothing.
 
     `non_english` was admitted for v0.14.0: a link holding it is not
-    `article`, so no fetch selects it, which is the whole instruction."""
+    `article`, so no fetch selects it, which is the whole instruction.
+
+    `wire`, `non_english` and `not_article` were admitted as ARTICLE
+    statuses for v0.16.0. All three already existed here -- 46,995 articles
+    sit at `wire` -- so what changed is that a verdict can now put an
+    article into one, which is how a record stops parking at `labeled`."""
     links = {"article", "wire", "not_article", "discovered", "non_english"}
-    articles = {"obituary", "opinion", "weather", None}
+    articles = {
+        "obituary",
+        "opinion",
+        "weather",
+        "wire",
+        "non_english",
+        "not_article",
+        None,
+    }
     kinds = (
         ("news", "")
         + tuple(discovery_verdict.UNENRICHED_TYPES)

@@ -73,6 +73,7 @@ run.
 | link `404`, `proxy_blocked` | the fetch failed in a way worth telling apart | — |
 | article `wire`/`obituary`/`opinion`/`weather` | a kind no enrichment stage selects. The status IS the instruction not to enrich; there is no second flag. | `lnic_contracts.discovery_verdict.status_for` |
 | link `non_english` | a reviewer read the URL and saw the story is not in English. It IS a story and is never fetched: the classifier, the CIN codebook and the enrichment prompts are all written for English, so an extraction would spend a fetch and model budget on labels nobody should trust. Its own status rather than `not_article` so the corpus can answer how much of what these publishers write is not in English — a finding about local news coverage, not a processing detail. | `lnic_contracts.discovery_verdict.link_status_for` |
+| article `wire`/`non_english`/`not_article` from a verdict | a reviewer's kind, applied to an article that already exists. All three statuses already existed; v0.16.0 is what lets a verdict put an article into one. Before it, `status_for` answered None for the unfetched kinds on the reasoning that a kind never fetched has no article -- true of the kind, false of the record -- and the article stayed at `labeled`: refused by enrichment, unreachable by any settle, outstanding for ever. | `lnic_contracts.discovery_verdict.WITHHELD_STATUS` |
 
 **Read `pause_reason`, do not infer it.** The 178 paused articles split
 77 / 101 by that column: 77 carry `null_text` and have neither text nor
