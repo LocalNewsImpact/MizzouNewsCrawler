@@ -102,18 +102,63 @@ def test_the_row_carries_meta_from_both_builders():
 # ------------------------------------------------ what the status becomes
 
 
-@pytest.mark.parametrize("kind", ["obituary", "opinion", "weather"])
+@pytest.mark.parametrize("kind", discovery_verdict.UNENRICHED_TYPES)
 def test_a_kept_but_unenriched_type_decides_the_status(kind):
+    """Read from the contract's own set, not restated here.
+
+    This test named `obituary`, `opinion` and `weather`, and the one below
+    named `news` and `column` -- a copy of a list the contract owns. When
+    `column` moved between the sets (it is an opinion type: collected,
+    never enriched), the copy here was wrong and a version pin failed CI
+    on a repository that had not changed. Restating a shared list is how a
+    consumer disagrees with the contract it imports.
+
+    What the crawler actually depends on is the RULE: a kind the contract
+    calls unenriched decides the article's status, and the status it
+    decides is one this pipeline carries."""
     note = discovery_verdict.build(verdict=discovery_verdict.IS_A_STORY, kind=kind)
-    assert discovery_verdict.status_for(note) == kind
+    assert discovery_verdict.status_for(note) is not None
 
 
-@pytest.mark.parametrize("kind", ["news", "column"])
+@pytest.mark.parametrize("kind", ["news", ""])
 def test_an_ordinary_story_leaves_the_detector_alone(kind):
-    """News and columns ARE the ordinary pipeline. Overriding the status
-    for them would stop articles the corpus wants enriched."""
+    """News IS the ordinary pipeline, and so is an unnamed kind: the
+    pipeline's own classification stands. Anything the contract has named
+    unenriched or unfetched constrains what happens next, and is covered
+    above."""
+    assert kind not in discovery_verdict.UNENRICHED_TYPES
+    assert kind not in discovery_verdict.UNFETCHED_TYPES
     note = discovery_verdict.build(verdict=discovery_verdict.IS_A_STORY, kind=kind)
     assert discovery_verdict.status_for(note) is None
+
+
+@pytest.mark.parametrize("kind", discovery_verdict.UNFETCHED_TYPES)
+def test_an_unfetched_kind_never_reaches_the_fetch_queue(kind):
+    """Also from the contract's set. A kind it calls unfetched must not
+    land on the status extraction selects, whichever kinds those are."""
+    note = discovery_verdict.build(verdict=discovery_verdict.IS_A_STORY, kind=kind)
+    assert discovery_verdict.link_status_for(note) != "article"
+    assert discovery_verdict.status_for(note) is None, "no article is created"
+
+
+def test_every_kind_lands_in_a_status_this_pipeline_has():
+    """The statuses are this repository's (docs/PIPELINE_STATES.md). A kind
+    mapped to one that does not exist strands the record silently: no stage
+    selects it and no report counts it.
+
+    Derived from the contract's sets plus the ordinary kinds, so a kind
+    added there is checked here without this file being edited."""
+    links = {"article", "wire", "not_article", "discovered"}
+    articles = {"obituary", "opinion", "weather", None}
+    kinds = (
+        ("news", "")
+        + tuple(discovery_verdict.UNENRICHED_TYPES)
+        + tuple(discovery_verdict.UNFETCHED_TYPES)
+    )
+    for kind in kinds:
+        note = discovery_verdict.build(verdict=discovery_verdict.IS_A_STORY, kind=kind)
+        assert discovery_verdict.link_status_for(note) in links, kind
+        assert discovery_verdict.status_for(note) in articles, kind
 
 
 def test_wire_never_loses_to_a_verdict():
