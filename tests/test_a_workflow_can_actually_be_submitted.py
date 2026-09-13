@@ -163,3 +163,72 @@ def test_the_housekeeping_entrypoint_is_reachable():
     spec = cron["spec"]["workflowSpec"]
     entry = spec["entrypoint"]
     assert entry in {t["name"] for t in spec["templates"]}
+
+
+# --- a secret reference names a key the secret has -------------------------------
+
+
+def _secret_refs(doc):
+    """Every (secret, key) an env var in this manifest reads."""
+    spec = _spec(doc)
+    refs = set()
+    for template in spec.get("templates", []):
+        container = template.get("container") or template.get("script") or {}
+        for env in container.get("env") or []:
+            ref = ((env.get("valueFrom") or {}).get("secretKeyRef")) or {}
+            if ref.get("name") and ref.get("key"):
+                refs.add((ref["name"], ref["key"]))
+    return refs
+
+
+def test_every_secret_key_matches_one_another_manifest_uses():
+    """A key that does not exist in the secret is not a validation error
+    anywhere: `kubectl apply` accepts it, `argo submit` accepts it, and
+    kubelet reports "couldn't find key ... in Secret" while RESTARTING the
+    container. Argo shows the step Pending, never Failed, so the run looks
+    like it is working -- 278 restarts over 63 minutes, until the deadline
+    killed it.
+
+    Nothing in a repository can see a live secret's keys, but the cronjobs
+    that have been running for months name the same secrets. Held to those:
+    a manifest inventing a key name disagrees with the one that works.
+    """
+    known: dict[str, set[str]] = {}
+    for path in ROOT.glob("k8s/*.yaml"):
+        for doc in yaml.safe_load_all(path.read_text()):
+            if not isinstance(doc, dict):
+                continue
+            for secret, key in _all_refs(doc):
+                known.setdefault(secret, set()).add(key)
+    assert known, "no secret references found under k8s/; check the glob"
+
+    for path in sorted(ROOT.glob("k8s/argo/*.yaml")):
+        for doc in yaml.safe_load_all(path.read_text()):
+            if not isinstance(doc, dict) or "spec" not in doc:
+                continue
+            for secret, key in _secret_refs(doc):
+                if secret not in known:
+                    continue
+                assert key in known[secret], (
+                    f"{path.name} reads {secret}/{key}; the manifests that "
+                    f"run name {sorted(known[secret])}"
+                )
+
+
+def _all_refs(doc):
+    """Secret references anywhere in a plain Kubernetes manifest."""
+    found = set()
+
+    def walk(node):
+        if isinstance(node, dict):
+            ref = node.get("secretKeyRef")
+            if isinstance(ref, dict) and ref.get("name") and ref.get("key"):
+                found.add((ref["name"], ref["key"]))
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk(doc)
+    return found

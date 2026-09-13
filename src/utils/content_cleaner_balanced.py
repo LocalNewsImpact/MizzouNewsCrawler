@@ -348,8 +348,20 @@ class BalancedBoundaryContentCleaner:
             db = self._connect_to_db()
             session = db.session
 
+        # THE COLUMNS THIS TABLE HAS. `pattern_text` and `boundary_score`
+        # do not exist on it: the text lives in `text_content` and the
+        # stored confidence in `confidence_score`.
+        #
+        # Postgres answered every call with 42703 -- 'column "pattern_text"
+        # does not exist' -- which ABORTED THE TRANSACTION. Postgres then
+        # refuses every later statement in it with 25P02, so a failure in
+        # boilerplate analysis took out whatever the same transaction did
+        # afterwards: on 2026-09-13 it swallowed the rework settle and left
+        # seven fetched links recorded as still owing work. The caller
+        # logged "Domain analysis failed" and carried on, and the pod
+        # exited 0.
         query = """
-        SELECT pattern_text, pattern_type, boundary_score
+        SELECT text_content, pattern_type, confidence_score
         FROM persistent_boilerplate_patterns
         WHERE domain = :domain AND is_active = TRUE
         """

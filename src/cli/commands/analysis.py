@@ -364,7 +364,20 @@ def handle_analysis_command(args) -> int:
             batch_size=batch_size,
             top_k=top_k,
             dry_run=args.dry_run,
-            include_existing=args.force,
+            # A REWOUND ARTICLE IS RE-LABELLED.
+            #
+            # `include_existing=False` skips any article that already has a
+            # label for this version, which is right for the pipeline: it
+            # would otherwise re-label the whole corpus every night. It is
+            # wrong for housekeeping, where every record was labelled
+            # BEFORE a reviewer sent it back -- the old label is the thing
+            # the review disagreed with.
+            #
+            # All 107 articles in the first real run carried a `default`
+            # label, so every one was excluded: the stage reported
+            # "processed=0 labeled=0 skipped=0 errors=0" and closed
+            # nothing, and the workflow called it a success.
+            include_existing=args.force or getattr(args, "rework", False) is True,
             dataset_id=dataset_id,
             rework=getattr(args, "rework", False) is True,
         )
