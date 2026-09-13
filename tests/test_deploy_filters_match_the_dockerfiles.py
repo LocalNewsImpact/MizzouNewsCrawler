@@ -182,3 +182,59 @@ def test_a_push_that_touches_no_image_builds_nothing():
         if re.search(pattern, path)
     ]
     assert not hits, hits
+
+
+# --- the cascade follows the Dockerfiles' own FROM lines -------------------------
+
+
+def _cascade_targets(flag):
+    """The flags a `$<flag> = true` branch sets in detect-changes."""
+    body = WORKFLOW.read_text()
+    branch = body.split(f'if [ "${flag}" = "true" ]; then')[1]
+    branch = branch.split("fi")[0]
+    return {
+        line.strip().split("=")[0]
+        for line in branch.splitlines()
+        if "=true" in line and not line.strip().startswith("#")
+    }
+
+
+def _images_built_from(base_var):
+    """Every image whose Dockerfile is FROM that base."""
+    built = set()
+    for path in ROOT.glob("Dockerfile.*"):
+        name = path.name.split(".", 1)[1]
+        if name in ("base", "ci-base", "ml-base"):
+            continue
+        if f"FROM ${{{base_var}}}" in path.read_text():
+            built.add(name.upper())
+    return built
+
+
+def test_a_base_change_rebuilds_everything_built_on_it():
+    """`requirements-base.txt` pins the shared dependencies, `lnic-contracts`
+    among them. An image left out of this cascade keeps whatever was in the
+    base when it last built, and the deploy still reports success.
+
+    ENRICHMENT was left out. It is `FROM ${BASE_IMAGE}` and imports
+    `lnic_contracts.geography.county_for_place`, so its place-to-county
+    crosswalk was three contract releases behind while every deploy said
+    "Build Enrichment success" -- because "not requested" is a success.
+
+    Read from the Dockerfiles, so adding an image adds it here too."""
+    expected = _images_built_from("BASE_IMAGE")
+    assert expected, "no Dockerfile is FROM the base image; check the pattern"
+    missing = expected - _cascade_targets("BASE")
+    assert missing == set(), f"FROM base but not in the base cascade: {missing}"
+
+
+def test_an_ml_base_change_rebuilds_everything_built_on_it():
+    expected = _images_built_from("ML_BASE_IMAGE")
+    assert expected, "no Dockerfile is FROM the ml-base image"
+    missing = expected - _cascade_targets("ML_BASE")
+    assert missing == set(), f"FROM ml-base but not in the cascade: {missing}"
+
+
+def test_the_base_cascade_also_rebuilds_the_ml_base():
+    """ml-base is itself FROM base, and the images on ml-base need it."""
+    assert "ML_BASE" in _cascade_targets("BASE")

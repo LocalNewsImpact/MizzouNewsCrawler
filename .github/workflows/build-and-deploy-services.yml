@@ -222,12 +222,23 @@ jobs:
           #   base    -> ml-base, processor, api, crawler  (all are FROM base,
           #              directly or via ml-base)
           #   ml-base -> processor                         (processor is FROM ml-base)
+          # Every image whose Dockerfile is `FROM ${BASE_IMAGE}`, plus
+          # ml-base which is built on it. ENRICHMENT was missing: its
+          # Dockerfile is FROM ${BASE_IMAGE}, and `lnic-contracts` is
+          # pinned in requirements-base.txt, so the enrichment image kept
+          # an old contract indefinitely -- it imports
+          # `lnic_contracts.geography.county_for_place`, the place-to-county
+          # crosswalk, so a stale one is stale geography. It was three
+          # contract releases behind when this was found, and the deploy
+          # reported "Build Enrichment success" every time, because
+          # "not requested" is a success.
           if [ "$BASE" = "true" ]; then
             ML_BASE=true
             PROCESSOR=true
             API=true
             CRAWLER=true
-            echo "↪️  Base changed — cascading rebuild to ml-base, processor, api, crawler"
+            ENRICHMENT=true
+            echo "↪️  Base changed — cascading to ml-base, processor, api, crawler, enrichment"
           fi
           if [ "$ML_BASE" = "true" ]; then
             PROCESSOR=true
@@ -830,11 +841,26 @@ jobs:
     # workflow called. So a change to a Deployment, a CronJob or an Argo
     # template was merged, reported as deployed, and applied by nothing.
     #
-    # Runs when the manifests themselves changed, independent of whether an
-    # image was built: a structural change -- a new workflow step, a
-    # changed limit, a suspend -- builds no image and would otherwise never
-    # be applied. It waits for the builds so a manifest that names a tag
-    # this push produced is applied after that tag exists.
+    # Runs when the manifests changed OR when any image was built, and for
+    # different reasons.
+    #
+    # A manifest change builds no image -- a new workflow step, a changed
+    # limit, a suspend -- so a build-gated condition would skip exactly the
+    # changes that need applying.
+    #
+    # And a BUILD with no manifest change still has to be applied, because
+    # the manifests carry the tag. Each image's Cloud Build moves the
+    # Kubernetes workloads itself (`kubectl set image`), but nothing moves
+    # an Argo WorkflowTemplate: the tag in the template is substituted at
+    # apply time and changes only here. Gated on manifests alone, this job
+    # skipped the deploy that shipped lnic-contracts v0.13.0, so the
+    # Deployments moved to 281ea08 while the housekeeping template kept
+    # running crawler:7b150bc -- an image built before the contract fix,
+    # which would have filed 71 reviewed columns as news. It had to be
+    # applied by hand.
+    #
+    # It waits for the builds either way, so a manifest naming a tag this
+    # push produced is applied after that tag exists.
     needs:
       [
         detect-changes,
@@ -846,7 +872,13 @@ jobs:
       ]
     if: >-
       github.ref == 'refs/heads/main' &&
-      needs.detect-changes.outputs.manifests == 'true' &&
+      (
+        needs.detect-changes.outputs.manifests == 'true' ||
+        needs.build-processor.outputs.build_id != '' ||
+        needs.build-api.outputs.build_id != '' ||
+        needs.build-crawler.outputs.build_id != '' ||
+        needs.build-enrichment.outputs.build_id != ''
+      ) &&
       (needs.wait-for-builds.result == 'success' || needs.wait-for-builds.result == 'skipped')
     runs-on: ubuntu-latest
 
