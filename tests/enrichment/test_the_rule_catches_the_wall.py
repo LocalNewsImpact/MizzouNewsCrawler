@@ -225,7 +225,10 @@ class TestTheRuleInTheGate:
         assert result.skip_reason != PAYWALL_RULE_SKIP_REASON
 
     def test_an_ordinary_article_still_reaches_the_gate(self):
-        result, stub = run(FULL, article=article("The council met Tuesday."))
+        """A real story, not a 24-character sentence: since the no-story
+        gate, a body with no reporting in it is refused before any model
+        call, and this fixture is meant to test the ordinary path."""
+        result, stub = run(FULL, article=article(story_of(600)))
         assert "content_gate" in stub.calls
 
     def test_the_boilerplate_score_still_wins_first(self):
@@ -234,4 +237,9 @@ class TestTheRuleInTheGate:
         body = "cookies consent privacy policy vendor list opt out " + WALL
         result, _ = run(FULL, article=article(body))
         assert result.status == "not_article"
-        assert result.skip_reason is None
+        # Named, not NULL. An unnamed refusal is indistinguishable from a
+        # completed enrichment in `article_enrichment`; 179 production rows
+        # read that way until their entity counts were checked.
+        from src.enrichment.gate import BOILERPLATE_SKIP_REASON
+
+        assert result.skip_reason == BOILERPLATE_SKIP_REASON

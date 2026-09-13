@@ -18,7 +18,15 @@ from __future__ import annotations
 from decimal import Decimal
 
 from src.enrichment import adapter
-from src.enrichment.gate import HEURISTIC_REJECT, boilerplate_score, paywalled_stub
+from src.enrichment.gate import (
+    BOILERPLATE_SKIP_REASON,
+    HEURISTIC_REJECT,
+    NO_STORY_SKIP_REASON,
+    NOT_NEWS_SKIP_REASON,
+    boilerplate_score,
+    no_story,
+    paywalled_stub,
+)
 from src.enrichment.profiles import Profile
 from src.enrichment.resolve import resolve_point
 from src.enrichment.types import ArticleInput, EnrichmentOutcome, StepResult
@@ -68,7 +76,13 @@ POINT_SCOPES = frozenset({"city_municipality", "neighborhood_community"})
 # not_news keeps its own terminal status: those captures need a human to
 # separate genuine boilerplate from articles whose text never arrived.
 _GATE_VERDICT_STATUS = {"paywall": "enrichment_skipped", "not_news": "not_article"}
-_GATE_VERDICT_SKIP_REASON = {"paywall": "paywall_stub"}
+_GATE_VERDICT_SKIP_REASON = {
+    "paywall": "paywall_stub",
+    # `not_news` had no entry, so a gate rejection wrote NULL and read
+    # as a completed enrichment. 179 production rows looked "fully
+    # enriched" until their entity counts were checked.
+    "not_news": NOT_NEWS_SKIP_REASON,
+}
 
 #: The deterministic rule's own reason, deliberately not the LLM's
 #: 'paywall_stub'. The two findings agree, but they are not the same
@@ -126,16 +140,39 @@ def enrich_article(
         return outcome("labeled")
 
     # ---- step 0: content gate ------------------------------------------------
+    #
+    # Three free checks, in an order that encodes what each one means:
+    #
+    #   1. boilerplate  a consent dump is not an article, even if a subscribe
+    #                   prompt is wrapped in it.
+    #   2. wall         the body SAYS the content is withheld. That is the
+    #                   evidence a story exists behind it: kept, CIN-coded,
+    #                   never enriched. It has to come before (3), or a
+    #                   24-character teaser with a wall reads as "no story"
+    #                   and is filed as not an article -- which throws away
+    #                   a walled local story the corpus is supposed to keep.
+    #   3. no story     nothing to report and no wall to explain why. A
+    #                   subscription form, an events listing, a photo
+    #                   caption. Not an article.
+    #
+    # (3) is what was missing. On 2026-09-13, of twelve articles enriched in
+    # forty minutes, eight held ZERO characters of reporting: emissourian
+    # captures whose stored body is a signup form, every country on earth
+    # and all fifty states. Consent text and walls each had a check; a body
+    # that is neither went to a model and came back enriched. The
+    # extraction fix that stops new captures looking like this cannot help
+    # a body already stored, so the gate has to ask.
     if profile.content_gate:
         if boilerplate_score(article.content) >= HEURISTIC_REJECT:
-            return outcome("not_article", None)
+            return outcome("not_article", BOILERPLATE_SKIP_REASON)
         # The same finding the paid gate would return, reached for free. A
-        # walled stub is the single most common thing the gate is asked to
-        # judge, and a truncated body carrying a subscribe prompt is the one
-        # case a phrase match cannot be wrong about (100% precision measured
+        # decisive wall settles it on its own; a weaker prompt settles it
+        # only when little story came with it (measured at 100% precision
         # against production). Everything else still costs a call.
         if paywalled_stub(article.content) is not None:
             return outcome(_GATE_VERDICT_STATUS["paywall"], PAYWALL_RULE_SKIP_REASON)
+        if no_story(article.content):
+            return outcome("not_article", NO_STORY_SKIP_REASON)
         gate = adapter.run_content_gate(article, model)
         results.append(gate)
         if not gate.ok or gate.payload is None:
