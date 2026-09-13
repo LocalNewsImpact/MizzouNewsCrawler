@@ -402,3 +402,79 @@ def test_the_pipeline_still_skips_what_it_has_already_labelled():
     source = inspect.getsource(ArticleClassificationService._select_articles)
     assert "if not include_existing:" in source
     assert "ArticleLabel.label_version == label_version" in source
+
+
+# --- a fetched link is finished with extraction ----------------------------------
+
+
+def test_a_link_whose_article_is_terminal_is_closed():
+    """A link keeps the status `article` after its fetch, and that is
+    extraction's INPUT status -- so closing on status alone leaves the row
+    open forever, while both the queue and `links_to_fetch` correctly
+    refuse to serve a link that already has an article.
+
+    Seven rows sat in exactly that state, and a run spent its whole window
+    asking the queue for them: "Work queue returned 0 articles - domains in
+    cooldown, will retry", batch after batch, with 158 records of real work
+    waiting behind the step."""
+    from src.pipeline.rework import settle
+
+    session = _session(rowcount=1)
+    settle(session)
+    sql = _sql(session)
+    assert "NOT EXISTS (" in sql
+    assert "a.candidate_link_id = r.record_id" in sql
+    assert (
+        "a.status = ANY(:articles)" in sql
+    ), "closed only once the ARTICLE has nothing owing either"
+
+
+def test_a_link_whose_article_still_has_work_keeps_its_row():
+    """The open row is what carries the article: it inherits the flag
+    through its link, which is how one run takes a record from fetch to
+    enrichment. Closing it early would strand the article."""
+    from src.pipeline.rework import settle
+
+    session = _session()
+    settle(session)
+    sql = " ".join(_sql(session).split())
+    # An article still in a stage status prevents the close: the condition
+    # requires that NO article for the link holds one.
+    assert (
+        "AND NOT EXISTS (SELECT 1 FROM articles a "
+        "WHERE a.candidate_link_id = r.record_id "
+        "AND a.status = ANY(:articles))" in sql
+    )
+
+
+def test_extraction_stops_when_no_link_is_ready_to_fetch():
+    """On the queue path the crawler never consulted the set, so an empty
+    answer read as "cooldown, will retry" and the loop ran to the
+    deadline."""
+    import inspect
+
+    from src.cli.commands import extraction
+
+    body = inspect.getsource(extraction._process_batch)
+    guard = body.split("if USE_WORK_QUEUE:")[0]
+    assert "_links_owed_a_fetch(session)" in guard, "asked before either path runs"
+    assert "no link is ready to fetch" in guard
+    # And asked ONCE: the direct path reuses what the guard read.
+    assert body.count("_links_owed_a_fetch(session)") == 1
+
+
+def test_a_link_awaiting_its_first_fetch_keeps_its_row():
+    """The close requires the article to EXIST and be finished. Testing
+    only "no article has work left" is TRUE for a link that has no article
+    at all, which closed every extract row before anything was fetched.
+    The integration suite caught it; this pins the shape."""
+    from src.pipeline.rework import settle
+
+    session = _session()
+    settle(session)
+    sql = " ".join(_sql(session).split())
+    assert (
+        "EXISTS (SELECT 1 FROM articles a WHERE a.candidate_link_id = r.record_id)"
+        in sql
+    ), "the article must exist"
+    assert "AND NOT EXISTS (SELECT 1 FROM articles a" in sql, "and be finished"

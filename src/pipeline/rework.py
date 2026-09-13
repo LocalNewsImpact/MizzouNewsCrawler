@@ -134,7 +134,36 @@ def settle(session) -> int:
             "AND r.record_type = s.kind "
             "AND ("
             "  (r.record_type = 'article' AND s.status <> ALL(:articles))"
-            "  OR (r.record_type = 'candidate_link' AND s.status <> ALL(:links))"
+            "  OR (r.record_type = 'candidate_link' AND ("
+            "    s.status <> ALL(:links)"
+            # A FETCHED LINK IS FINISHED WITH EXTRACTION.
+            #
+            # A link keeps the status `article` after its fetch, and that
+            # is extraction's input status -- so a row closed on status
+            # alone stays open forever, while both the work queue and
+            # `links_to_fetch` correctly refuse to serve a link that
+            # already has an article. Seven rows sat in exactly that
+            # state, and a run spent its whole window asking the queue for
+            # them: "Work queue returned 0 articles - domains in cooldown,
+            # will retry", batch after batch, while 158 records of real
+            # work waited behind the step.
+            #
+            # It closes only once the ARTICLE has nothing owing either.
+            # Until then the open row is what carries the article: it
+            # inherits the flag through its link, which is how one run
+            # takes a record from fetch to enrichment.
+            # The article must EXIST and be finished. Testing only that no
+            # article has work left is true for a link awaiting its FIRST
+            # fetch, which would close every extract row before anything
+            # was fetched -- the integration tests caught exactly that.
+            "    OR ("
+            "      EXISTS (SELECT 1 FROM articles a "
+            "              WHERE a.candidate_link_id = r.record_id)"
+            "      AND NOT EXISTS (SELECT 1 FROM articles a "
+            "                      WHERE a.candidate_link_id = r.record_id "
+            "                      AND a.status = ANY(:articles))"
+            "    )"
+            "  ))"
             ")"
         ),
         {

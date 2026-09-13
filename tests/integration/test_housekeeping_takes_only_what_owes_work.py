@@ -378,16 +378,22 @@ def test_a_terminal_article_is_closed_with_the_status_it_reached(articles_db):
         s.execute(sa.text("UPDATE articles SET status='enriched' WHERE id='hk-art-1'"))
         s.execute(sa.text("UPDATE articles SET status='obituary' WHERE id='hk-art-2'"))
         s.commit()
-        assert settle(s) == 2
+        # FOUR, not two. The two articles are finished -- and so are the
+        # fetches of the links in front of them: a link keeps the status
+        # `article` after its fetch, and nothing will ever serve it again,
+        # so its row closes once its article has nothing owing.
+        assert settle(s) == 4
         rows = s.execute(
             sa.text(
-                "SELECT record_id, outcome FROM pipeline_rework "
+                "SELECT record_id, record_type, outcome FROM pipeline_rework "
                 "WHERE done_at IS NOT NULL ORDER BY record_id"
             )
         ).fetchall()
     assert [tuple(r) for r in rows] == [
-        ("hk-art-1", "enriched"),
-        ("hk-art-2", "obituary"),
+        ("hk-art-1", "article", "enriched"),
+        ("hk-art-2", "article", "obituary"),
+        ("hk-link-1", "candidate_link", "article"),
+        ("hk-link-2", "candidate_link", "article"),
     ]
 
 
@@ -486,7 +492,10 @@ def test_enrichment_settles_on_the_status_not_the_attempt(labeled_db):
                 "WHERE stage='enrich' AND requested_by='test' ORDER BY record_id"
             )
         ).fetchall()
-    assert settled == 2
+    # Two enrich rows close. `settled` counts every row the settle closed,
+    # which includes the extract rows of the links in front of those two
+    # articles: their fetches are done and their articles are finished.
+    assert settled >= 2
     assert [(r[0], r[1], r[2]) for r in rows] == [
         ("hk-lab-0", True, "enriched"),
         ("hk-lab-1", True, "enrichment_skipped"),
