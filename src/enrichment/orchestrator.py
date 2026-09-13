@@ -18,7 +18,13 @@ from __future__ import annotations
 from decimal import Decimal
 
 from src.enrichment import adapter
-from src.enrichment.gate import HEURISTIC_REJECT, boilerplate_score, paywalled_stub
+from src.enrichment.gate import (
+    BOILERPLATE_SKIP_REASON,
+    HEURISTIC_REJECT,
+    NOT_NEWS_SKIP_REASON,
+    boilerplate_score,
+    paywalled_stub,
+)
 from src.enrichment.profiles import Profile
 from src.enrichment.resolve import resolve_point
 from src.enrichment.types import ArticleInput, EnrichmentOutcome, StepResult
@@ -68,7 +74,13 @@ POINT_SCOPES = frozenset({"city_municipality", "neighborhood_community"})
 # not_news keeps its own terminal status: those captures need a human to
 # separate genuine boilerplate from articles whose text never arrived.
 _GATE_VERDICT_STATUS = {"paywall": "enrichment_skipped", "not_news": "not_article"}
-_GATE_VERDICT_SKIP_REASON = {"paywall": "paywall_stub"}
+_GATE_VERDICT_SKIP_REASON = {
+    "paywall": "paywall_stub",
+    # `not_news` had no entry, so a gate rejection wrote NULL and read
+    # as a completed enrichment. 179 production rows looked "fully
+    # enriched" until their entity counts were checked.
+    "not_news": NOT_NEWS_SKIP_REASON,
+}
 
 #: The deterministic rule's own reason, deliberately not the LLM's
 #: 'paywall_stub'. The two findings agree, but they are not the same
@@ -126,13 +138,21 @@ def enrich_article(
         return outcome("labeled")
 
     # ---- step 0: content gate ------------------------------------------------
+    #
+    # Two free checks, then the model. Whether a body is a story at all --
+    # a form, a script dump, a rail -- is the post-extraction classification
+    # stage's question, asked before a CIN label is applied, not this one's.
+    #
+    #   1. boilerplate  a consent dump is not an article, even with a
+    #                   subscribe prompt wrapped in it.
+    #   2. wall         the body SAYS the content is withheld. Kept,
+    #                   CIN-coded, never enriched.
     if profile.content_gate:
         if boilerplate_score(article.content) >= HEURISTIC_REJECT:
-            return outcome("not_article", None)
+            return outcome("not_article", BOILERPLATE_SKIP_REASON)
         # The same finding the paid gate would return, reached for free. A
-        # walled stub is the single most common thing the gate is asked to
-        # judge, and a truncated body carrying a subscribe prompt is the one
-        # case a phrase match cannot be wrong about (100% precision measured
+        # decisive wall settles it on its own; a weaker prompt settles it
+        # only when little story came with it (measured at 100% precision
         # against production). Everything else still costs a call.
         if paywalled_stub(article.content) is not None:
             return outcome(_GATE_VERDICT_STATUS["paywall"], PAYWALL_RULE_SKIP_REASON)

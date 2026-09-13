@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 
-from src.utils.boilerplate import looks_like_paywall, story_text
+from src.utils.boilerplate import flatten, looks_like_paywall, story_text
 
 TERMS = re.compile(
     r"cookie(s)?\b|consent|privacy policy|advertising partner(s)?"
@@ -60,6 +60,57 @@ def boilerplate_score(text: str) -> int:
 PAYWALL_STUB_MAX_STORY_CHARS = 500
 
 
+#: Walls that settle it on their own, with no length test.
+#:
+#: These do not hint that a subscription exists; they STATE that the content
+#: is withheld. A complete article does not contain one, and the length of
+#: whatever came with it is beside the point.
+#:
+#: Measured 2026-09-13 against 600 cleanly-enriched articles and 500 known
+#: stubs -- appearances in real articles first, because that is the number
+#: that matters:
+#:
+#:     available in full to subscribers       0 real   105 stubs
+#:     login to continue reading              0 real   303 stubs
+#:     sign up for complimentary access       0 real   303 stubs
+#:     this content is for subscribers only   0 real    11 stubs
+#:     for subscribers only                   0 real    11 stubs
+#:     unlimited digital access               0 real     1 stub
+#:
+#: The bare substring "subscribers only" is deliberately NOT here: it hits 2
+#: real articles. Neither is "premium content", which TownNews injects into
+#: real ones ("Javascript is required for you to be able to read premium
+#: content") and which the boilerplate module already removed from its
+#: entitlement list for condemning four joplinglobe stories.
+#:
+#: WHY THE LENGTH TEST CANNOT GUARD THESE
+#:
+#: It declined six stubs in one run that each said "available in full to
+#: subscribers", because `story_text` measured 893-2,827 characters. Reading
+#: what it had counted: the teaser REPEATED, the headline again, "Posted
+#: 3/23/26", "| Log in", and "Attention subscribers We have recently
+#: launched a new and improved website" -- furniture and duplication, not
+#: reporting. A measurement that can be inflated by the capture is not a
+#: safe guard on a phrase that is already conclusive.
+DECISIVE_WALLS: tuple[str, ...] = (
+    "available in full to subscribers",
+    "this item is available in full to subscribers",
+    "this content is for subscribers only",
+    "for subscribers only",
+    "login to continue reading",
+    "please log in to continue reading",
+    "please login to continue reading",
+    "sign up for complimentary access",
+    "unlimited digital access",
+)
+
+
+def decisive_wall(text: str | None) -> str | None:
+    """The conclusive wall phrase this body states, or None."""
+    lowered = flatten(text or "")
+    return next((phrase for phrase in DECISIVE_WALLS if phrase in lowered), None)
+
+
 def paywalled_stub(text: str | None) -> str | None:
     """The paywall prompt a truncated body contains, or None.
 
@@ -67,6 +118,10 @@ def paywalled_stub(text: str | None) -> str | None:
     wall fired and the threshold can be retuned against evidence.
     """
     body = text or ""
+    stated = decisive_wall(body)
+    if stated is not None:
+        # The body says the content is withheld. There is nothing to measure.
+        return stated
     wall = looks_like_paywall(body)
     if wall is None:
         return None
@@ -78,3 +133,13 @@ def paywalled_stub(text: str | None) -> str | None:
     if len(story_text(body)) >= PAYWALL_STUB_MAX_STORY_CHARS:
         return None
     return wall
+
+
+#: Named so a reviewer can tell these apart in `article_enrichment`.#: Named so a reviewer can tell these apart in `article_enrichment`.
+#:
+#: `not_news` from the paid gate had NO skip reason at all: the mapping
+#: covered `paywall` and nothing else, so a gate rejection wrote NULL and
+#: was indistinguishable from a completed enrichment. 179 rows read as
+#: "fully enriched" on that basis until the entities were counted.
+BOILERPLATE_SKIP_REASON = "boilerplate_dump"
+NOT_NEWS_SKIP_REASON = "not_news_gate"
