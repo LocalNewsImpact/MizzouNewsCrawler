@@ -251,6 +251,7 @@ def _get_work_from_queue(
     batch_size: int,
     max_articles_per_domain: int = 3,
     dataset: str | None = None,
+    rework: bool = False,
 ):
     """Request work from centralized queue service with retry logic.
 
@@ -288,6 +289,12 @@ def _get_work_from_queue(
                     "batch_size": batch_size,
                     "max_articles_per_domain": max_articles_per_domain,
                     "dataset": dataset,
+                    # The only difference between a housekeeping worker and
+                    # a pipeline worker: the set of records it may be
+                    # served. Everything else about this request is the
+                    # same, which is the point -- the same queue, the same
+                    # parallel workers, a narrower input.
+                    "rework": rework,
                 },
                 timeout=timeout,
             )
@@ -675,76 +682,23 @@ def _analyze_dataset_domains(args, session):
 
 
 def _links_owed_a_fetch(session):
-    """The candidate links `pipeline_rework` says still need extracting.
+    """Flagged links that are ready to fetch -- `src.pipeline.rework`.
 
-    Working state lives in the database, not in a file handed between
-    pods: a file and the database disagree the moment a run dies halfway.
-    Whoever rewound the record wrote the row; this reads it and
-    `_settle_fetches` closes it. An empty result means nothing to do --
-    never "no filter".
+    Defined there and not here: every stage needs the same answer, and the
+    set is the only thing that makes a housekeeping run different from an
+    ordinary one.
     """
-    rows = safe_session_execute(
-        session,
-        text(
-            "SELECT record_id FROM pipeline_rework "
-            "WHERE record_type = 'candidate_link' AND stage = 'extract' "
-            "AND done_at IS NULL ORDER BY requested_at"
-        ),
-    ).fetchall()
-    return [r[0] for r in rows]
+    from src.pipeline.rework import links_to_fetch
+
+    return links_to_fetch(session)
 
 
-def _settle_fetches(session, link_ids):
-    """Close the `extract` rows whose fetch is decided, and queue the
-    classification of the articles it produced.
+def _settle_rework(session):
+    """Close the rows of records with nothing left owing -- see
+    `src.pipeline.rework.settle`."""
+    from src.pipeline.rework import settle
 
-    Settled on the link's status, not on "we tried": a link still at
-    `article` still owes the fetch and tomorrow's run finds it again.
-    One that reached `extracted` has an article -- cleaning runs inside
-    extraction, so it is at `cleaned` -- and that article now owes a
-    classification. The reconciler wrote the first row; this writes the
-    next, because nobody else knows the article's id. A link that
-    landed anywhere else (`paused`, `proxy_blocked`, ...) is closed
-    with that status as its outcome and nothing is queued: what it
-    needs is a method, not another stage.
-
-    Closed rather than deleted, so "what did housekeeping do" can be
-    answered afterwards. Only this stage's rows: a record owing a fetch
-    and, later, a classification is two rows, and finishing one must
-    not finish the other.
-    """
-    if not link_ids:
-        return 0, 0
-    ids = list(link_ids)
-    settled = safe_session_execute(
-        session,
-        text(
-            "UPDATE pipeline_rework r SET done_at = now(), outcome = cl.status "
-            "FROM candidate_links cl "
-            "WHERE r.record_type = 'candidate_link' AND r.stage = 'extract' "
-            "AND r.done_at IS NULL AND r.record_id = cl.id "
-            "AND cl.id = ANY(:ids) AND cl.status <> 'article'"
-        ),
-        {"ids": ids},
-    ).rowcount
-    queued = safe_session_execute(
-        session,
-        text(
-            "INSERT INTO pipeline_rework "
-            "(record_type, record_id, stage, reason, requested_by) "
-            "SELECT 'article', a.id, 'classify', "
-            "'extracted for rework: ' || COALESCE(r.reason, ''), 'housekeeping' "
-            "FROM pipeline_rework r "
-            "JOIN articles a ON a.candidate_link_id = r.record_id "
-            "WHERE r.record_type = 'candidate_link' AND r.stage = 'extract' "
-            "AND r.record_id = ANY(:ids) AND r.outcome = 'extracted' "
-            "AND a.status IN ('cleaned', 'local') "
-            "ON CONFLICT DO NOTHING"
-        ),
-        {"ids": ids},
-    ).rowcount
-    session.commit()
-    return settled or 0, queued or 0
+    return settle(session)
 
 
 def add_extraction_parser(subparsers):
@@ -1498,6 +1452,7 @@ def _process_batch(
                 batch_size=per_batch,
                 max_articles_per_domain=max_articles_per_domain,
                 dataset=getattr(args, "dataset", None),
+                rework=getattr(args, "rework", False) is True,
             )
 
             if not work_items:
@@ -2780,12 +2735,14 @@ def _process_batch(
         # A rework row is closed by the batch that decided its fetch, and
         # the article it produced is queued for classification here,
         # where its id is known.
-        if rework_ids:
-            settled, queued = _settle_fetches(session, rework_ids)
+        # Settled on every path, not only the direct one: a worker pulling
+        # from the queue fetched the same records, and `_settle_rework`
+        # reads statuses rather than the ids this batch happened to hold.
+        if getattr(args, "rework", False) is True:
+            settled = _settle_rework(session)
             logger.info(
-                "rework: %d fetches settled, %d articles queued for classification",
+                "rework: %d records finished with housekeeping (nothing left owing)",
                 settled,
-                queued,
             )
 
         return {

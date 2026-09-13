@@ -36,15 +36,23 @@ def _params(session, call=0):
 # --- extraction ---------------------------------------------------------------------
 
 
-def test_extraction_asks_for_open_extract_rows_on_links():
+def test_extraction_joins_the_flag_to_the_status():
+    """Flagged AND ready. The status alone is the whole backlog -- 4,802
+    links sit at `article` -- and the flag alone says nothing about whether
+    the record is ready for THIS stage."""
     from src.cli.commands.extraction import _links_owed_a_fetch
 
     session = _session(rows=["l1", "l2"])
     assert _links_owed_a_fetch(session) == ["l1", "l2"]
     sql = _sql(session)
     assert "record_type = 'candidate_link'" in sql
-    assert "stage = 'extract'" in sql
-    assert "done_at IS NULL" in sql
+    assert "done_at IS NULL" in sql, "the flag"
+    assert "cl.status = :fetchable" in sql, "the status"
+    assert "NOT EXISTS" in sql, "a link with an article owes no fetch"
+    assert "stage" not in sql, (
+        "the stage column does not select: a record is carried by the join "
+        "of its flag and its status, not by which stage it entered at"
+    )
 
 
 def test_extraction_with_no_rows_returns_an_empty_list_not_none():
@@ -54,39 +62,45 @@ def test_extraction_with_no_rows_returns_an_empty_list_not_none():
     assert _links_owed_a_fetch(_session()) == []
 
 
-def test_settling_nothing_touches_nothing():
-    from src.cli.commands.extraction import _settle_fetches
+def test_settling_closes_a_record_that_has_left_every_stage_status():
+    """A record is finished when no stage reads its status any more --
+    in the export, retracted, or a kind nothing enriches. Settled on the
+    status and never on having been attempted."""
+    from src.pipeline.rework import settle
 
-    session = _session()
-    assert _settle_fetches(session, []) == (0, 0)
-    session.execute.assert_not_called()
-    session.commit.assert_not_called()
-
-
-def test_settling_closes_on_the_links_status_then_queues_classification():
-    from src.cli.commands.extraction import _settle_fetches
-
-    session = _session(rowcount=2)
-    assert _settle_fetches(session, ["l1", "l2"]) == (2, 2)
-    close, queue = _sql(session, 0), _sql(session, 1)
-    # closed on what the link became, only where it left `article`
-    assert "outcome = cl.status" in close
-    assert "cl.status <> 'article'" in close
-    assert "done_at IS NULL" in close, "a closed row is never re-closed"
-    assert _params(session, 0)["ids"] == ["l1", "l2"]
-    # the next stage, for the article the fetch produced
-    assert "'article', a.id, 'classify'" in queue
-    assert "r.outcome = 'extracted'" in queue
-    assert "ON CONFLICT DO NOTHING" in queue
+    session = _session(rowcount=3)
+    assert settle(session) == 3
+    sql = _sql(session)
+    assert "outcome = s.status" in sql, "the outcome is the status it reached"
+    assert "done_at IS NULL" in sql, "a closed row is never re-closed"
+    assert "s.status <> ALL(:articles)" in sql
+    assert "s.status <> ALL(:links)" in sql
+    params = _params(session)
+    assert "cleaned" in params["articles"] and "labeled" in params["articles"]
+    assert params["links"] == ["article"]
     session.commit.assert_called_once()
 
 
+def test_a_record_still_in_a_stage_status_keeps_its_row():
+    """`cleaned` and `labeled` are statuses a stage reads, so they are NOT
+    in the closing condition: an article this run moved to `labeled` keeps
+    its row and the enrich step of the same run takes it. The first version
+    wrote a new row for the next stage instead, and fired on a status the
+    article did not hold yet -- "0 articles queued for classification"."""
+    from src.pipeline.rework import settle
+
+    session = _session()
+    settle(session)
+    params = _params(session)
+    assert set(params["articles"]) == {"cleaned", "labeled", "local"}
+
+
 def test_a_missing_rowcount_is_zero_not_none():
-    from src.cli.commands.extraction import _settle_fetches
+    from src.pipeline.rework import settle
 
     session = _session()
     session.execute.return_value.rowcount = None
-    assert _settle_fetches(session, ["l1"]) == (0, 0)
+    assert settle(session) == 0
 
 
 def test_the_work_queue_path_settles_nothing_and_raises_nothing():
@@ -106,37 +120,48 @@ def test_the_work_queue_path_settles_nothing_and_raises_nothing():
 # --- classification ---------------------------------------------------------------
 
 
-def test_classification_asks_for_open_classify_rows_on_articles():
+def test_classification_joins_the_flag_to_the_statuses_it_reads():
+    """The statuses come from the stage, the flag from the table. 450
+    articles sit at `cleaned`; 107 of them were put there by a decision."""
     from src.services.classification_service import ArticleClassificationService
 
     session = _session(rows=["a1"])
-    assert ArticleClassificationService._articles_owed_a_classification(session) == [
-        "a1"
-    ]
+    owed = ArticleClassificationService._articles_owed_a_classification(
+        session, ["cleaned", "local"]
+    )
+    assert owed == ["a1"]
     sql = _sql(session)
-    assert "record_type = 'article'" in sql
-    assert "stage = 'classify'" in sql
-    assert "done_at IS NULL" in sql
+    assert "a.status = ANY(:statuses)" in sql, "the status"
+    assert "done_at IS NULL" in sql, "the flag"
+    assert _params(session)["statuses"] == ["cleaned", "local"]
 
 
-def test_classification_settles_its_stage_and_queues_enrichment():
+def test_an_article_inherits_the_flag_from_its_link():
+    """When a decision rewound a URL there was no article to name. The
+    article a fetch produces is the record the remaining stages act on, so
+    the flag reaches it through `candidate_link_id` -- which is what lets
+    one run carry a record from fetch to enrichment with no stage writing a
+    row."""
     from src.services.classification_service import ArticleClassificationService
 
-    session = _session()
-    ArticleClassificationService._settle_rework(session, ["a1", 7], "classified")
-    close, queue = _sql(session, 0), _sql(session, 1)
-    assert "stage = 'classify'" in close and "done_at IS NULL" in close
-    assert _params(session, 0)["ids"] == ["a1", "7"], "ids are strings in the table"
-    assert "'article', r.record_id, 'enrich'" in queue
-    assert "ON CONFLICT DO NOTHING" in queue
+    session = _session(rows=["a1"])
+    ArticleClassificationService._articles_owed_a_classification(session, ["cleaned"])
+    sql = _sql(session)
+    assert "r.record_type = 'article' AND r.record_id = a.id" in sql
+    assert "r.record_id = a.candidate_link_id" in sql
 
 
-def test_classification_settling_nothing_touches_nothing():
+def test_classification_settles_by_status_and_queues_nothing():
+    """It used to write an `enrich` row here. That put the handoff in two
+    places and fired on a status the article might not hold yet; the join
+    does it instead."""
     from src.services.classification_service import ArticleClassificationService
 
-    session = _session()
-    ArticleClassificationService._settle_rework(session, [], "classified")
-    session.execute.assert_not_called()
+    session = _session(rowcount=1)
+    ArticleClassificationService._settle_rework(session)
+    sql = _sql(session)
+    assert "outcome = s.status" in sql
+    assert "INSERT INTO pipeline_rework" not in sql, "no stage queues another"
 
 
 def test_classify_with_rework_selects_only_the_owed_ids():
@@ -214,33 +239,26 @@ def test_classify_with_rework_and_nothing_owed_selects_nothing():
 # --- enrichment -----------------------------------------------------------------------
 
 
-def test_enrichment_asks_for_open_enrich_rows_on_articles():
+def test_enrichment_joins_the_flag_to_labeled():
     from src.enrichment import repository
 
     session = _session(rows=["a1", "a2"])
     assert repository.articles_owed_enrichment(session) == ["a1", "a2"]
     sql = _sql(session)
-    assert "stage = 'enrich'" in sql and "done_at IS NULL" in sql
+    assert "a.status = ANY(:statuses)" in sql and "done_at IS NULL" in sql
+    assert _params(session)["statuses"] == ["labeled"]
 
 
-def test_enrichment_settles_only_articles_at_a_terminal_status():
+def test_enrichment_settles_by_status(session=None):
+    """An article whose enrichment failed is still `labeled`, still owes
+    the work, and tomorrow's run finds it."""
     from src.enrichment import repository
 
     session = _session(rowcount=1)
-    assert repository.settle_enrichment_rework(session, ["a1", "a2"]) == 1
+    assert repository.settle_enrichment_rework(session) == 1
     sql = _sql(session)
-    assert "outcome = a.status" in sql
-    assert "a.status IN ('enriched', 'enrichment_skipped')" in sql
+    assert "outcome = s.status" in sql
     assert "INSERT INTO pipeline_rework" not in sql, "the chain ends here"
-    session.commit.assert_called_once()
-
-
-def test_enrichment_settling_nothing_touches_nothing():
-    from src.enrichment import repository
-
-    session = _session()
-    assert repository.settle_enrichment_rework(session, []) == 0
-    session.execute.assert_not_called()
 
 
 # --- the enrich command, end to end through its branches --------------------------

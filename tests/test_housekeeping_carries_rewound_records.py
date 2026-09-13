@@ -56,6 +56,9 @@ def test_the_stages_run_in_pipeline_order(steps):
     today's, and the run would still report success."""
     assert [s["name"] for s in steps] == [
         "anything-owed",
+        # How many extraction workers the night needs, computed from the
+        # rework backlog. The extract step fans out over them.
+        "rework-workers",
         "extract",
         "classify",
         "enrich",

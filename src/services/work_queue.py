@@ -54,6 +54,26 @@ MAX_ARTICLES_PER_DOMAIN_PER_REQUEST = int(
 app = FastAPI(title="Work Queue Service", version="1.0.0")
 
 
+#: Restricts every selection to records a review decision rewound.
+#:
+#: The housekeeping workflow is the pipeline workflow -- the same parallel
+#: workers pulling from this queue -- and the ONLY difference is the set of
+#: records that goes in. This is that difference, as one clause: a
+#: candidate link is served only if `pipeline_rework` still owes work on
+#: it. Without it a housekeeping worker draws from the whole extraction
+#: backlog, which on 2026-09-12 was 4,802 links against 45 a reviewer had
+#: actually rewound.
+#:
+#: The status filter is already in both queries (`cl.status = 'article'`
+#: and no article row). A stage selects on the join of the two: the status
+#: says which stage a record is ready for, and this says whether anybody
+#: asked for it.
+REWORK_ONLY = (
+    " AND EXISTS (SELECT 1 FROM pipeline_rework r "
+    "             WHERE r.record_id = cl.id AND r.done_at IS NULL)"
+)
+
+
 class WorkRequest(BaseModel):
     """Request for work items from a worker."""
 
@@ -63,6 +83,13 @@ class WorkRequest(BaseModel):
     )
     max_articles_per_domain: int = Field(
         3, ge=1, le=20, description="Maximum articles per domain in this batch"
+    )
+    rework: bool = Field(
+        False,
+        description=(
+            "Serve only records a review decision rewound (pipeline_rework). "
+            "The housekeeping workflow sets this; the pipeline does not."
+        ),
     )
     dataset: Optional[str] = Field(
         None,
@@ -173,7 +200,7 @@ class WorkQueueCoordinator:
             del self.worker_domains[worker_id]
 
     def _get_available_domains(
-        self, session, dataset: Optional[str] = None
+        self, session, dataset: Optional[str] = None, rework: bool = False
     ) -> list[dict[str, Any]]:
         """Query database for domains with available candidate links.
 
@@ -220,6 +247,12 @@ class WorkQueueCoordinator:
         if dataset is not None:
             sql += "            AND cl.dataset_id = :dataset\n"
             params["dataset"] = dataset
+        if rework:
+            # Offered domains have to be rework domains too. Filtering only
+            # the claim query would hand a worker a domain whose links are
+            # all backlog, and it would come back with nothing while the
+            # rework links sat behind a domain nobody was assigned.
+            sql += REWORK_ONLY + "\n"
         sql += """
             GROUP BY cl.source, s.canonical_name
             HAVING COUNT(*) > 0
@@ -312,6 +345,7 @@ class WorkQueueCoordinator:
         batch_size: int,
         max_articles_per_domain: int,
         dataset: Optional[str] = None,
+        rework: bool = False,
     ) -> WorkResponse:
         """Handle work request from a worker.
 
@@ -335,6 +369,7 @@ class WorkQueueCoordinator:
                     batch_size,
                     max_articles_per_domain,
                     dataset,
+                    rework,
                 )
             else:
                 with self.db.get_session() as session:
@@ -344,6 +379,7 @@ class WorkQueueCoordinator:
                         batch_size,
                         max_articles_per_domain,
                         dataset,
+                        rework,
                     )
 
     def _request_work_with_session(
@@ -353,10 +389,11 @@ class WorkQueueCoordinator:
         batch_size: int,
         max_articles_per_domain: int,
         dataset: Optional[str] = None,
+        rework: bool = False,
     ) -> WorkResponse:
         """Internal method to handle work request with a given session."""
         # Get available domains from database
-        available_domains = self._get_available_domains(session, dataset)
+        available_domains = self._get_available_domains(session, dataset, rework)
 
         if not available_domains:
             logger.warning("No domains with available work")
@@ -395,13 +432,14 @@ class WorkQueueCoordinator:
         # same fault, one query further down, and the reason the March
         # extraction run died after 302 of 424 articles.
         dataset_clause = " AND cl.dataset_id = :dataset" if dataset else ""
+        rework_clause = REWORK_ONLY if rework else ""
         query = text(f"""
             SELECT cl.id, cl.url, cl.source, s.canonical_name
             FROM candidate_links cl
             LEFT JOIN sources s ON cl.source_id = s.id
             LEFT JOIN articles a ON cl.id = a.candidate_link_id
             WHERE cl.status = 'article'
-            AND cl.source = ANY(:domains){dataset_clause}
+            AND cl.source = ANY(:domains){dataset_clause}{rework_clause}
             AND a.candidate_link_id IS NULL
             ORDER BY RANDOM()
             LIMIT :limit
@@ -627,6 +665,7 @@ async def request_work(request: WorkRequest) -> WorkResponse:
                 request.batch_size,
                 request.max_articles_per_domain,
                 request.dataset,
+                request.rework,
             ),
         )
     except Exception as e:
