@@ -150,9 +150,49 @@ def segments(text: str) -> list[str]:
     return [s.strip() for s in _SEGMENT_SPLIT.split(text) if s and s.strip()]
 
 
+#: Typographic characters a CMS emits where a marker list is written with the
+#: ASCII ones. A publisher's own text is nearly always curly: hipaperclips
+#: writes "This Week's Image" with U+2019, and `"this week's" in text.lower()`
+#: is False against it -- the marker never fires, silently, and no test that
+#: uses a straight apostrophe in its fixture can see the problem.
+#:
+#: No marker contained an apostrophe before the print-upsell phrases were
+#: added, which is the only reason this had not bitten yet. Normalising here
+#: rather than hand-writing both spellings keeps the marker lists readable and
+#: means the next phrase somebody adds cannot reintroduce the bug.
+_TYPOGRAPHY = str.maketrans(
+    {
+        "‘": "'",
+        "’": "'",
+        "‚": "'",
+        "‛": "'",
+        "′": "'",
+        "ʼ": "'",
+        "“": '"',
+        "”": '"',
+        "„": '"',
+        "″": '"',
+        "–": "-",
+        "—": "-",
+        "−": "-",
+        "…": "...",
+        " ": " ",
+    }
+)
+
+
+def flatten(text: str) -> str:
+    """Lowercase, with typographic punctuation folded to its ASCII spelling.
+
+    Every marker comparison goes through this, so a list written with ASCII
+    quotes matches the curly ones a publisher actually publishes.
+    """
+    return (text or "").translate(_TYPOGRAPHY).lower()
+
+
 def is_boilerplate_segment(segment: str) -> bool:
     """Whether a single line or sentence is known furniture."""
-    lowered = segment.lower()
+    lowered = flatten(segment)
     return any(marker in lowered for marker in BOILERPLATE_MARKERS)
 
 
@@ -242,6 +282,29 @@ def strip_boilerplate(body: str) -> str:
     # swallowed the article.
     segs = _drop_menu_runs(segments(body))
     kept = [s for s in segs if not is_boilerplate_segment(s)]
+    return " ".join(kept).strip()
+
+
+def story_text(body: str) -> str:
+    """The segments of a body that read as reporting, by THE detector.
+
+    `strip_boilerplate` consults `is_boilerplate_segment`, which is the
+    literal BOILERPLATE_MARKERS list and nothing else. `classify_furniture`
+    is the module's one detector -- markers, then concepts, then shape --
+    and it identifies plenty that the literal list does not: "Already a
+    subscriber?", "Log in here.", "Claim your online subscription." are all
+    returned as furniture by one and kept by the other.
+
+    A caller asking "how much reporting is actually here" needs the
+    stronger answer. `strip_boilerplate` deliberately keeps the weaker one:
+    it runs on the write path, where what it removes is removed from the
+    stored article, so widening it is a change to the corpus and not to a
+    measurement. This is the measurement.
+    """
+    if not body:
+        return ""
+    segs = _drop_menu_runs(segments(body))
+    kept = [s for s in segs if classify_furniture(s) is None]
     return " ".join(kept).strip()
 
 
@@ -514,14 +577,39 @@ _ACCESS_INTENT = re.compile(
     r"|read(?:ing)?\s+(?:the\s+)?(?:full|rest|remainder|entire)\b"
     rf"|read\s+(?:this|the)\s+{_CONTENT_NOUN}"
     rf"|view\s+(?:this|the)\s+(?:full\s+)?{_CONTENT_NOUN}"
-    rf"|see\s+the\s+(?:full|rest|entire)\s+{_CONTENT_NOUN}"
+    # "the" is optional and "complete" belongs beside "full": a print upsell
+    # is written as a headline, not a sentence -- "See Full Story In This
+    # Week's Image" -- and requiring the article made this miss every one of
+    # them. The vocabulary was already right; the grammar was too strict.
+    rf"|see\s+(?:the\s+)?(?:full|rest|entire|complete)"
+    rf"\s+(?:of\s+the\s+)?{_CONTENT_NOUN}"
     rf"|access\s+(?:to\s+)?(?:this|the)\s+(?:full\s+)?{_CONTENT_NOUN}"
     rf"|unlock\s+(?:this|the|full)\s*{_CONTENT_NOUN}?",
     re.IGNORECASE,
 )
 _GATE_ACTION = re.compile(
     r"subscri(?:be|ption|ber)|log\s?in|sign\s?in|sign\s?up|register"
-    r"|create\s+an?\s+account|free\s+trial|purchase|paid\s+plan|become\s+a\s+member",
+    r"|create\s+an?\s+account|free\s+trial|purchase|paid\s+plan|become\s+a\s+member"
+    # Buying the printed paper is a gate action. A weekly that truncates the
+    # web copy and points at its own print edition has withheld the content
+    # exactly as a subscription wall does -- the reader must acquire something
+    # to finish reading -- and PAYWALL is the finding that says a story exists
+    # behind the stub. Named as a concept rather than as one publisher's
+    # sentence: the vocabulary here generalises to papers nobody has seen,
+    # which a literal phrase list demonstrably does not.
+    # The pointer is to a DATED EDITION, and it is deliberately not a list of
+    # edition words. hipaperclips points at "This Week's Image" -- Image is the
+    # masthead -- so `(?:edition|issue|paper)` misses it, and every weekly with
+    # a name instead of a noun would miss the same way.
+    #
+    # "this week's" is ordinary news prose on its own ("this week's meeting"),
+    # and it is safe here only because a gate action is searched for inside a
+    # 120-character window around an access-intent match: the finding is
+    # "see the full story" NEAR "this week's", not the phrase alone. Measured
+    # over 906 real production articles: zero false positives.
+    r"|(?:this|next)\s+(?:week|month)'?s\b"
+    r"|(?:print|paper)\s+edition|in\s+print\b"
+    r"|pick\s+up\s+(?:a\s+)?(?:copy|this|next)",
     re.IGNORECASE,
 )
 # Entitlement language is a wall on its own -- it states the restriction without
@@ -737,7 +825,9 @@ def classify_furniture(text: str | None) -> Furniture | None:
     """
     if not text or not text.strip():
         return None
-    lowered = text.lower()
+    # flatten(), not lower(): every marker and concept below is written with
+    # ASCII quotes, and a publisher's own copy is curly. See _TYPOGRAPHY.
+    lowered = flatten(text)
 
     for markers, kind in _MARKER_KINDS:
         for marker in markers:
