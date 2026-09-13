@@ -30,7 +30,47 @@ from src.enrichment.types import ArticleInput, EnrichmentOutcome
 TERMINAL_STATUSES = ("enriched", "enrichment_skipped", "out_of_scope")
 EXPORTABLE_STATUSES = ("enriched", "enrichment_skipped")
 
-_CANDIDATE_SQL = text("""
+#: Enrichment refuses a kind a reviewer withheld.
+#:
+#: `obituary`, `opinion`, `weather` and `column` are terminal once
+#: identified: the corpus keeps them and never spends CIN coding or model
+#: budget on them. `wire`, `other` and `non_english` should never have been
+#: fetched at all.
+#:
+#: The status is supposed to carry that, and the console's reconciler
+#: writes it -- but only on its next nightly run, and only for records it
+#: happens to look at. Between the verdict and that run the article sits at
+#: `labeled`, which is exactly what the query below selects. 21 columns and
+#: 17 obituaries were enriched that way, and four more obituaries went
+#: through on 2026-09-13 while this was being investigated.
+#:
+#: So the refusal lives HERE, at the moment the money is spent, and reads
+#: the reviewer's own verdict rather than trusting a status somebody else
+#: is responsible for writing.
+WITHHELD_BY_A_REVIEWER = """
+      AND NOT EXISTS (
+        SELECT 1 FROM candidate_links wcl
+        WHERE wcl.id = a.candidate_link_id
+          AND wcl.meta->'review_verdict'->>'kind' = ANY(:withheld_kinds)
+      )
+"""
+
+
+def withheld_kinds() -> list[str]:
+    """Every kind that must never reach enrichment, from the contract.
+
+    Read rather than restated: a kind added to either set there has to take
+    effect here without anybody remembering to edit a second list.
+    """
+    from lnic_contracts import discovery_verdict
+
+    return sorted(
+        set(discovery_verdict.UNENRICHED_TYPES) | set(discovery_verdict.UNFETCHED_TYPES)
+    )
+
+
+_CANDIDATE_SQL = text(
+    """
     SELECT a.id, a.title, a.content, d.slug AS dataset_slug, s.city AS publication_city,
            coalesce(nullif(s.metadata::json->>'state',''), d.metadata::json->>'default_state') AS publication_state
     FROM articles a
@@ -42,11 +82,14 @@ _CANDIDATE_SQL = text("""
       AND a.status = 'labeled'
       AND a.wire_check_status IN ('complete', 'local')
       AND a.enrichment_attempts < :max_attempts
-      AND (CAST(:since AS date) IS NULL OR a.created_at >= CAST(:since AS date))
+      AND (CAST(:since AS date) IS NULL OR a.created_at >= CAST(:since AS date))"""
+    + WITHHELD_BY_A_REVIEWER
+    + """
     ORDER BY a.created_at
     LIMIT :batch
     FOR UPDATE OF a SKIP LOCKED
-    """)
+    """
+)
 
 # Reprocessing is keyed on status, and on nothing else.
 #
@@ -71,7 +114,8 @@ _CANDIDATE_SQL = text("""
 # What still separates this from _CANDIDATE_SQL is the `since` floor:
 # scheduled runs stop at the dataset's steady_state_since, and a
 # reprocess reaches back past it.
-_REPROCESS_SQL = text("""
+_REPROCESS_SQL = text(
+    """
     SELECT a.id, a.title, a.content, d.slug AS dataset_slug, s.city AS publication_city,
            coalesce(nullif(s.metadata::json->>'state',''), d.metadata::json->>'default_state') AS publication_state
     FROM articles a
@@ -82,11 +126,14 @@ _REPROCESS_SQL = text("""
     WHERE d.slug = :dataset
       AND a.status = 'labeled'
       AND a.wire_check_status IN ('complete', 'local')
-      AND a.enrichment_attempts < :max_attempts
+      AND a.enrichment_attempts < :max_attempts"""
+    + WITHHELD_BY_A_REVIEWER
+    + """
     ORDER BY a.created_at
     LIMIT :batch
     FOR UPDATE OF a SKIP LOCKED
-    """)
+    """
+)
 
 
 @dataclass(frozen=True)
@@ -141,6 +188,7 @@ def select_candidates(
             "batch": batch,
             "max_attempts": max_attempts,
             "since": since,
+            "withheld_kinds": withheld_kinds(),
         },
     ).fetchall()
     return _rows_to_articles(rows)
@@ -164,6 +212,7 @@ def select_reprocess_candidates(
             "dataset": dataset_slug,
             "batch": batch,
             "max_attempts": max_attempts,
+            "withheld_kinds": withheld_kinds(),
         },
     ).fetchall()
     return _rows_to_articles(rows)
@@ -178,7 +227,8 @@ def select_by_ids(session: Session, ids: list[str], max_attempts: int) -> ListRe
             SELECT a.id, a.title, a.content, a.status, a.wire_check_status,
                    a.enrichment_attempts,
                    d.slug AS dataset_slug, s.city AS publication_city,
-           coalesce(nullif(s.metadata::json->>'state',''), d.metadata::json->>'default_state') AS publication_state
+           coalesce(nullif(s.metadata::json->>'state',''), d.metadata::json->>'default_state') AS publication_state,
+                   cl.meta->'review_verdict'->>'kind' AS reviewed_kind
             FROM articles a
             LEFT JOIN candidate_links cl ON cl.id = a.candidate_link_id
             LEFT JOIN dataset_sources ds ON ds.source_id = cl.source_id
@@ -203,6 +253,14 @@ def select_by_ids(session: Session, ids: list[str], max_attempts: int) -> ListRe
             rejected[article_id] = f"attempts exhausted ({row.enrichment_attempts})"
         elif row.dataset_slug is None:
             rejected[article_id] = "no dataset"
+        elif row.reviewed_kind in withheld_kinds():
+            # The backfill path takes an explicit id list, so this is the
+            # one place a person can hand enrichment an article directly.
+            # A reviewer has already said this kind is not enriched, and an
+            # id list is not a reason to overrule them.
+            rejected[article_id] = (
+                f"a reviewer called this {row.reviewed_kind}, which is never enriched"
+            )
         else:
             candidates.append(
                 ArticleInput(
