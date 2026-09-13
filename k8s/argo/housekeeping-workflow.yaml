@@ -107,8 +107,6 @@ spec:
             value: "{{inputs.parameters.extract-limit}}"
           - name: batches
             value: "{{inputs.parameters.extract-batches}}"
-          - name: worker
-            value: "{{item.id}}"
 
     # 3. Articles a decision sent back to `cleaned`, and only those.
     - - name: classify
@@ -146,9 +144,12 @@ spec:
       # shape that made `classify-step` fail at submit.
       - name: limit
       - name: batches
-      # Which of the parallel workers this is. Carried for the logs; the
-      # worker identifies itself to the queue by pod name.
-      - name: worker
+      # No `worker` parameter. `withParam` fans this step out over the
+      # worker list and each pod identifies itself to the queue by its own
+      # name, so a worker number here would be a declared input that
+      # nothing reads -- and putting it in an env var inside the shared
+      # `&db_env` anchor carried the reference into templates that cannot
+      # resolve it, which made the workflow unsubmittable.
     metadata:
       labels:
         stage: extraction
@@ -221,12 +222,20 @@ spec:
         # `pipeline_rework` still owes work on -- the request carries
         # `rework: true`, which is the whole of the difference between a
         # housekeeping worker and a pipeline worker.
+        #
+        # INSIDE THE ANCHOR, so every stage that aliases `db_env` gets it.
+        # The worker number is NOT here: it is
+        # `{{inputs.parameters.worker}}`, which only the extraction step
+        # declares, and an anchor carries the text of a reference into
+        # templates that cannot resolve it. Put there once, it made the
+        # whole workflow unsubmittable:
+        #
+        #   templates.anything-owed-step: failed to resolve
+        #   {{inputs.parameters.worker}}
         - name: USE_WORK_QUEUE
           value: "true"
         - name: WORK_QUEUE_URL
           value: "http://work-queue.production.svc.cluster.local:8080"
-        - name: HOUSEKEEPING_WORKER
-          value: "{{inputs.parameters.worker}}"
       # THE PIPELINE'S OWN NUMBERS, not smaller ones because the batches
       # are smaller. A single article is what costs the memory here --
       # parsing one large page, not the size of the batch around it -- so
