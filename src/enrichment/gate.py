@@ -135,52 +135,11 @@ def paywalled_stub(text: str | None) -> str | None:
     return wall
 
 
-# A body that is MOSTLY not reporting is not an article, whatever the reason.
-#
-# Composition, not length. The target is a body that is a subscription form,
-# a script dump, a wall with a headline in front of it -- text where almost
-# none of what was captured is a story. It is deliberately NOT "a short
-# story": an 87-character brief that is 100% reporting is an article and is
-# kept, and a first cut of this rule that measured length took it.
-#
-# Measured 2026-09-13 on a.content, the column the repository feeds:
-#
-#     emissourian form dumps       5,246 chars    0% story    refused
-#     californiademocrat brief        87 chars  100% story    kept
-#     WEATHER BLOG (real)          4,255 chars   14% story    kept
-#     Spanish-language story       2,245 chars   14% story    kept
-#     events listing (control)     2,353 chars    3% story    refused
-#
-# 0.10 is the highest threshold that refuses nothing real in the clean
-# control of 600 enriched articles: the three it takes are a photo caption,
-# a headline dump and an events listing. At 0.15 it starts taking the
-# weather blog and the Spanish story. The Spanish case is the limit of an
-# English-prose measure -- its sentences read as furniture because the
-# function-word list is English -- and it is why the threshold is low rather
-# than where a form dump alone would put it. A reviewer's `non_english`
-# verdict is the right instrument for that case, not this one.
-MIN_STORY_FRACTION = 0.10
-
 #: Named so a reviewer can tell these apart in `article_enrichment`.#: Named so a reviewer can tell these apart in `article_enrichment`.
 #:
 #: `not_news` from the paid gate had NO skip reason at all: the mapping
 #: covered `paywall` and nothing else, so a gate rejection wrote NULL and
 #: was indistinguishable from a completed enrichment. 179 rows read as
 #: "fully enriched" on that basis until the entities were counted.
-NO_STORY_SKIP_REASON = "no_story"
 BOILERPLATE_SKIP_REASON = "boilerplate_dump"
 NOT_NEWS_SKIP_REASON = "not_news_gate"
-
-
-def no_story(text: str | None) -> bool:
-    """Whether the body is mostly not reporting: form, script, wall, rail.
-
-    The share of the body that `story_text` keeps. Measured that way so
-    furniture does not count towards it -- the same reasoning as the
-    paywall rule, and why a 5,246-character subscription form scores zero.
-    An empty body is refused outright.
-    """
-    body = text or ""
-    if not body.strip():
-        return True
-    return len(story_text(body)) / len(body) < MIN_STORY_FRACTION

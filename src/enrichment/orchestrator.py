@@ -21,10 +21,8 @@ from src.enrichment import adapter
 from src.enrichment.gate import (
     BOILERPLATE_SKIP_REASON,
     HEURISTIC_REJECT,
-    NO_STORY_SKIP_REASON,
     NOT_NEWS_SKIP_REASON,
     boilerplate_score,
-    no_story,
     paywalled_stub,
 )
 from src.enrichment.profiles import Profile
@@ -141,27 +139,14 @@ def enrich_article(
 
     # ---- step 0: content gate ------------------------------------------------
     #
-    # Three free checks, in an order that encodes what each one means:
+    # Two free checks, then the model. Whether a body is a story at all --
+    # a form, a script dump, a rail -- is the post-extraction classification
+    # stage's question, asked before a CIN label is applied, not this one's.
     #
-    #   1. boilerplate  a consent dump is not an article, even if a subscribe
-    #                   prompt is wrapped in it.
-    #   2. wall         the body SAYS the content is withheld. That is the
-    #                   evidence a story exists behind it: kept, CIN-coded,
-    #                   never enriched. It has to come before (3), or a
-    #                   24-character teaser with a wall reads as "no story"
-    #                   and is filed as not an article -- which throws away
-    #                   a walled local story the corpus is supposed to keep.
-    #   3. no story     nothing to report and no wall to explain why. A
-    #                   subscription form, an events listing, a photo
-    #                   caption. Not an article.
-    #
-    # (3) is what was missing. On 2026-09-13, of twelve articles enriched in
-    # forty minutes, eight held ZERO characters of reporting: emissourian
-    # captures whose stored body is a signup form, every country on earth
-    # and all fifty states. Consent text and walls each had a check; a body
-    # that is neither went to a model and came back enriched. The
-    # extraction fix that stops new captures looking like this cannot help
-    # a body already stored, so the gate has to ask.
+    #   1. boilerplate  a consent dump is not an article, even with a
+    #                   subscribe prompt wrapped in it.
+    #   2. wall         the body SAYS the content is withheld. Kept,
+    #                   CIN-coded, never enriched.
     if profile.content_gate:
         if boilerplate_score(article.content) >= HEURISTIC_REJECT:
             return outcome("not_article", BOILERPLATE_SKIP_REASON)
@@ -171,8 +156,6 @@ def enrich_article(
         # against production). Everything else still costs a call.
         if paywalled_stub(article.content) is not None:
             return outcome(_GATE_VERDICT_STATUS["paywall"], PAYWALL_RULE_SKIP_REASON)
-        if no_story(article.content):
-            return outcome("not_article", NO_STORY_SKIP_REASON)
         gate = adapter.run_content_gate(article, model)
         results.append(gate)
         if not gate.ok or gate.payload is None:
