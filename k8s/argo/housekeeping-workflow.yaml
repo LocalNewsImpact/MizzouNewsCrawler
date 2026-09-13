@@ -316,7 +316,17 @@ spec:
           valueFrom:
             secretKeyRef:
               name: openrouter-credentials
-              key: api-key
+              # The key the secret actually holds. `api-key` does not exist
+              # in it, and kubelet answers that with "couldn't find key
+              # api-key in Secret production/openrouter-credentials" and
+              # restarts the container -- 278 times over 63 minutes, until
+              # the workflow's deadline killed the run. Argo reported the
+              # step Pending the whole time, not Failed, so the nightly run
+              # looked like it was working.
+              #
+              # k8s/enrichment-cronjob.yaml has always used this name; this
+              # file was written from memory instead of from that one.
+              key: OPENROUTER_API_KEY
         - name: DATABASE_ENGINE
           value: "postgresql+pg8000"
         - name: DATABASE_HOST

@@ -366,3 +366,39 @@ def test_backfill_with_neither_is_refused(enrichment_env):
 
     assert handle_enrichment_command(_backfill_args(rework=False)) != 0
     enrichment_env.by_ids.assert_not_called()
+
+
+# --- a rewound article is re-labelled --------------------------------------------
+
+
+def test_rework_classifies_an_article_that_already_has_a_label():
+    """`include_existing=False` skips an article that already carries a
+    label for this version. Right for the pipeline -- it would re-label the
+    corpus nightly -- and wrong for housekeeping: every rewound record was
+    labelled BEFORE the reviewer sent it back, and that label is what the
+    review disagreed with.
+
+    All 107 articles in the first real run carried a `default` label. Every
+    one was excluded, the stage reported `processed=0 labeled=0 skipped=0
+    errors=0`, closed no rows, and the workflow called it a success."""
+    import inspect
+
+    from src.cli.commands import analysis
+
+    source = inspect.getsource(analysis)
+    assert 'include_existing=args.force or getattr(args, "rework", False) is True' in (
+        source
+    ), "a rework run must re-label an article it was sent back"
+
+
+def test_the_pipeline_still_skips_what_it_has_already_labelled():
+    """The other half: without --rework and without --force, nothing
+    re-labels. A run that re-labelled the corpus every night would spend
+    the whole window on work already done."""
+    import inspect
+
+    from src.services.classification_service import ArticleClassificationService
+
+    source = inspect.getsource(ArticleClassificationService._select_articles)
+    assert "if not include_existing:" in source
+    assert "ArticleLabel.label_version == label_version" in source
