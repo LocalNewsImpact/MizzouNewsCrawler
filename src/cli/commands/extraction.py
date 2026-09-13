@@ -1031,6 +1031,11 @@ def handle_extraction_command(args) -> int:
 
             # Stop if no articles were processed
             if articles_processed == 0:
+                if result.get("nothing_owed"):
+                    # Not a cooldown: the rework set is empty, so no amount
+                    # of waiting will produce work.
+                    print("📭 Nothing owes a fetch")
+                    break
                 if USE_WORK_QUEUE:
                     # In work queue mode, no articles means all domains are
                     # in cooldown or assigned to other workers. Wait and retry.
@@ -1454,10 +1459,22 @@ def _process_batch(
         # `is True`, not truthiness: a Mock stands in for `args` across the
         # extraction tests and answers any attribute with a truthy Mock.
         if getattr(args, "rework", False) is True:
+            # Settle FIRST. A run whose links were all fetched on an earlier
+            # night still has rows to close: seven sat open because the
+            # early exit returned before the settle, and the next run found
+            # them again and exited again.
+            settled = _settle_rework(session)
+            if settled:
+                logger.info("rework: %d records finished with housekeeping", settled)
             rework_ids = _links_owed_a_fetch(session)
             if not rework_ids:
+                # `nothing_owed` ENDS the batch loop. Returning 0 only
+                # skipped a batch: in work-queue mode the loop reads zero
+                # as "domains in cooldown", sleeps and asks again, so the
+                # step ran to the workflow's deadline and the stages after
+                # it never started.
                 logger.info("rework: no link is ready to fetch; nothing to do")
-                return {"processed": 0}
+                return {"processed": 0, "nothing_owed": True}
 
         # Get candidate articles - either from work queue service or direct DB query
         if USE_WORK_QUEUE:
