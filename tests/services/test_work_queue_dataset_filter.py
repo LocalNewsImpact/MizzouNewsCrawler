@@ -96,7 +96,7 @@ class TestItemSelectionQuery:
         """A domain can hold links from several datasets, so filtering the
         domain list alone would still hand back out-of-dataset links."""
         session = MagicMock()
-        coordinator._get_available_domains = lambda s, d=None: [
+        coordinator._get_available_domains = lambda s, d=None, rework=False: [
             {"source": "example.com", "canonical_name": "Example", "article_count": 5}
         ]
         session.execute.return_value = iter([])
@@ -115,7 +115,7 @@ class TestItemSelectionQuery:
 
     def test_item_sql_filters_on_dataset_id(self, coordinator):
         session = MagicMock()
-        coordinator._get_available_domains = lambda s, d=None: [
+        coordinator._get_available_domains = lambda s, d=None, rework=False: [
             {"source": "example.com", "canonical_name": "Example", "article_count": 5}
         ]
         session.execute.return_value = iter([])
@@ -135,7 +135,14 @@ class TestScopePropagation:
     def test_request_work_passes_the_dataset_through(self, coordinator):
         seen = {}
 
-        def capture(session, worker_id, batch_size, max_per_domain, dataset=None):
+        def capture(
+            session,
+            worker_id,
+            batch_size,
+            max_per_domain,
+            dataset=None,
+            rework=False,
+        ):
             seen["dataset"] = dataset
             return "sentinel"
 
@@ -149,7 +156,14 @@ class TestScopePropagation:
     def test_dataset_defaults_to_none(self, coordinator):
         seen = {}
 
-        def capture(session, worker_id, batch_size, max_per_domain, dataset=None):
+        def capture(
+            session,
+            worker_id,
+            batch_size,
+            max_per_domain,
+            dataset=None,
+            rework=False,
+        ):
             seen["dataset"] = dataset
             return "sentinel"
 

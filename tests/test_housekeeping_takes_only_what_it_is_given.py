@@ -106,6 +106,9 @@ def test_a_run_with_nothing_owed_stops_before_starting_a_stage(stages):
     entry = stages["housekeeping"]
     names = [s[0]["name"] for s in entry["steps"]]
     assert names[0] == "anything-owed"
+    # Every later step, the worker-count step included: computing how many
+    # workers a night needs is itself work, and an empty night should not
+    # start a pod to be told there is nothing to do.
     for step in entry["steps"][1:]:
         assert "anything-owed" in step[0].get("when", ""), step[0]["name"]
 
@@ -183,7 +186,7 @@ def _one_link_batch(env, link_id):
 
 
 def test_the_batch_settles_the_fetches_it_was_given():
-    """`_settle_fetches` existed, was tested on its own, and was never
+    """The settle existed, was tested on its own, and was never
     called: the batch read the owed links and closed none of them, so a
     fetched link stayed "owed" forever and the nightly guard fired on
     nothing. The test that proves a function works is not the test that
@@ -201,14 +204,11 @@ def test_the_batch_settles_the_fetches_it_was_given():
             "src.cli.commands.extraction._links_owed_a_fetch",
             return_value=["link-1"],
         ),
-        patch(
-            "src.cli.commands.extraction._settle_fetches", return_value=(1, 1)
-        ) as settle,
+        patch("src.cli.commands.extraction._settle_rework", return_value=1) as settle,
     ):
         _one_link_batch(env, "link-1")
         assert handle_extraction_command(args) == 0
         settle.assert_called_once()
-        assert settle.call_args.args[1] == ["link-1"]
 
 
 def test_without_rework_nothing_is_settled_and_nothing_is_read():
@@ -224,7 +224,7 @@ def test_without_rework_nothing_is_settled_and_nothing_is_read():
     with (
         mocked_extraction_env() as env,
         patch("src.cli.commands.extraction._links_owed_a_fetch") as owed,
-        patch("src.cli.commands.extraction._settle_fetches") as settle,
+        patch("src.cli.commands.extraction._settle_rework") as settle,
     ):
         _one_link_batch(env, "link-1")
         assert handle_extraction_command(args) == 0
@@ -255,24 +255,86 @@ def test_a_mock_for_args_does_not_switch_rework_on():
 # --- each stage queues the next ----------------------------------------------------
 
 
-def test_extraction_queues_classification_for_the_article_it_made():
-    """The reconciler cannot: the article does not exist until the fetch."""
-    body = EXTRACTION.read_text()
-    settle = body.split("def _settle_fetches(")[1].split("\ndef ")[0]
-    assert "'article', a.id, 'classify'" in settle
-    assert "a.status IN ('cleaned', 'local')" in settle, "only a classifiable article"
-    assert "ON CONFLICT DO NOTHING" in settle, "a duplicate request is the same request"
+def test_no_stage_queues_another_one():
+    """A record is carried by the join of its flag and its status, not by a
+    stage writing a row for the next one.
+
+    The first version had extraction write a `classify` row when a fetch
+    produced an article. It fired on the article's status at the end of the
+    batch -- before cleaning had run -- so it matched nothing: production
+    logged "27 fetches settled, 0 articles queued for classification" and
+    four fresh articles sat at `labeled` with nothing asking for their
+    enrichment."""
+    for path in (
+        ROOT / "src/pipeline/rework.py",
+        EXTRACTION,
+        CLASSIFIER,
+        ROOT / "src/enrichment/repository.py",
+    ):
+        source = path.read_text()
+        assert "INSERT INTO pipeline_rework" not in source, path.name
 
 
-def test_classification_queues_enrichment_for_what_it_labelled():
-    body = CLASSIFIER.read_text()
-    settle = body.split("def _settle_rework(")[1].split("\n    def ")[0]
-    assert "'article', r.record_id, 'enrich'" in settle
-    assert "ON CONFLICT DO NOTHING" in settle
+def test_every_stage_reads_the_same_set():
+    """One definition. A copy per stage is a copy that drifts, and the set
+    is the only thing that makes a housekeeping run different from an
+    ordinary one."""
+    for path in (EXTRACTION, CLASSIFIER, ROOT / "src/enrichment/repository.py"):
+        assert "from src.pipeline.rework import" in path.read_text(), path.name
 
 
-def test_enrichment_is_the_end_of_the_chain():
-    """Nothing after `enriched`; a settle that queued more would loop."""
-    body = (ROOT / "src/enrichment/repository.py").read_text()
-    settle = body.split("def settle_enrichment_rework(")[1].split("\ndef ")[0]
-    assert "INSERT INTO pipeline_rework" not in settle
+# --- the same workers and the same queue, a narrower set -------------------------
+
+
+def test_extraction_runs_parallel_workers(stages):
+    """One worker at a time was going to miss the window: a page costs two
+    to four minutes when the first fetch comes back unusable and Selenium
+    retries, so 97 links serially is hours. The pipeline template already
+    fans extraction out; this does the same."""
+    entry = stages["housekeeping"]
+    extract = next(
+        step for group in entry["steps"] for step in group if step["name"] == "extract"
+    )
+    assert extract.get("withParam"), "extraction does not fan out"
+    assert "rework-workers" in extract["withParam"]
+
+
+def test_the_worker_count_comes_from_the_rework_backlog(stages):
+    """Not from the extraction backlog. A housekeeping run's size is the
+    number of records a decision rewound -- tens -- and scaling off 4,802
+    would start workers with nothing to do."""
+    body = (ROOT / "k8s/argo/housekeeping-workflow.yaml").read_text()
+    count = body.split("name: rework-worker-count")[1].split("- name:")[0]
+    assert "FROM pipeline_rework" in count
+    assert "done_at IS NULL" in count
+    assert "cl.status = 'article'" in count, "and ready to fetch, not merely flagged"
+
+
+def test_the_workers_pull_from_the_work_queue(stages):
+    """The queue hands each worker its own domains, so four workers do not
+    queue up behind one publisher. It is the same queue the pipeline's
+    workers use."""
+    entry = stages["extraction-step"]
+    env = {e["name"]: e.get("value") for e in entry["container"]["env"]}
+    assert env.get("USE_WORK_QUEUE") == "true"
+    assert "work-queue" in (env.get("WORK_QUEUE_URL") or "")
+
+
+def test_the_queue_serves_only_rework_records_when_asked():
+    """The one difference between a housekeeping worker and a pipeline
+    worker. Without it a worker draws from the whole extraction backlog,
+    which is the sweep this design exists to prevent."""
+    queue = (ROOT / "src/services/work_queue.py").read_text()
+    assert "REWORK_ONLY" in queue
+    assert "FROM pipeline_rework r" in queue
+    assert "rework: bool" in queue
+    crawler = EXTRACTION.read_text()
+    assert '"rework": rework' in crawler, "the request carries it"
+
+
+def test_the_queue_filters_both_of_its_queries():
+    """Filtering only the claim query would hand a worker a domain whose
+    links are all backlog: it comes back empty while the rework links sit
+    behind a domain nobody was assigned."""
+    queue = (ROOT / "src/services/work_queue.py").read_text()
+    assert queue.count("REWORK_ONLY") >= 3, "defined once, used in both queries"

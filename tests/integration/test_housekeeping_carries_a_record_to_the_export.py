@@ -139,13 +139,15 @@ def test_a_disposition_reaches_the_export_in_one_night(parked):
         assert _outstanding(s) == 1
 
         # classify: the stage takes the article the row names, and only it.
-        owed = ArticleClassificationService._articles_owed_a_classification(s)
+        owed = ArticleClassificationService._articles_owed_a_classification(
+            s, ["cleaned", "local"]
+        )
         assert owed == ["e2e-art"]
         s.execute(
             sa.text("UPDATE articles SET status='labeled' WHERE id = ANY(:ids)"),
             {"ids": owed},
         )
-        ArticleClassificationService._settle_rework(s, owed, "classified")
+        ArticleClassificationService._settle_rework(s)
         s.commit()
 
         # The classify row is closed and enrichment is now owed -- queued
@@ -159,7 +161,7 @@ def test_a_disposition_reaches_the_export_in_one_night(parked):
                     "AND done_at IS NULL"
                 )
             ).scalar()
-            == "enrich"
+            == "classify"
         )
 
         # enrich: same, on the status classification just wrote.
@@ -169,7 +171,7 @@ def test_a_disposition_reaches_the_export_in_one_night(parked):
             sa.text("UPDATE articles SET status='enriched' WHERE id = ANY(:ids)"),
             {"ids": owed},
         )
-        repository.settle_enrichment_rework(s, owed)
+        repository.settle_enrichment_rework(s)
 
         # 07:00 -- the record is in the export, and nothing is owed, so
         # tomorrow's run does nothing rather than doing this again.
@@ -187,9 +189,10 @@ def test_a_disposition_reaches_the_export_in_one_night(parked):
                 "WHERE record_id='e2e-art' ORDER BY requested_at, id"
             )
         ).fetchall()
+        # One row per record, closed with the status it reached. No stage
+        # wrote a row for the next one: the join did the carrying.
         assert [tuple(r) for r in history] == [
-            ("classify", "classified", "nightly-reconciliation"),
-            ("enrich", "enriched", "housekeeping"),
+            ("classify", "enriched", "nightly-reconciliation"),
         ]
 
 
@@ -202,16 +205,18 @@ def test_a_stage_that_fails_leaves_the_record_for_tomorrow(parked):
     from src.services.classification_service import ArticleClassificationService
 
     with parked() as s:
-        owed = ArticleClassificationService._articles_owed_a_classification(s)
+        owed = ArticleClassificationService._articles_owed_a_classification(
+            s, ["cleaned", "local"]
+        )
         s.execute(
             sa.text("UPDATE articles SET status='labeled' WHERE id = ANY(:ids)"),
             {"ids": owed},
         )
-        ArticleClassificationService._settle_rework(s, owed, "classified")
+        ArticleClassificationService._settle_rework(s)
         s.commit()
 
         # Enrichment runs and fails: the article is still `labeled`.
-        assert repository.settle_enrichment_rework(s, ["e2e-art"]) == 0
+        assert repository.settle_enrichment_rework(s) == 0
         assert _outstanding(s) == 1
         assert repository.articles_owed_enrichment(s) == ["e2e-art"]
 
@@ -240,26 +245,33 @@ def test_a_record_nobody_asked_about_is_not_carried(parked):
         )
         s.commit()
 
-        assert ArticleClassificationService._articles_owed_a_classification(s) == [
-            "e2e-art"
-        ]
+        assert ArticleClassificationService._articles_owed_a_classification(
+            s, ["cleaned", "local"]
+        ) == ["e2e-art"]
 
         s.execute(sa.text("UPDATE articles SET status='labeled' WHERE id LIKE 'e2e-%'"))
         s.commit()
-        assert repository.articles_owed_enrichment(s) == []
+        # The flagged article is owed; the one nobody asked about is not,
+        # though it sits at the same status.
+        assert repository.articles_owed_enrichment(s) == ["e2e-art"]
 
 
 def test_an_empty_night_costs_nothing(db):
     """With no rows, the guard step's count is 0 and every stage is
     skipped. This is the difference between a quiet night and a sweep."""
-    from src.cli.commands.extraction import _links_owed_a_fetch
     from src.enrichment import repository
+    from src.pipeline.rework import links_to_fetch
     from src.services.classification_service import ArticleClassificationService
 
     with db() as s:
         s.execute(sa.text("DELETE FROM pipeline_rework"))
         s.commit()
         assert _outstanding(s) == 0
-        assert _links_owed_a_fetch(s) == []
-        assert ArticleClassificationService._articles_owed_a_classification(s) == []
+        assert links_to_fetch(s) == []
+        assert (
+            ArticleClassificationService._articles_owed_a_classification(
+                s, ["cleaned", "local"]
+            )
+            == []
+        )
         assert repository.articles_owed_enrichment(s) == []

@@ -73,24 +73,44 @@ spec:
     - - name: anything-owed
         template: anything-owed-step
 
-    # 1. Links a decision rewound to `article`, and only those.
+    # 1. How many extraction workers this night needs.
+    - - name: rework-workers
+        template: rework-worker-count
+        when: "{{steps.anything-owed.outputs.result}} != 0"
+
+    # 2. Links a decision rewound to `article`, and only those.
     #
     # Every step passes what its template declares, explicitly. A step
     # that passes nothing is not defaulted: Argo REFUSES the workflow --
     # `templates.classify-step inputs.parameters.limit was not supplied`
     # -- at submit, before any stage runs. The schedule was suspended, so
     # that error waited to be the first thing a resumed run did.
+    #
+    #    PARALLEL, AND THROUGH THE WORK QUEUE, exactly as the pipeline
+    #    template runs extraction. The housekeeping run is not a different
+    #    kind of extraction: it is the same workers, the same queue and the
+    #    same domain fairness, with a narrower set of records going in.
+    #    That set is the difference and the only difference -- the queue
+    #    serves a link only if `pipeline_rework` still owes work on it.
+    #
+    #    One worker at a time was the reason a run of 97 links was going to
+    #    miss its window: each page costs two to four minutes when the
+    #    first fetch comes back unusable and Selenium retries, so 97 of
+    #    them serially is hours.
     - - name: extract
         template: extraction-step
         when: "{{steps.anything-owed.outputs.result}} != 0"
+        withParam: "{{steps.rework-workers.outputs.result}}"
         arguments:
           parameters:
           - name: limit
             value: "{{inputs.parameters.extract-limit}}"
           - name: batches
             value: "{{inputs.parameters.extract-batches}}"
+          - name: worker
+            value: "{{item.id}}"
 
-    # 2. Articles a decision sent back to `cleaned`, and only those.
+    # 3. Articles a decision sent back to `cleaned`, and only those.
     - - name: classify
         template: classify-step
         when: "{{steps.anything-owed.outputs.result}} != 0"
@@ -99,7 +119,7 @@ spec:
           - name: limit
             value: "{{inputs.parameters.classify-limit}}"
 
-    # 3. Articles owing enrichment, and only those -- through `backfill`,
+    # 4. Articles owing enrichment, and only those -- through `backfill`,
     #    which takes a named set. Never `enrich run`, which takes every
     #    article at `labeled`: 85,189 of them, and a ceiling that would be
     #    spent on records nobody asked about.
@@ -126,6 +146,9 @@ spec:
       # shape that made `classify-step` fail at submit.
       - name: limit
       - name: batches
+      # Which of the parallel workers this is. Carried for the logs; the
+      # worker identifies itself to the queue by pod name.
+      - name: worker
     metadata:
       labels:
         stage: extraction
@@ -192,6 +215,18 @@ spec:
               key: squid-proxy-url
         - name: LOG_LEVEL
           value: "INFO"
+        # The same queue the pipeline's extraction workers use. It hands
+        # each worker its own domains, so four workers do not all queue up
+        # behind one publisher, and it serves only records
+        # `pipeline_rework` still owes work on -- the request carries
+        # `rework: true`, which is the whole of the difference between a
+        # housekeeping worker and a pipeline worker.
+        - name: USE_WORK_QUEUE
+          value: "true"
+        - name: WORK_QUEUE_URL
+          value: "http://work-queue.production.svc.cluster.local:8080"
+        - name: HOUSEKEEPING_WORKER
+          value: "{{inputs.parameters.worker}}"
       # THE PIPELINE'S OWN NUMBERS, not smaller ones because the batches
       # are smaller. A single article is what costs the memory here --
       # parsing one large page, not the size of the batch around it -- so
@@ -323,6 +358,52 @@ spec:
   # Counts what is owed. Its result is what every later step is gated on,
   # so a run with nothing to carry ends here in seconds rather than
   # starting three pods to find out.
+  - name: rework-worker-count
+    metadata:
+      labels:
+        stage: guard
+        housekeeping: "true"
+    script:
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:${PROCESSOR_TAG}
+      imagePullPolicy: IfNotPresent
+      command: [python]
+      # One worker per 25 links owed, capped at 4.
+      #
+      # A page costs two to four minutes when the first fetch returns
+      # something unusable and Selenium retries, so 25 links is around an
+      # hour -- inside the three-hour deadline with room for the stages
+      # after it. Four workers clear 100 links in that hour.
+      #
+      # Capped, and not scaled further, because the queue hands out at most
+      # three articles per domain per request: past four workers they
+      # contend for domains rather than adding throughput, and a night's
+      # rework is tens of records, not thousands. The pipeline's own cap is
+      # 2 for a sustained 42/hr; this is a catch-up run against a bounded
+      # set.
+      source: |
+        import json
+        from sqlalchemy import text
+        from src.models.database import DatabaseManager
+        with DatabaseManager().get_session() as s:
+            owed = s.execute(text(
+                "SELECT count(*) FROM pipeline_rework r "
+                "JOIN candidate_links cl ON cl.id = r.record_id "
+                "WHERE r.record_type = 'candidate_link' AND r.done_at IS NULL "
+                "AND cl.status = 'article' "
+                "AND NOT EXISTS (SELECT 1 FROM articles a "
+                "                WHERE a.candidate_link_id = cl.id)"
+            )).scalar() or 0
+        workers = min(4, max(1, -(-owed // 25)))
+        print(json.dumps([{"id": i + 1} for i in range(workers)]))
+      env: *db_env
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+
   - name: anything-owed-step
     metadata:
       labels:

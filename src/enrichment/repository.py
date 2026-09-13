@@ -340,46 +340,30 @@ def apply_manual_geography(session, dataset=None, since=None, dry_run=False) -> 
 
 
 def articles_owed_enrichment(session) -> list[str]:
-    """The articles `pipeline_rework` says still need enriching.
+    """Flagged articles that are ready to enrich -- `src.pipeline.rework`.
 
-    Read from the database, not a file handed between pods. An empty
-    result means nothing to do -- never "no filter", which is the
-    inversion that turns a targeted run into a sweep of 85,000 rows.
+    Ready means `labeled`, which is what enrichment selects. An article
+    reaches this set without anything writing a row for it: the flag is
+    inherited from the article's own row or from the link a decision
+    rewound, so a link fetched and classified earlier in the same run is
+    enriched later in it.
     """
-    rows = session.execute(
-        text(
-            "SELECT record_id FROM pipeline_rework "
-            "WHERE record_type = 'article' AND stage = 'enrich' "
-            "AND done_at IS NULL ORDER BY requested_at"
-        )
-    ).fetchall()
-    return [r[0] for r in rows]
+    from src.pipeline.rework import articles_in
+
+    return articles_in(session, ["labeled"])
 
 
-def settle_enrichment_rework(session, article_ids) -> int:
-    """Close the rework rows for articles that reached a terminal status.
+def settle_enrichment_rework(session, article_ids=None) -> int:
+    """Close the rows of records with nothing left owing.
 
-    Settled on the article's status rather than on "we tried": an
-    article whose enrichment failed is still at `labeled` and still owes
-    the work, and tomorrow's run should find it. One whose status is
-    `enriched` or `enrichment_skipped` is finished, whichever of those
-    the pipeline decided.
+    Judged on the status: an article whose enrichment failed is still
+    `labeled`, still owes the work, and tomorrow's run finds it. One that
+    reached `enriched` or `enrichment_skipped` is in the export and is
+    closed with that status as its outcome.
     """
-    if not article_ids:
-        return 0
-    result = session.execute(
-        text(
-            "UPDATE pipeline_rework r SET done_at = now(), outcome = a.status "
-            "FROM articles a "
-            "WHERE r.record_type = 'article' AND r.stage = 'enrich' "
-            "AND r.done_at IS NULL AND r.record_id = a.id "
-            "AND a.id = ANY(:ids) "
-            "AND a.status IN ('enriched', 'enrichment_skipped')"
-        ),
-        {"ids": list(article_ids)},
-    )
-    session.commit()
-    return result.rowcount or 0
+    from src.pipeline.rework import settle
+
+    return settle(session)
 
 
 def manual_geoids(session, article_id) -> list[tuple[str, str, bool]]:

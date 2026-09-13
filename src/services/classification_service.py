@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Protocol
 
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.ml.article_classifier import Prediction
@@ -51,58 +51,33 @@ class ArticleClassificationService:
         self.logger = logging.getLogger(self.__class__.__name__)
 
     @staticmethod
-    def _articles_owed_a_classification(session):
-        """The articles `pipeline_rework` says still need classifying.
+    def _articles_owed_a_classification(session, statuses):
+        """Flagged articles holding a status this stage reads.
 
-        Read from the database, not from a file handed between pods: a
-        file and the database disagree the moment a run dies halfway. An
-        empty result means nothing to do -- never "no filter".
+        The set lives in `src.pipeline.rework`: flagged AND ready, joined,
+        because the status alone is the whole backlog (450 articles sit at
+        `cleaned`) and the flag alone says nothing about readiness.
+
+        An article reaches this set without anything writing a row for it:
+        the flag is inherited from the link a decision rewound, so a link
+        fetched earlier in the same run is classified later in it.
         """
-        rows = session.execute(
-            text(
-                "SELECT record_id FROM pipeline_rework "
-                "WHERE record_type = 'article' AND stage = 'classify' "
-                "AND done_at IS NULL ORDER BY requested_at"
-            )
-        ).fetchall()
-        return [r[0] for r in rows]
+        from src.pipeline.rework import articles_in
+
+        return articles_in(session, statuses)
 
     @staticmethod
-    def _settle_rework(session, record_ids, outcome):
-        """Close this stage's rework rows for the articles it classified,
-        and queue the same articles for enrichment.
+    def _settle_rework(session, record_ids=None, outcome=None):
+        """Close the rows of records with nothing left owing.
 
-        Each stage hands off to the next: the reconciler writes only the
-        row for the stage a record re-enters at, and a stage that
-        finishes queues the one after it. Enrichment selects `labeled`,
-        which is what classification just wrote, so the row is written
-        for the article as it now is. A duplicate request is the same
-        request (partial unique index; `ON CONFLICT DO NOTHING`).
+        Settled on the status, centrally, and NOT by queueing the next
+        stage: the first version wrote an `enrich` row here, which put the
+        handoff in two places and fired on a status the article might not
+        hold yet.
         """
-        if not record_ids:
-            return
-        ids = [str(i) for i in record_ids]
-        session.execute(
-            text(
-                "UPDATE pipeline_rework SET done_at = now(), outcome = :outcome "
-                "WHERE record_type = 'article' AND stage = 'classify' "
-                "AND record_id = ANY(:ids) AND done_at IS NULL"
-            ),
-            {"outcome": outcome, "ids": ids},
-        )
-        session.execute(
-            text(
-                "INSERT INTO pipeline_rework "
-                "(record_type, record_id, stage, reason, requested_by) "
-                "SELECT 'article', r.record_id, 'enrich', "
-                "'classified for rework: ' || COALESCE(r.reason, ''), 'housekeeping' "
-                "FROM pipeline_rework r "
-                "WHERE r.record_type = 'article' AND r.stage = 'classify' "
-                "AND r.record_id = ANY(:ids) AND r.outcome = :outcome "
-                "ON CONFLICT DO NOTHING"
-            ),
-            {"outcome": outcome, "ids": ids},
-        )
+        from src.pipeline.rework import settle
+
+        return settle(session)
 
     def _select_articles(
         self,
@@ -298,7 +273,13 @@ class ArticleClassificationService:
 
             only_ids = None
             if rework:
-                only_ids = self._articles_owed_a_classification(self.session)
+                # The statuses this run reads, joined to the flag. Passing
+                # them in is what keeps the two halves of the set in one
+                # place: this stage decides which statuses it wants, and
+                # `src.pipeline.rework` decides who is flagged.
+                only_ids = self._articles_owed_a_classification(
+                    self.session, effective_statuses
+                )
                 if not only_ids:
                     logger.info("rework: nothing owes a classification")
                     break
@@ -432,13 +413,13 @@ class ArticleClassificationService:
                 stats.labeled += 1
                 labeled_ids.append(str(article_id_value))
 
-            # A rework row is closed by the batch that labelled it, in the
-            # same commit. Closed after the commit, a crash between the two
-            # leaves a labelled article still "owing" work, and tomorrow
-            # labels it again; closed before, a rollback leaves a row
-            # closed for work that never landed.
+            # Rows are closed on the record's STATUS, so an article this
+            # batch moved to `labeled` keeps its row and the enrich step of
+            # the same run takes it. One that reached a terminal status --
+            # an unenriched kind, say -- is closed here with that status as
+            # its outcome.
             if rework and not dry_run:
-                self._settle_rework(self.session, labeled_ids, "classified")
+                self._settle_rework(self.session)
 
             # Commit batch to release locks for parallel workers
             self.session.commit()
