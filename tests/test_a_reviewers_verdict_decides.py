@@ -146,9 +146,16 @@ def test_every_kind_lands_in_a_status_this_pipeline_has():
     mapped to one that does not exist strands the record silently: no stage
     selects it and no report counts it.
 
-    Derived from the contract's sets plus the ordinary kinds, so a kind
-    added there is checked here without this file being edited."""
-    links = {"article", "wire", "not_article", "discovered"}
+    The KINDS are derived from the contract, so a kind added there is
+    checked here without this file being edited. The STATUSES are written
+    out by hand on purpose, and that difference is the point: a contract
+    release that introduces a new status must fail here until somebody
+    confirms this pipeline actually has it. Deriving both sides would check
+    the contract against itself and assert nothing.
+
+    `non_english` was admitted for v0.14.0: a link holding it is not
+    `article`, so no fetch selects it, which is the whole instruction."""
+    links = {"article", "wire", "not_article", "discovered", "non_english"}
     articles = {"obituary", "opinion", "weather", None}
     kinds = (
         ("news", "")
