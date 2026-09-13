@@ -47,13 +47,40 @@ def test_a_job_applies_the_manifests(deploy):
 
 
 def test_it_runs_when_only_a_manifest_changed(deploy):
-    """The case that was never covered. A structural change builds no
-    image, so a condition resting on a build would skip exactly the
-    changes that need applying."""
-    job = deploy["jobs"]["apply-manifests"]
-    condition = job["if"]
-    assert "needs.detect-changes.outputs.manifests == 'true'" in condition
-    assert "build_id != ''" not in condition, "a build must not gate this"
+    """A structural change builds no image, so a condition resting on a
+    build alone would skip exactly the changes that need applying."""
+    condition = " ".join(deploy["jobs"]["apply-manifests"]["if"].split())
+    assert (
+        "needs.detect-changes.outputs.manifests == 'true' ||" in condition
+    ), "the manifests flag must be sufficient on its own"
+
+
+def test_it_runs_when_only_an_image_was_built(deploy):
+    """The other half, and the one that was missing.
+
+    The manifests carry the image tag, substituted at apply time. Each
+    image's Cloud Build moves the Kubernetes workloads itself (`kubectl
+    set image`) -- but nothing moves an Argo WorkflowTemplate. Gated on
+    the manifests flag alone, this job skipped the deploy that shipped
+    lnic-contracts v0.13.0: the Deployments went to 281ea08 while the
+    housekeeping template kept running crawler:7b150bc, an image built
+    before the contract fix that would have filed 71 reviewed columns as
+    news. It had to be applied by hand.
+    """
+    condition = " ".join(deploy["jobs"]["apply-manifests"]["if"].split())
+    for service in ("processor", "api", "crawler", "enrichment"):
+        assert f"needs.build-{service}.outputs.build_id != ''" in condition, service
+
+
+def test_the_two_reasons_are_alternatives_not_both_required(deploy):
+    """`&&` between them would mean a manifest change with no build, or a
+    build with no manifest change, applies nothing -- which is every case
+    that matters."""
+    condition = " ".join(deploy["jobs"]["apply-manifests"]["if"].split())
+    inner = condition[condition.index("(") + 1 : condition.rindex(")")]
+    trigger = inner[: inner.index(")")] if ")" in inner else inner
+    assert "&&" not in trigger, f"the triggers are ANDed: {trigger}"
+    assert trigger.count("||") == 4, trigger
 
 
 def test_the_change_filter_catches_the_manifests(deploy):
