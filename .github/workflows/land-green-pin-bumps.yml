@@ -1,0 +1,113 @@
+name: Land green pin bumps
+
+# A contracts release opens a pin-bump pull request here and then waits for
+# this repository's checks before landing it. When those checks go red the
+# release workflow does the right thing -- "checks failed; left open for a
+# person" -- and exits. What it does NOT do is come back.
+#
+# So a bump whose CI was red once, and was then fixed, sits green with
+# nothing left to land it. v0.14.0 sat that way: its `checks / test` failed
+# because the release introduced a new link status the test deliberately
+# requires somebody to admit, the admission was pushed, every check went
+# green, and the pull request stayed open because the release run had
+# finished an hour earlier.
+#
+# This is the retry the release workflow cannot be: it runs on a schedule
+# and on every completed check suite, finds pin bumps that are green, and
+# lands them with the same command and the same reasoning the release
+# workflow uses. A pin bump carries no judgement -- the version is already
+# decided and already tagged -- and the only open question is whether this
+# repository still passes with it. That question has an automated answer.
+
+on:
+  schedule:
+    # Every 30 minutes. A bump that goes green between releases lands within
+    # half an hour rather than waiting for somebody to notice it.
+    - cron: "*/30 * * * *"
+  check_suite:
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  # Never two of these landing at once: each merge invalidates the other's
+  # view of whether the branch has moved.
+  group: land-green-pin-bumps
+  cancel-in-progress: false
+
+jobs:
+  land:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Land any pin bump whose checks are green
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # Only pin bumps, identified by the branch the release workflow
+          # pushes. Nothing else is landed without a person, and the
+          # restriction is the branch name rather than the title so a
+          # retitled pull request cannot widen what this touches.
+          mapfile -t PRS < <(
+            gh pr list --repo "$REPO" --state open --limit 50 \
+              --json number,headRefName,author \
+              --jq '.[] | select(.headRefName | startswith("deps/lnic-contracts-"))
+                        | "\(.number)"'
+          )
+
+          if [ ${#PRS[@]} -eq 0 ]; then
+            echo "no open pin bumps"
+            exit 0
+          fi
+
+          for PR in "${PRS[@]}"; do
+            echo "::group::#$PR"
+
+            # A check that has not reported yet is not a pass. Counting only
+            # failures would land a bump whose test job had not started --
+            # the same race the release workflow documents losing on v0.8.0.
+            PENDING="$(gh pr view "$PR" --repo "$REPO" --json statusCheckRollup \
+              --jq '[.statusCheckRollup[]? | select(.status != "COMPLETED")] | length')"
+            FAILED="$(gh pr view "$PR" --repo "$REPO" --json statusCheckRollup \
+              --jq '[.statusCheckRollup[]? | select(.conclusion != null
+                    and .conclusion != "SUCCESS" and .conclusion != "SKIPPED"
+                    and .conclusion != "NEUTRAL")] | length')"
+            TOTAL="$(gh pr view "$PR" --repo "$REPO" --json statusCheckRollup \
+              --jq '[.statusCheckRollup[]?] | length')"
+
+            if [ "$TOTAL" -eq 0 ]; then
+              echo "no checks reported yet; leaving open"
+              echo "::endgroup::"
+              continue
+            fi
+            if [ "$PENDING" -ne 0 ]; then
+              echo "$PENDING check(s) still running; leaving open"
+              echo "::endgroup::"
+              continue
+            fi
+            if [ "$FAILED" -ne 0 ]; then
+              echo "$FAILED check(s) failed; leaving open for a person"
+              echo "- ❌ #$PR — $FAILED check(s) failed, left open" \
+                >> "$GITHUB_STEP_SUMMARY"
+              echo "::endgroup::"
+              continue
+            fi
+
+            # Green. `--admin` applies the governance the release workflow
+            # applies: wait for green, then land. It refuses rather than
+            # forcing if the branch has moved since the checks ran.
+            if gh pr merge "$PR" --repo "$REPO" --squash --admin --delete-branch; then
+              echo "- ✅ #$PR — landed by the pin-bump retry" \
+                >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "::warning::#$PR was green but would not merge; left open"
+              echo "- ⚠️ #$PR — green but merge refused, left open" \
+                >> "$GITHUB_STEP_SUMMARY"
+            fi
+            echo "::endgroup::"
+          done
