@@ -161,22 +161,32 @@ class TestABodyWithNoStoryNeverReachesAModel:
         assert result.skip_reason == NO_STORY_SKIP_REASON
         assert stub.calls == []
 
-    def test_the_events_listing(self):
-        """49 characters. Enriched in production."""
+    def test_a_short_all_prose_body_is_not_refused(self):
+        """Composition, not length. A one-sentence listing that is entirely
+        prose is short, not furniture, and short is deliberately not the
+        target: an 87-character brief that is 100% reporting was refused by
+        the first cut of this rule and is a real article."""
         result, stub = run(FULL, article=article(EVENT_LISTING))
-        assert result.status == "not_article"
-        assert result.skip_reason == NO_STORY_SKIP_REASON
-        assert stub.calls == []
+        assert result.skip_reason != NO_STORY_SKIP_REASON
+        assert "content_gate" in stub.calls
 
     def test_an_empty_body(self):
         result, stub = run(FULL, article=article(""))
         assert result.status == "not_article"
         assert stub.calls == []
 
+    def test_a_long_body_that_is_mostly_furniture_with_a_little_prose(self):
+        """The shape the rule is for: a real sentence buried in a form. The
+        sentence alone would pass a length test; the body is 95% form."""
+        body = "The council met Tuesday and approved the audit. " + CHECKOUT_FORM
+        result, stub = run(FULL, article=article(body))
+        assert result.skip_reason == NO_STORY_SKIP_REASON
+        assert stub.calls == []
+
     def test_a_real_story_still_goes_through(self):
-        """The gate refuses bodies with no reporting, not short reporting.
-        A 123-character sports brief in the clean control is real, and a
-        floor of 150 would have taken it."""
+        """The gate refuses bodies that are mostly not reporting, never
+        short reporting. A 123-character sports brief in the clean control
+        is real and is 100% story."""
         brief = (
             "JOPLIN, Mo. (KOAM) -- Jason Lazo's 8th-inning grand slam lifts the "
             "Lions over the Panthers. Check out the highlights in the video."
@@ -251,7 +261,7 @@ class TestEveryGateRefusalIsNamed:
         assert result.skip_reason == BOILERPLATE_SKIP_REASON
 
     def test_no_free_refusal_writes_a_null_reason(self):
-        for body in (CHECKOUT_FORM, EVENT_LISTING, WALLED_WITH_REPEATED_TEASER):
+        for body in (CHECKOUT_FORM, WALLED_WITH_REPEATED_TEASER, ""):
             result, _ = run(FULL, article=article(body))
             assert result.skip_reason, f"unnamed refusal for {body[:40]!r}"
 
@@ -292,7 +302,7 @@ class TestTheCliLoopPersistsWhatTheGateDecided:
             articles=[
                 article(CHECKOUT_FORM),
                 article(WALLED_WITH_REPEATED_TEASER),
-                article(EVENT_LISTING),
+                article("The council met Tuesday. " + CHECKOUT_FORM),
             ],
             profile=FULL,
             model="m",
