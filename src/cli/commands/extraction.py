@@ -1441,6 +1441,24 @@ def _process_batch(
     worker_id = None  # Will be set if using work queue
 
     try:
+        # NOTHING OWED MEANS STOP, WHICHEVER PATH SERVES THE WORK.
+        #
+        # The queue applies the rework filter itself, so it correctly
+        # returns nothing when no flagged link is ready to fetch -- and the
+        # loop reads that as "domains in cooldown, will retry" and asks
+        # again, batch after batch, until the workflow's deadline. A run
+        # spent its whole window doing that while 158 records of real work
+        # waited behind the step.
+        #
+        # Asked once, here, against the same set the queue filters on.
+        # `is True`, not truthiness: a Mock stands in for `args` across the
+        # extraction tests and answers any attribute with a truthy Mock.
+        if getattr(args, "rework", False) is True:
+            rework_ids = _links_owed_a_fetch(session)
+            if not rework_ids:
+                logger.info("rework: no link is ready to fetch; nothing to do")
+                return {"processed": 0}
+
         # Get candidate articles - either from work queue service or direct DB query
         if USE_WORK_QUEUE:
             # Use centralized work queue for domain-aware coordination
@@ -1503,14 +1521,9 @@ def _process_batch(
             # swept 4,802 links when the dispositions accounted for 45.
             # `--rework` reads `pipeline_rework` and nothing else, and an
             # empty table means nothing to do -- never "take everything".
-            # `is True`, not truthiness: a Mock stands in for `args` across
-            # the extraction tests and answers any attribute with a truthy
-            # Mock, which walked every one of them into this branch.
-            if getattr(args, "rework", False) is True:
-                rework_ids = _links_owed_a_fetch(session)
-                if not rework_ids:
-                    logger.info("rework: nothing owes a fetch")
-                    return {"processed": 0}
+            # Already read above, before either path: the same set, asked
+            # once.
+            if rework_ids:
                 q = q.replace(
                     "WHERE cl.status = 'article'",
                     """WHERE cl.status = 'article'
