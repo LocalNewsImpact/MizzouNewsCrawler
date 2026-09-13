@@ -145,8 +145,19 @@ class TestAgainstTheLiveWarehouse:
 
     @pytest.mark.integration
     def test_the_deployed_syncs_match_the_rule(self):
-        deployed = pytest.importorskip(
-            "tests.helpers.bigquery_transfers", reason="live BigQuery check"
-        ).deployed_sync_queries()
+        from tests.helpers.bigquery_transfers import (
+            TransfersUnavailable,
+            deployed_sync_queries,
+        )
+
+        try:
+            deployed = deployed_sync_queries()
+        except TransfersUnavailable as why:
+            # SKIP, not pass. `importorskip` was the first attempt and it
+            # does not reach this: the module imports fine and the failure
+            # happens when `bq` runs, so the test FAILED on the pre-push
+            # hook's credential-less worktree and would have made every
+            # build red.
+            pytest.skip(f"cannot read BigQuery transfers: {why}")
         found = audit(deployed, require_complete=True)
         assert found == [], "\n".join(found)
