@@ -2407,13 +2407,39 @@ def _process_batch(
                     # but this link did not produce one and must not say it did.
                     inserted = getattr(insert_result, "rowcount", 1)
                     if inserted == 0:
-                        logger.error(
-                            "Article INSERT wrote no row for %s (id=%s); most "
-                            "likely a uq_articles_url conflict with an existing "
-                            "article. Leaving candidate_link status unchanged "
-                            "rather than claiming 'extracted'.",
+                        # A conflict means the corpus already holds this story
+                        # under another URL. Say so on the link.
+                        #
+                        # Leaving the status unchanged was better than claiming
+                        # `extracted`, and still wrong: the link stays at
+                        # `article`, so every run fetches the page again and
+                        # conflicts again -- a publisher request spent, nightly,
+                        # to reach the same conclusion. `duplicate` is selected
+                        # by no stage and names the article that survived.
+                        from src.cli.commands.duplicates import DUPLICATE
+
+                        logger.warning(
+                            "Article INSERT wrote no row for %s (id=%s): the "
+                            "corpus already holds this story under another URL. "
+                            "Marking the link `%s`.",
                             article_url,
                             article_id,
+                            DUPLICATE,
+                        )
+                        safe_session_execute(
+                            session,
+                            text(
+                                "UPDATE candidate_links SET status = :status, "
+                                "error_message = :why WHERE id = :id"
+                            ),
+                            {
+                                "status": DUPLICATE,
+                                "why": (
+                                    "Duplicate URL; the corpus already holds "
+                                    "this story under another URL"
+                                ),
+                                "id": str(url_id),
+                            },
                         )
                     else:
                         safe_session_execute(

@@ -38,6 +38,7 @@ COMMAND_HANDLER_ATTRS: dict[str, str] = {
     "test-domain": "test_domain",
     "clean-articles": "handle_cleaning_command",
     "cleanup-candidates": "handle_cleanup_candidates_command",
+    "duplicates": "handle_duplicates_command",
     "housekeeping": "handle_housekeeping_command",
     "analyze": "handle_analysis_command",
     "load-sources": "handle_load_sources_command",
@@ -121,6 +122,7 @@ def _load_command_parser(command: str) -> tuple[Callable, Callable] | None:
         "llm": "llm",
         "pipeline-status": "pipeline_status",
         "cleanup-candidates": "cleanup_candidates",
+        "duplicates": "duplicates",
         "housekeeping": "housekeeping",
         "enrich": "enrichment",
     }
