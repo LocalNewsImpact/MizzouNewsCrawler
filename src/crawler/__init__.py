@@ -8151,7 +8151,36 @@ class ContentExtractor:
     def _extract_content(self, soup: BeautifulSoup) -> Optional[str]:
         """Extract main article content."""
         # Remove unwanted elements
-        for element in soup(["script", "style", "nav", "header", "footer", "aside"]):
+        for element in soup(
+            [
+                "script",
+                "style",
+                "nav",
+                "header",
+                "footer",
+                "aside",
+                # A form control's text is never reporting, and a dropdown's
+                # is enormous. 100 articles across 8 hosts hold a
+                # subscription checkout form as their body -- every country
+                # on earth, then "What's your delivery address?", then all
+                # fifty states -- averaging 8,924 characters. 73 were
+                # CIN-classified on it and 12 enriched.
+                #
+                # The capture landed on a subscribe page rather than the
+                # story, which is its own failure; but even on the right
+                # page a signup form inside the content block contributes
+                # its option list to the article. `<select>` alone would do
+                # for the dumps seen so far; the rest are here because none
+                # of them can contain prose either, and finding that out one
+                # tag at a time is how the CMP list above grew.
+                "select",
+                "option",
+                "optgroup",
+                "datalist",
+                "template",
+                "noscript",
+            ]
+        ):
             element.decompose()
 
         # Remove consent management platform (CMP) overlays before extraction.

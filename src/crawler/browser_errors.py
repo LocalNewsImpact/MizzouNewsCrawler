@@ -63,7 +63,13 @@ def interstitial_error(html: str | None, current_url: str | None = None) -> str 
     Returns e.g. "ERR_CERT_DATE_INVALID" so the caller can record which
     failure it was.
     """
-    if current_url and current_url.startswith(BROWSER_ERROR_SCHEME):
+    # isinstance, not truthiness. `driver.current_url` is whatever the driver
+    # hands back, and anything non-string answers `.startswith()` with
+    # something truthy of its own -- a Mock does exactly that -- which
+    # condemned every page as a browser error. A current_url that is not a
+    # string is not evidence of anything, so it is ignored and the HTML
+    # decides.
+    if isinstance(current_url, str) and current_url.startswith(BROWSER_ERROR_SCHEME):
         # No document from the site was loaded. Whatever the body holds, it
         # did not come from the publisher.
         found = _ERROR_CODE.search(html or "")

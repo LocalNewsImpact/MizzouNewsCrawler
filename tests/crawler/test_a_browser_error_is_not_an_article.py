@@ -112,7 +112,7 @@ class TestAPageIsNotCondemnedForMentioningAnError:
 
 class TestTheTitleIsDeliberatelyNotTheTest:
     def test_a_localised_interstitial_is_still_caught(self):
-        """"Privacy error" is a translated string. A title check stops
+        """ "Privacy error" is a translated string. A title check stops
         working the first time a driver runs under another locale, which is
         the same class of bug as matching an ASCII marker list against a
         publisher's curly apostrophes -- silent, and invisible to any
@@ -228,3 +228,20 @@ class TestTheSeleniumPathReportsAFailure:
             result = extractor._extract_with_selenium("https://example.com/news/cert")
         assert result.get("extraction_method") != "error"
         assert "certificate lapse" in (result.get("title") or "")
+
+
+class TestTheCurrentUrlIsReadDefensively:
+    def test_a_non_string_current_url_decides_nothing(self):
+        """`driver.current_url` is whatever the driver hands back. Anything
+        non-string answers `.startswith()` with something truthy of its own
+        -- a Mock does exactly that -- and a truthiness check condemned
+        every page as a browser error, emptying the title of a working
+        extraction. Caught by an existing Selenium test, not by this file."""
+        from unittest.mock import Mock
+
+        for odd in (Mock(), object(), 3, None, b"https://example.com/"):
+            assert interstitial_error(ORDINARY_PAGE, odd) is None, repr(odd)
+
+    def test_a_real_chrome_error_url_is_still_caught(self):
+        """And the guard did not cost the thing it guards."""
+        assert interstitial_error("<html></html>", "chrome-error://chromewebdata/")
