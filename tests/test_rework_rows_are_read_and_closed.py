@@ -478,3 +478,32 @@ def test_a_link_awaiting_its_first_fetch_keeps_its_row():
         in sql
     ), "the article must exist"
     assert "AND NOT EXISTS (SELECT 1 FROM articles a" in sql, "and be finished"
+
+
+def test_a_run_with_nothing_to_fetch_settles_and_then_ends():
+    """Two faults in one place, both found in production.
+
+    The early exit returned BEFORE the settle, so seven rows whose links
+    had been fetched the night before stayed open -- and each new run found
+    them, exited, and left them again.
+
+    And returning 0 only skipped a BATCH. In work-queue mode the loop reads
+    zero articles as "domains in cooldown", sleeps and asks again, so the
+    step ran to the workflow's deadline: "Batch 9 ... Batch 10 ... Batch
+    11", with classify and enrich never starting."""
+    import inspect
+
+    from src.cli.commands import extraction
+
+    body = inspect.getsource(extraction._process_batch)
+    guard = body.split("if USE_WORK_QUEUE:")[0]
+    assert guard.index("_settle_rework(session)") < guard.index(
+        "_links_owed_a_fetch(session)"
+    ), "settle before the exit, or finished rows stay open"
+    assert '"nothing_owed": True' in guard
+
+    loop = inspect.getsource(extraction.handle_extraction_command)
+    assert 'result.get("nothing_owed")' in loop
+    stop = loop.index('result.get("nothing_owed")')
+    cooldown = loop.index("domains in cooldown, will retry")
+    assert stop < cooldown, "an empty set is not a cooldown; it must end the loop"
