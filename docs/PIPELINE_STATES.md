@@ -100,6 +100,18 @@ Two traps in that table, both of which have already been fallen into:
 `candidate_links.status='article'`; setting the article to anything at
 all does not schedule a fetch.
 
+**`duplicate` is a link the corpus already holds under another URL.** A
+publisher serves one story at `http` and `https`, with and without `www`,
+with a trailing slash, with a tracking query; each variant is discovered as
+its own link, and `articles.url` is unique, so only the first extracted gets
+an article. The others are marked `duplicate` and their `error_message`
+names the surviving article.
+
+Selected by no stage, and deliberately not deleted. Deleting was the old
+behaviour (`scripts/cleanup_url_duplicates.py`) and it left 1,458 March
+links at `extracted` pointing at nothing -- a hole the reporting could only
+call "Link says extracted, no article". Run `duplicates --apply` instead.
+
 **There is no "clean me again" article status.** Cleaning happens inside
 extraction, and classification selects `cleaned`, which is cleaning's
 *output*. An article whose cleaning failed goes back through extraction
