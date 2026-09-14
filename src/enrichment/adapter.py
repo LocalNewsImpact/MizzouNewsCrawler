@@ -40,10 +40,12 @@ logger = logging.getLogger(__name__)
 STEP_ATTEMPTS = 2
 
 #: The OpenRouter providers this pipeline will accept for its model.
+#: EMPTY BY DEFAULT: no pin, the whole pool.
 #:
-#: `deepseek/deepseek-v3.2` is one model name in front of a pool of
-#: providers, and OpenRouter chooses between them per request. The pool
-#: changed under us. From the trace export in
+#: There was a pin -- AtlasCloud, SiliconFlow, Baidu -- and it was removed
+#: on 2026-09-14 because the reason for it was a misreading.
+#:
+#: The history, from the trace export in
 #: gs://mizzou-openrouter-logs/openrouter-traces:
 #:
 #:     2026-08-22, 14,441 articles enriched clean
@@ -52,36 +54,31 @@ STEP_ATTEMPTS = 2
 #:         StreamLake 90, Friendli 19, AtlasCloud 5, Baidu 5, Alibaba 1
 #:         (of 120 sampled)
 #:
-#: StreamLake appears in none of the August traces and serves three
-#: quarters of today's. The failures are all one step returning a
-#: confidence outside 0.0-1.0, which backfield's schema refuses -- so the
-#: model name, the prompts, the validator and the vendored wheels are all
-#: unchanged, and the answers are not.
+#: StreamLake served three quarters of the September traffic and none of
+#: August's, and the failures were all one step returning "a confidence
+#: outside 0.0-1.0". That was read as a defective provider, and the
+#: response was to pin the pool to the three that had worked in August.
 #:
-#: An article needs nine consecutive validations, so a per-call defect
-#: rate on a provider serving most of the traffic compounds into a
-#: per-article one. That is the 46%.
+#: It was not a defect. 65 is 0.65. Providers do not agree on the scale --
+#: asked for the same thing, AtlasCloud answers 65 where SiliconFlow
+#: answers 0.7 -- and backfield's validator treats a scale difference as a
+#: bad value. `_on_a_unit_scale` normalises the response before backfield
+#: parses it, which is the fix; the pin was only ever a way of choosing
+#: providers that happened to share our scale.
 #:
-#: WHAT THAT READING GOT WRONG, corrected 2026-09-14. "A confidence
-#: outside 0.0-1.0" was mostly not a defective answer: it was a
-#: PERCENTAGE. 65 is 0.65. Providers do not agree on the scale -- asked
-#: for the same thing, AtlasCloud has answered 65 and SiliconFlow 0.7 --
-#: and backfield's validator treats a scale difference as a bad value.
-#: `_on_a_unit_scale` now normalises the response before backfield parses
-#: it, which is the actual fix; this pin was a way of choosing providers
-#: that happened to share our scale.
+#: Keeping it had a cost of its own. OpenRouter routes by price within the
+#: pin, so every call went to the cheapest member -- and on 2026-09-14 that
+#: member returned 400 to 594 of 594 requests while its status reported
+#: healthy. `allow_fallbacks: False` meant there was nowhere else to go:
+#: 99 of 111 articles failed and burned an attempt each. A three-provider
+#: pin is a narrow place to stand when one of them breaks.
 #:
-#: The pin is therefore narrower than it looks, and should be re-measured
-#: rather than trusted: a provider excluded for "bad confidences" may only
-#: have been counting in percent.
-#:
-#: Set ENRICHMENT_PROVIDERS to override without a deploy. Empty means no
-#: pin, which is the behaviour that produced this.
+#: Set ENRICHMENT_PROVIDERS to pin again without a deploy if a provider
+#: turns out to be genuinely wrong rather than differently scaled. Measure
+#: it first -- that is the mistake this comment exists to record.
 ENRICHMENT_PROVIDERS = tuple(
     name.strip()
-    for name in os.getenv("ENRICHMENT_PROVIDERS", "AtlasCloud,SiliconFlow,Baidu").split(
-        ","
-    )
+    for name in os.getenv("ENRICHMENT_PROVIDERS", "").split(",")
     if name.strip()
 )
 
