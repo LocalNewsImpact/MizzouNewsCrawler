@@ -446,6 +446,11 @@ class ComprehensiveExtractionTelemetry:
                 from src.models.database import DatabaseManager
 
                 db = DatabaseManager()
+                # Masked on purpose, and safe to be: the engine below is
+                # what opens connections, so this string is an identifier
+                # rather than a credential. `str(URL)` renders the password
+                # as `***`, which is why anything that DOES connect from a
+                # URL has to render it with the password instead.
                 database_url = str(db.engine.url)
                 self._database_url = database_url
                 # Pass the engine so telemetry uses existing Cloud SQL connection
