@@ -9,12 +9,14 @@ one revision and verifies clean removal.
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 from pathlib import Path
 
 import pytest
 import sqlalchemy as sa
+from lnic_contracts import review_note as contract
 
 pytestmark = pytest.mark.integration
 
@@ -811,9 +813,26 @@ class TestRepository:
                 status == "enriched"
             ), "the committed article survives a later failure"
 
-    def test_out_of_scope_does_not_export_and_is_not_reprocessed(self, db):
-        """A dataset flag change (profile bump) must bring excluded articles
-        back as candidates — toggling the flag is reversible."""
+    def test_out_of_scope_is_held_for_review_and_does_not_export(self, db):
+        """An exclusion decided at enrichment is HELD, not written: the model
+        is wrong often enough that acting unseen costs real stories (of 75
+        articles it called "international", 50 carried a local byline). So
+        the status is `in_review` with the claim and the status to restore,
+        and a person rules.
+
+        Everything else this test asserted still holds, which is the point of
+        keeping them: it does not export, the classification is still
+        recorded, it is neither a plain nor a reprocess candidate, and
+        rewinding to `labeled` -- what the console does on `restore` --
+        brings it back.
+
+        NOTE on the status: no enrichment path emits `out_of_scope` today.
+        The scope step returns `enrichment_skipped` and the article EXPORTS
+        with its scope recorded -- decided 2026-08-22, because ~70% of
+        March's scope-excluded internationals were locally bylined stories
+        that merely referenced international subjects. This test builds the
+        outcome directly, so it covers the held path for whenever a
+        non-exportable exclusion is decided here again."""
         with db() as s:
             articles = select_candidates(s, "Mizzou-Missouri-State", 10, 3)
             excluded = _outcome(
@@ -833,6 +852,12 @@ class TestRepository:
                         },
                     ),
                 ],
+                # The claim a hold records is `skip_reason`, and it MUST be the
+                # string the gate checks in `answered` -- here
+                # `scope_excluded_{category}`. Record anything else and a
+                # reviewer's restore never unlocks the gate: the record is
+                # held, released, and held again by the next run.
+                skip="scope_excluded_international",
             )
             persist_outcome(
                 s,
@@ -848,14 +873,28 @@ class TestRepository:
                 sa.text("SELECT status FROM articles WHERE id=:id"),
                 {"id": articles[0].id},
             ).scalar()
-            assert status == "out_of_scope"
+            assert (
+                status == contract.IN_REVIEW
+            ), "an exclusion decided at enrichment is held for a person"
+            note = s.execute(
+                sa.text("SELECT metadata FROM articles WHERE id=:id"),
+                {"id": articles[0].id},
+            ).scalar()
+            note = json.loads(note) if isinstance(note, str) else note
+            held = note[contract.METADATA_KEY]
+            assert contract.is_readable(held), "the console cannot read this note"
+            assert held["claim"] == "scope_excluded_international"
+            # The status a reviewer's ACCEPT restores: the exclusion the gate
+            # wanted, not `labeled`, or confirming it would send the record
+            # back to be enriched.
+            assert held["status_before"] == "out_of_scope"
             exported = s.execute(
                 sa.text(
                     f"SELECT count(*) FROM articles WHERE id=:id AND {EXPORT_PREDICATE}"
                 ),
                 {"id": articles[0].id},
             ).scalar()
-            assert exported == 0, "out_of_scope must not export"
+            assert exported == 0, "a held exclusion must not export"
             scope = s.execute(
                 sa.text("SELECT scope FROM article_enrichment WHERE article_id=:id"),
                 {"id": articles[0].id},
@@ -864,8 +903,8 @@ class TestRepository:
             # not a plain candidate...
             plain = select_candidates(s, "Mizzou-Missouri-State", 10, 3)
             assert articles[0].id not in {c.id for c in plain}
-            # ...and not a reprocess candidate either. `out_of_scope` is a
-            # decision, not a state waiting for a better profile.
+            # ...and not a reprocess candidate either. A held exclusion is
+            # waiting for a person, not for a better profile.
             assert articles[0].id not in {
                 c.id
                 for c in select_reprocess_candidates(
