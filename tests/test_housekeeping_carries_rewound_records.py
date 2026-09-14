@@ -62,6 +62,14 @@ def test_the_stages_run_in_pipeline_order(steps):
         "extract",
         "classify",
         "enrich",
+        # LAST, and that is load-bearing rather than tidy. Applying a
+        # reviewer's geography writes `article_geoids` additively, but
+        # `persist_outcome` DELETEs every geoid row for an article before
+        # rewriting its own. Run this before `enrich` and any article
+        # enriched the same night loses the rows a person entered -- the
+        # contribution recorded, applied, and then silently deleted a few
+        # minutes later by the step after it.
+        "apply-manual-geography",
     ]
 
 
@@ -219,3 +227,12 @@ def test_the_cron_calls_the_template_this_file_defines(template):
     ref = wrapper["steps"][0][0]["templateRef"]
     assert ref["name"] == template["metadata"]["name"]
     assert ref["template"] == "housekeeping"
+
+
+def test_applying_manual_geography_runs_after_enrichment(steps):
+    """The ordering above, stated as its own rule so it survives an edit to
+    that list. `persist_outcome` deletes an article's geoid rows before
+    writing its own; a human contribution applied earlier in the same run
+    would be wiped by it."""
+    names = [s["name"] for s in steps]
+    assert names.index("apply-manual-geography") > names.index("enrich")
