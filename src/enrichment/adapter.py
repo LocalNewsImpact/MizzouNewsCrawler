@@ -161,20 +161,44 @@ def _as_fraction(value):
 
       [0, 1]     already a fraction; untouched.
       (1, 100]   a percentage; divided by 100.
-      otherwise  left alone -- negative, or above 100, is not a scale
+      [-1, 0)    a magnitude carrying a sign; its absolute value.
+      (-100, -1) a signed percentage; its absolute value over 100.
+      otherwise  left alone -- beyond 100 either way is not a scale
                  difference and backfield should still refuse it.
 
     Exactly 1 is the one ambiguous value: 1.0 confident, or 1 percent.
     It is left as 1.0, because a model that reports a value at all
     rarely reports one percent, and 1.0 is what the earlier scale
     already meant.
+
+    A SIGN IS NOT A JUDGEMENT, and that was measured rather than assumed.
+    The same two articles, the same `temporal_orientation` question, one
+    call each to four providers on 2026-09-14:
+
+        article                     SiliconFlow  DeepInfra  Novita  GMICloud
+        "candidates to debate"      future 0.95  future 0.95  future -0.95  future -0.95
+        "Mapping Ireland's Records" future 0.95  future 0.95  future -1.0   future -1.0
+
+    The CATEGORY is identical across all four. Only the sign differs, and
+    the magnitudes match exactly. So the minus is not negating the answer
+    -- the category it would negate is the one the other providers assert
+    positively -- and the absolute value recovers a correct answer rather
+    than laundering a wrong one.
+
+    This surfaced only when the provider pin came off: Novita and GMICloud
+    were never in it, so they had never served this pipeline's traffic.
     """
     try:
         number = float(value)
     except (TypeError, ValueError):
         return value
-    if 1.0 < number <= 100.0:
-        return number / 100.0
+    magnitude = abs(number)
+    if magnitude <= 1.0:
+        # `abs` matters only for a negative; a value already in [0, 1] is
+        # returned as it arrived.
+        return magnitude if number < 0 else value
+    if magnitude <= 100.0:
+        return magnitude / 100.0
     return value
 
 

@@ -50,11 +50,32 @@ class TestTheRule:
         answers one percent, and 1.0 is what the unit scale already meant."""
         assert _as_fraction(given) == given
 
-    @pytest.mark.parametrize("given", [-1, -0.5, 101, 1000])
+    @pytest.mark.parametrize(
+        "given,expected",
+        [(-0.95, 0.95), (-1.0, 1.0), (-0.9, 0.9), (-65, 0.65), (-80, 0.8)],
+    )
+    def test_a_sign_is_not_a_judgement(self, given, expected):
+        """MEASURED, not assumed. The same two articles and the same
+        `temporal_orientation` question, one call each to four providers on
+        2026-09-14:
+
+            article                      SiliconFlow  DeepInfra  Novita   GMICloud
+            "candidates to debate"       future 0.95  future 0.95  future -0.95  future -0.95
+            "Mapping Ireland's Records"  future 0.95  future 0.95  future -1.0   future -1.0
+
+        The category is identical across all four and the magnitudes match
+        exactly; only the sign differs. The minus is not negating the
+        answer -- the category it would negate is the one the others assert
+        positively -- so the absolute value recovers a correct answer
+        rather than laundering a wrong one.
+        """
+        assert _as_fraction(given) == pytest.approx(expected)
+
+    @pytest.mark.parametrize("given", [101, 1000, -101, -1000])
     def test_what_is_not_a_scale_difference_is_left_for_backfield(self, given):
-        """Negative, or above 100, is not two scales -- it is a bad value,
-        and backfield should still refuse it. Rescaling it would launder a
-        real defect into a plausible number."""
+        """Beyond 100 either way is not two scales -- it is a bad value, and
+        backfield should still refuse it. Rescaling it would launder a real
+        defect into a plausible number."""
         assert _as_fraction(given) == given
 
     @pytest.mark.parametrize("given", [None, "high", "", [], {}])
