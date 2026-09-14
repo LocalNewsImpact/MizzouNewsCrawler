@@ -40,6 +40,38 @@ spec:
       secondsAfterSuccess: 43200
       secondsAfterFailure: 43200
     entrypoint: housekeeping-wrapper
+    # A REVIEWER'S GEOGRAPHY IS APPLIED WHATEVER THE RUN DID.
+    #
+    # `enrich apply-manual` moves geography a person entered from
+    # `article_places_manual` into `article_geoids`, which is what
+    # BigQuery's "Sync Article Geoids" reads, unfiltered, at 07:00 UTC.
+    # It has to run daily, and it cannot be a step:
+    #
+    #   - a step after `enrich` does not run when enrichment fails, and
+    #     all four runs on 2026-09-13 ended with `enrich` failed;
+    #   - a step gated on `anything-owed` does not run on a quiet night,
+    #     and a geography decision writes no `pipeline_rework` row -- the
+    #     reconciler reads the discovery and extraction queues, not that
+    #     one -- so the count is blind to this work and a night with no
+    #     rework still has contributions to move.
+    #
+    # An exit handler answers both: it runs once the run finishes, whatever
+    # phase it finished in and whichever steps were skipped. It also runs
+    # AFTER enrichment, which the ordering requires -- `persist_outcome`
+    # DELETEs an article's `article_geoids` rows before writing its own, so
+    # applying a person's geography earlier would let the same night delete
+    # it.
+    #
+    # It is declared HERE and not on the WorkflowTemplate because the
+    # wrapper reaches that template through `templateRef`, and a
+    # WorkflowTemplate's spec-level fields are not inherited through one.
+    # An `onExit` over there lints clean and never fires.
+    #
+    # One real gap: a run stopped with `Terminate` skips exit handlers;
+    # `Stop` runs them. The four manual interventions on 2026-09-13 used
+    # Terminate, so prefer `argo stop` over `argo terminate` if a run has
+    # to be cut short and the night's contributions should still land.
+    onExit: apply-manual-geography
     serviceAccountName: argo-workflow
     workflowMetadata:
       labels:
@@ -52,3 +84,12 @@ spec:
           templateRef:
             name: housekeeping-template
             template: housekeeping
+
+    # The exit handler. `onExit` names a template in this spec, so it
+    # cannot be a `templateRef` on its own -- it wraps one.
+    - name: apply-manual-geography
+      steps:
+      - - name: apply-manual
+          templateRef:
+            name: housekeeping-template
+            template: apply-manual-step

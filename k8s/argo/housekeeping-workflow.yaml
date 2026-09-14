@@ -68,6 +68,23 @@ spec:
     #
     # The first step counts what is owed and stops the run if nothing is.
     # An empty night costs a few seconds.
+    #
+    # APPLYING A REVIEWER'S GEOGRAPHY IS NOT A STEP HERE.
+    #
+    # It was a sixth step, and a sixth step does not run: Argo stops a
+    # sequential `steps:` list at the first failure, so a transient
+    # enrichment failure -- a model timeout, a ceiling hit, a terminated
+    # run -- means the step after it never starts. All four runs on
+    # 2026-09-13 ended with `enrich` failed. It would have run in none of
+    # them, and the contributions it exists to move would have sat exactly
+    # as they did before it was added.
+    #
+    # It is the RUN's exit handler instead, declared on the cronworkflow's
+    # `workflowSpec.onExit`, which is where an exit handler actually fires:
+    # this template is invoked by `templateRef`, and a WorkflowTemplate's
+    # spec-level fields are not inherited through one. An `onExit` here
+    # lints clean and never runs. `apply-manual-step` below is the template
+    # the cron's handler references.
     steps:
     # 0. Is anything owed? A run with nothing to carry stops here.
     - - name: anything-owed
@@ -140,9 +157,6 @@ spec:
     #    rework carried no contributions either. That is how 56 of them
     #    sat unapplied: the command existed, was documented as needing to
     #    run daily before 07:00 UTC, and was wired into nothing.
-    - - name: apply-manual-geography
-        template: apply-manual-step
-
   # --- the stages this workflow defines for itself ---------------------
   #
   # Not reused from `news-pipeline-template`: its extraction step takes a

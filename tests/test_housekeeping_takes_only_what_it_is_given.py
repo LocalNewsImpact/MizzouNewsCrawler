@@ -26,9 +26,6 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW = ROOT / "k8s/argo/housekeeping-workflow.yaml"
-
-#: The one step `anything-owed` cannot speak for. See the gating test.
-UNGATED_BY_DESIGN = "apply-manual-geography"
 EXTRACTION = ROOT / "src/cli/commands/extraction.py"
 CLASSIFIER = ROOT / "src/services/classification_service.py"
 
@@ -113,17 +110,10 @@ def test_a_run_with_nothing_owed_stops_before_starting_a_stage(stages):
     # workers a night needs is itself work, and an empty night should not
     # start a pod to be told there is nothing to do.
     #
-    # `apply-manual-geography` is the one exception, and it is one because
-    # the count cannot see its work. A geography decision writes no
-    # `pipeline_rework` row -- the reconciler reads the discovery and
-    # extraction queues, not that one -- so `anything-owed` returns 0 on a
-    # night with contributions waiting, and gating the step on it is how 56
-    # of them sat unapplied. It is also the only step that can be ungated
-    # safely: no publisher requests, no model calls, and its input is a
-    # table only a person writes to.
+    # Applying a reviewer's geography needs to run ungated -- the count
+    # cannot see its work -- and it does, as the run's exit handler on the
+    # cronworkflow rather than as a step. So this rule needs no exemption.
     for step in entry["steps"][1:]:
-        if step[0]["name"] == UNGATED_BY_DESIGN:
-            continue
         assert "anything-owed" in step[0].get("when", ""), step[0]["name"]
 
 
@@ -383,9 +373,14 @@ def _templates():
     return {t["name"]: t for t in _workflow()["spec"]["templates"]}
 
 
-def test_housekeeping_applies_manual_geography():
-    steps = [s[0]["name"] for s in _templates()["housekeeping"]["steps"]]
-    assert "apply-manual-geography" in steps
+def test_housekeeping_applies_manual_geography_on_exit():
+    """As the exit handler, not a step: Argo stops a sequential `steps:`
+    list at the first failure, and all four runs on 2026-09-13 ended with
+    `enrich` failed."""
+    cron = yaml.safe_load(
+        (ROOT / "k8s/argo/housekeeping-cronworkflow.yaml").read_text()
+    )
+    assert cron["spec"]["workflowSpec"].get("onExit") == "apply-manual-geography"
 
 
 def test_it_runs_whether_or_not_anything_is_owed():
@@ -393,13 +388,18 @@ def test_it_runs_whether_or_not_anything_is_owed():
     reconciler reads the discovery and extraction queues and not that one
     -- so `anything-owed` is blind to it. Gated on that count, a night
     with no rework would carry no contributions either, which is the
-    failure this step exists to end."""
-    step = next(
-        s[0]
-        for s in _templates()["housekeeping"]["steps"]
-        if s[0]["name"] == "apply-manual-geography"
-    )
-    assert "when" not in step, "gating this on anything-owed reinstates the bug"
+    failure this step exists to end. An exit handler cannot be gated,
+    which is part of why it is the right shape here."""
+    assert "when" not in _templates()["apply-manual-step"]
+
+
+def test_it_runs_even_when_enrichment_fails():
+    """THE DEFECT THIS REPLACED, asserted directly. A sixth step is
+    unreachable on a failed enrichment; an exit handler is not. If anyone
+    moves it back into `steps`, this fails."""
+    names = [s[0]["name"] for s in _templates()["housekeeping"]["steps"]]
+    assert "apply-manual-geography" not in names
+    assert names[-1] == "enrich"
 
 
 def test_it_makes_no_model_calls():

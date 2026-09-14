@@ -12,6 +12,8 @@ command that should see every dataset, does not error -- it selects
 nothing and reports success.
 """
 
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -62,14 +64,10 @@ def test_the_stages_run_in_pipeline_order(steps):
         "extract",
         "classify",
         "enrich",
-        # LAST, and that is load-bearing rather than tidy. Applying a
-        # reviewer's geography writes `article_geoids` additively, but
-        # `persist_outcome` DELETEs every geoid row for an article before
-        # rewriting its own. Run this before `enrich` and any article
-        # enriched the same night loses the rows a person entered -- the
-        # contribution recorded, applied, and then silently deleted a few
-        # minutes later by the step after it.
-        "apply-manual-geography",
+        # Applying a reviewer's geography is NOT here. It is the template's
+        # `onExit` handler, because a sixth step does not run: Argo stops a
+        # sequential list at the first failure. See
+        # `test_applying_manual_geography_is_an_exit_handler`.
     ]
 
 
@@ -229,10 +227,66 @@ def test_the_cron_calls_the_template_this_file_defines(template):
     assert ref["template"] == "housekeeping"
 
 
-def test_applying_manual_geography_runs_after_enrichment(steps):
-    """The ordering above, stated as its own rule so it survives an edit to
-    that list. `persist_outcome` deletes an article's geoid rows before
-    writing its own; a human contribution applied earlier in the same run
-    would be wiped by it."""
-    names = [s["name"] for s in steps]
-    assert names.index("apply-manual-geography") > names.index("enrich")
+def test_applying_manual_geography_is_the_runs_exit_handler():
+    """IT CANNOT BE A STEP, and it was one.
+
+    Argo stops a sequential `steps:` list at the first failure, so a step
+    placed after `enrich` does not run when enrichment fails -- a model
+    timeout, a ceiling hit, a terminated run. All four housekeeping runs on
+    2026-09-13 ended with `enrich` failed. A sixth step would have run in
+    none of them, and the contributions it exists to move would have sat
+    exactly as they did before it was added.
+
+    A step gated on `anything-owed` fails the same way for a different
+    reason: the count is blind to a geography decision, which writes no
+    `pipeline_rework` row, so a quiet night still has contributions to
+    move. A run-level exit handler answers both, and still runs after
+    enrichment -- which the ordering requires, because `persist_outcome`
+    DELETEs an article's `article_geoids` rows before writing its own.
+    """
+    spec = yaml.safe_load(CRON.read_text())["spec"]["workflowSpec"]
+    assert spec.get("onExit") == "apply-manual-geography"
+    handler = next(t for t in spec["templates"] if t["name"] == spec["onExit"])
+    ref = handler["steps"][0][0]["templateRef"]
+    assert ref["name"] == "housekeeping-template"
+    assert ref["template"] == "apply-manual-step"
+
+
+def test_the_exit_handler_is_not_on_the_workflow_template(template):
+    """WHERE IT WOULD LINT CLEAN AND NEVER RUN.
+
+    The wrapper reaches `housekeeping` through a `templateRef`, and a
+    WorkflowTemplate's spec-level fields are not inherited through one. So
+    an `onExit` in housekeeping-workflow.yaml is dead config -- `argo lint`
+    accepts it at spec level and rejects it per template, and neither
+    fires. The handler belongs to the run, so it is declared on the
+    cronworkflow's `workflowSpec`."""
+    assert (
+        "onExit" not in template["spec"]
+    ), "a WorkflowTemplate spec.onExit never fires through a templateRef"
+    for t in template["spec"]["templates"]:
+        assert "onExit" not in t, f"{t['name']} declares an onExit that cannot run"
+
+
+def test_argo_itself_accepts_these_manifests():
+    """THE AUTHORITY ON THE SCHEMA IS ARGO, NOT US.
+
+    Every other test here parses the YAML and asserts shape, which tests
+    what we wrote and not what Argo will accept. `onExit` on a template
+    passed all of them and is not a field: `argo lint` says
+    `strict decoding error: unknown field "spec.templates[0].onExit"`.
+    Nothing in CI would have caught it -- Validate K8s Workflows checks
+    YAML syntax and our own SQL/flag rules, and never runs `argo lint`.
+
+    Skipped, loudly, when the binary is absent: a skip is not a pass, and
+    CI does not install argo today.
+    """
+    argo = shutil.which("argo")
+    if argo is None:
+        pytest.skip("argo CLI not installed; the schema is unvalidated here")
+    result = subprocess.run(
+        [argo, "lint", "--offline", str(TEMPLATE), str(CRON)],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
