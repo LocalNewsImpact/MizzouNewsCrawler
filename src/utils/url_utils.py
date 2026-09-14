@@ -1,15 +1,32 @@
 """URL normalization utilities for consistent deduplication."""
 
 import logging
+import re
 from urllib.parse import urlparse, urlunparse
 
 logger = logging.getLogger(__name__)
+
+
+#: A front controller in the path, which is routing rather than address.
+#: A CMS that serves `/index.php/news/x` serves the identical page at
+#: `/news/x`, and different parts of the same site link to each form --
+#: so discovery found both, made two links, and the story was fetched,
+#: parsed and classified twice.
+#:
+#: 313 stories were in the corpus twice on 2026-09-14, 278 of them
+#: extracted twice, 99% of them from two publishers:
+#: richmond-dailynews.com (169) and excelsiorspringsstandard.com (139).
+#:
+#: `/index.php` alone becomes `/` -- that is the site's front page, which
+#: is what the bare domain serves too.
+_FRONT_CONTROLLER = re.compile(r"/index\.(php|html?|cfm|asp|aspx|jsp)(?=/|$)", re.I)
 
 
 def normalize_url(url: str) -> str:
     """
     Normalize a URL for consistent storage by:
     - Removing fragments and query parameters
+    - Removing a front-controller segment (/index.php and its kin)
     - Removing trailing slashes
 
     Note: Scheme (http/https) and subdomain (www.) are preserved.
@@ -43,7 +60,13 @@ def normalize_url(url: str) -> str:
             (
                 parsed.scheme,  # Preserve original scheme
                 netloc,
-                parsed.path,
+                # `/index.php/news/x` and `/news/x` are one page, and
+                # storing both is how one story became two records.
+                # No `or "/"` fallback: an empty path must stay empty.
+                # Defaulting it turned `https://example.com` into
+                # `https://example.com/`, which is a different string for
+                # every caller that compares them.
+                _FRONT_CONTROLLER.sub("", parsed.path),
                 parsed.params,  # Keep params (might be part of path structure)
                 "",  # Remove query
                 "",  # Remove fragment

@@ -49,9 +49,19 @@ DUPLICATE = "duplicate"
 #: Applied to BOTH sides of every comparison here. The old script stripped
 #: only the scheme and `www.`, which is why 343 of the links it orphaned
 #: could not be matched back to their survivor afterwards.
+#: The front controller goes too. `/index.php/news/x` and `/news/x` are
+#: one page -- the CMS routes both to it -- and without this the two
+#: forms normalise apart, so the pair is never recognised as a duplicate.
+#:
+#: That is why a run of this command marked 1,615 duplicates on
+#: 2026-09-14 and left 313 more: two publishers link to their own stories
+#: both ways, and every one of those stories was in the corpus twice.
+#: `src.utils.url_utils.normalize_url` now strips it at discovery so no
+#: new pair is made; this is what finds the ones already there.
 NORMALISE = (
-    "lower(regexp_replace(regexp_replace(regexp_replace("
-    "{col}, '^https?://(www\\.)?', ''), '[?#].*$', ''), '/+$', ''))"
+    "lower(regexp_replace(regexp_replace(regexp_replace(regexp_replace("
+    "{col}, '^https?://(www\\.)?', ''), '[?#].*$', ''), "
+    "'/index\\.(php|html?|cfm|aspx?|jsp)(?=/|$)', '', 'gi'), '/+$', ''))"
 )
 
 
