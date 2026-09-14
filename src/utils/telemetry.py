@@ -618,6 +618,32 @@ class TelemetryReporter:
         return data
 
 
+def _url_with_its_password(url: Any) -> str:
+    """The engine's URL as a string that can still connect.
+
+    `str(URL)` MASKS THE PASSWORD. SQLAlchemy renders it as `***` so a URL
+    in a log or a traceback does not leak a credential -- which is right,
+    and which makes `str(engine.url)` the wrong way to hand a working URL
+    to something that has to open its own connection. Telemetry did
+    exactly that, so it built an engine whose password was the literal
+    three asterisks and every connection came back
+    `28P01 password authentication failed`.
+
+    Not seen in production because the pods reach Cloud SQL through the
+    connector and carry no password in the URL at all: masking has nothing
+    to mask, and the broken string is identical to the working one. It
+    fails wherever the corpus is reached by host and password instead --
+    the Cloud SQL Auth Proxy, a local Postgres, anything run from a
+    laptop. `backfill-verifications` could not open a connection on
+    2026-09-14 for this reason and no other.
+
+    `render_as_string(hide_password=False)` is the deliberate opposite of
+    the default, and reads as what it is: this string carries a
+    credential, so it goes into an engine and nowhere else.
+    """
+    return url.render_as_string(hide_password=False)
+
+
 class OperationTracker:
     """Main tracking system for crawler operations."""
 
@@ -640,7 +666,7 @@ class OperationTracker:
             from src.models.database import DatabaseManager
 
             db = DatabaseManager()
-            database_url = str(db.engine.url)
+            database_url = _url_with_its_password(db.engine.url)
 
         self.database_url = database_url
         self._store = self._resolve_store(store, database_url)
@@ -679,9 +705,17 @@ class OperationTracker:
                     "Received engine; initializing dedicated TelemetryStore from %s",
                     engine_url,
                 )
+                # THE ENGINE IS WHAT CONNECTS, so hand it over rather
+                # than rebuilding one from its URL: `str(engine_url)`
+                # masks the password, and a store built from that string
+                # could not authenticate against anything that wanted one.
+                # Reusing it also avoids a second pool onto the same
+                # database. The URL stays the store's identifier, masked,
+                # because nothing opens a connection from it any more.
                 return TelemetryStore(
                     database=str(engine_url),
                     async_writes=False,
+                    engine=candidate,
                 )
 
             self.logger.debug(
@@ -2413,7 +2447,7 @@ def create_telemetry_system(
         from src.models.database import DatabaseManager
 
         db = DatabaseManager()
-        database_url = str(db.engine.url)
+        database_url = _url_with_its_password(db.engine.url)
 
     reporter = None
     if api_base_url:

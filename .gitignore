@@ -157,6 +157,31 @@ warc_import_progress.json
 # on any machine holding a copy.
 !src/enrichment/reference/*.csv
 
+# EXCEPT the DMA crosswalk, which stays local and never reaches origin.
+#
+# Nielsen owns the DMA names and abbreviations. The Harvard Dataverse copy
+# of this data (doi:10.7910/DVN/IVXEHT, "Geographic Information on
+# Designated Media Markets") was DEACCESSIONED at Nielsen's request for
+# exactly that reason -- the author's stated deaccession reason is that
+# some of the DMA name abbreviations are copyrighted and Nielsen believes
+# publishing them hurts their business.
+#
+# The county groupings are useful for our own analysis and the file is
+# kept on disk for it. It is not ours to republish, so it is not tracked.
+# If a market definition ever needs to live in the repository, write it as
+# our own editorial county list rather than as a DMA.
+src/enrichment/reference/county_dma.csv
+src/enrichment/reference/county_dma_unmatched.csv
+src/enrichment/reference/README_county_dma.md
+
+# Ad-hoc analysis SQL, kept where it was written and not published.
+#
+# datadesk does the same with its own `sql/` directory: a query is worth
+# keeping on the machine that ran it, and none of these are part of the
+# crawler. The DMA queries in particular name Nielsen's market
+# definitions and are covered by the reason above.
+sql/
+
 # JSON exports (except config/schema files)
 newly_detected_*.json
 *_results.json
