@@ -82,6 +82,10 @@ _CANDIDATE_SQL = text(
     WHERE d.slug = :dataset
       AND a.status = 'labeled'
       AND a.wire_check_status IN ('complete', 'local')
+      -- An empty body is not a verdict: the gate reads `content`, and an
+      -- article with none comes back `not_news` about nothing. Not a
+      -- candidate. See the same guard, by name, in `select_by_ids`.
+      AND coalesce(a.content, '') <> ''
       AND a.enrichment_attempts < :max_attempts
       AND (CAST(:since AS date) IS NULL OR a.created_at >= CAST(:since AS date))"""
     + WITHHELD_BY_A_REVIEWER
@@ -127,6 +131,10 @@ _REPROCESS_SQL = text(
     WHERE d.slug = :dataset
       AND a.status = 'labeled'
       AND a.wire_check_status IN ('complete', 'local')
+      -- An empty body is not a verdict: the gate reads `content`, and an
+      -- article with none comes back `not_news` about nothing. Not a
+      -- candidate. See the same guard, by name, in `select_by_ids`.
+      AND coalesce(a.content, '') <> ''
       AND a.enrichment_attempts < :max_attempts"""
     + WITHHELD_BY_A_REVIEWER
     + """
@@ -268,6 +276,25 @@ def select_by_ids(session: Session, ids: list[str], max_attempts: int) -> ListRe
             rejected[article_id] = f"attempts exhausted ({row.enrichment_attempts})"
         elif row.dataset_slug is None:
             rejected[article_id] = "no dataset"
+        elif not (row.content or "").strip():
+            # AN EMPTY BODY IS NOT A VERDICT.
+            #
+            # The gate reads `a.content`, deliberately -- the paywall
+            # thresholds were measured against that column, and reading a
+            # different one would silently re-measure all of them. But an
+            # article whose `content` is empty is not "not news"; there is
+            # simply nothing to read. Sent to the model anyway it comes back
+            # `not_news`, no step runs, and the record is excluded for a
+            # property of the row rather than anything about the story.
+            #
+            # 84 articles were in exactly that state on 2026-09-14, bodies
+            # intact in `text` and `content` never written. 59 of one run's
+            # 64 `not_news` refusals were these -- including a fatal crash in
+            # Doolittle with 2,211 characters of story the gate never saw.
+            #
+            # Rejected by name here, where the reason is visible and costs
+            # nothing, instead of being paid for and misread.
+            rejected[article_id] = "no content to enrich (is the body in `text`?)"
         elif row.reviewed_kind in withheld_kinds():
             # The backfill path takes an explicit id list, so this is the
             # one place a person can hand enrichment an article directly.
