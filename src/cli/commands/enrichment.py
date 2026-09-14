@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 import os
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from decimal import Decimal
 
 logger = logging.getLogger(__name__)
@@ -123,7 +123,26 @@ def _process(
     session_factory, articles, profile, model, concurrency, dataset_id=None
 ) -> dict:
     """Enrich a list of candidates: model calls in parallel threads, writes on
-    the caller's thread, one commit per article, ceiling between articles."""
+    the caller's thread, one commit per article AS IT FINISHES, ceiling
+    between articles.
+
+    AS IT FINISHES IS THE WHOLE POINT, and it used to be `pool.map`.
+
+    `ThreadPoolExecutor.map` yields results in INPUT order. The model calls
+    still ran in parallel, but article #2 could not be persisted until #1
+    returned, #3 until #2, and so on, so finished work sat unwritten behind
+    the slowest article ahead of it. Everything landed in a burst at the
+    end, or -- if the run was cut short -- not at all.
+
+    That is not hypothetical. Four housekeeping runs on 2026-09-13 made
+    model calls for up to 47 minutes and wrote ZERO enrichment rows between
+    them: every one was stopped before the ordered yield reached the head of
+    its queue, and every dollar of that spend was discarded. A fifth run on
+    2026-09-14 was 13 minutes in, 25 model calls done, still zero rows.
+
+    Waiting on FIRST_COMPLETED instead means an article is durable the
+    moment it finishes. A run that is interrupted keeps what it paid for.
+    """
     from src.enrichment.orchestrator import enrich_article
     from src.enrichment.repository import persist_outcome
 
@@ -138,30 +157,53 @@ def _process(
         )
 
     with ThreadPoolExecutor(max_workers=concurrency) as pool:
-        iterator = pool.map(classify, articles)
-        with session_factory() as session:
-            for article, outcome in iterator:
-                persist_outcome(
-                    session,
-                    article,
-                    outcome,
-                    profile=profile,
-                    model=model,
-                    backfield_commit=_backfield_commit(),
-                    prompt_versions={"content_gate": "content_gate-v1"},
-                    dataset_id=dataset_id,
-                )
-                counts[outcome.status] = counts.get(outcome.status, 0) + 1
-                spent += outcome.total_cost_usd
-                if ceiling is not None and spent >= ceiling:
-                    logger.error(
-                        "spend ceiling reached: $%s >= $%s — halting; "
-                        "committed work is kept",
-                        spent,
-                        ceiling,
-                    )
-                    halted = True
-                    break
+        submitted = {}
+        pending = set()
+        for position, article in enumerate(articles):
+            future = pool.submit(classify, article)
+            submitted[future] = position
+            pending.add(future)
+        try:
+            with session_factory() as session:
+                while pending and not halted:
+                    finished, pending = wait(pending, return_when=FIRST_COMPLETED)
+                    # `wait` hands back a SET, and several articles often
+                    # finish inside the same tick. Persist them in the order
+                    # they were submitted: an arbitrary order would still be
+                    # durable, but it would make the ceiling stop at an
+                    # arbitrary subset, so two runs over the same articles
+                    # could halt on different ones. Waiting is what we gave
+                    # up; determinism is not.
+                    for future in sorted(finished, key=submitted.__getitem__):
+                        article, outcome = future.result()
+                        persist_outcome(
+                            session,
+                            article,
+                            outcome,
+                            profile=profile,
+                            model=model,
+                            backfield_commit=_backfield_commit(),
+                            prompt_versions={"content_gate": "content_gate-v1"},
+                            dataset_id=dataset_id,
+                        )
+                        counts[outcome.status] = counts.get(outcome.status, 0) + 1
+                        spent += outcome.total_cost_usd
+                        if ceiling is not None and spent >= ceiling:
+                            logger.error(
+                                "spend ceiling reached: $%s >= $%s — halting; "
+                                "committed work is kept",
+                                spent,
+                                ceiling,
+                            )
+                            halted = True
+                            break
+        finally:
+            # Anything not yet started stops here. A future already running
+            # cannot be cancelled and its result is dropped, which is the
+            # same bargain the ordered version made -- the difference is
+            # that everything finished before this point is already written.
+            for future in pending:
+                future.cancel()
     return {"counts": counts, "spent": str(spent), "halted": halted}
 
 
