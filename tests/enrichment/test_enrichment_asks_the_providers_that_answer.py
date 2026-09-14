@@ -47,21 +47,47 @@ def litellm_stub(monkeypatch):
     return stub, inner
 
 
-def test_the_request_names_the_providers_that_answer_correctly(litellm_stub):
+def test_no_pin_means_the_request_constrains_nothing(litellm_stub):
+    """UNPINNED BY DEFAULT. With no pin the request carries no `provider`
+    block at all, so OpenRouter routes across the whole pool."""
     stub, inner = litellm_stub
     adapter._label_calls_with_the_dataset()
     stub.completion(model="openrouter/deepseek/deepseek-v3.2", messages=[])
 
     sent = inner.call_args.kwargs
-    provider = sent["extra_body"]["provider"]
+    assert "provider" not in (sent.get("extra_body") or {})
 
-    assert provider["only"] == list(adapter.ENRICHMENT_PROVIDERS)
+
+def test_the_pin_is_empty_by_default():
+    """The pin was AtlasCloud, SiliconFlow, Baidu -- the pool that enriched
+    14,441 articles in August -- and it was removed on 2026-09-14.
+
+    It was answering the wrong question. The September failures were read
+    as providers returning "a confidence outside 0.0-1.0"; they were
+    returning percentages, which `_on_a_unit_scale` now normalises before
+    backfield parses. The pin was a way of selecting providers that
+    happened to share our scale.
+
+    It also had a cost. OpenRouter routes by price within a pin, so every
+    call went to the cheapest member -- which on 2026-09-14 returned 400 to
+    594 of 594 requests while reporting healthy -- and `allow_fallbacks:
+    False` left nowhere to go. 99 of 111 articles failed and burned an
+    attempt each."""
+    assert adapter.ENRICHMENT_PROVIDERS == ()
+
+
+def test_a_pin_still_binds_when_one_is_asked_for(litellm_stub, monkeypatch):
+    """Removing the default does not remove the mechanism: a provider that
+    turns out to be genuinely wrong can still be excluded without a
+    deploy."""
+    monkeypatch.setattr(adapter, "ENRICHMENT_PROVIDERS", ("SiliconFlow",))
+    stub, inner = litellm_stub
+    adapter._label_calls_with_the_dataset()
+    stub.completion(model="openrouter/deepseek/deepseek-v3.2", messages=[])
+
+    provider = inner.call_args.kwargs["extra_body"]["provider"]
+    assert provider["only"] == ["SiliconFlow"]
     assert provider["allow_fallbacks"] is False
-
-
-def test_the_default_pool_is_the_one_that_enriched_14441_articles():
-    assert adapter.ENRICHMENT_PROVIDERS == ("AtlasCloud", "SiliconFlow", "Baidu")
-    assert "StreamLake" not in adapter.ENRICHMENT_PROVIDERS
 
 
 def test_a_caller_that_chose_its_own_providers_keeps_them(litellm_stub):
@@ -91,17 +117,29 @@ def test_other_extra_body_keys_survive(litellm_stub):
     sent = inner.call_args.kwargs
 
     assert sent["extra_body"]["transforms"] == ["middle-out"]
-    assert "provider" in sent["extra_body"]
+    # And nothing is added: unpinned, the wrapper contributes no `provider`
+    # block, so a caller's extra_body comes through as written.
+    assert "provider" not in sent["extra_body"]
 
 
-def test_the_pin_can_be_lifted_without_a_deploy(monkeypatch):
-    """Empty means no pin -- the behaviour that produced the 46%, kept
-    reachable because a provider outage is a worse failure than a
-    validation one."""
-    monkeypatch.setenv("ENRICHMENT_PROVIDERS", "")
+def test_a_pin_can_be_applied_without_a_deploy(monkeypatch):
+    """The env var reads the same way it always did; only the default
+    changed. A provider found to be genuinely wrong -- not merely counting
+    in percent -- can be excluded without shipping code."""
+    monkeypatch.setenv("ENRICHMENT_PROVIDERS", "SiliconFlow, Baidu")
     providers = tuple(
         name.strip()
-        for name in os.getenv("ENRICHMENT_PROVIDERS", "AtlasCloud").split(",")
+        for name in os.getenv("ENRICHMENT_PROVIDERS", "").split(",")
+        if name.strip()
+    )
+    assert providers == ("SiliconFlow", "Baidu")
+
+
+def test_no_setting_means_no_pin(monkeypatch):
+    monkeypatch.delenv("ENRICHMENT_PROVIDERS", raising=False)
+    providers = tuple(
+        name.strip()
+        for name in os.getenv("ENRICHMENT_PROVIDERS", "").split(",")
         if name.strip()
     )
     assert providers == ()
