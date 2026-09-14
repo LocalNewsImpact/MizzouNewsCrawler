@@ -839,6 +839,11 @@ class URLVerificationService:
             self.logger.debug("No margin for %s: %s", url, exc)
             return None
 
+    #: What `candidate_links.status` says when NOTHING has judged the
+    #: link. A link sits here between discovery and verification, and the
+    #: 563 March links reset for re-extraction on 2026-09-13 sit here too.
+    UNJUDGED_STATUSES = frozenset({"discovered"})
+
     def backfill_decisions(
         self,
         limit: int | None = None,
@@ -847,6 +852,7 @@ class URLVerificationService:
         since: str | None = None,
         until: str | None = None,
         dry_run: bool = False,
+        include_unjudged: bool = False,
     ) -> dict:
         """Write a verification row for links that were decided before
         anything recorded the decision.
@@ -869,6 +875,17 @@ class URLVerificationService:
         Every row written here says `backfill` in its `decided_by`, so
         nothing downstream can mistake it for what the pipeline decided
         at the time.
+
+        `include_unjudged` IS A DIFFERENT THING AND IS NAMED LIKE ONE.
+        Everything above rescores a decision that was made and not
+        recorded. A link at `discovered` has no decision to rescore: it
+        was found, and nothing has judged it since. Scoring one produces
+        a first opinion, not a backfill, so those rows carry
+        `decided_by: "prescore"` and `verdict_kind: "never_judged"`, and
+        are counted apart from agreement -- there is nothing for them to
+        agree with. Without the flag they are not selected at all, which
+        is why a March window returned `considered: 0` on 2026-09-14
+        while 500 such links sat in the corpus.
         """
         from src.models.verification import URLVerification
 
@@ -888,6 +905,10 @@ class URLVerificationService:
             # question. Never an error on its own, and never counted as
             # one -- it is a decision a reviewer confirms or overturns.
             "topic_held": 0,
+            # Scored, not rescored: nothing had judged these, so they
+            # cannot agree or disagree with anything and are kept out of
+            # every rate on this run.
+            "never_judged": 0,
         }
 
         # Both kinds of error, and the rule that separates them.
@@ -957,9 +978,13 @@ class URLVerificationService:
                  OR cl.status IN (
                         'not_article', 'wire', 'obituary', 'opinion', 'weather'
                     )
+                 OR (:unjudged AND cl.status IN ('discovered'))
               )
         """
-        params: dict = {}
+        # A bind parameter rather than string-building the clause: the
+        # statement is then one plan the database can cache, and the two
+        # modes cannot drift into two different queries.
+        params: dict = {"unjudged": bool(include_unjudged)}
         # When the URL is from, for a run that has to be scoped to data
         # somebody has cleaned. The two error types date differently and
         # there is one column for neither: an accepted link has an
@@ -1019,6 +1044,21 @@ class URLVerificationService:
             # So the row records which question the pipeline's decision
             # answered, and only an article-ness decision is comparable
             # with an article-ness rescore.
+            # NOTHING JUDGED THIS, so none of the reasoning below
+            # applies to it. `accepted` would be False here -- the link
+            # was not fetched and its status is not `article` -- and the
+            # row would go out labelled `rejected_as_not_a_story`, which
+            # is a verdict nobody reached. It is a first score, and it
+            # says so.
+            if row.status in self.UNJUDGED_STATUSES and not row.was_fetched:
+                counts["never_judged"] += 1
+                if not dry_run:
+                    pending.append(self._first_score(row, result, sniffed, job_id))
+                    if len(pending) >= batch_size:
+                        counts["written"] += self._write_backfilled(pending)
+                        pending = []
+                continue
+
             accepted = bool(row.was_fetched) or row.status == "article"
             if accepted:
                 verdict_kind = "accepted"
@@ -1146,6 +1186,49 @@ class URLVerificationService:
         if pending:
             counts["written"] += self._write_backfilled(pending)
         return counts
+
+    def _first_score(self, row, result: dict, sniffed, job_id) -> "URLVerification":
+        """A verification row for a link nothing has judged.
+
+        Shaped like the rescored rows so one queue can read both, and
+        labelled so nothing can read it as a decision that was made:
+
+          decided_by    `prescore`, not `backfill`. A backfill records
+                        that a decision's mechanism was not captured; a
+                        prescore records that there was no decision.
+          verdict_kind  `never_judged`, so a reviewer is asked "is this
+                        a story" rather than "was the pipeline right".
+          new_status    the link's status verbatim, which is
+                        `discovered` -- the row does not invent one.
+
+        `agrees_with_recorded` is absent rather than null-by-accident:
+        there is no recorded verdict for it to agree with, and a false
+        here would be counted as a disagreement by anything that reads
+        the key without checking `verdict_kind` first.
+        """
+        from src.models.verification import URLVerification
+
+        return URLVerification(
+            candidate_link_id=row.id,
+            verification_job_id=job_id,
+            url=row.url,
+            storysniffer_result=sniffed,
+            verification_confidence=self.score_margin(row.url),
+            dataset_id=row.dataset_id,
+            previous_status=None,
+            new_status=row.status,
+            verification_time_ms=result.get("verification_time_ms"),
+            verification_error=result.get("error"),
+            meta={
+                "decided_by": "prescore",
+                "verdict_kind": "never_judged",
+                # Which mechanism produced THIS score, read the same way
+                # as on a rescore: a rule hit here is a rule's opinion,
+                # not the model's, and the queue tells them apart on it.
+                "rescored_by": self._decided_by(result),
+                "article_status": None,
+            },
+        )
 
     def _write_backfilled(self, rows: list) -> int:
         """Commit one batch, and say so when it fails.
