@@ -351,6 +351,23 @@ def get_cached_entity_extractor():
     return _ENTITY_EXTRACTOR
 
 
+def _call_recorder():
+    """The external-call telemetry writer, or None if it cannot be made.
+
+    Telemetry must never be the reason wire detection does not start, so
+    a failure here disables the recording and not the work -- logged,
+    because no rows and no complaint reads exactly like making no calls.
+    """
+    try:
+        from src.models.database import DatabaseManager
+        from src.telemetry.external_calls import ExternalCallRecorder
+
+        return ExternalCallRecorder(DatabaseManager().engine)
+    except Exception:
+        logger.exception("Could not build the external-call recorder")
+        return None
+
+
 def get_mediacloud_detector() -> MediaCloudDetector | None:
     global _MEDIACLOUD_DETECTOR
     if not ENABLE_WIRE_DETECTION:
@@ -361,6 +378,11 @@ def get_mediacloud_detector() -> MediaCloudDetector | None:
                 _MEDIACLOUD_TOKEN,
                 rate_per_minute=MEDIACLOUD_RATE_PER_MINUTE,
                 logger=logger,
+                # A row per call. Without this the only evidence of a
+                # MediaCloud request is the article column it overwrites,
+                # which cannot count retries and cannot tell a rate limit
+                # from an outage.
+                call_recorder=_call_recorder(),
             )
         except Exception:
             logger.exception("Failed to initialise MediaCloud detector; disabling wire detection")
