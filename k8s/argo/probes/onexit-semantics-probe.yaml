@@ -1,0 +1,60 @@
+# DOES AN EXIT HANDLER ACTUALLY RUN? MEASURED, NOT ASSUMED.
+#
+# housekeeping-cronworkflow.yaml applies a reviewer's geography from
+# `workflowSpec.onExit`, and that choice rests entirely on Argo's exit-handler
+# semantics: that the handler runs when the run's steps FAIL, and when they are
+# SKIPPED. Every test in the suite parses the YAML and asserts shape, which
+# tests what we wrote rather than what Argo does -- and a six-step list was
+# green while the step could never run.
+#
+# This probe tests the mechanism. It touches no data, spends no model budget
+# and needs no database: two busybox pods.
+#
+#   argo submit -n production k8s/argo/probes/onexit-semantics-probe.yaml --wait
+#   kubectl logs -n production -l workflows.argoproj.io/workflow=<name> -c main \
+#     | grep THE_EXIT_HANDLER_RAN
+#
+# Measured 2026-09-13 against the production cluster, Argo v3.7.3:
+#
+#   entrypoint step FAILS      workflow Failed      handler RAN
+#   entrypoint step SKIPPED    workflow Succeeded   handler RAN
+#   argo stop                  workflow Failed      handler RAN
+#   argo terminate             workflow Failed      handler DID NOT RUN
+#
+# The last row is why the cronworkflow says to prefer `argo stop` over
+# `argo terminate` when a run must be cut short and the night's contributions
+# should still land. All four housekeeping runs on 2026-09-13 used terminate.
+#
+# To re-measure the skipped case, add `when: "0 != 0"` to the step below; for
+# the stop/terminate cases, change the command to `sleep 120` and cut the run.
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: onexit-probe-
+  labels:
+    purpose: mechanism-probe
+spec:
+  entrypoint: wrapper
+  serviceAccountName: argo-workflow
+  onExit: handler
+  ttlStrategy:
+    secondsAfterCompletion: 600
+  templates:
+  - name: wrapper
+    steps:
+    - - name: fails-like-enrich
+        template: boom
+  - name: boom
+    container:
+      image: busybox:1.36
+      command: ["sh", "-c", "echo pretending to be enrich; exit 1"]
+  # Shaped like the real handler: onExit names a template in this spec, so the
+  # real one wraps a templateRef rather than being one.
+  - name: handler
+    steps:
+    - - name: apply-manual
+        template: echo-handler
+  - name: echo-handler
+    container:
+      image: busybox:1.36
+      command: ["sh", "-c", "echo THE_EXIT_HANDLER_RAN"]

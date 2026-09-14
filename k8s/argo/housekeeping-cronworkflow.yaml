@@ -67,10 +67,19 @@ spec:
     # WorkflowTemplate's spec-level fields are not inherited through one.
     # An `onExit` over there lints clean and never fires.
     #
-    # One real gap: a run stopped with `Terminate` skips exit handlers;
-    # `Stop` runs them. The four manual interventions on 2026-09-13 used
-    # Terminate, so prefer `argo stop` over `argo terminate` if a run has
-    # to be cut short and the night's contributions should still land.
+    # MEASURED, not assumed -- k8s/argo/probes/onexit-semantics-probe.yaml
+    # submits two busybox pods and reports which cases run the handler.
+    # Against this cluster on 2026-09-13, Argo v3.7.3:
+    #
+    #   entrypoint step FAILS      workflow Failed      handler RAN
+    #   entrypoint step SKIPPED    workflow Succeeded   handler RAN
+    #   argo stop                  workflow Failed      handler RAN
+    #   argo terminate             workflow Failed      handler DID NOT RUN
+    #
+    # The first two rows are the cases this exists for. The last is a real
+    # gap: prefer `argo stop` over `argo terminate` when a run has to be cut
+    # short and the night's contributions should still land. All four manual
+    # interventions on 2026-09-13 used terminate.
     onExit: apply-manual-geography
     serviceAccountName: argo-workflow
     workflowMetadata:

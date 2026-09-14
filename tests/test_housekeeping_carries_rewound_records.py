@@ -280,6 +280,13 @@ def test_argo_itself_accepts_these_manifests():
 
     Skipped, loudly, when the binary is absent: a skip is not a pass, and
     CI does not install argo today.
+
+    WHAT THIS FILE STILL DOES NOT PROVE: that Argo runs the exit handler.
+    Shape and schema are all a parsed manifest can tell you; whether a
+    handler fires on a failed or skipped run is runtime behaviour, and no
+    unit test here reaches it. It was measured instead --
+    k8s/argo/probes/onexit-semantics-probe.yaml, two busybox pods, results
+    recorded in the cronworkflow beside the `onExit` it justifies.
     """
     argo = shutil.which("argo")
     if argo is None:
