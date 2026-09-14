@@ -122,6 +122,21 @@ enrichment and must not touch what enrichment wrote. **It must run
 before 07:00 UTC** for a contribution to appear in that day's BigQuery
 sync.
 
+It runs as the last step of the housekeeping workflow
+(`k8s/argo/housekeeping-workflow.yaml`), whose cron is 03:00 UTC. Saying
+it must run daily was not enough: for two days it was wired into nothing,
+and 56 contributions across 64 articles sat in `article_places_manual`
+reaching no consumer, while the review queue correctly hid the rows as
+answered — decided, recorded, and invisible everywhere it mattered.
+
+That step is deliberately NOT gated on `anything-owed`, unlike every
+other. A geography decision writes no `pipeline_rework` row: the
+reconciler reads the discovery and extraction queues and not this one. So
+the count is blind to this work, and a night with no rework would carry no
+contributions either. It is also the only step that can be ungated
+safely — no publisher requests, no model calls, and an input table only a
+person writes to.
+
 ## Used identically, marked plainly
 
 Every consumer sees a human contribution in exactly the same shape as an

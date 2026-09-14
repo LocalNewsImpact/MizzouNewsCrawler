@@ -129,6 +129,20 @@ spec:
           - name: ceiling
             value: "{{inputs.parameters.enrich-ceiling}}"
 
+    # 5. Geography a person put in, into `article_geoids` -- and so into
+    #    BigQuery, whose "Sync Article Geoids" reads that table unfiltered
+    #    at 07:00 UTC.
+    #
+    #    NOT gated on `anything-owed`. A geography decision writes no
+    #    pipeline_rework row -- the reconciler reads the discovery and
+    #    extraction queues, not this one -- so the count this workflow
+    #    tests is blind to it, and gating here would mean a night with no
+    #    rework carried no contributions either. That is how 56 of them
+    #    sat unapplied: the command existed, was documented as needing to
+    #    run daily before 07:00 UTC, and was wired into nothing.
+    - - name: apply-manual-geography
+        template: apply-manual-step
+
   # --- the stages this workflow defines for itself ---------------------
   #
   # Not reused from `news-pipeline-template`: its extraction step takes a
@@ -336,6 +350,71 @@ spec:
               # k8s/enrichment-cronjob.yaml has always used this name; this
               # file was written from memory instead of from that one.
               key: OPENROUTER_API_KEY
+        - name: DATABASE_ENGINE
+          value: "postgresql+pg8000"
+        - name: DATABASE_HOST
+          value: "127.0.0.1"
+        - name: DATABASE_PORT
+          value: "5432"
+        - name: DATABASE_USER
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: username
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: password
+        - name: DATABASE_NAME
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: database
+        - name: USE_CLOUD_SQL_CONNECTOR
+          value: "true"
+        - name: CLOUD_SQL_INSTANCE
+          value: "mizzou-news-crawler:us-central1:mizzou-db-prod-ssd"
+        - name: LOG_LEVEL
+          value: "INFO"
+      # Enrichment holds one article and calls a model over the network,
+      # which is what the enrichment CronJob asks for and has never
+      # exceeded.
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          cpu: 1000m
+          memory: 1Gi
+
+  # Counts what is owed. Its result is what every later step is gated on,
+  # so a run with nothing to carry ends here in seconds rather than
+  # starting three pods to find out.
+  - name: apply-manual-step
+    metadata:
+      labels:
+        stage: geography
+        housekeeping: "true"
+    # Retried freely, unlike the enrich step above: no model calls, and
+    # the insert is `ON CONFLICT DO NOTHING`, so running it twice writes
+    # the same rows once. Additive -- it must not touch what enrichment
+    # wrote, and does not.
+    container:
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/enrichment:${ENRICHMENT_TAG}
+      imagePullPolicy: IfNotPresent
+      command:
+        - python
+        - -m
+        - src.cli.cli_modular
+        - enrich
+        # `backfill --rework`, never `run`: `run` selects every article at
+        # `labeled`; `backfill` takes the named set from pipeline_rework.
+        - apply-manual
+      env:
+        # No spend ceiling and no OpenRouter key: this step makes no
+        # model calls. It reads `article_places_manual` and writes
+        # `article_geoids`, which is the whole of it.
         - name: DATABASE_ENGINE
           value: "postgresql+pg8000"
         - name: DATABASE_HOST
