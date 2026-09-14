@@ -20,12 +20,31 @@ metadata:
 spec:
   schedule: "0 3 * * *"
   timezone: "UTC"
-  # SUSPENDED until the end-to-end test in docs/HOUSEKEEPING_PLAN.md
-  # (step 8) has passed with datadesk writing pipeline_rework rows.
-  # Declared here, not patched on the cluster: a patch is undone by the
-  # next apply, and the first run of this workflow swept 4,802 links it
-  # was never asked for. Resuming is a change to this file.
-  suspend: true
+  # RUNNING. This job processes whatever work a review-queue disposition
+  # presents, every night, and nothing else.
+  #
+  # It is not coupled to the dataset crons. Those are suspended on purpose
+  # because they go looking for URLs; this one does no discovery and no
+  # verification -- it reads `pipeline_rework`, carries only the records a
+  # decision rewound, and stops. Suspending it alongside them conflated two
+  # unrelated decisions, and the cost was that a disposition made in a
+  # queue reached nothing.
+  #
+  # It was held suspended until datadesk was writing `pipeline_rework`
+  # rows, which it is: 257 rows, 217 of them closed with recorded outcomes
+  # across extract, classify and enrich as of 2026-09-13.
+  #
+  # The sweep that justified the suspension -- a run took 4,802 links when
+  # the dispositions accounted for 45 -- is fixed at the source: every
+  # stage takes `--rework` and reads that table, and `anything-owed` stops
+  # an empty night before a pod starts. Both are held in place by tests
+  # (test_no_stage_runs_a_bare_sweeping_command,
+  # test_a_run_with_nothing_owed_stops_before_starting_a_stage).
+  #
+  # Declared here, not patched on the cluster: a patch is invisible in the
+  # repository and undone by the next apply. Pausing is a change to this
+  # file.
+  suspend: false
   concurrencyPolicy: "Forbid"
   successfulJobsHistoryLimit: 5
   failedJobsHistoryLimit: 5

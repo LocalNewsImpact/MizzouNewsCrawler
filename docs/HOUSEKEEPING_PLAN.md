@@ -14,7 +14,7 @@ That is the whole of it, and it was stated three times before being met.
 | piece | state |
 |---|---|
 | reconciler (`datadesk`, `reconcile_queues`) | **works** — sets statuses from dispositions; ran once, 545 changes, 161 articles retracted; scheduled 02:30 UTC |
-| housekeeping workflow (`k8s/argo/housekeeping-workflow.yaml`) | **built wrong** — stages select by status and take the whole backlog; suspended |
+| housekeeping workflow (`k8s/argo/housekeeping-workflow.yaml`) | **fixed and running** — every stage takes `--rework` and reads `pipeline_rework`; `anything-owed` stops an empty night; daily at 03:00 UTC |
 | geoids BigQuery sync | fixed — filters on status like the other three |
 | `extraction_method` quoting | fixed — the Selenium escalation can see 1,126 sources instead of 32 |
 
@@ -152,11 +152,25 @@ never called by the batch: the function was written and unit-tested on its
 own, so a fetched link would have stayed "owed" forever and the guard
 would have fired on nothing every night after the first.
 
-The CronWorkflow is `suspend: true` in its own manifest, not patched on
-the cluster -- a patch is invisible here and undone by the next apply.
-Resuming it is a change to `k8s/argo/housekeeping-cronworkflow.yaml`,
-reviewed like anything else, and a test asserts the line is there until
-then.
+The CronWorkflow now runs: `suspend: false` at `0 3 * * *` UTC, 22:00 CDT.
+It processes whatever work a review-queue disposition presents, nightly.
+
+It is not coupled to the dataset crons, which stay suspended because they
+go looking for URLs. This job does no discovery and no verification -- it
+reads `pipeline_rework`, carries only the records a decision rewound, and
+stops. Suspending it alongside them conflated two unrelated decisions, and
+for as long as that held, a disposition made in a queue reached nothing.
+
+The condition it waited on is met: datadesk is writing `pipeline_rework`
+rows -- 257 of them, 217 closed with recorded outcomes across all three
+stages as of 2026-09-13. The sweep that justified the suspension is fixed
+at the source rather than held off by a schedule: every stage takes
+`--rework`, `anything-owed` stops an empty night before a pod starts, and
+tests hold both.
+
+The state stays declared in `k8s/argo/housekeeping-cronworkflow.yaml`, not
+patched on the cluster -- a patch is invisible here and undone by the next
+apply. Pausing it is a change to that file.
 
 ## What this does not change
 

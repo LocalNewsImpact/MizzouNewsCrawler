@@ -126,16 +126,31 @@ def test_it_finishes_before_the_bigquery_sync():
     assert hour + deadline / 3600 <= 7, "a run could still be going at the 07:00 sync"
 
 
-def test_the_schedule_is_declared_suspended_until_the_end_to_end_run_passes():
-    """The suspend lives in the manifest, not in a cluster patch. A patch
-    is invisible in the repository and undone by whichever apply next
-    carries the field; the first run of this workflow swept 4,802 links.
-    Resuming is a reviewed change to the file. (Delete this test when the
-    plan's step 8 has passed and the line is removed.)"""
+def test_the_schedule_runs_and_says_so_in_the_manifest():
+    """DAILY, and declared here rather than patched on the cluster.
+
+    This job processes what a review-queue disposition presents and nothing
+    else. It is not coupled to the dataset crons -- those are suspended
+    because they go looking for URLs, and this one does no discovery and no
+    verification -- so suspending it alongside them conflated two unrelated
+    decisions, and a disposition made in a queue reached nothing.
+
+    The state belongs in the manifest either way: a cluster patch is
+    invisible in the repository and undone by the next apply, and an apply
+    ran the same night this was resumed.
+
+    It was held suspended until the sweep that caused it was fixed -- a run
+    took 4,802 links when the dispositions accounted for 45. That is fixed
+    at the source, and `test_no_stage_runs_a_bare_sweeping_command` and
+    `test_a_run_with_nothing_owed_stops_before_starting_a_stage` are what
+    keep it fixed. This test does not re-litigate that; it holds the
+    schedule declared and running."""
     cron = yaml.safe_load(
         (ROOT / "k8s/argo/housekeeping-cronworkflow.yaml").read_text()
     )
-    assert cron["spec"]["suspend"] is True
+    assert "suspend" in cron["spec"], "declare the state; do not patch the cluster"
+    assert cron["spec"]["suspend"] is False
+    assert cron["spec"]["schedule"] == "0 3 * * *"
 
 
 def test_no_stage_runs_a_bare_sweeping_command(stages):
