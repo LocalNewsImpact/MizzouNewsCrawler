@@ -62,6 +62,19 @@ STEP_ATTEMPTS = 2
 #: rate on a provider serving most of the traffic compounds into a
 #: per-article one. That is the 46%.
 #:
+#: WHAT THAT READING GOT WRONG, corrected 2026-09-14. "A confidence
+#: outside 0.0-1.0" was mostly not a defective answer: it was a
+#: PERCENTAGE. 65 is 0.65. Providers do not agree on the scale -- asked
+#: for the same thing, AtlasCloud has answered 65 and SiliconFlow 0.7 --
+#: and backfield's validator treats a scale difference as a bad value.
+#: `_on_a_unit_scale` now normalises the response before backfield parses
+#: it, which is the actual fix; this pin was a way of choosing providers
+#: that happened to share our scale.
+#:
+#: The pin is therefore narrower than it looks, and should be re-measured
+#: rather than trusted: a provider excluded for "bad confidences" may only
+#: have been counting in percent.
+#:
 #: Set ENRICHMENT_PROVIDERS to override without a deploy. Empty means no
 #: pin, which is the behaviour that produced this.
 ENRICHMENT_PROVIDERS = tuple(
@@ -120,6 +133,100 @@ def _register_usage_callback() -> None:
     _CALLBACK_REGISTERED = True
 
 
+#: Keys whose value is a confidence, wherever they appear in a response.
+#: `agate_nodes.article_metadata.parse` reads `confidence`,
+#: `subject_confidence`, `need_confidence` and `score` for the same thing.
+CONFIDENCE_KEYS = ("confidence", "score")
+
+
+def _as_fraction(value):
+    """A confidence on whatever scale the provider used, as a fraction.
+
+    65 IS 0.65, NOT A BAD VALUE.
+
+    `deepseek-v3.2` is one model name in front of fifteen providers, and
+    they do not agree on the scale. Asked for "a number from 0.0 to 1.0",
+    AtlasCloud has returned 65 where SiliconFlow returned 0.7 for the same
+    kind of question. Both are the model answering correctly; one is
+    answering in percent.
+
+    `agate_nodes` validates `0.0 <= confidence <= 1.0` in a pydantic
+    field_validator, so a percentage raises there -- inside the vendored
+    package, before the orchestrator sees the payload. The step fails, and
+    a step failing discards every result the article has collected and
+    re-pays for them: nine consecutive validations per article turn a
+    per-call scale mismatch into a per-article failure. That is the shape
+    of the 46% on 2026-09-07, which was read as one provider being
+    defective rather than as two scales.
+
+    So the response is put on one scale here, at the seam we own, before
+    backfield parses it:
+
+      [0, 1]     already a fraction; untouched.
+      (1, 100]   a percentage; divided by 100.
+      otherwise  left alone -- negative, or above 100, is not a scale
+                 difference and backfield should still refuse it.
+
+    Exactly 1 is the one ambiguous value: 1.0 confident, or 1 percent.
+    It is left as 1.0, because a model that reports a value at all
+    rarely reports one percent, and 1.0 is what the earlier scale
+    already meant.
+    """
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return value
+    if 1.0 < number <= 100.0:
+        return number / 100.0
+    return value
+
+
+def _rescale(node):
+    """Rewrite every confidence in a decoded response, at any depth."""
+    if isinstance(node, dict):
+        return {
+            key: (
+                _as_fraction(child)
+                if (key in CONFIDENCE_KEYS or key.endswith("_confidence"))
+                else _rescale(child)
+            )
+            for key, child in node.items()
+        }
+    if isinstance(node, list):
+        return [_rescale(child) for child in node]
+    return node
+
+
+def _on_a_unit_scale(response):
+    """Put a completion's confidences on a unit scale, in place.
+
+    Best-effort by design: a response that is not JSON, or has no
+    confidence in it, is returned untouched rather than raising. This sits
+    in front of every model call the pipeline makes, and must never be the
+    reason one fails.
+    """
+    try:
+        choices = response.choices
+    except AttributeError:
+        return response
+    for choice in choices or ():
+        message = getattr(choice, "message", None)
+        content = getattr(message, "content", None)
+        if not isinstance(content, str) or "confidence" not in content.lower():
+            continue
+        try:
+            decoded = json.loads(content)
+        except (ValueError, TypeError):
+            continue
+        rescaled = _rescale(decoded)
+        if rescaled != decoded:
+            try:
+                message.content = json.dumps(rescaled)
+            except (TypeError, AttributeError):
+                continue
+    return response
+
+
 def _label_calls_with_the_dataset() -> None:
     """Send `user` on every completion, once per process.
 
@@ -169,7 +276,7 @@ def _label_calls_with_the_dataset() -> None:
                 {"only": list(ENRICHMENT_PROVIDERS), "allow_fallbacks": False},
             )
             kwargs["extra_body"] = extra
-        return inner(*args, **kwargs)
+        return _on_a_unit_scale(inner(*args, **kwargs))
 
     litellm.completion = labelled
     _WRAPPED = True
