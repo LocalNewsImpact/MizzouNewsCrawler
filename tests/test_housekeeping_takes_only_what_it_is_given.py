@@ -26,6 +26,9 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW = ROOT / "k8s/argo/housekeeping-workflow.yaml"
+
+#: The one step `anything-owed` cannot speak for. See the gating test.
+UNGATED_BY_DESIGN = "apply-manual-geography"
 EXTRACTION = ROOT / "src/cli/commands/extraction.py"
 CLASSIFIER = ROOT / "src/services/classification_service.py"
 
@@ -109,7 +112,18 @@ def test_a_run_with_nothing_owed_stops_before_starting_a_stage(stages):
     # Every later step, the worker-count step included: computing how many
     # workers a night needs is itself work, and an empty night should not
     # start a pod to be told there is nothing to do.
+    #
+    # `apply-manual-geography` is the one exception, and it is one because
+    # the count cannot see its work. A geography decision writes no
+    # `pipeline_rework` row -- the reconciler reads the discovery and
+    # extraction queues, not that one -- so `anything-owed` returns 0 on a
+    # night with contributions waiting, and gating the step on it is how 56
+    # of them sat unapplied. It is also the only step that can be ungated
+    # safely: no publisher requests, no model calls, and its input is a
+    # table only a person writes to.
     for step in entry["steps"][1:]:
+        if step[0]["name"] == UNGATED_BY_DESIGN:
+            continue
         assert "anything-owed" in step[0].get("when", ""), step[0]["name"]
 
 
@@ -137,12 +151,20 @@ def test_the_schedule_is_declared_suspended_until_the_end_to_end_run_passes():
 def test_no_stage_runs_a_bare_sweeping_command(stages):
     """The specific commands that take everything: `extract` with no ids,
     `analyze` with no ids, `enrich run` at all (its targeted form is
-    `enrich backfill --ids-file`)."""
+    `enrich backfill --ids-file`).
+
+    `enrich apply-manual` is not one of them. It sweeps nothing: its input
+    is `article_places_manual`, a table only a reviewer writes to, so the
+    set is already exactly what somebody asked for. There is no `--rework`
+    to give it and no status it selects on."""
     for name, stage in stages.items():
         container = stage.get("container")
         if not container:
             continue
         command = " ".join(container["command"])
+        if "apply-manual" in command:
+            assert " run " not in f" {command} "
+            continue
         if re.search(r"\benrich\b", command):
             assert (
                 "backfill" in command and " run " not in f" {command} "
@@ -341,3 +363,75 @@ def test_the_queue_filters_both_of_its_queries():
     behind a domain nobody was assigned."""
     queue = (ROOT / "src/services/work_queue.py").read_text()
     assert queue.count("REWORK_ONLY") >= 3, "defined once, used in both queries"
+
+
+# --- a contribution reaches the export ---------------------------------------
+#
+# `enrich apply-manual` puts geography a person entered into
+# `article_geoids`, which is what BigQuery's "Sync Article Geoids" reads,
+# unfiltered, at 07:00 UTC. docs/MANUAL_GEOGRAPHY.md says it must run
+# daily before then. It was wired into nothing, so 56 contributions across
+# two days of review sat in `article_places_manual` and reached no
+# consumer.
+
+
+def _workflow():
+    return yaml.safe_load(WORKFLOW.read_text())
+
+
+def _templates():
+    return {t["name"]: t for t in _workflow()["spec"]["templates"]}
+
+
+def test_housekeeping_applies_manual_geography():
+    steps = [s[0]["name"] for s in _templates()["housekeeping"]["steps"]]
+    assert "apply-manual-geography" in steps
+
+
+def test_it_runs_whether_or_not_anything_is_owed():
+    """A geography decision writes no `pipeline_rework` row -- the
+    reconciler reads the discovery and extraction queues and not that one
+    -- so `anything-owed` is blind to it. Gated on that count, a night
+    with no rework would carry no contributions either, which is the
+    failure this step exists to end."""
+    step = next(
+        s[0]
+        for s in _templates()["housekeeping"]["steps"]
+        if s[0]["name"] == "apply-manual-geography"
+    )
+    assert "when" not in step, "gating this on anything-owed reinstates the bug"
+
+
+def test_it_makes_no_model_calls():
+    """No spend ceiling and no OpenRouter key. It reads
+    `article_places_manual` and writes `article_geoids`; a key it does not
+    need is a key that can be wrong, and a missing one restarted the
+    enrich container 278 times."""
+    container = _templates()["apply-manual-step"]["container"]
+    names = {e["name"] for e in container["env"]}
+    assert "OPENROUTER_API_KEY" not in names
+    assert "ENRICHMENT_SPEND_CEILING_USD" not in names
+
+
+def test_it_asks_for_no_parameters_it_does_not_declare():
+    """`enrich-step` once read `{{workflow.parameters.enrich-ceiling}}`,
+    which nothing declared, and spent against whatever an unresolved
+    template string becomes. This template declares no inputs, so it must
+    reference none."""
+    template = _templates()["apply-manual-step"]
+    assert template.get("inputs") is None
+    assert "inputs.parameters" not in yaml.dump(template)
+
+
+def test_it_runs_the_command_the_docs_name():
+    command = _templates()["apply-manual-step"]["container"]["command"]
+    assert command[-2:] == ["enrich", "apply-manual"]
+
+
+def test_the_enrich_step_is_untouched():
+    """The new step is modelled on `enrich-step` and must not have changed
+    it: enrichment still takes the rework set and still spends against a
+    declared ceiling."""
+    container = _templates()["enrich-step"]["container"]
+    assert container["command"][-2:] == ["backfill", "--rework"]
+    assert "ENRICHMENT_SPEND_CEILING_USD" in {e["name"] for e in container["env"]}
