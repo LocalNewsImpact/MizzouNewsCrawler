@@ -56,6 +56,15 @@ def add_verification_backfill_parser(subparsers) -> argparse.ArgumentParser:
         help="Rows per commit (default: 500)",
     )
     parser.add_argument(
+        "--unjudged",
+        action="store_true",
+        help=(
+            "Also score links nothing has judged (status `discovered`). "
+            "These are not backfilled decisions -- there was no decision "
+            "-- so they are written as a first score and counted apart."
+        ),
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Score and report agreement, write nothing",
@@ -89,12 +98,22 @@ def handle_verification_backfill_command(args) -> int:
         since=args.since,
         until=args.until,
         dry_run=args.dry_run,
+        include_unjudged=args.unjudged,
     )
 
     considered = counts["considered"]
     print(f"considered: {considered}")
     print(f"written:    {counts['written']}{' (dry run)' if args.dry_run else ''}")
     print(f"errors:     {counts['errors']}")
+
+    # Reported before the rates, and never inside them. These rows had
+    # no verdict to agree with, so folding them into an agreement rate
+    # would move a percentage that is about something else.
+    if counts.get("never_judged"):
+        print(
+            f"never judged: {counts['never_judged']}  "
+            "scored for the first time, no decision to compare"
+        )
 
     judged = counts["agree"] + counts["disagree"]
     if judged:

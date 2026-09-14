@@ -325,8 +325,27 @@ def test_sampled_out_is_never_in_the_queue():
     sql = _select_sql()
     assert "sampled_out" not in sql
     # Nor the statuses that are not verification outcomes at all.
-    for other in ("'discovered'", "'404'", "'skipped'"):
+    #
+    # `discovered` USED TO BE IN THIS LIST and has been taken out of it
+    # deliberately, not weakened around. It is still not a verification
+    # outcome -- that is exactly what it means -- but a link stuck at it
+    # is a link nothing has judged, and scoring one is now something the
+    # command can be asked to do. The invariant that survives is that it
+    # is never admitted unasked, which the test below holds it to.
+    for other in ("'404'", "'skipped'"):
         assert other not in sql
+
+
+def test_an_unjudged_link_is_only_admitted_behind_the_flag():
+    """`discovered` is not a verdict, so it cannot be rescored -- and a
+    run that swept it in by default would report an agreement rate over
+    rows nothing had judged. It is gated, and gated by a bind parameter
+    rather than a code path: the statement stays one plan the database
+    can cache, and the two modes cannot drift into two queries."""
+    sql = _select_sql()
+    assert "'discovered'" in sql
+    clause = sql[sql.index("'discovered'") - 200 : sql.index("'discovered'") + 40]
+    assert ":unjudged" in clause, "the status is admitted without the flag"
 
 
 # --- the two errors are counted apart -----------------------------------------
