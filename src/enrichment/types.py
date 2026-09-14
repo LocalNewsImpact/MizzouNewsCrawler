@@ -18,6 +18,11 @@ class ArticleInput:
     dataset_slug: str
     publication_city: str | None
     publication_state: str | None = None
+    #: Enrichment-stage claims a person has already answered on this
+    #: article. The gate reads them before refusing: a refusal a reviewer
+    #: overruled is not made again, or the record would be held, released,
+    #: and held again by the next run -- a loop with a person in it.
+    answered: frozenset = frozenset()
 
 
 @dataclass(frozen=True)

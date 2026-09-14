@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from src.enrichment import hold
 from src.enrichment.fips import (
     county_geoid,
     county_of_place,
@@ -71,7 +72,7 @@ def withheld_kinds() -> list[str]:
 
 _CANDIDATE_SQL = text(
     """
-    SELECT a.id, a.title, a.content, d.slug AS dataset_slug, s.city AS publication_city,
+    SELECT a.id, a.title, a.content, a.metadata, d.slug AS dataset_slug, s.city AS publication_city,
            coalesce(nullif(s.metadata::json->>'state',''), d.metadata::json->>'default_state') AS publication_state
     FROM articles a
     JOIN candidate_links cl ON cl.id = a.candidate_link_id
@@ -116,7 +117,7 @@ _CANDIDATE_SQL = text(
 # reprocess reaches back past it.
 _REPROCESS_SQL = text(
     """
-    SELECT a.id, a.title, a.content, d.slug AS dataset_slug, s.city AS publication_city,
+    SELECT a.id, a.title, a.content, a.metadata, d.slug AS dataset_slug, s.city AS publication_city,
            coalesce(nullif(s.metadata::json->>'state',''), d.metadata::json->>'default_state') AS publication_state
     FROM articles a
     JOIN candidate_links cl ON cl.id = a.candidate_link_id
@@ -169,9 +170,23 @@ def _rows_to_articles(rows) -> list[ArticleInput]:
             dataset_slug=r.dataset_slug,
             publication_city=r.publication_city,
             publication_state=getattr(r, "publication_state", None),
+            answered=hold.answered_claims(_as_dict(getattr(r, "metadata", None))),
         )
         for r in rows
     ]
+
+
+def _as_dict(value) -> dict:
+    """`articles.metadata` is json; a driver may hand it back as text."""
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str) and value.strip():
+        try:
+            parsed = json.loads(value)
+        except ValueError:
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+    return {}
 
 
 def select_candidates(
@@ -224,7 +239,7 @@ def select_by_ids(session: Session, ids: list[str], max_attempts: int) -> ListRe
     rejected: dict[str, str] = {}
     found = session.execute(
         text("""
-            SELECT a.id, a.title, a.content, a.status, a.wire_check_status,
+            SELECT a.id, a.title, a.content, a.metadata, a.status, a.wire_check_status,
                    a.enrichment_attempts,
                    d.slug AS dataset_slug, s.city AS publication_city,
            coalesce(nullif(s.metadata::json->>'state',''), d.metadata::json->>'default_state') AS publication_state,
@@ -270,6 +285,14 @@ def select_by_ids(session: Session, ids: list[str], max_attempts: int) -> ListRe
                     row.dataset_slug,
                     row.publication_city,
                     getattr(row, "publication_state", None),
+                    # This is the `--ids-file` path, which is the path
+                    # housekeeping runs and the ONLY path a released record
+                    # comes back through. Omit this and the gate never sees
+                    # the answer: the record is held, released by a
+                    # reviewer, and held again by the next run.
+                    answered=hold.answered_claims(
+                        _as_dict(getattr(row, "metadata", None))
+                    ),
                 )
             )
     return ListReport(candidates=candidates, rejected=rejected)
@@ -965,6 +988,40 @@ def persist_outcome(
         ),
         {"g": geoids_json, "r": geo_skip_reason, "id": article.id},
     )
+
+    # AN EXCLUSION DECIDED HERE IS REVIEWED, NOT WRITTEN.
+    #
+    # Enrichment is the last step before export and the only one where a
+    # model reads the body, so it finds what earlier stages missed -- and
+    # is wrong often enough that acting unseen costs real stories. Any
+    # outcome that would stop this record being exportable is held for a
+    # person instead: `in_review`, with the claim, the stage and the status
+    # to restore. The enrichment row above is still written, so the finding
+    # is on record whichever way the reviewer rules.
+    #
+    # A paywall stub is not held: `enrichment_skipped` keeps the record
+    # exportable with its CIN label, and nothing about it needs a person.
+    if hold.should_hold(outcome.status):
+        current = session.execute(
+            text("SELECT metadata FROM articles WHERE id = :id"), {"id": article.id}
+        ).scalar_one_or_none()
+        status, metadata = hold.hold(
+            _as_dict(current), outcome.skip_reason or outcome.status, outcome.status
+        )
+        session.execute(
+            text(
+                "UPDATE articles SET status = :status, metadata = CAST(:meta AS json), "
+                "enriched_at = :now WHERE id = :id"
+            ),
+            {
+                "status": status,
+                "meta": json.dumps(metadata),
+                "now": now,
+                "id": article.id,
+            },
+        )
+        session.commit()
+        return
 
     session.execute(
         text("UPDATE articles SET status = :status, enriched_at = :now WHERE id = :id"),

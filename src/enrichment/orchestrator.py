@@ -148,7 +148,15 @@ def enrich_article(
     #   2. wall         the body SAYS the content is withheld. Kept,
     #                   CIN-coded, never enriched.
     if profile.content_gate:
-        if boilerplate_score(article.content) >= HEURISTIC_REJECT:
+        # A claim a person has answered is not raised again. The exclusion
+        # was held for review, a reviewer said it is a story, and the record
+        # came back to `labeled`; refusing it on the same finding would undo
+        # that decision by a stage that never knew it was made.
+        answered = article.answered
+        if (
+            boilerplate_score(article.content) >= HEURISTIC_REJECT
+            and BOILERPLATE_SKIP_REASON not in answered
+        ):
             return outcome("not_article", BOILERPLATE_SKIP_REASON)
         # The same finding the paid gate would return, reached for free. A
         # decisive wall settles it on its own; a weaker prompt settles it
@@ -161,7 +169,10 @@ def enrich_article(
         if not gate.ok or gate.payload is None:
             return transient_failure()
         verdict = gate.payload["verdict"]
-        if verdict in _GATE_VERDICT_STATUS:
+        if (
+            verdict in _GATE_VERDICT_STATUS
+            and _GATE_VERDICT_SKIP_REASON.get(verdict) not in answered
+        ):
             return outcome(
                 _GATE_VERDICT_STATUS[verdict],
                 _GATE_VERDICT_SKIP_REASON.get(verdict),
@@ -179,7 +190,10 @@ def enrich_article(
             return transient_failure()
         scope_category = scope.payload["article_metadata"]["category"]
         steps.append("scope")
-        if scope_category in profile.export_exclude_scopes:
+        if (
+            scope_category in profile.export_exclude_scopes
+            and f"scope_excluded_{scope_category}" not in article.answered
+        ):
             # Dataset-level exclusion: terminal and skips every remaining step
             # — the saving is the point — but the article still EXPORTS with
             # its scope, CIN label and byline recorded. Scope is filtering
