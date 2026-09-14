@@ -100,12 +100,31 @@ def test_every_working_stage_is_told_which_records(stages, stage):
     )
 
 
+#: Steps that run whatever the night holds, and why each one has to.
+#:
+#: The rule this test protects is that no STAGE runs on an empty night.
+#: A step that is not a stage, and whose work the rework count cannot
+#: see, is a different thing -- and naming them here is what keeps the
+#: exemption a decision rather than a hole: anything not on this list is
+#: still required to be gated.
+UNGATED_BY_DESIGN = {
+    # A wire check stranded at `processing` or `error` owes nothing in
+    # `pipeline_rework` -- no review rewound it, so no row names it.
+    # Behind the gate it would be reclaimed only on nights that happen to
+    # have rework, which is almost none of them, and the four found in
+    # production had been stuck between six and ten months.
+    "reclaim-wire-checks",
+}
+
+
 def test_a_run_with_nothing_owed_stops_before_starting_a_stage(stages):
-    """The first step counts what is owed and every stage is gated on it.
-    An empty night costs a few seconds, not three pods."""
+    """Every stage is gated on what is owed. An empty night costs a few
+    seconds, not three pods."""
     entry = stages["housekeeping"]
     names = [s[0]["name"] for s in entry["steps"]]
-    assert names[0] == "anything-owed"
+    # The guard runs before any stage. Maintenance may precede it; a
+    # stage may not.
+    assert names.index("anything-owed") == len(UNGATED_BY_DESIGN)
     # Every later step, the worker-count step included: computing how many
     # workers a night needs is itself work, and an empty night should not
     # start a pod to be told there is nothing to do.
@@ -113,8 +132,18 @@ def test_a_run_with_nothing_owed_stops_before_starting_a_stage(stages):
     # Applying a reviewer's geography needs to run ungated -- the count
     # cannot see its work -- and it does, as the run's exit handler on the
     # cronworkflow rather than as a step. So this rule needs no exemption.
-    for step in entry["steps"][1:]:
+    for step in entry["steps"][names.index("anything-owed") + 1 :]:
         assert "anything-owed" in step[0].get("when", ""), step[0]["name"]
+
+
+def test_nothing_is_ungated_without_being_named(stages):
+    """The exemption list is the point. A step added ahead of the guard
+    without appearing here is a stage that silently stopped being gated,
+    which is how an empty night starts costing three pods again."""
+    entry = stages["housekeeping"]
+    names = [s[0]["name"] for s in entry["steps"]]
+    before_the_guard = set(names[: names.index("anything-owed")])
+    assert before_the_guard == UNGATED_BY_DESIGN
 
 
 def test_it_finishes_before_the_bigquery_sync():

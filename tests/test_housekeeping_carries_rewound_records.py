@@ -55,8 +55,18 @@ def by_name(template):
 def test_the_stages_run_in_pipeline_order(steps):
     """A guard first, then `article` -> extracted -> labeled -> enriched.
     Classify before extract would label yesterday's work and leave
-    today's, and the run would still report success."""
+    today's, and the run would still report success.
+
+    MAINTENANCE RUNS AHEAD OF THE GUARD, and is listed here rather than
+    excused. `reclaim-wire-checks` puts a wire check that never finished
+    back in the queue; it owes nothing in `pipeline_rework` -- no review
+    rewound it -- so behind the guard it would run only on nights that
+    happen to have rework, which is almost none of them. It touches no
+    stage and no stage depends on it, so it cannot disturb the order
+    below.
+    """
     assert [s["name"] for s in steps] == [
+        "reclaim-wire-checks",
         "anything-owed",
         # How many extraction workers the night needs, computed from the
         # rework backlog. The extract step fans out over them.

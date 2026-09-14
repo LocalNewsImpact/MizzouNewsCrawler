@@ -86,7 +86,19 @@ spec:
     # lints clean and never runs. `apply-manual-step` below is the template
     # the cron's handler references.
     steps:
-    # 0. Is anything owed? A run with nothing to carry stops here.
+    # 0. Put stranded wire checks back in the queue.
+    #
+    # BEFORE THE GATE AND NOT INSIDE IT. `anything-owed` asks whether
+    # `pipeline_rework` owes anything, and a stranded wire check owes
+    # nothing -- no review rewound it, so no rework row names it. Gating
+    # this behind that count would mean the flag is only ever reclaimed
+    # on nights that happen to have rework, which is most nights not at
+    # all. It is one UPDATE and it is the daily maintenance this workflow
+    # exists to do.
+    - - name: reclaim-wire-checks
+        template: reclaim-wire-checks-step
+
+    # 1. Is anything owed? A run with nothing to carry stops here.
     - - name: anything-owed
         template: anything-owed-step
 
@@ -507,6 +519,38 @@ spec:
             )).scalar() or 0
         workers = min(4, max(1, -(-owed // 25)))
         print(json.dumps([{"id": i + 1} for i in range(workers)]))
+      env: *db_env
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+
+  - name: reclaim-wire-checks-step
+    metadata:
+      labels:
+        stage: maintenance
+        housekeeping: "true"
+    script:
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:${PROCESSOR_TAG}
+      imagePullPolicy: IfNotPresent
+      command: [python]
+      source: |
+        # `processing` is set before a MediaCloud lookup and cleared
+        # after it, and nothing sets it back -- so a worker that dies
+        # mid-call strands its article behind a flag describing a run
+        # that ended months ago. Four were found in that state on
+        # 2026-09-14, the oldest stuck ten months.
+        #
+        # `error` is the same failure with a different shape: never
+        # retried, so a transient outage is permanent. All 15 in the
+        # corpus fall in two windows, which is MediaCloud being down.
+        from src.models.database import DatabaseManager
+        from src.services.wire_detection.reclaim import reclaim_stranded
+        moved = reclaim_stranded(DatabaseManager().engine)
+        print(f"reclaimed {moved}")
       env: *db_env
       resources:
         requests:

@@ -328,7 +328,29 @@ def select_by_ids(session: Session, ids: list[str], max_attempts: int) -> ListRe
 # ---- writes -----------------------------------------------------------------
 
 
-def _geoid_for(places_payload: dict, point):
+def _call_recorder(session):
+    """The external-call telemetry writer for this session's database.
+
+    It writes on its OWN connection rather than joining the caller's
+    transaction. An enrichment that rolls back must not also erase the
+    record that it called somebody else's service -- the call happened,
+    and a rolled-back row would make an outage invisible precisely when
+    it caused the rollback.
+    """
+    import logging
+
+    try:
+        from src.telemetry.external_calls import ExternalCallRecorder
+
+        return ExternalCallRecorder(session.get_bind())
+    except Exception:
+        logging.getLogger(__name__).exception(
+            "Could not build the external-call recorder"
+        )
+        return None
+
+
+def _geoid_for(places_payload: dict, point, *, call_recorder=None, subject_id=None):
     """Run the FIPS ladder from the extracted components (§ fips.py)."""
     point_norm = norm(point[0]) if point else None
     state = county = street = street_city = None
@@ -363,6 +385,11 @@ def _geoid_for(places_payload: dict, point):
         street_address=street,
         address_city=street_city,
         census_lookup=True,
+        # The Census geocoder is a third party, and its failures used to
+        # be swallowed by a bare `except` with no log and no counter: an
+        # outage there looked exactly like a run of hard addresses.
+        call_recorder=call_recorder,
+        subject_id=subject_id,
     )
 
 
@@ -666,7 +693,12 @@ def persist_outcome(
                     geoid = hit
             if geoid is None:
                 point = resolve_point(places_payload, article.publication_city)
-                geoid = _geoid_for(places_payload, point)
+                geoid = _geoid_for(
+                    places_payload,
+                    point,
+                    call_recorder=_call_recorder(session),
+                    subject_id=article.id,
+                )
                 # A point-scope story must never take the ladder's state rung —
                 # that rung exists for statewide scope. A state-level result
                 # here means the point city missed the gazetteer (e.g.

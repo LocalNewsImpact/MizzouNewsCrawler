@@ -5,9 +5,10 @@ from __future__ import annotations
 import logging
 import os
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Iterable, Optional, Protocol, cast
+from typing import Any, Callable, Iterable, Iterator, Optional, Protocol, cast
 from urllib.parse import urlparse
 
 
@@ -233,13 +234,22 @@ class RateLimiter:
         self._min_interval = 60.0 / calls_per_minute
         self._last_call: Optional[float] = None
 
-    def wait(self) -> None:
+    def wait(self) -> int:
+        """Hold the caller back, and say for how long in milliseconds.
+
+        It returned None, so how hard the limiter was working could not
+        be observed -- and a limiter that never actually waits is a rate
+        nobody is enforcing. The number is recorded on every call, which
+        makes politeness a measurement rather than a claim.
+        """
         if self._last_call is None:
-            return
+            return 0
         elapsed = time.monotonic() - self._last_call
         sleep_for = self._min_interval - elapsed
         if sleep_for > 0:
             time.sleep(sleep_for)
+            return int(sleep_for * 1000)
+        return 0
 
     def record(self) -> None:
         self._last_call = time.monotonic()
@@ -312,6 +322,16 @@ def summarize_matches(
     return len(matched_story_ids), matched_hosts, matched_story_ids
 
 
+class _NotRecorded:
+    """Accepts everything a `Call` accepts and keeps none of it."""
+
+    def __init__(self) -> None:
+        self.meta: dict[str, Any] = {}
+
+    def failed(self, *args: Any, **kwargs: Any) -> None:
+        return None
+
+
 class MediaCloudDetector:
     """Perform MediaCloud headline matching with rate limiting."""
 
@@ -321,10 +341,15 @@ class MediaCloudDetector:
         *,
         rate_limiter: RateLimiter | None = None,
         logger: logging.Logger | None = None,
+        call_recorder: Any | None = None,
     ) -> None:
         self.search_api = search_api
         self.rate_limiter = rate_limiter or RateLimiter(DEFAULT_RATE_PER_MINUTE)
         self.log = logger or LOG
+        # Optional so a unit test and an offline run need no database.
+        # Absent, nothing is recorded and nothing breaks -- which is why
+        # the wiring is asserted by a test rather than assumed.
+        self.call_recorder = call_recorder
 
     @classmethod
     def from_token(
@@ -333,6 +358,7 @@ class MediaCloudDetector:
         *,
         rate_per_minute: float = DEFAULT_RATE_PER_MINUTE,
         logger: logging.Logger | None = None,
+        call_recorder: Any | None = None,
     ) -> MediaCloudDetector:
         if not token:
             raise ValueError("MediaCloud API token is required")
@@ -352,7 +378,35 @@ class MediaCloudDetector:
             search_api=search_api,
             rate_limiter=RateLimiter(rate_per_minute),
             logger=logger,
+            # Passed through rather than defaulted here: production is
+            # the only caller that has an engine, and a constructor that
+            # quietly dropped this would leave the recording wired up
+            # everywhere except where it runs.
+            call_recorder=call_recorder,
         )
+
+    @contextmanager
+    def _recorded_call(
+        self, article: MediaCloudArticle, waited_ms: int
+    ) -> Iterator[Any]:
+        """The call's telemetry row, or a stand-in that keeps the shape.
+
+        `detect` is written once, against an object with `failed()` and
+        `meta`. Without a recorder it gets one that discards -- rather
+        than `detect` growing two code paths, one of which would then be
+        the only one the offline tests exercise.
+        """
+        if self.call_recorder is None:
+            yield _NotRecorded()
+            return
+        with self.call_recorder.call(
+            "mediacloud",
+            "story_list",
+            subject_type="article",
+            subject_id=article.article_id,
+            waited_ms=waited_ms,
+        ) as call:
+            yield call
 
     def detect(self, article: MediaCloudArticle) -> DetectionResult:
         query = build_query(article.title)
@@ -360,25 +414,39 @@ class MediaCloudDetector:
             "Submitting MediaCloud query '%s' for article %s", query, article.article_id
         )
 
-        self.rate_limiter.wait()
+        # What the limiter held back, measured rather than assumed: a
+        # run that never waits is a rate nobody is enforcing.
+        waited_ms = self.rate_limiter.wait()
         stories: list[dict]
-        try:
-            stories = self._story_list(article, query)
-            status = "ok"
-        except APIResponseError as exc:
-            self.log.warning(
-                "MediaCloud API error for article %s: %s", article.article_id, exc
-            )
-            status = f"api_error:{_status_code_of(exc)}"
-            stories = []
-        except Exception as exc:  # noqa: BLE001
-            self.log.exception(
-                "Unexpected MediaCloud failure for article %s", article.article_id
-            )
-            status = f"error:{exc.__class__.__name__}"
-            stories = []
-        finally:
-            self.rate_limiter.record()
+        with self._recorded_call(article, waited_ms) as call:
+            try:
+                stories = self._story_list(article, query)
+                status = "ok"
+            except APIResponseError as exc:
+                self.log.warning(
+                    "MediaCloud API error for article %s: %s", article.article_id, exc
+                )
+                code = _status_code_of(exc)
+                status = f"api_error:{code}"
+                stories = []
+                # The detector answers with a string rather than raising,
+                # so the recorder is told: without this the call is
+                # written `ok` and a 429 disappears.
+                call.failed(
+                    "api_error",
+                    status_code=code if isinstance(code, int) else None,
+                    error_class=type(exc).__name__,
+                )
+            except Exception as exc:  # noqa: BLE001
+                self.log.exception(
+                    "Unexpected MediaCloud failure for article %s", article.article_id
+                )
+                status = f"error:{exc.__class__.__name__}"
+                stories = []
+                call.failed("error", error_class=type(exc).__name__)
+            finally:
+                self.rate_limiter.record()
+            call.meta["story_count"] = len(stories)
 
         story_count = len(stories)
         matched_count, matched_hosts, matched_story_ids = summarize_matches(

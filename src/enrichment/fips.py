@@ -22,8 +22,10 @@ import json
 import re
 import urllib.parse
 import urllib.request
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Iterator
 
 from lnic_contracts.geography import county_for_place
 
@@ -310,11 +312,30 @@ _HOUSE_NUMBER = re.compile(r"^\d+\s+\S")
 
 
 def block_geoid(
-    address: str, city: str | None, state: str | None, timeout: int = 10
+    address: str,
+    city: str | None,
+    state: str | None,
+    timeout: int = 10,
+    *,
+    call_recorder: Any | None = None,
+    subject_id: str | None = None,
 ) -> GeoidResult | None:
     """15-digit block GEOID from the free Census geocoder. Attempted only for
     addresses with a house number; any failure returns None and the ladder
-    stays at the level already reached."""
+    stays at the level already reached.
+
+    THE FAILURE LEFT NO TRACE AT ALL. `except Exception: return None` is
+    right for the ladder -- a geocoder that cannot answer should not stop
+    enrichment -- but it also swallowed every outage, timeout and rate
+    limit without a log line, a counter or a column. A Census outage and
+    an address the geocoder simply does not know produced the same
+    silence, so a week of degraded geography would look like a week of
+    hard addresses.
+
+    `call_recorder` is optional so the ladder keeps working offline and
+    in tests with no database. When present, every attempt leaves a row
+    and the two cases become distinguishable.
+    """
     if not _HOUSE_NUMBER.match(address or ""):
         return None
     oneline = ", ".join(x for x in (address, city, state) if x)
@@ -330,27 +351,72 @@ def block_geoid(
             }
         )
     )
-    try:
-        with urllib.request.urlopen(url, timeout=timeout) as resp:
-            data = json.load(resp)
-        matches = data["result"]["addressMatches"]
-        if not matches:
+    with _recorded(call_recorder, subject_id) as call:
+        try:
+            return _read_block(url, timeout, call)
+        except Exception as exc:
+            # Still None for the ladder, but no longer silent: the row
+            # says which failure it was.
+            call.failed("error", error_class=type(exc).__name__)
             return None
-        match = matches[0]
-        geographies = match["geographies"]
-        block_key = next(
-            (k for k in geographies if "Census Blocks" in k), None
-        )  # the key carries the vintage, e.g. "2020 Census Blocks"
-        blocks = geographies.get(block_key) or []
-        if not blocks:
-            return None
-        geoid = blocks[0]["GEOID"][:15]
-        zcta_key = next((k for k in geographies if "ZIP Code Tabulation" in k), None)
-        zctas = geographies.get(zcta_key) or []
-        zcta = (zctas[0].get("GEOID") or "")[:5] or None if zctas else None
-        coords = match.get("coordinates") or {}
-        return GeoidResult(geoid, "block", coords.get("y"), coords.get("x"), zcta)
-    except Exception:
+
+
+def _read_block(url: str, timeout: int, call: Any) -> GeoidResult | None:
+    """The request and the parse. Separated so the caller's `except` wraps
+    one expression and the happy path is not nested inside a try."""
+    with urllib.request.urlopen(url, timeout=timeout) as resp:
+        data = json.load(resp)
+    matches = data["result"]["addressMatches"]
+    # NOT AN ERROR. The geocoder answered; it does not know the address.
+    # Recorded as its own outcome so a week of unknown addresses cannot
+    # be mistaken for a week of outages.
+    if not matches:
+        call.meta["matched"] = False
+        return None
+    call.meta["matched"] = True
+    match = matches[0]
+    geographies = match["geographies"]
+    block_key = next(
+        (k for k in geographies if "Census Blocks" in k), None
+    )  # the key carries the vintage, e.g. "2020 Census Blocks"
+    blocks = geographies.get(block_key) or []
+    if not blocks:
+        return None
+    geoid = blocks[0]["GEOID"][:15]
+    zcta_key = next((k for k in geographies if "ZIP Code Tabulation" in k), None)
+    zctas = geographies.get(zcta_key) or []
+    zcta = (zctas[0].get("GEOID") or "")[:5] or None if zctas else None
+    coords = match.get("coordinates") or {}
+    return GeoidResult(geoid, "block", coords.get("y"), coords.get("x"), zcta)
+
+
+@contextmanager
+def _recorded(call_recorder: Any | None, subject_id: str | None) -> Iterator[Any]:
+    """The call's telemetry row, or a stand-in that keeps the shape.
+
+    One code path whether or not anything is recording -- the alternative
+    is two, and the untested one is always the one that runs in
+    production.
+    """
+    if call_recorder is None:
+        yield _NotRecorded()
+        return
+    with call_recorder.call(
+        "census_geocoder",
+        "onelineaddress",
+        subject_type="article",
+        subject_id=subject_id,
+    ) as call:
+        yield call
+
+
+class _NotRecorded:
+    """Accepts everything a `Call` accepts and keeps none of it."""
+
+    def __init__(self) -> None:
+        self.meta: dict[str, Any] = {}
+
+    def failed(self, *args: Any, **kwargs: Any) -> None:
         return None
 
 
@@ -362,11 +428,25 @@ def resolve_geoid(
     street_address: str | None,
     address_city: str | None,
     census_lookup: bool = True,
+    call_recorder: Any | None = None,
+    subject_id: str | None = None,
 ) -> GeoidResult | None:
     """The ladder: block when a real address resolves, else place, else county,
-    else state."""
+    else state.
+
+    `call_recorder` is carried down to the one rung that leaves the
+    machine. Threaded through rather than reached for inside
+    `block_geoid`, so the ladder stays a pure function of its arguments
+    and a test can run it with no database.
+    """
     if census_lookup and street_address:
-        block = block_geoid(street_address, address_city or point_city, state)
+        block = block_geoid(
+            street_address,
+            address_city or point_city,
+            state,
+            call_recorder=call_recorder,
+            subject_id=subject_id,
+        )
         if block:
             return block
     if point_city and state:
