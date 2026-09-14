@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import argparse
 import logging
+import re
 from typing import Any
 from urllib.parse import urlparse
 
 import pandas as pd
+from lnic_contracts.geography import canonical_county, suggest_counties
 from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
@@ -20,6 +22,66 @@ logger = logging.getLogger(__name__)
 
 
 REQUIRED_COLUMNS = ["host_id", "name", "city", "county", "url_news"]
+
+
+#: " County", " Parish", " Borough" and the Alaskan compound. A gazetteer
+#: name carries none of them, and a spreadsheet often does.
+_COUNTY_SUFFIX = re.compile(
+    r"\s+(County|Parish|Borough|City and Borough|Census Area|Municipality)$",
+    re.I,
+)
+
+
+def resolve_county(state: str, raw: str) -> tuple[str | None, str | None]:
+    """The gazetteer's own spelling of a county, or why it is not one.
+
+    `sources.county` was free text written straight from the spreadsheet,
+    and two different faults came through that gap on 2026-09-14.
+
+    A KANSAS CITY TELEVISION STATION WAS FILED UNDER "Nexstar Media Inc"
+    -- its owner, in the county column -- and the visual builder duly
+    offered "Nexstar County" as a place to pick newsrooms from. Nothing
+    rejected it because nothing looked.
+
+    AND ONE COUNTY WAS TWO. "Callaway" and "Callaway County" sat side by
+    side in the builder's tree, each holding one newsroom, and so did
+    "St. Louis" and "St Louis" -- eighteen sources against three. A
+    reader sees two counties with one paper apiece rather than one county
+    with two.
+
+    Both stop here. A value that resolves is written in the GAZETTEER's
+    spelling, so one county can only ever have one; a value that does not
+    resolve is not written at all, and the caller reports the row.
+
+    Returns `(canonical name, None)` or `(None, why not)`.
+    """
+    name = (raw or "").strip()
+    if not name:
+        return None, "no county given"
+    if not (state or "").strip():
+        # Without a state the name cannot be checked: there is a Lincoln
+        # county in 24 of them. Kept as written rather than guessed at.
+        return name, None
+    bare = _COUNTY_SUFFIX.sub("", name).strip()
+    _, canonical = canonical_county(state.strip(), bare)
+    if canonical:
+        return canonical, None
+    hint = ""
+    # `suggest_counties(name, prefer_state)` -- NOT (state, name), which
+    # is the order `canonical_county` takes two lines above and the order
+    # this had. Reversed, it hunts for a county called "MO" and returns
+    # nothing, so every message lost its "did you mean" and the mistake
+    # was invisible: an empty list reads exactly like no close match.
+    # Dicts, not strings: {geoid, name, state, exact}. Named with their
+    # state because the closest match is often in another one -- "Calaway"
+    # offers Callaway MO and Calloway KY, and which is meant is the
+    # operator's call, not ours.
+    suggestions = [
+        f"{s['name']} ({s['state']})" for s in suggest_counties(bare, state.strip())[:3]
+    ]
+    if suggestions:
+        hint = f" Did you mean {', '.join(suggestions)}?"
+    return None, f"{name!r} is not a county in {state}.{hint}"
 
 
 def add_load_sources_parser(subparsers) -> argparse.ArgumentParser:
@@ -234,6 +296,10 @@ def handle_load_sources_command(args) -> int:
             sources_created = 0
             dataset_sources_created = 0
             candidate_links: list[dict[str, Any]] = []
+            # Rows whose county did not resolve. Reported together at the
+            # end: one warning per row scrolls past, a list at the end is
+            # a work item.
+            county_problems: list[str] = []
 
             total_rows = len(df)
             operation.update_progress(0, total_rows, "Initializing load")
@@ -247,15 +313,37 @@ def handle_load_sources_command(args) -> int:
                     session, select(Source).where(Source.host_norm == host_norm)
                 ).scalar_one_or_none()
 
+                # Checked before the row is written, not after. An owner
+                # name in the county column became a county in the
+                # builder's UI, and a suffix made one county into two.
+                state_for_row = row.get("State", "MO")
+                county, county_problem = resolve_county(
+                    state_for_row, row.get("county", "")
+                )
+                if county_problem and (row.get("county") or "").strip():
+                    # Loud, and the row still loads. A publisher is worth
+                    # having without its county; a wrong county is not,
+                    # and silence here is what put "Nexstar County" in
+                    # front of a reviewer.
+                    county_problems.append(f"{host}: {county_problem}")
+                    logger.warning("%s: %s", host, county_problem)
+
                 if existing_source:
                     source = existing_source
+                    # A load is the moment the spreadsheet speaks. An
+                    # existing record whose county is absent or spelled
+                    # differently takes the gazetteer's spelling, which
+                    # is how the two Callaways and the two St Louises
+                    # stop being two.
+                    if county and existing_source.county != county:
+                        existing_source.county = county
                 else:
                     source = Source(
                         host=host,
                         host_norm=host_norm,
                         canonical_name=row["name"],
                         city=row["city"],
-                        county=row["county"],
+                        county=county,
                         owner=row.get("owner", ""),
                         type=row.get("media_type", "unknown"),
                         meta={
@@ -363,6 +451,18 @@ def handle_load_sources_command(args) -> int:
             print(f"Unique cities: {df['city'].nunique()}")
             if "media_type" in df.columns:
                 print(f"Media types: {df['media_type'].value_counts().to_dict()}")
+
+            # The counties that did not resolve, named. These rows loaded
+            # with no county rather than with a wrong one, and the list is
+            # the work item: fix the spreadsheet and load again.
+            if county_problems:
+                print(
+                    f"\n⚠️  {len(county_problems)} source"
+                    f"{'' if len(county_problems) == 1 else 's'} loaded without a "
+                    "county because the value given is not one:"
+                )
+                for problem in county_problems:
+                    print(f"   {problem}")
 
             logger.info("Auto-triggering gazetteer population for new dataset")
             try:
