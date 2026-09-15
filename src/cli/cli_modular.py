@@ -123,6 +123,7 @@ def _load_command_parser(command: str) -> tuple[Callable, Callable] | None:
         "pipeline-status": "pipeline_status",
         "cleanup-candidates": "cleanup_candidates",
         "duplicates": "duplicates",
+        "front-controller-duplicates": "front_controller_duplicates",
         "housekeeping": "housekeeping",
         "enrich": "enrichment",
     }
