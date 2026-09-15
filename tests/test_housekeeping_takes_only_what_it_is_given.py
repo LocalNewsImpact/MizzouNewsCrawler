@@ -146,13 +146,41 @@ def test_nothing_is_ungated_without_being_named(stages):
     assert before_the_guard == UNGATED_BY_DESIGN
 
 
-def test_it_finishes_before_the_bigquery_sync():
-    cron = yaml.safe_load(
+def _cron():
+    return yaml.safe_load(
         (ROOT / "k8s/argo/housekeeping-cronworkflow.yaml").read_text()
     )
+
+
+def test_no_run_spans_the_bigquery_sync():
+    """EVERY slot, not just the first.
+
+    The rule is that the 07:00 UTC sync never reads while a run is
+    writing. This used to read the single scheduled hour and check
+    `hour + 3 <= 7`, which only says anything about a job that runs once
+    before the sync -- add a slot at 09:00 and that formula either throws
+    on the hour list or declares a perfectly safe window unsafe.
+
+    What has to hold is that no slot's three-hour window contains 07:00.
+    """
+    cron = _cron()
     deadline = cron["spec"]["workflowSpec"]["activeDeadlineSeconds"]
-    hour = int(cron["spec"]["schedule"].split()[1])
-    assert hour + deadline / 3600 <= 7, "a run could still be going at the 07:00 sync"
+    hours = [int(h) for h in cron["spec"]["schedule"].split()[1].split(",")]
+    span = deadline / 3600
+    for hour in hours:
+        # Half-open: a run starting at 04:00 occupies 04:00-07:00 and has
+        # released the deadline by the time the sync reads.
+        running = {(hour + o) % 24 for o in range(int(span))}
+        assert 7 not in running, f"the {hour:02d}:00 slot is still going at 07:00"
+
+
+def test_the_deadline_leaves_room_before_the_sync():
+    """The first slot is the nightly one and still has to land before the
+    sync with the whole window used."""
+    cron = _cron()
+    deadline = cron["spec"]["workflowSpec"]["activeDeadlineSeconds"]
+    first = int(cron["spec"]["schedule"].split()[1].split(",")[0])
+    assert first + deadline / 3600 <= 7
 
 
 def test_the_schedule_runs_and_says_so_in_the_manifest():
@@ -174,12 +202,40 @@ def test_the_schedule_runs_and_says_so_in_the_manifest():
     `test_a_run_with_nothing_owed_stops_before_starting_a_stage` are what
     keep it fixed. This test does not re-litigate that; it holds the
     schedule declared and running."""
-    cron = yaml.safe_load(
-        (ROOT / "k8s/argo/housekeeping-cronworkflow.yaml").read_text()
-    )
+    cron = _cron()
     assert "suspend" in cron["spec"], "declare the state; do not patch the cluster"
     assert cron["spec"]["suspend"] is False
-    assert cron["spec"]["schedule"] == "0 3 * * *"
+    hours = [int(h) for h in cron["spec"]["schedule"].split()[1].split(",")]
+    assert hours[0] == 3, "the nightly slot still runs after the 02:00 housekeeping"
+
+
+def test_it_runs_more_than_once_a_day():
+    """A QUEUE BIGGER THAN ONE WINDOW HAS TO DRAIN THE SAME DAY.
+
+    On 2026-09-14 a review session queued 235 records; the run was killed
+    by the three-hour deadline eight short, and with a single daily slot
+    those eight had no further chance for 24 hours. Nothing retried in
+    between because nothing was scheduled in between.
+
+    `Forbid` is what keeps this honest: a slot arriving while the previous
+    run is still going is skipped, so these are retries, not six
+    concurrent runs."""
+    cron = _cron()
+    hours = [int(h) for h in cron["spec"]["schedule"].split()[1].split(",")]
+    assert len(hours) > 1, "one slot a day cannot clear more than one window"
+    assert cron["spec"]["concurrencyPolicy"] == "Forbid"
+
+
+def test_a_quiet_slot_costs_nothing(stages):
+    """The extra slots are only affordable because an empty one stops
+    before starting a stage. That guard already exists -- this ties it to
+    the schedule, so the slots and the guard cannot drift apart."""
+    entry = stages["housekeeping"]
+    steps = [s for group in entry["steps"] for s in group]
+    owed = next(s for s in steps if s["name"] == "anything-owed")
+    assert steps.index(owed) < min(
+        steps.index(s) for s in steps if s["name"] in {"extract", "classify", "enrich"}
+    ), "the owed check must run before any stage"
 
 
 def test_no_stage_runs_a_bare_sweeping_command(stages):
@@ -367,6 +423,66 @@ def test_the_worker_count_comes_from_the_rework_backlog(stages):
     assert "FROM pipeline_rework" in count
     assert "done_at IS NULL" in count
     assert "cl.status = 'article'" in count, "and ready to fetch, not merely flagged"
+
+
+def _worker_count():
+    """The shipped sizing rule, as a callable.
+
+    Lifted from the manifest rather than reimplemented: a copy in the test
+    would only prove the copy right, and this rule is arithmetic whose
+    edges are the whole point.
+    """
+    body = yaml.safe_load(WORKFLOW.read_text())
+    src = next(
+        t for t in body["spec"]["templates"] if t["name"] == "rework-worker-count"
+    )["script"]["source"]
+    line = next(ln for ln in src.splitlines() if ln.strip().startswith("workers ="))
+    expr = line.split("=", 1)[1].strip()
+    return lambda owed, hosts: eval(
+        expr, {}, {"owed": owed, "hosts": hosts}
+    )  # noqa: S307
+
+
+def test_the_worker_count_is_bounded_by_domain_spread():
+    """THE REAL CONSTRAINT, AND IT USED TO BE A GUESSED CONSTANT.
+
+    The queue hands out at most three articles per domain per request, so
+    a worker needs roughly three domains to stay busy. That was expressed
+    as a flat cap of 4, which is right only for the batch shape it was
+    written against.
+
+    A concentrated batch must not fan out however many records it holds:
+    234 links across three publishers is one worker's work, and four
+    workers would queue up behind one site."""
+    workers = _worker_count()
+    assert workers(234, 3) == 1
+    assert workers(234, 6) == 2
+
+
+def test_a_wide_batch_is_not_throttled_to_the_old_cap():
+    """THE REGRESSION THIS FIXES. On 2026-09-14 a review session queued 235
+    records spanning 48 domains. The rule asked for 10 workers, the flat
+    cap gave it 4, and the three-hour deadline killed the run having
+    finished 227 -- throttled to 40% of its own computed parallelism and
+    missing by eight records, with nothing contending for domains."""
+    workers = _worker_count()
+    assert workers(235, 48) > 4
+
+
+def test_the_worker_count_still_has_a_ceiling():
+    """Proxy and Selenium capacity are shared with everything else and are
+    not measured here, so the rule is bounded however wide the batch."""
+    workers = _worker_count()
+    assert workers(10_000, 5_000) <= 8
+
+
+def test_a_quiet_queue_starts_one_worker_not_none():
+    """`withParam` over an empty list starts no pods and the step reports
+    success, which would read as "the queue is clear" on a night it is
+    not. The owed check is what stops an empty run, not a zero here."""
+    workers = _worker_count()
+    assert workers(0, 0) == 1
+    assert workers(1, 1) == 1
 
 
 def test_the_workers_pull_from_the_work_queue(stages):

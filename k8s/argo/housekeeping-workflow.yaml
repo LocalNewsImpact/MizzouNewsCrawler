@@ -491,33 +491,53 @@ spec:
       image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:${PROCESSOR_TAG}
       imagePullPolicy: IfNotPresent
       command: [python]
-      # One worker per 25 links owed, capped at 4.
+      # One worker per 25 links owed, bounded by how many DOMAINS the owed
+      # links span, and then by a ceiling of 8.
       #
       # A page costs two to four minutes when the first fetch returns
       # something unusable and Selenium retries, so 25 links is around an
       # hour -- inside the three-hour deadline with room for the stages
-      # after it. Four workers clear 100 links in that hour.
+      # after it.
       #
-      # Capped, and not scaled further, because the queue hands out at most
-      # three articles per domain per request: past four workers they
-      # contend for domains rather than adding throughput, and a night's
-      # rework is tens of records, not thousands. The pipeline's own cap is
-      # 2 for a sustained 42/hr; this is a catch-up run against a bounded
-      # set.
+      # THE DOMAIN BOUND IS THE REAL ONE, and it used to be a flat cap of
+      # 4. The queue hands out at most three articles per domain per
+      # request, so a worker needs roughly three domains to stay busy:
+      # past that, workers contend for publishers rather than adding
+      # throughput. `hosts // 3` says that directly instead of guessing a
+      # constant, so a batch spread thin across the state fans out and one
+      # concentrated on three publishers still gets one worker.
+      #
+      # The flat 4 rested on a second assumption -- "a night's rework is
+      # tens of records, not thousands" -- and a review session on
+      # 2026-09-14 queued 235. The rule asked for 10 workers, the cap gave
+      # it 4, and the run was killed by the three-hour deadline having
+      # finished 227 of them: throttled to 40% of the parallelism its own
+      # rule computed, it missed by eight records. Those 234 links spanned
+      # 48 domains, 4.9 apiece, so nothing was contending -- the cap was
+      # costing throughput it had been written to protect.
+      #
+      # The ceiling stays, at 8, because the proxy and Selenium capacity
+      # this shares with everything else is not measured here. Eight
+      # covers a 200-link night inside the window, and anything past it
+      # is what the extra daily slots are for.
       source: |
         import json
         from sqlalchemy import text
         from src.models.database import DatabaseManager
         with DatabaseManager().get_session() as s:
-            owed = s.execute(text(
-                "SELECT count(*) FROM pipeline_rework r "
+            row = s.execute(text(
+                "SELECT count(*) AS owed, count(DISTINCT split_part("
+                "  regexp_replace(cl.url, '^https?://(www\\.)?', ''), '/', 1"
+                ")) AS hosts "
+                "FROM pipeline_rework r "
                 "JOIN candidate_links cl ON cl.id = r.record_id "
                 "WHERE r.record_type = 'candidate_link' AND r.done_at IS NULL "
                 "AND cl.status = 'article' "
                 "AND NOT EXISTS (SELECT 1 FROM articles a "
                 "                WHERE a.candidate_link_id = cl.id)"
-            )).scalar() or 0
-        workers = min(4, max(1, -(-owed // 25)))
+            )).one()
+        owed, hosts = row.owed or 0, row.hosts or 0
+        workers = max(1, min(8, -(-owed // 25), max(1, hosts // 3)))
         print(json.dumps([{"id": i + 1} for i in range(workers)]))
       env: *db_env
       resources:
