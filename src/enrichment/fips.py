@@ -321,6 +321,16 @@ def county_of_place(place: str) -> tuple[str, int] | None:
     return (county, span) if county else None
 
 
+def bare_place_name(name: str) -> str:
+    """ "Cape Girardeau city" -> "Cape Girardeau".
+
+    The Census geocoder returns legal names. Copy prints the short one,
+    and so does the gazetteer, so a placement is stored the way it will
+    later be compared.
+    """
+    return _strip_suffix(_PAREN.sub("", name or ""))
+
+
 def name_for(geoid: str | None) -> str | None:
     """The place or county a stored GEOID stands for, as "Name, ST".
 

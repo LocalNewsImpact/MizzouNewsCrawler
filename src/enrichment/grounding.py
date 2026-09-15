@@ -48,6 +48,7 @@ only a reader can say it is not story geography. Grounding is a floor.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 
 #: Everything but word characters, whitespace and the internal apostrophe
 #: of "Lee's Summit". Substituted one-for-one so offsets survive folding,
@@ -109,34 +110,42 @@ def fold(text: str | None) -> str:
     return _PUNCT.sub(" ", (text or "").lower())
 
 
-def _patterns(name: str) -> list[re.Pattern]:
-    """Word-bounded patterns for one place name.
+def forms(name: str) -> list[list[str]]:
+    """Every word sequence one place name legitimately takes in copy.
 
-    Whitespace is elastic because folding turns "St. Louis" into "st
-    louis" with two spaces and "St Louis" into one. The saint/mount
-    aliases are spelled out because folding cannot reach them.
+    Shared by the text matcher and the institution-evidence comparison,
+    so "St. Louis" and "Saint Louis" are one town to both of them.
     """
     words = fold(name).split()
     if not words:
         return []
-    forms = [words]
+    out = [words]
     # Census files the apostrophe ("Lee's Summit"); copy frequently drops
     # it, and the two must not read as different towns.
     bare = [w.replace("'", "") for w in words]
     if bare != words:
-        forms.append(bare)
-    for form in list(forms):
+        out.append(bare)
+    for form in list(out):
         head, tail = form[0], form[1:]
         for short, long in (("st", "saint"), ("ste", "sainte"), ("mt", "mount")):
             if head == short:
-                forms.append([long, *tail])
+                out.append([long, *tail])
             elif head == long:
-                forms.append([short, *tail])
+                out.append([short, *tail])
+    return out
+
+
+def _patterns(name: str) -> list[re.Pattern]:
+    """Word-bounded patterns for one place name.
+
+    Whitespace is elastic because folding turns "St. Louis" into "st
+    louis" with two spaces and "St Louis" into one.
+    """
     return [
         re.compile(
             r"(?<![a-z0-9])" + r"\s+".join(re.escape(w) for w in form) + r"(?![a-z0-9])"
         )
-        for form in forms
+        for form in forms(name)
     ]
 
 
@@ -190,15 +199,39 @@ def grounded(
     content: str | None,
     title: str | None = None,
     publication_city: str | None = None,
+    institution_places: Iterable[str] | None = None,
 ) -> bool:
     """Is recording `name` as this article's geography defensible?
 
-    True when the article names the place in reporting -- its body or its
-    headline, outside furniture, and outside a dateline that only says
-    where the newsroom is.
+    True when the story's own reporting gets you to the place: it names
+    the place, in its body or headline, outside furniture and outside a
+    dateline that only says where the newsroom is -- OR it names an
+    institution that IS in that place.
+
+    THE SECOND CLAUSE IS THE POINT (added 2026-09-15). Naming Tolton
+    Catholic High School locates a story in Columbia; naming Westminster
+    College locates one in Fulton. That is induction from evidence in the
+    story, and it is exactly what this pipeline should keep. The first
+    version of this rule required the place NAME, which deleted it --
+    70 of the 803 points the first backfill cleared had an institution in
+    the article sitting in the very city that was removed.
+
+    `institution_places` is those cities, resolved by the caller from
+    `article_entities` joined to the gazetteer. It is passed in rather
+    than looked up here so this module stays a pure function of text and
+    can be tested without a database.
     """
     if not name or not name.strip():
         return False
+
+    if institution_places:
+        target = {tuple(form) for form in forms(name)}
+        if any(
+            target & {tuple(form) for form in forms(place)}
+            for place in institution_places
+            if place
+        ):
+            return True
 
     if title and occurrences(name, fold(_WS.sub(" ", title).strip())):
         return True

@@ -84,6 +84,7 @@ def regrounded(
     content: str | None,
     title: str | None = None,
     publication_city: str | None = None,
+    institution_places: list[str] | None = None,
 ) -> Regrounded:
     """Which of an article's stored codes its own text still supports."""
     result = Regrounded()
@@ -102,7 +103,11 @@ def regrounded(
             result.kept.append(row)
             continue
         if grounded(
-            name, content=content, title=title, publication_city=publication_city
+            name,
+            content=content,
+            title=title,
+            publication_city=publication_city,
+            institution_places=institution_places,
         ):
             result.kept.append(row)
             if level == "place":

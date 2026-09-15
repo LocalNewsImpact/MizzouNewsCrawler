@@ -258,13 +258,16 @@ class TestTheWritePathUsesTheGate:
         return Path("src/enrichment/repository.py").read_text()
 
     def test_the_point_claim_is_gated(self, source):
-        assert 'if central.get("city") and _says(article, central["city"]):' in source
+        assert (
+            'if central.get("city") and _says(article, central["city"], named_places):'
+            in source
+        )
 
     def test_the_heuristic_point_is_gated(self, source):
-        assert "if point and not _says(article, point[0]):" in source
+        assert "if point and not _says(article, point[0], named_places):" in source
 
     def test_the_mention_set_is_gated(self, source):
-        assert "_says(article, name)" in source
+        assert "_says(article, name, named_places)" in source
 
     def test_there_is_one_reading_of_the_rule(self, source):
         """Two copies of "what counts as named" drift. `_says` is the
@@ -350,3 +353,58 @@ class TestACodeIsReadBackAsTheNameCopyUses:
             content="The trial opens in St. Louis next week.",
         )
         assert verdict.dropped == []
+
+
+class TestInductionFromEvidenceIsKept:
+    """The correction of 2026-09-15. The defect was fabrication from
+    things that are NOT evidence -- the masthead, the dateline, a
+    biography, a headline rail. Inferring a place from an institution the
+    story NAMES is not that: it is reporting, and it is wanted.
+
+    Requiring the place name deleted it. 70 of the 803 points the first
+    backfill cleared had an institution in the article sitting in the
+    very city that was removed -- Westminster College in Fulton, Lee's
+    Summit North High School in Lee's Summit, SEMO's Student Recreation
+    Center in Cape Girardeau.
+    """
+
+    STORY = "Tolton athletics look to start spring seasons strong. The Trailblazers open Friday."
+
+    def test_the_place_name_alone_is_still_not_required(self):
+        assert grounded("Columbia", content=self.STORY, institution_places=["Columbia"])
+
+    def test_without_the_institution_it_is_not_grounded(self):
+        assert not grounded("Columbia", content=self.STORY)
+
+    def test_an_institution_somewhere_else_does_not_ground_it(self):
+        """The evidence has to point at THIS place."""
+        assert not grounded(
+            "Columbia", content=self.STORY, institution_places=["Fulton", "Sedalia"]
+        )
+
+    def test_the_match_survives_punctuation_and_case(self):
+        assert grounded(
+            "St. Louis",
+            content="A game at the arena.",
+            institution_places=["saint louis"],
+        )
+
+    def test_an_empty_evidence_list_changes_nothing(self):
+        assert not grounded("Columbia", content=self.STORY, institution_places=[])
+
+    def test_evidence_does_not_rescue_an_empty_name(self):
+        assert not grounded("", content=self.STORY, institution_places=["Columbia"])
+
+    def test_the_backfill_forwards_the_evidence(self):
+        """`reground` has to pass it through or the backfill deletes what
+        the write path would have kept -- the two must agree."""
+        from src.enrichment.reground import regrounded
+
+        rows = [("2915670", "place", True, "point")]
+        assert regrounded(rows, content=self.STORY).dropped != []
+        assert (
+            regrounded(
+                rows, content=self.STORY, institution_places=["Columbia"]
+            ).dropped
+            == []
+        )

@@ -691,6 +691,10 @@ def reground_stored(
 
     ids = [row[0] for row in articles]
     rows_by_article: dict[str, list] = {article_id: [] for article_id in ids}
+    # The institutions each article names, as cities. Fetched in bulk
+    # rather than per article: the join is over 2.9M entity rows and
+    # 558k gazetteer rows, and one query per article is 14,000 of them.
+    cities_by_article: dict[str, list[str]] = {article_id: [] for article_id in ids}
     for chunk_start in range(0, len(ids), 1000):
         chunk = ids[chunk_start : chunk_start + 1000]
         for article_id, geoid, level, primary, source in session.execute(
@@ -701,13 +705,30 @@ def reground_stored(
             {"ids": chunk},
         ):
             rows_by_article[article_id].append((geoid, level, primary, source))
+        for article_id, city in session.execute(
+            text(
+                "SELECT DISTINCT ae.article_id, "
+                "       COALESCE(g.place_name, g.tags->>'addr:city') "
+                "FROM article_entities ae "
+                "JOIN gazetteer g ON g.id = ae.matched_gazetteer_id "
+                "WHERE ae.article_id IN :ids "
+                "  AND ae.matched_gazetteer_id IS NOT NULL "
+                "  AND COALESCE(g.place_name, g.tags->>'addr:city') IS NOT NULL"
+            ).bindparams(bindparam("ids", expanding=True)),
+            {"ids": chunk},
+        ):
+            cities_by_article[article_id].append(city)
 
     for index, (article_id, content, title, city) in enumerate(articles, start=1):
         stored = rows_by_article.get(article_id) or []
         if not stored:
             continue
         verdict = regrounded(
-            stored, content=content, title=title, publication_city=city
+            stored,
+            content=content,
+            title=title,
+            publication_city=city,
+            institution_places=cities_by_article.get(article_id),
         )
         counts["unverifiable"] += len(verdict.unverifiable)
         if not verdict.dropped:
@@ -762,8 +783,34 @@ def _confidence(meta: dict) -> float | None:
         return None
 
 
-def _says(article: ArticleInput, name: str | None) -> bool:
-    """Does this article name this place in its own reporting?
+#: The institutions an article names, as the cities they sit in. Read
+#: from entity extraction's own output joined to the gazetteer -- the
+#: model's induction from a school or a hospital is evidence, and
+#: refusing it deleted 70 correct points in the first backfill.
+#: `place_name` first: it is what the coordinates resolve to in Census
+#: terms, and it is present for every point that has been geocoded.
+#: `addr:city` is the OSM fallback for points not yet looked up -- a
+#: postal name, so "Saint Louis" where the Census says "St. Louis";
+#: `grounding.forms` reconciles the two.
+_INSTITUTION_CITIES = text("""
+    SELECT DISTINCT COALESCE(g.place_name, g.tags->>'addr:city')
+      FROM article_entities ae
+      JOIN gazetteer g ON g.id = ae.matched_gazetteer_id
+     WHERE ae.article_id = :id
+       AND ae.matched_gazetteer_id IS NOT NULL
+       AND COALESCE(g.place_name, g.tags->>'addr:city') IS NOT NULL
+""")
+
+
+def institution_places(session: Session, article_id: str) -> list[str]:
+    """Cities of the institutions this article names."""
+    return [row[0] for row in session.execute(_INSTITUTION_CITIES, {"id": article_id})]
+
+
+def _says(
+    article: ArticleInput, name: str | None, places: list[str] | None = None
+) -> bool:
+    """Does this article's own reporting get you to this place?
 
     The one reading of `grounding.grounded` on the write path, so the
     point claim and the mention set cannot drift apart on what counts.
@@ -773,6 +820,7 @@ def _says(article: ArticleInput, name: str | None) -> bool:
         content=article.content,
         title=article.title,
         publication_city=article.publication_city,
+        institution_places=places,
     )
 
 
@@ -821,6 +869,7 @@ def persist_outcome(
             rationales[column] = meta["rationale"]
 
     gate = step_payloads.get("content_gate") or {}
+    named_places = institution_places(session, article.id)
     point = None
     geoid = None
     places_payload = step_payloads.get("places")
@@ -844,7 +893,7 @@ def persist_outcome(
             # dateline. The ladder then carried each one up to a county,
             # which is how a Mexico graduation story and a Rolla arrest
             # came to be filed under Boone.
-            if central.get("city") and _says(article, central["city"]):
+            if central.get("city") and _says(article, central["city"], named_places):
                 c_state = central.get("state") or article.publication_state
                 hit = place_geoid(central["city"], c_state) if c_state else None
                 if hit is None and c_state:
@@ -854,7 +903,7 @@ def persist_outcome(
                     geoid = hit
             if geoid is None:
                 point = resolve_point(places_payload, article.publication_city)
-                if point and not _says(article, point[0]):
+                if point and not _says(article, point[0], named_places):
                     point = None
                 geoid = _geoid_for(
                     places_payload,
@@ -1137,7 +1186,7 @@ def persist_outcome(
             # article does not name in reporting. A location is kept on
             # whichever of its own names the article actually uses.
             if not any(
-                _says(article, name)
+                _says(article, name, named_places)
                 for name in (city, components.get("county"))
                 if name
             ):

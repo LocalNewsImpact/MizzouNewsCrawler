@@ -28,13 +28,18 @@ class _Result:
         return iter(self._rows)
 
 
-class _Session:
-    """Answers the article query, then the geoid query, then records
-    every write it is handed."""
+#: Queries `reground_stored` runs before it writes anything: the article
+#: list, then per chunk the geoid rows and the institution cities.
+SETUP_QUERIES = 3
 
-    def __init__(self, articles=(), geoid_rows=()):
+
+class _Session:
+    """Answers the setup queries, then records every write it is handed."""
+
+    def __init__(self, articles=(), geoid_rows=(), cities=()):
         self._articles = list(articles)
         self._geoid_rows = list(geoid_rows)
+        self._cities = list(cities)
         self.statements: list[str] = []
         self.params: list[dict | None] = []
         self.commits = 0
@@ -46,13 +51,15 @@ class _Session:
             return _Result(self._articles)
         if len(self.statements) == 2:
             return _Result(self._geoid_rows)
+        if len(self.statements) == SETUP_QUERIES:
+            return _Result(self._cities)
         return _Result()
 
     def commit(self):
         self.commits += 1
 
     def writes(self):
-        return [s for s in self.statements[2:]]
+        return list(self.statements[SETUP_QUERIES:])
 
 
 UNGROUNDED = [
