@@ -213,13 +213,22 @@ def test_the_free_stages_are_retried(by_name):
         assert by_name[stage].get("retryStrategy"), stage
 
 
-def test_it_runs_before_the_bigquery_sync_and_after_the_other_housekeeping():
-    """02:00 applies reviewed geography; 07:00 publishes to BigQuery.
-    This has to sit between them."""
+def test_the_nightly_slot_sits_between_the_other_two_jobs():
+    """02:00 applies reviewed geography; 07:00 publishes to BigQuery. The
+    nightly slot has to sit between them.
+
+    It is the FIRST slot that carries this: the job runs several times a
+    day so a queue bigger than one window drains the same day, and the
+    later slots are retries that happen well clear of both. Asserting the
+    whole hour field is a single number said "runs once", which was never
+    the requirement -- the requirement is that the night's run lands in
+    that gap. `test_no_run_spans_the_bigquery_sync` covers the rest."""
     cron = yaml.safe_load(CRON.read_text())
-    minute, hour = cron["spec"]["schedule"].split()[:2]
-    assert minute.isdigit() and hour.isdigit(), cron["spec"]["schedule"]
-    assert 2 < int(hour) < 7, f"scheduled at {hour}:{minute} UTC"
+    minute, hours = cron["spec"]["schedule"].split()[:2]
+    assert minute.isdigit(), cron["spec"]["schedule"]
+    first = hours.split(",")[0]
+    assert first.isdigit(), cron["spec"]["schedule"]
+    assert 2 < int(first) < 7, f"the nightly slot is at {first}:{minute} UTC"
 
 
 def test_a_run_still_going_is_not_replaced():
