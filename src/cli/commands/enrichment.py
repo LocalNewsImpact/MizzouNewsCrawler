@@ -234,7 +234,7 @@ def handle_enrichment_command(args) -> int:
     try:
         with db.get_session() as session:
             if action == "reground":
-                result = repository.reground_stored(
+                regrounded_counts = repository.reground_stored(
                     session,
                     dataset=args.dataset,
                     since=args.since,
@@ -248,12 +248,12 @@ def handle_enrichment_command(args) -> int:
                     ),
                 )
                 print(
-                    f"articles read:     {result['articles']}\n"
-                    f"articles changed:  {result['articles_changed']}\n"
-                    f"places dropped:    {result['places_dropped']}\n"
-                    f"counties dropped:  {result['counties_dropped']}\n"
-                    f"points cleared:    {result['points_cleared']}\n"
-                    f"unverifiable kept: {result['unverifiable']}"
+                    f"articles read:     {regrounded_counts['articles']}\n"
+                    f"articles changed:  {regrounded_counts['articles_changed']}\n"
+                    f"places dropped:    {regrounded_counts['places_dropped']}\n"
+                    f"counties dropped:  {regrounded_counts['counties_dropped']}\n"
+                    f"points cleared:    {regrounded_counts['points_cleared']}\n"
+                    f"unverifiable kept: {regrounded_counts['unverifiable']}"
                     + ("\n(dry run — nothing written)" if args.dry_run else "")
                 )
                 return 0
