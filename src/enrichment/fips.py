@@ -174,6 +174,10 @@ def _usps(state: str | None) -> str | None:
 
 _places: dict[tuple[str, str], tuple[str, float, float]] | None = None
 _counties: dict[tuple[str, str], tuple[str, float, float]] | None = None
+#: GEOID -> the name the Census files it under, for reading a stored code
+#: back as a place. The forward maps are keyed by name and carry aliases,
+#: so they cannot be inverted: this is built alongside them.
+_names: dict[str, str] | None = None
 
 
 def _strip_suffix(name: str) -> str:
@@ -181,9 +185,10 @@ def _strip_suffix(name: str) -> str:
 
 
 def _load() -> None:
-    global _places, _counties
+    global _places, _counties, _names
     if _places is not None:
         return
+    names: dict[str, str] = {}
     places: dict[tuple[str, str], tuple[str, float, float]] = {}
     with open(DATA / "census_places.csv", newline="") as fh:
         for row in csv.DictReader(fh):
@@ -194,6 +199,7 @@ def _load() -> None:
                 float(row["INTPTLONG"]),
             )
             key = (row["USPS"], norm(bare))
+            names.setdefault(row["GEOID"], f"{bare}, {row['USPS']}")
             if key not in places:  # first (lowest GEOID) wins on bare-name ties
                 places[key] = value
             # A consolidated government is filed under its legal name and
@@ -237,7 +243,8 @@ def _load() -> None:
                 float(row["INTPTLAT"]),
                 float(row["INTPTLONG"]),
             )
-    _places, _counties = places, counties
+            names.setdefault(row["GEOID"], f"{row['NAME']}, {row['USPS']}")
+    _places, _counties, _names = places, counties, names
 
 
 @dataclass(frozen=True)
@@ -301,6 +308,25 @@ def county_of_place(place: str) -> tuple[str, int] | None:
     """
     county, span = county_for_place(place)
     return (county, span) if county else None
+
+
+def name_for(geoid: str | None) -> str | None:
+    """The place or county a stored GEOID stands for, as "Name, ST".
+
+    Reading a code back into a name is what lets an already-written row
+    be re-checked against the article it came from; nothing on the write
+    path needs it, because the write path still has the name.
+    """
+    if not geoid:
+        return None
+    _load()
+    assert _names is not None
+    if len(geoid) == 2:
+        for usps, fips in STATE_FIPS.items():
+            if fips == geoid:
+                return usps
+        return None
+    return _names.get(geoid)
 
 
 def state_geoid(state: str) -> GeoidResult | None:

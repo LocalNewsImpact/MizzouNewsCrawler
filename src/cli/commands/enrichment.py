@@ -5,6 +5,7 @@ Subcommands per docs/BACKFIELD_IMPLEMENTATION.md Phase 5:
   enrich run        --dataset SLUG [--since YYYY-MM-DD] [--limit N]
                     [--dry-run] [--concurrency N]
   enrich backfill   --ids-file PATH [--dry-run]
+  enrich reground   [--dataset SLUG] [--since D] [--until D] [--dry-run]
   enrich status     [--dataset SLUG]
   enrich reprocess  --dataset SLUG --profile-version N [--dry-run]
 
@@ -102,6 +103,20 @@ def add_enrichment_parser(subparsers):
         default=int(os.getenv("ENRICHMENT_CONCURRENCY", "10")),
     )
     reprocess.add_argument("--dry-run", action="store_true")
+
+    reground = actions.add_parser(
+        "reground",
+        help="Remove stored geography the article's own text does not support",
+    )
+    reground.add_argument("--dataset", help="dataset slug; omit for every dataset")
+    reground.add_argument("--since", help="publish_date >= this (YYYY-MM-DD)")
+    reground.add_argument("--until", help="publish_date < this (YYYY-MM-DD)")
+    reground.add_argument("--limit", type=int, default=None)
+    reground.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="report what would be removed and write nothing",
+    )
 
     parser.set_defaults(func=handle_enrichment_command)
 
@@ -218,6 +233,31 @@ def handle_enrichment_command(args) -> int:
 
     try:
         with db.get_session() as session:
+            if action == "reground":
+                result = repository.reground_stored(
+                    session,
+                    dataset=args.dataset,
+                    since=args.since,
+                    until=args.until,
+                    limit=args.limit,
+                    dry_run=args.dry_run,
+                    on_batch=lambda n, c: logger.info(
+                        "regrounded %s articles, %s places dropped so far",
+                        n,
+                        c["places_dropped"],
+                    ),
+                )
+                print(
+                    f"articles read:     {result['articles']}\n"
+                    f"articles changed:  {result['articles_changed']}\n"
+                    f"places dropped:    {result['places_dropped']}\n"
+                    f"counties dropped:  {result['counties_dropped']}\n"
+                    f"points cleared:    {result['points_cleared']}\n"
+                    f"unverifiable kept: {result['unverifiable']}"
+                    + ("\n(dry run — nothing written)" if args.dry_run else "")
+                )
+                return 0
+
             if action == "apply-manual":
                 from src.enrichment.repository import apply_manual_geography
 

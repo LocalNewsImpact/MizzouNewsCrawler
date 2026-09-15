@@ -13,7 +13,7 @@ import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
 from src.enrichment import hold
@@ -24,7 +24,9 @@ from src.enrichment.fips import (
     resolve_geoid,
     state_geoid,
 )
+from src.enrichment.grounding import grounded
 from src.enrichment.profiles import Profile, parse_profile
+from src.enrichment.reground import regrounded
 from src.enrichment.resolve import norm, resolve_point
 from src.enrichment.types import ArticleInput, EnrichmentOutcome
 
@@ -615,12 +617,163 @@ def build_story_geoids(
     return kept
 
 
+#: Cleared together when a point turns out to be unsupported; leaving any
+#: one of them set would leave a dot on the map with nothing behind it.
+_POINT_COLUMNS = (
+    "point_place",
+    "point_geoid",
+    "point_geoid_level",
+    "point_lat",
+    "point_lon",
+    "point_method",
+    "point_gnis",
+    "point_zcta",
+)
+
+_CANDIDATES = """
+    SELECT a.id, COALESCE(a.content, a.text, ''), a.title, s.city
+      FROM article_enrichment e
+      JOIN articles a ON a.id = e.article_id
+      LEFT JOIN candidate_links cl ON cl.id = a.candidate_link_id
+      LEFT JOIN sources s ON s.id = cl.source_id
+     WHERE EXISTS (SELECT 1 FROM article_geoids g WHERE g.article_id = a.id)
+"""
+
+_DROP = text(
+    "DELETE FROM article_geoids WHERE article_id = :id "
+    "AND source <> 'human' AND geoid IN :codes"
+).bindparams(bindparam("codes", expanding=True))
+
+
+def reground_stored(
+    session: Session,
+    *,
+    dataset: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
+    limit: int | None = None,
+    dry_run: bool = True,
+    on_batch=None,
+) -> dict[str, int]:
+    """Re-check stored geography against each article and remove what the
+    article does not support. See `reground` for the rules.
+
+    Returns counts. With `dry_run` nothing is written, which is the only
+    honest way to approve a change to the authoritative March corpus
+    before making it.
+    """
+    where, params = [], {}
+    if dataset:
+        where.append("e.dataset_id = (SELECT id FROM datasets WHERE slug = :slug)")
+        params["slug"] = dataset
+    if since:
+        where.append("a.publish_date >= :since")
+        params["since"] = since
+    if until:
+        where.append("a.publish_date < :until")
+        params["until"] = until
+    sql = _CANDIDATES + ("".join(f" AND {clause}" for clause in where))
+    sql += " ORDER BY a.id"
+    if limit:
+        sql += f" LIMIT {int(limit)}"
+
+    articles = session.execute(text(sql), params).all()
+    counts = {
+        "articles": len(articles),
+        "articles_changed": 0,
+        "places_dropped": 0,
+        "counties_dropped": 0,
+        "points_cleared": 0,
+        "unverifiable": 0,
+    }
+    if not articles:
+        return counts
+
+    ids = [row[0] for row in articles]
+    rows_by_article: dict[str, list] = {article_id: [] for article_id in ids}
+    for chunk_start in range(0, len(ids), 1000):
+        chunk = ids[chunk_start : chunk_start + 1000]
+        for article_id, geoid, level, primary, source in session.execute(
+            text(
+                "SELECT article_id, geoid, geoid_level, is_primary, source "
+                "FROM article_geoids WHERE article_id IN :ids"
+            ).bindparams(bindparam("ids", expanding=True)),
+            {"ids": chunk},
+        ):
+            rows_by_article[article_id].append((geoid, level, primary, source))
+
+    for index, (article_id, content, title, city) in enumerate(articles, start=1):
+        stored = rows_by_article.get(article_id) or []
+        if not stored:
+            continue
+        verdict = regrounded(
+            stored, content=content, title=title, publication_city=city
+        )
+        counts["unverifiable"] += len(verdict.unverifiable)
+        if not verdict.dropped:
+            continue
+        counts["articles_changed"] += 1
+        counts["points_cleared"] += 1 if verdict.point_cleared else 0
+        for _geoid, level, _primary, source in verdict.dropped:
+            key = "counties_dropped" if source == "county_rollup" else "places_dropped"
+            counts[key] += 1
+        if dry_run:
+            continue
+
+        session.execute(
+            _DROP, {"id": article_id, "codes": [g for g, _l, _p, _s in verdict.dropped]}
+        )
+        for geoid, level, primary, source in verdict.kept:
+            session.execute(
+                text(
+                    "INSERT INTO article_geoids "
+                    "(article_id, geoid, geoid_level, is_primary, source) "
+                    "VALUES (:a, :g, :l, :p, :s) ON CONFLICT DO NOTHING"
+                ),
+                {"a": article_id, "g": geoid, "l": level, "p": primary, "s": source},
+            )
+        assignments = ["geoids = :geoids"]
+        update = {"id": article_id, "geoids": json.dumps(verdict.mention_codes)}
+        if verdict.point_cleared:
+            assignments += [f"{column} = NULL" for column in _POINT_COLUMNS]
+            assignments.append("geo_skip_reason = :reason")
+            update["reason"] = "point_ungrounded"
+        session.execute(
+            text(
+                f"UPDATE article_enrichment SET {', '.join(assignments)} "
+                "WHERE article_id = :id"
+            ),
+            update,
+        )
+        if index % 500 == 0:
+            session.commit()
+            if on_batch:
+                on_batch(index, counts)
+    if not dry_run:
+        session.commit()
+    return counts
+
+
 def _confidence(meta: dict) -> float | None:
     value = meta.get("confidence")
     try:
         return float(value) if value is not None else None
     except (TypeError, ValueError):
         return None
+
+
+def _says(article: ArticleInput, name: str | None) -> bool:
+    """Does this article name this place in its own reporting?
+
+    The one reading of `grounding.grounded` on the write path, so the
+    point claim and the mention set cannot drift apart on what counts.
+    """
+    return grounded(
+        name,
+        content=article.content,
+        title=article.title,
+        publication_city=article.publication_city,
+    )
 
 
 def persist_outcome(
@@ -683,7 +836,15 @@ def persist_outcome(
             # rung made the claim.
             focus = step_payloads.get("focus") or {}
             central = focus.get("central") or {}
-            if central.get("city"):
+            # A CLAIM THE ARTICLE DOES NOT SUPPORT IS NOT MADE (2026-09-15).
+            #
+            # Measured over 20,521 rows, 9.7% of points named a place the
+            # article never names in reporting -- 7.5% absent from body
+            # and title alike, 2.2% present only in the publisher's own
+            # dateline. The ladder then carried each one up to a county,
+            # which is how a Mexico graduation story and a Rolla arrest
+            # came to be filed under Boone.
+            if central.get("city") and _says(article, central["city"]):
                 c_state = central.get("state") or article.publication_state
                 hit = place_geoid(central["city"], c_state) if c_state else None
                 if hit is None and c_state:
@@ -693,6 +854,8 @@ def persist_outcome(
                     geoid = hit
             if geoid is None:
                 point = resolve_point(places_payload, article.publication_city)
+                if point and not _says(article, point[0]):
+                    point = None
                 geoid = _geoid_for(
                     places_payload,
                     point,
@@ -970,6 +1133,15 @@ def persist_outcome(
                 loc_state = loc_state.get("abbr") or loc_state.get("name")
             loc_state = loc_state or article.publication_state
             city = components.get("city")
+            # Same gate, same reason: 17.2% of mentions named a place the
+            # article does not name in reporting. A location is kept on
+            # whichever of its own names the article actually uses.
+            if not any(
+                _says(article, name)
+                for name in (city, components.get("county"))
+                if name
+            ):
+                continue
             g = place_geoid(city, loc_state) if (city and loc_state) else None
             if g is None and components.get("county") and loc_state:
                 g = county_geoid(components["county"], loc_state)
