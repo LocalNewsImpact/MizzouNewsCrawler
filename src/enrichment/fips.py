@@ -180,6 +180,10 @@ _counties: dict[tuple[str, str], tuple[str, float, float]] | None = None
 _names: dict[str, str] | None = None
 
 
+#: The one county-level suffix an article never prints.
+_INDEPENDENT_CITY = re.compile(r"\s+city$", re.IGNORECASE)
+
+
 def _strip_suffix(name: str) -> str:
     return _SUFFIX.sub("", name).strip()
 
@@ -243,7 +247,14 @@ def _load() -> None:
                 float(row["INTPTLAT"]),
                 float(row["INTPTLONG"]),
             )
-            names.setdefault(row["GEOID"], f"{row['NAME']}, {row['USPS']}")
+            # A county keeps its "County"/"Parish" word, because that is
+            # how copy writes one. An INDEPENDENT CITY does not: census
+            # files St. Louis city and Baltimore city as county
+            # equivalents, and no article prints "St. Louis city", so
+            # testing that name against an article marks 86.3% of its
+            # uses unsupported and would delete them.
+            label = _INDEPENDENT_CITY.sub("", row["NAME"]).strip()
+            names.setdefault(row["GEOID"], f"{label}, {row['USPS']}")
     _places, _counties, _names = places, counties, names
 
 

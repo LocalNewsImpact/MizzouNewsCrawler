@@ -309,3 +309,44 @@ class TestTheEdgesOfTheRules:
         ]
         verdict = regrounded(rows, content="The Columbia council met at the site.")
         assert "29019" not in {row[0] for row in verdict.kept}
+
+
+class TestACodeIsReadBackAsTheNameCopyUses:
+    """The audit's own bug, found 2026-09-15 while explaining the results.
+
+    An independent city is a COUNTY equivalent in census files, and its
+    name carries the word "city": GEOID 29510 is "St. Louis city". Tested
+    as a place name against an article, that marked 86.3% of its 328 uses
+    unsupported -- and the backfill would have deleted them. No story
+    prints "St. Louis city".
+
+    A real county keeps its word, because copy does write "Boone County".
+    """
+
+    def test_an_independent_city_drops_its_legal_word(self):
+        from src.enrichment.fips import name_for
+
+        assert name_for("29510") == "St. Louis, MO"
+        assert name_for("24510") == "Baltimore, MD"
+
+    def test_a_county_keeps_its_word(self):
+        from src.enrichment.fips import name_for
+
+        assert name_for("29019") == "Boone County, MO"
+
+    def test_the_place_level_code_agrees_with_the_county_level_one(self):
+        """2965000 (place) and 29510 (county equivalent) are the same
+        city. They have to read back as the same name or one of them
+        fails the gate the other passes."""
+        from src.enrichment.fips import name_for
+
+        assert name_for("2965000") == name_for("29510")
+
+    def test_an_independent_city_survives_an_article_that_names_it(self):
+        from src.enrichment.reground import regrounded
+
+        verdict = regrounded(
+            [("29510", "county", False, "mention")],
+            content="The trial opens in St. Louis next week.",
+        )
+        assert verdict.dropped == []
