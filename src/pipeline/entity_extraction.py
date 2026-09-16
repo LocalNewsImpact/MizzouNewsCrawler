@@ -685,9 +685,9 @@ def rematch_source(
     # so two rows land on one key and the update fails on the constraint.
     #
     # They are the same entity under the new rule, so the surplus row is
-    # deleted rather than kept with a stale norm. Tracked across pages
-    # because one article's entities can straddle a batch boundary.
-    seen: set[tuple] = set()
+    # deleted rather than kept with a stale norm. The set that tracks
+    # this lives per BATCH, because a batch is a whole set of articles
+    # and the key is scoped to the article.
     after = ""
     while True:
         articles = [
