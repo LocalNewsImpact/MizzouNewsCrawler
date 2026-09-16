@@ -567,7 +567,10 @@ def attach_state_matches(
                 break
         if hit is None:
             continue
-        entity["matched_gazetteer_id"] = hit.id
+        # The STATEWIDE feature. `matched_gazetteer_id` keeps its
+        # foreign key to the per-source `gazetteer` table and is left
+        # alone; this is the id that means something under §8.
+        entity["matched_feature_id"] = hit.id
         entity["match_score"] = 1.0
         entity["match_name"] = hit.name
         # The gazetteer's own category, not the model's label. Across
@@ -593,10 +596,15 @@ _SOURCE_ENTITIES = text_sql("""
      LIMIT :batch
 """)
 
+#: `matched_gazetteer_id` is CLEARED rather than rewritten: its foreign
+#: key points at the per-source table, and every value in it was made by
+#: the rules this replaces -- fuzzy, at 0.85, inside one publisher's 22
+#: miles. `matched_feature_id` carries the statewide answer.
 _REMATCH_UPDATE = text_sql("""
     UPDATE article_entities
        SET entity_norm = :entity_norm,
-           matched_gazetteer_id = :matched_gazetteer_id,
+           matched_gazetteer_id = NULL,
+           matched_feature_id = :matched_feature_id,
            match_score = :match_score,
            match_name = :match_name,
            osm_category = :osm_category
@@ -664,7 +672,7 @@ def rematch_source(
                 {
                     "id": row_id,
                     "entity_norm": norm,
-                    "matched_gazetteer_id": hit.id if hit else None,
+                    "matched_feature_id": hit.id if hit else None,
                     "match_score": 1.0 if hit else None,
                     "match_name": hit.name if hit else None,
                     "osm_category": hit.category if hit else None,

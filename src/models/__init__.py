@@ -502,6 +502,15 @@ class ArticleEntity(Base):
         ForeignKey("gazetteer.id"),
         index=True,
     )
+    #: The STATEWIDE feature this entity matched. Separate from the
+    #: column above because that one's foreign key points at the
+    #: per-source `gazetteer` table, which still exists and is still
+    #: read. See docs/STATEWIDE_GAZETTEER.md §8.
+    matched_feature_id = Column(
+        String,
+        ForeignKey("gazetteer_features.id"),
+        index=True,
+    )
     match_score = Column(Float)
     match_name = Column(String)
     meta = Column(JSON)
@@ -777,6 +786,47 @@ class DatasetSource(Base):
             name="uq_dataset_legacy_host",
         ),
         UniqueConstraint("dataset_id", "source_id", name="uq_dataset_source"),
+    )
+
+
+class GazetteerFeature(Base):
+    """One OSM feature, once per state, geocoded to a Census place.
+
+    The per-source `Gazetteer` below holds the same features copied once
+    per nearby publisher -- 83,325 features as 558,540 rows -- and every
+    copy sits within 22.2 miles of one newsroom, which makes any match
+    against it resolve near that newsroom whatever the story says. This
+    table is the replacement for matching: one row per feature per
+    state, with the place its coordinates resolve to.
+
+    See docs/STATEWIDE_GAZETTEER.md.
+    """
+
+    __tablename__ = "gazetteer_features"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    state = Column(String(2), nullable=False, index=True)
+    osm_type = Column(String, nullable=False)
+    osm_id = Column(String, nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    name_norm: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    category = Column(String, index=True)
+    lat = Column(Float)
+    lon = Column(Float)
+    place_geoid = Column(String(7), index=True)
+    place_name = Column(String(120))
+    county_geoid = Column(String(5))
+    #: Separate from `place_geoid` because a point outside any
+    #: incorporated place resolves to NO place -- 26.5% of them -- which
+    #: is an answer and must not be asked again.
+    geocoded_at = Column(DateTime)
+    tags: Mapped[dict | None] = mapped_column(JSON)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "state", "osm_type", "osm_id", name="uq_gazetteer_features_osm"
+        ),
     )
 
 

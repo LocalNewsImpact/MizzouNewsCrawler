@@ -44,7 +44,7 @@ class TestExactMatchingOnly:
         entities = attach_state_matches(
             [_entity("Mizzou Arena")], [_feature("Mizzou Arena")]
         )
-        assert entities[0]["matched_gazetteer_id"] == "mizzou-arena"
+        assert entities[0]["matched_feature_id"] == "mizzou-arena"
         assert entities[0]["match_score"] == 1.0
 
     def test_a_different_jurisdiction_no_longer_matches(self):
@@ -52,7 +52,7 @@ class TestExactMatchingOnly:
         entities = attach_state_matches(
             [_entity("St. Louis City")], [_feature("St. Louis County", "government")]
         )
-        assert "matched_gazetteer_id" not in entities[0]
+        assert "matched_feature_id" not in entities[0]
 
     def test_a_different_municipality_no_longer_matches(self):
         """286 matches put the Kansas City PD into North Kansas City's."""
@@ -60,18 +60,18 @@ class TestExactMatchingOnly:
             [_entity("the Kansas City Police Department")],
             [_feature("North Kansas City Police Department", "emergency")],
         )
-        assert "matched_gazetteer_id" not in entities[0]
+        assert "matched_feature_id" not in entities[0]
 
     def test_a_plural_no_longer_matches_a_singular(self):
         """Cardinals -> Cardinal, 802 times. Marshall -> Marshalls, 257."""
         assert (
-            "matched_gazetteer_id"
+            "matched_feature_id"
             not in attach_state_matches([_entity("Cardinals")], [_feature("Cardinal")])[
                 0
             ]
         )
         assert (
-            "matched_gazetteer_id"
+            "matched_feature_id"
             not in attach_state_matches(
                 [_entity("Marshall")], [_feature("Marshalls", "businesses")]
             )[0]
@@ -82,7 +82,7 @@ class TestExactMatchingOnly:
         entities = attach_state_matches(
             [_entity("Kansas City")], [_feature("Q Kansas City", "businesses")]
         )
-        assert "matched_gazetteer_id" not in entities[0]
+        assert "matched_feature_id" not in entities[0]
 
 
 class TestWhatNormalisationRecovers:
@@ -123,14 +123,14 @@ class TestScoping:
         """A source with no resolvable state matches nothing, not
         everything -- the 901 national student papers."""
         entities = attach_state_matches([_entity("Mizzou Arena")], [])
-        assert "matched_gazetteer_id" not in entities[0]
+        assert "matched_feature_id" not in entities[0]
 
     def test_no_entities_is_not_an_error(self):
         assert attach_state_matches([], [_feature("Mizzou Arena")]) == []
 
     def test_an_empty_entity_is_skipped(self):
         entities = attach_state_matches([_entity("")], [_feature("Mizzou Arena")])
-        assert "matched_gazetteer_id" not in entities[0]
+        assert "matched_feature_id" not in entities[0]
 
     def test_the_query_refuses_an_empty_state_list(self):
         """It must not fall back to every state in the table."""
@@ -158,7 +158,7 @@ class TestAOneWordNameMustBeCapitalised:
         entities = attach_state_matches(
             [_entity("mobile")], [_feature("Mobile", "businesses")]
         )
-        assert "matched_gazetteer_id" not in entities[0]
+        assert "matched_feature_id" not in entities[0]
 
     def test_the_capitalised_form_still_matches(self):
         entities = attach_state_matches(
@@ -201,13 +201,13 @@ class TestAffixesAreEntitySideOnly:
         entities = attach_state_matches(
             [_entity("love")], [_feature("Love's", "businesses")]
         )
-        assert "matched_gazetteer_id" not in entities[0]
+        assert "matched_feature_id" not in entities[0]
 
     def test_an_articled_name_is_not_a_bare_word(self):
         entities = attach_state_matches(
             [_entity("Hill")], [_feature("The Hill", "religious")]
         )
-        assert "matched_gazetteer_id" not in entities[0]
+        assert "matched_feature_id" not in entities[0]
 
     def test_the_article_side_affixes_are_still_stripped(self):
         """The 640 matches a 0.85 threshold was papering over."""

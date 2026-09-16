@@ -57,7 +57,7 @@ class TestWhatItRewrites:
         session = _Session([[("e1", "Mizzou Arena", "mizzou arena", "old-id")], []])
         counts = rematch_source(session, "s1", [_feature("Mizzou Arena")])
         assert counts["matched"] == 1
-        assert session.updates[0]["matched_gazetteer_id"] == "f-mizzou-arena"
+        assert session.updates[0]["matched_feature_id"] == "f-mizzou-arena"
         assert session.updates[0]["match_score"] == 1.0
 
     def test_a_stale_match_is_cleared(self):
@@ -68,7 +68,7 @@ class TestWhatItRewrites:
             session, "s1", [_feature("St. Louis County", "government")]
         )
         assert counts["cleared"] == 1
-        assert session.updates[0]["matched_gazetteer_id"] is None
+        assert session.updates[0]["matched_feature_id"] is None
         assert session.updates[0]["match_score"] is None
         assert session.updates[0]["match_name"] is None
 
