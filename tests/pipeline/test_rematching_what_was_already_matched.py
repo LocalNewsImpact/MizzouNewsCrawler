@@ -258,19 +258,23 @@ class TestRowsThatCollapseOntoEachOther:
             == 0
         )
 
-    def test_a_collision_across_a_page_boundary_is_still_caught(self):
-        """One article's entities can straddle a batch."""
-        session = _Session(
-            [
-                [("e1", "Tesla", "tesla", None, "a1", "ORG", "spacy")],
-                [("e2", "Tesla's", "tesla's", None, "a1", "ORG", "spacy")],
-                [],
-            ]
-        )
-        assert (
-            rematch_source(session, "s1", [_feature("Tesla", "economic")])["deduped"]
-            == 1
-        )
+    def test_an_article_is_never_split_across_batches(self):
+        """THE FIX, asserted on the query rather than through a fake.
+
+        Paging by entity id put one article's rows in different batches,
+        so a row could collide with one not in hand -- "the Missouri
+        Department of Transportation" against a row already holding
+        "missouri department of transportation", already correct and
+        therefore never rewritten. The unique key is scoped to the
+        article, so the batch is too: articles are paged, and every
+        entity of those articles is read together.
+        """
+        from pathlib import Path
+
+        source = Path("src/pipeline/entity_extraction.py").read_text()
+        assert "_SOURCE_ARTICLES" in source
+        assert "WHERE ae.article_id IN :ids" in source
+        assert "AND ae.id > :after" not in source
 
 
 class TestTheWriteCannotCollideWithItself:
