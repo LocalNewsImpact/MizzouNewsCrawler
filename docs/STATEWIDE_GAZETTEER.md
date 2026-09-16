@@ -223,6 +223,30 @@ Missouri it is a fifty-fold increase for breadth this gate does not need:
 the failures measured here are institutions, not businesses, and a denser
 business layer mostly adds ambiguous chain names that §3.1 discards.
 
+## 4c. The geocode, as run
+
+Completed 2026-09-15/16 against the Census coordinates endpoint, at a
+concurrency of six, under a retry loop that re-runs until nothing is
+pending:
+
+| | |
+|---|---|
+| features resolved | 106,496 |
+| placed in a Census place | 78,296 |
+| **in no incorporated place** | **28,200 (26.5%)** |
+| failed | 0 |
+
+The retry loop mattered: the first pass left two failures, the second
+cleared them, the third confirmed nothing was pending. A single pass
+would have left two points unresolved and no signal that they were.
+
+**26.5% of features are in no incorporated place**, and that is a real
+answer rather than a gap — a POI on a county road, in open water, or in
+unincorporated territory. Those features can never serve as evidence
+under §3.1, because a name with no place contributes nothing to the
+count. `geocoded_at` is what distinguishes them from a point not yet
+asked; without that column they would be re-asked on every run, for ever.
+
 ## 4b. What the change actually does, measured before shipping
 
 Step 4 of §4 says the rematch is measurable on a sample before it ships.
