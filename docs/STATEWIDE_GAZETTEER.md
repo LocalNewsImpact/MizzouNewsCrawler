@@ -47,6 +47,32 @@ names a school or a courthouse there.
 nearby source, which is why the table is half a million rows for 83,325
 real places.
 
+**The scope is enforced at match time, not only at build time.** That is
+the line the redesign turns on:
+
+```python
+# src/pipeline/entity_extraction.py
+def get_gazetteer_rows(session, source_id, dataset_id):
+    filters = []
+    if source_id:
+        filters.append(Gazetteer.source_id == source_id)
+    if dataset_id:
+        filters.append(Gazetteer.dataset_id == dataset_id)
+    if not filters:
+        return []
+```
+
+An article's entities are matched only against its own publisher's slice,
+so "Mizzou Arena → Columbia" is invisible to any article whose publisher is
+more than 22 miles from it. This is also why the rematch in §4 is not
+optional: every one of the existing 73,330 matches was made under the
+narrow scope.
+
+Entities themselves are extracted inline during article extraction
+(`_run_article_entity_extraction`, spaCy `en_core_web_sm` plus an
+`EntityRuler`), stamping `articles.entities_extracted_at`, so they exist
+before enrichment reads them.
+
 ## 2. What to build
 
 One row per OSM feature per state, geocoded to a Census place.
@@ -208,6 +234,16 @@ gazetteer is. The SEMO gymnastics article produced 21 entities — `Ohio
 State`, `Central Michigan`, `NCAA Regionals`, `Houck Fieldhouse` — and not
 `Southeast Missouri State`. Statewide matching does not reach that; entity
 extraction does.
+
+That is a per-article miss, NOT a coverage gap. Extraction runs on
+essentially everything: of 20,521 enriched articles, 20,509 carry at least
+one entity and only 12 carry none. One of those 12 is a KOMU gymnastics
+story whose induced place — Columbia, from "Mizzou" — the gazetteer could
+have confirmed outright, since it holds 57 Mizzou features including Mizzou
+Arena in Columbia. The limit is therefore the MATCH rate within articles
+that do have entities, which is what §2 and §3 address, and not extraction
+coverage. The 12 empty articles want a re-run of `entity-extraction`, which
+is a different job from this one.
 
 ## 6. Related
 
