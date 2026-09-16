@@ -713,9 +713,13 @@ def reground_stored(
                 "JOIN gazetteer g ON g.id = ae.matched_gazetteer_id "
                 "WHERE ae.article_id IN :ids "
                 "  AND ae.matched_gazetteer_id IS NOT NULL "
+                "  AND ae.entity_label IN :labels "
                 "  AND COALESCE(g.place_name, g.tags->>'addr:city') IS NOT NULL"
-            ).bindparams(bindparam("ids", expanding=True)),
-            {"ids": chunk},
+            ).bindparams(
+                bindparam("ids", expanding=True),
+                bindparam("labels", expanding=True),
+            ),
+            {"ids": chunk, "labels": list(EVIDENCE_LABELS)},
         ):
             cities_by_article[article_id].append(city)
 
@@ -787,6 +791,19 @@ def _confidence(meta: dict) -> float | None:
 #: from entity extraction's own output joined to the gazetteer -- the
 #: model's induction from a school or a hospital is evidence, and
 #: refusing it deleted 70 correct points in the first backfill.
+#: Labels that can carry a place. ORG and FAC are the institutions the
+#: model reasons from; GPE and LOC are places themselves. PERSON, NORP
+#: and EVENT are excluded: a surname matching a POI named after somebody
+#: is not evidence, and "Ali" matching an ALDI is how that goes wrong.
+#: 1,262 of 37,566 articles rested on that label alone.
+#:
+#: Not a free win -- the extractor files "Cracker Barrel" and "T.J. Maxx"
+#: as PERSON, and those matches were right. Losing them is the cheaper
+#: error: a chain resolves to the publisher's own market by construction,
+#: because the gazetteer is built per source within 22 miles, so chain
+#: evidence launders the publisher-city bias this gate exists to stop.
+EVIDENCE_LABELS = ("ORG", "FAC", "GPE", "LOC")
+
 #: `place_name` first: it is what the coordinates resolve to in Census
 #: terms, and it is present for every point that has been geocoded.
 #: `addr:city` is the OSM fallback for points not yet looked up -- a
@@ -798,13 +815,19 @@ _INSTITUTION_CITIES = text("""
       JOIN gazetteer g ON g.id = ae.matched_gazetteer_id
      WHERE ae.article_id = :id
        AND ae.matched_gazetteer_id IS NOT NULL
+       AND ae.entity_label IN :labels
        AND COALESCE(g.place_name, g.tags->>'addr:city') IS NOT NULL
-""")
+""").bindparams(bindparam("labels", expanding=True))
 
 
 def institution_places(session: Session, article_id: str) -> list[str]:
     """Cities of the institutions this article names."""
-    return [row[0] for row in session.execute(_INSTITUTION_CITIES, {"id": article_id})]
+    return [
+        row[0]
+        for row in session.execute(
+            _INSTITUTION_CITIES, {"id": article_id, "labels": list(EVIDENCE_LABELS)}
+        )
+    ]
 
 
 def _says(
