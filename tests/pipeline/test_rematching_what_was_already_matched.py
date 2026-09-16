@@ -28,16 +28,26 @@ def _feature(name, category="schools"):
 
 class _Result:
     def __init__(self, rows):
-        self._rows = rows
+        self._rows = list(rows)
 
     def all(self):
         return self._rows
 
+    def __iter__(self):
+        return iter(self._rows)
+
 
 class _Session:
-    """Answers the paging query from a queue, records the updates."""
+    """Answers the two reads a batch makes -- the article list, then
+    every entity of those articles -- and records the writes.
+
+    Two queries because the unique key is scoped to the article: a
+    collision can only be resolved with every row of that article in
+    hand, and paging by entity id split articles across batches.
+    """
 
     def __init__(self, pages):
+        # Each page is one batch's entity rows.
         self.pages = list(pages)
         self.updates = []
         self.deleted = []
@@ -45,15 +55,20 @@ class _Session:
         self.commits = 0
 
     def execute(self, statement, params=None):
+        sql = str(statement)
         if isinstance(params, list):
             self.updates.extend(params)
             return _Result([])
-        if isinstance(params, dict) and "ids" in params:
-            if "DELETE" in str(statement):
-                self.deleted.extend(params["ids"])
-            else:
-                self.parked.extend(params["ids"])
+        if "SET entity_norm = id" in sql:
+            self.parked.extend((params or {})["ids"])
             return _Result([])
+        if sql.strip().startswith("DELETE"):
+            self.deleted.extend((params or {})["ids"])
+            return _Result([])
+        if "FROM articles a" in sql:
+            # The article list for this batch, or nothing left.
+            return _Result([("a1",)] if self.pages else [])
+        # Every entity of those articles.
         return _Result(self.pages.pop(0) if self.pages else [])
 
     def commit(self):
