@@ -314,3 +314,42 @@ class TestWhichTableIsResolved:
         gp.geocode(session, table="gazetteer_features", dry_run=False)
         update = next(s for s in session.statements if "UPDATE" in s)
         assert "UPDATE gazetteer_features" in update
+
+
+class TestTheCommandLineExposesWhatTheHandlerReads:
+    """The gap that shipped a broken command: the handler passed
+    `args.table` while the parser never registered `--table`, so the job
+    died on "unrecognized arguments" after the commit looked fine. A
+    handler reading an argument the parser does not define is a runtime
+    error, not a type error, and nothing else here would catch it."""
+
+    def _parser(self):
+        import argparse
+
+        from src.cli.commands.gazetteer_geocode import add_gazetteer_geocode_parser
+
+        parser = argparse.ArgumentParser()
+        add_gazetteer_geocode_parser(parser.add_subparsers(dest="cmd"))
+        return parser
+
+    def test_every_argument_the_handler_reads_is_defined(self):
+        import re
+        from pathlib import Path
+
+        source = Path("src/cli/commands/gazetteer_geocode.py").read_text()
+        handler = source[source.index("def handle_gazetteer_geocode_command") :]
+        read = set(re.findall(r"args\.([a-z_]+)", handler))
+        parsed = vars(self._parser().parse_args(["geocode-gazetteer"]))
+        assert read <= set(
+            parsed
+        ), f"handler reads undefined args: {read - set(parsed)}"
+
+    def test_the_statewide_table_can_be_asked_for(self):
+        args = self._parser().parse_args(
+            ["geocode-gazetteer", "--table", "gazetteer_features"]
+        )
+        assert args.table == "gazetteer_features"
+
+    def test_an_unknown_table_is_refused_at_the_command_line(self):
+        with pytest.raises(SystemExit):
+            self._parser().parse_args(["geocode-gazetteer", "--table", "articles"])
