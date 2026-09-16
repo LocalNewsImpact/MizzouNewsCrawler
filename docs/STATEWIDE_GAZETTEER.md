@@ -163,18 +163,23 @@ claim adds nothing to the record.
 
 ## 4. Order of work
 
-1. **Geocode every feature.** `geocode-gazetteer --all`. 83,325 lookups at
-   the observed rate is roughly four hours, about two with higher
+1. **Load the states.** §10 — from the GCS extracts, on demand, keyed by
+   `(state, osm_type, osm_id)`.
+2. **Geocode every feature.** `geocode-gazetteer --all`. 83,325 lookups is
+   roughly four hours at the observed rate, about two with higher
    concurrency. The Census geocoder is free; concurrency stays modest.
-2. **Build the statewide index** — one row per feature per state, with its
-   place, and a name→places count so §3.1 is a lookup rather than a scan.
-3. **Re-measure the short-name guards** (§3.3) against the wider pool
-   before anything is rematched.
-4. **Rematch** the 2.97M `article_entities` rows.
-5. **Point the gate at it** — `repository.institution_places` reads the
-   statewide index, and `EVIDENCE_LABELS` keeps §3.2.
-6. **Re-run `enrich reground`.** It only deletes, so restore from the
+3. **Build the name→places count** so §3.1 is a lookup rather than a scan.
+4. **Fix normalisation** (§8.2) and **re-measure the name guard** (§8.4)
+   against the wider pool. Both before anything is rematched.
+5. **Switch the matcher to exact-only** (§8.1) and scope it by state (§9).
+6. **Rematch** the 2.97M `article_entities` rows.
+7. **Point the gate at the gazetteer category, not spaCy's label** (§8.3).
+8. **Re-run `enrich reground`.** It only deletes, so restore from the
    snapshot tables first and let the improved gate re-judge the corpus.
+
+Steps 4 and 5 are the ones that can silently make things worse, and both
+are measurable before they ship: a rematch on a sample, compared against
+the current matches, says what changed and in which direction.
 
 ## 4a. Better sources than OSM for institutions
 
@@ -245,7 +250,156 @@ that do have entities, which is what §2 and §3 address, and not extraction
 coverage. The 12 empty articles want a re-run of `entity-extraction`, which
 is a different job from this one.
 
-## 6. Related
+## 7. What is there now, reviewed
+
+| file | role |
+|---|---|
+| `scripts/populate_gazetteer.py` (1,985 lines) | geocodes a publisher, queries Overpass within 20 miles, writes rows stamped `dataset_id` / `source_id` / `host_id` |
+| `scripts/build_osm_poi_extract.py` | builds a STATEWIDE CSV from a Geofabrik `.osm.pbf` using the same 61 tag filters |
+| `OSM_POI_CSV` | makes the builder serve from a local CSV instead of Overpass |
+| `src/pipeline/entity_extraction.py` | spaCy `en_core_web_sm` + an `EntityRuler`; `get_gazetteer_rows` scopes candidates; `_score_match` decides |
+| `src/utils/gazetteer_names.py` | the matchability guard: length ≥ 3 and at least one letter |
+| `src/cli/commands/gazetteer.py` | `populate-gazetteer` |
+| `src/cli/commands/gazetteer_geocode.py` | `geocode-gazetteer` |
+
+Read by: `repository.institution_places` (the grounding gate),
+`utils/byline_cleaner.py` (organisation names, to filter bylines), and
+`reporting/county_report.py` + `cli/commands/pipeline_status.py` (over
+`article_entities`). `pipeline/publisher_geo_filter.py` and
+`pipeline/enhanced_wire_filtering.py` build their own in-memory publisher
+gazetteers from source location data — a different thing, not this table.
+
+**The statewide extracts already exist.** `gs://mizzou-osm-extracts/poi/`
+holds missouri (32,925 POIs), washington (50,481), kansas (18,325) and
+vermont (6,763), built 2026-08-28. Statewide Missouri is only 19% more
+features than the current per-publisher build's 27,729, because 247
+publishers' 20-mile radii already cover most of the populated state. **The
+gain is not more data. It is scope, ambiguity detection, and 6.7× less
+storage.**
+
+## 8. Matching: exact only, normalised first, and blind to spaCy's labels
+
+### 8.1 Drop fuzzy matching
+
+`_score_match` accepts `fuzz.ratio >= 0.85`. Exact hits are 72.0% of the
+73,330 matches; the fuzzy band is 26.3% and holds two different things:
+
+| entity | matched to | score | count | |
+|---|---|---|---|---|
+| `St. Louis City` | St. Louis **County** | 0.857 | 206 | different jurisdiction |
+| `the Kansas City Police Department` | **North** Kansas City PD | 0.941 | 286 | different municipality |
+| `Cardinals` | `Cardinal` | 0.941 | 802 | team → unrelated POI |
+| `Marshall` | `Marshalls` | 0.941 | 257 | → a retail chain |
+| `Kansas City` | `Q Kansas City` | 0.917 | 218 | city → a business |
+| `Kansas City's` | `Kansas City` | 0.917 | 463 | *a possessive* |
+| `Jefferson City's` | `Jefferson City` | 0.933 | 177 | *a possessive* |
+
+The first five are wrong. The last two are normalisation failures that
+should never have reached a scorer. Statewide the pool grows from a few
+hundred candidates to tens of thousands, so every one of these gets more
+likely, not less.
+
+Exact matching also makes the `len(gazetteer_rows) < 50000` fallback guard
+dead code — which is just as well, because **Washington statewide is 50,481
+POIs**, over that line, so the guard would silently give Washington
+exact-only matching while Missouri got fuzzy. A per-state behaviour split
+nothing would have reported.
+
+### 8.2 Normalise before matching, not after failing to match
+
+`Kansas City's` → `Kansas City` and `Jefferson City's` → `Jefferson City`
+are 640 matches that only needed a possessive stripped. Normalisation must
+handle, on both sides:
+
+- trailing possessive, straight and curly: `'s`, `’s`
+- a leading article: `the`
+- punctuation and case, as now
+
+Those become exact matches and stop depending on a scorer at all.
+
+### 8.3 Ignore spaCy's labels
+
+The statistical model has no ground truth; it guesses a label from token
+shape and context, and at `en_core_web_sm` it guesses badly. Across 2.9M
+rows the most frequent `ORG` values include `Trump` (6,715), `House`
+(4,375), `State` (3,279), `Columbia` (3,047 — a place), `story` (2,999) and
+`REWRITTEN` (1,726 — wire boilerplate). `GPE` includes `Mo.` (19,206) and
+`ST` (5,060).
+
+So `EVIDENCE_LABELS` in `repository.py` is weak protection: it filters on
+exactly the field that is unreliable. **Use the gazetteer's own `category`
+instead**, which is deterministic — `GAZETTEER_CATEGORY_MAPPINGS` in
+`entity_extraction.py` already maps eleven OSM categories to a type.
+
+This is safe because the `EntityRuler` compiles every gazetteer name into an
+exact token pattern and injects it into the pipeline. A known institution is
+matched exactly, by name, with no statistical judgement involved. **The
+evidence path does not need the NER model at all**; the model exists to
+discover unknown entities, which is a different job and can stay as it is.
+
+### 8.4 Strengthen the name guard
+
+`is_matchable_gazetteer_name` requires length ≥ 3 and one letter. Against a
+per-publisher slice that sufficed. Against a state it does not: it admits
+`Union`, `Liberty`, `Salem`, `City Hall`, `Post Office`, `Dollar General`.
+
+§3.1's one-place rule carries most of this — a name in many places is
+discarded — but a name that is generic AND happens to occur once in the
+state would pass. Reject names that are a single common word, and re-measure
+the guard against the statewide pool before anything is rematched (§4 step
+3).
+
+## 9. Scope: the publisher's state, plus a border within reach
+
+A dataset is a coverage list, not a location list. `resolve_source_state`
+and `tests/test_gazetteer_state_resolution.py` already record why: the
+Mizzou dataset legitimately holds KMBZ (Mission, KS) and Dos Mundos
+(Overland Park, KS), because the Kansas City metro spans the line — which is
+why `kansas.csv` is in the bucket. And 896 of 901 Vermont sources arrive
+with no state at all, so guessing one is forbidden.
+
+The scope for a source is therefore:
+
+1. the source's own state, from `resolve_source_state` — never guessed; a
+   source with no state resolvable is skipped with a reason, as now;
+2. plus any state whose border falls within that source's coverage radius.
+
+Computed once per source and STORED, so the scope is explicit and
+auditable rather than recomputed per article. A Washington publisher then
+reads Washington, and never the Missouri gazetteer or eighteen others.
+
+## 10. Loading a state on demand
+
+The extract for a state is downloaded and installed when a source in that
+state is first seen, not ahead of time.
+
+1. Look for the state in the statewide gazetteer. If present, done.
+2. Otherwise fetch `gs://mizzou-osm-extracts/poi/<state>.csv` and load it.
+3. If the bucket does not have it, build it from the Geofabrik PBF with
+   `build_osm_poi_extract.py` and upload — a one-time cost per state.
+4. Geocode the new rows to Census places (`geocode-gazetteer`), which is
+   what §2 needs and what the one-place rule in §3.1 counts over.
+
+Loads are idempotent and keyed by `(state, osm_type, osm_id)`.
+
+## 11. What this does to the tests
+
+31 test files reference the gazetteer. The contracts to preserve, and where
+they will move:
+
+| file | tests | effect |
+|---|---|---|
+| `test_gazetteer_name_guard.py` | 9 | keep; extend for §8.4 |
+| `test_gazetteer_state_resolution.py` | 5 | keep unchanged — §9 depends on exactly this behaviour |
+| `pipeline/test_entity_extraction.py` | 11 | rewrite the scoring tests; fuzzy assertions go |
+| `test_a_county_must_be_a_county.py` | 15 | keep |
+| `test_gazetteer_integration.py` | 1 | rescope from source to state |
+
+Any test asserting that `get_gazetteer_rows` filters on `source_id` is
+asserting the defect and must be replaced with a state assertion, not
+deleted — the new scope needs a test of its own.
+
+## 12. Related
 
 - `src/enrichment/grounding.py` — the gate, and why each exclusion exists.
 - `src/enrichment/gazetteer_places.py` — the lat/lon to Census place lookup.
