@@ -12,13 +12,15 @@ import spacy
 from rapidfuzz import fuzz
 from spacy import about as spacy_about
 from spacy.pipeline import EntityRuler
+from sqlalchemy import bindparam as bindparam_sql
 from sqlalchemy import select
+from sqlalchemy import text as text_sql
 from sqlalchemy.orm import Session
 
 from src.models import Gazetteer
 from src.models.database import safe_session_execute
 from src.pipeline.text_cleaning import decode_rot47_segments
-from src.utils.gazetteer_names import is_matchable_gazetteer_name
+from src.utils.gazetteer_names import is_matchable_gazetteer_name, normalize_name
 
 logger = logging.getLogger(__name__)
 
@@ -484,6 +486,94 @@ def attach_gazetteer_matches(
 
 __all__ = [
     "ArticleEntityExtractor",
-    "get_gazetteer_rows",
+    "Feature",
     "attach_gazetteer_matches",
+    "attach_state_matches",
+    "get_gazetteer_rows",
+    "get_state_features",
 ]
+
+
+@dataclass(frozen=True)
+class Feature:
+    """One statewide gazetteer feature, as the matcher needs it."""
+
+    id: str
+    name: str
+    name_norm: str
+    category: str | None
+
+
+_STATE_FEATURES = text_sql("""
+    SELECT id, name, name_norm, category
+      FROM gazetteer_features
+     WHERE state IN :states
+""")
+
+
+def get_state_features(session: Session, states: Sequence[str]) -> list[Feature]:
+    """This source's states' features, and nothing else.
+
+    An empty `states` returns nothing rather than everything: a source
+    whose state could not be resolved -- the 901 national student papers
+    -- is scoped to no gazetteer at all, which is the safe reading.
+    """
+    if not states:
+        return []
+    rows = session.execute(
+        _STATE_FEATURES.bindparams(bindparam_sql("states", expanding=True)),
+        {"states": list(states)},
+    )
+    return [
+        Feature(id=row[0], name=row[1], name_norm=row[2], category=row[3])
+        for row in rows
+        if is_matchable_gazetteer_name(row[1])
+    ]
+
+
+def attach_state_matches(
+    entities: list[dict[str, object]], features: Sequence[Feature]
+) -> list[dict[str, object]]:
+    """Match entities to features by name. EXACTLY, and only by name.
+
+    THE THRESHOLD IS GONE. `_score_match` accepted `fuzz.ratio >= 0.85`,
+    which was 26.3% of the corpus's 73,330 matches and held "St. Louis
+    City" matched to St. Louis COUNTY (206 times), "the Kansas City
+    Police Department" matched to NORTH Kansas City's (286) and
+    "Cardinals" matched to "Cardinal" (802). Those are different
+    jurisdictions and unrelated places, and a similarity score cannot
+    tell them from the possessives it was also papering over -- "Kansas
+    City's" against "Kansas City", 463 times. `normalize_name` handles
+    the possessives, so the score has nothing left to do that is not
+    wrong, and the statewide pool would have made every one of those
+    errors likelier.
+
+    Ambiguity is not resolved here. A name occurring in several places
+    still matches a feature; whether it can serve as EVIDENCE is
+    `gazetteer_name_places`' question, and it is asked where the answer
+    is used.
+    """
+    if not entities or not features:
+        return entities
+    index: dict[str, Feature] = {}
+    for feature in features:
+        key = feature.name_norm or normalize_name(feature.name)
+        if key:
+            index.setdefault(key, feature)
+
+    for entity in entities:
+        key = normalize_name(str(entity.get("entity_text", "")))
+        if not key:
+            continue
+        entity["entity_norm"] = key
+        hit = index.get(key)
+        if hit is None:
+            continue
+        entity["matched_gazetteer_id"] = hit.id
+        entity["match_score"] = 1.0
+        entity["match_name"] = hit.name
+        # The gazetteer's own category, not the model's label. Across
+        # 2.9M rows en_core_web_sm files `Columbia` as ORG 3,047 times,
+        # `story` as ORG 2,999 and `REWRITTEN` as ORG 1,726.
+        entity["osm_category"] = hit.category
+    return entities
