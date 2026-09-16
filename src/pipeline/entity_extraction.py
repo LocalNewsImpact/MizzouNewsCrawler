@@ -584,17 +584,57 @@ def attach_state_matches(
 #: EXISTS rather than a join to `source_gazetteer_scope`: that table has
 #: a row per state, so joining it multiplies a two-state source's
 #: entities -- 3,619,730 rows against the 2,966,298 that exist.
-_SOURCE_ENTITIES = text_sql("""
-    SELECT ae.id, ae.entity_text, ae.entity_norm, ae.matched_gazetteer_id
-      FROM article_entities ae
-     WHERE EXISTS (
-             SELECT 1 FROM articles a
-               JOIN candidate_links cl ON cl.id = a.candidate_link_id
-              WHERE a.id = ae.article_id AND cl.source_id = :source_id)
-       AND ae.id > :after
-     ORDER BY ae.id
+#: The articles this source owns, paged. EXISTS rather than a join to
+#: `source_gazetteer_scope`: that table has a row per state, so joining
+#: it multiplies a two-state source's rows -- 3,619,730 against the
+#: 2,966,298 that exist.
+_SOURCE_ARTICLES = text_sql("""
+    SELECT DISTINCT a.id
+      FROM articles a
+      JOIN candidate_links cl ON cl.id = a.candidate_link_id
+     WHERE cl.source_id = :source_id
+       AND a.id > :after
+     ORDER BY a.id
      LIMIT :batch
 """)
+
+#: EVERY entity of those articles, together.
+#:
+#: The unique key is (article_id, entity_norm, entity_label,
+#: extractor_version), so a collision is always WITHIN one article --
+#: and can only be resolved if every row of that article is in hand.
+#: Paging by entity id instead split articles across batches, and an
+#: update then collided with a row in a later page that still held the
+#: target norm and was never going to be rewritten because it was
+#: already correct.
+_ARTICLE_ENTITIES = text_sql("""
+    SELECT ae.id, ae.entity_text, ae.entity_norm,
+           COALESCE(ae.matched_feature_id, ae.matched_gazetteer_id),
+           ae.article_id, ae.entity_label, ae.extractor_version
+      FROM article_entities ae
+     WHERE ae.article_id IN :ids
+     ORDER BY ae.article_id, ae.id
+""").bindparams(bindparam_sql("ids", expanding=True))
+
+_REMATCH_DELETE = text_sql("DELETE FROM article_entities WHERE id IN :ids").bindparams(
+    bindparam_sql("ids", expanding=True)
+)
+
+#: PHASE ONE OF THE WRITE, and it is not optional.
+#:
+#: The unique key is (article_id, entity_norm, entity_label,
+#: extractor_version). Row A's new norm is frequently a norm row B still
+#: holds -- "the Missouri Department of Transportation" and "Missouri
+#: Department of Transportation" both resolve to the latter -- and if B
+#: is on a later page it has not been rewritten yet, so the update
+#: collides with a value that is about to disappear.
+#:
+#: Parking every row being changed on its own id first makes the
+#: intermediate state unique by construction, so phase two can write the
+#: real values in any order.
+_REMATCH_PARK = text_sql(
+    "UPDATE article_entities SET entity_norm = id WHERE id IN :ids"
+).bindparams(bindparam_sql("ids", expanding=True))
 
 #: `matched_gazetteer_id` is CLEARED rather than rewritten: its foreign
 #: key points at the per-source table, and every value in it was made by
@@ -638,18 +678,44 @@ def rematch_source(
         if key:
             index.setdefault(key, feature)
 
-    counts = {"read": 0, "matched": 0, "cleared": 0, "unchanged": 0}
+    counts = {"read": 0, "matched": 0, "cleared": 0, "unchanged": 0, "deduped": 0}
+    # `article_entities` is unique on (article_id, entity_norm,
+    # entity_label, extractor_version). Rewriting the norm COLLAPSES rows
+    # that used to differ -- "Tesla" and "Tesla's" both become "tesla" --
+    # so two rows land on one key and the update fails on the constraint.
+    #
+    # They are the same entity under the new rule, so the surplus row is
+    # deleted rather than kept with a stale norm. Tracked across pages
+    # because one article's entities can straddle a batch boundary.
+    seen: set[tuple] = set()
     after = ""
     while True:
-        rows = session.execute(
-            _SOURCE_ENTITIES,
-            {"source_id": source_id, "after": after, "batch": batch},
-        ).all()
-        if not rows:
+        articles = [
+            row[0]
+            for row in session.execute(
+                _SOURCE_ARTICLES,
+                {"source_id": source_id, "after": after, "batch": 200},
+            )
+        ]
+        if not articles:
             break
-        after = rows[-1][0]
-        updates = []
-        for row_id, entity_text, old_norm, old_match in rows:
+        after = articles[-1]
+        rows = session.execute(_ARTICLE_ENTITIES, {"ids": articles}).all()
+
+        updates: list[dict] = []
+        surplus: list[str] = []
+        # Scoped to this batch because the unique key is scoped to the
+        # article, and every row of these articles is in hand.
+        seen: set[tuple] = set()
+        for (
+            row_id,
+            entity_text,
+            old_norm,
+            old_match,
+            article_id,
+            label,
+            extractor,
+        ) in rows:
             counts["read"] += 1
             keys = lookup_keys(str(entity_text or ""))
             norm = keys[0] if keys else ""
@@ -659,6 +725,13 @@ def rematch_source(
                 if hit is not None:
                     norm = key
                     break
+            unique_key = (article_id, norm, label, extractor)
+            if unique_key in seen:
+                # The same entity twice under the new normalisation.
+                surplus.append(row_id)
+                counts["deduped"] += 1
+                continue
+            seen.add(unique_key)
             if hit is None and old_match is None and norm == (old_norm or ""):
                 counts["unchanged"] += 1
                 continue
@@ -678,7 +751,14 @@ def rematch_source(
                     "osm_category": hit.category if hit else None,
                 }
             )
-        if updates and not dry_run:
-            session.execute(_REMATCH_UPDATE, updates)
-            session.commit()
+        if not dry_run:
+            if surplus:
+                session.execute(_REMATCH_DELETE, {"ids": surplus})
+            if updates:
+                # Park first: a row's new norm is often a norm another
+                # row of the same article still holds.
+                session.execute(_REMATCH_PARK, {"ids": [row["id"] for row in updates]})
+                session.execute(_REMATCH_UPDATE, updates)
+            if surplus or updates:
+                session.commit()
     return counts
