@@ -245,6 +245,22 @@ The 685 cleared are the ones that must not survive: "St. Louis City"
 filed under St. Louis County, the Kansas City Police Department under
 North Kansas City's.
 
+**The ambiguity rule, validated against the real index** (Missouri, on a
+partial geocode):
+
+| name | places it occurs in | verdict |
+|---|---|---|
+| `casey's general store` | 72 | discarded |
+| `phillips 66` | 57 | discarded |
+| `walmart supercenter` | 55 | discarded |
+| `quiktrip` | 32 | discarded |
+| `mizzou arena` | **1** | usable |
+| `westminster college` | **1** | usable |
+
+Missouri's distribution: 11,028 names resolve to one place (94.7%), 431
+to two or three, 124 to four to ten, 56 to eleven or more. The rule needs
+no brand list; the chains disqualify themselves.
+
 Guard check against the wider pool, same run: 0 of 106,652 loaded
 features fail `is_matchable_gazetteer_name` (the guard runs at load), and
 6,554 of 83,286 (state, name) keys sit on more than one feature — led by
