@@ -151,7 +151,11 @@ def test_score_match_prefers_exact_match():
     assert match.gazetteer_id == "1"
 
 
-def test_score_match_returns_best_fuzzy_match():
+def test_score_match_refuses_a_near_miss():
+    """THE THRESHOLD IS GONE. `fuzz.ratio >= 0.85` matched "St. Louis
+    City" to St. Louis COUNTY 206 times and the Kansas City Police
+    Department to NORTH Kansas City's 286 times. A name that is merely
+    similar is a different place. See docs/STATEWIDE_GAZETTEER.md §8.1."""
     rows = [
         Gazetteer(
             id="2",
@@ -159,9 +163,13 @@ def test_score_match_returns_best_fuzzy_match():
             name_norm="boone county library",
         )
     ]
-    match = extraction._score_match("boone cnty library", rows)
-    assert match and match.gazetteer_id == "2"
-    assert match.score >= 0.85
+    assert extraction._score_match("boone cnty library", rows) is None
+
+
+def test_score_match_refuses_a_different_jurisdiction():
+    """The real one, 206 times over."""
+    rows = [Gazetteer(id="2", name="St. Louis County", name_norm="st louis county")]
+    assert extraction._score_match("st louis city", rows) is None
 
 
 def test_score_match_returns_none_when_no_candidates():
@@ -224,24 +232,30 @@ def test_get_gazetteer_rows_returns_empty_when_no_filters(
     assert extraction.get_gazetteer_rows(in_memory_session, None, None) == []
 
 
-def test_attach_gazetteer_matches_handles_direct_and_fuzzy(
+def test_attach_gazetteer_matches_takes_the_exact_name_only(
     in_memory_session: Session,
 ) -> None:
-    direct = Gazetteer(
-        id="direct",
+    """Named for what it now asserts. It used to require that "Boone Gen
+    Hospital" match "Boone General Hospital" at 0.85 or better -- the
+    same rule that filed "St. Louis City" under St. Louis COUNTY 206
+    times and the Kansas City Police Department under NORTH Kansas
+    City's 286 times. A near miss is a different place.
+    See docs/STATEWIDE_GAZETTEER.md §8.1."""
+    exact = Gazetteer(
+        id="exact",
         source_id="source-1",
         dataset_id="dataset-1",
         name="Boone County Library",
         name_norm="boone county library",
     )
-    fuzzy = Gazetteer(
-        id="fuzzy",
+    near = Gazetteer(
+        id="near",
         source_id="source-1",
         dataset_id="dataset-1",
         name="Boone General Hospital",
         name_norm="boone general hospital",
     )
-    in_memory_session.add_all([direct, fuzzy])
+    in_memory_session.add_all([exact, near])
     in_memory_session.commit()
 
     entities: list[dict[str, object]] = [
@@ -258,14 +272,9 @@ def test_attach_gazetteer_matches_handles_direct_and_fuzzy(
         "dataset-1",
         entities,
     )
-    by_id = {entity.get("matched_gazetteer_id") for entity in result}
-    assert by_id == {"direct", "fuzzy"}
-    fuzzy_entity = next(
-        entity for entity in result if entity["matched_gazetteer_id"] == "fuzzy"
-    )
-    assert fuzzy_entity["entity_norm"] == "boone gen hospital"
-    match_score = float(fuzzy_entity["match_score"])  # type: ignore[arg-type]
-    assert match_score >= 0.85
+    assert result[0]["matched_gazetteer_id"] == "exact"
+    assert result[0]["match_score"] == 1.0
+    assert "matched_gazetteer_id" not in result[1]
 
 
 def test_attach_gazetteer_matches_no_entities_returns_input(

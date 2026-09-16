@@ -9,7 +9,6 @@ from dataclasses import dataclass
 from functools import lru_cache
 
 import spacy
-from rapidfuzz import fuzz
 from spacy import about as spacy_about
 from spacy.pipeline import EntityRuler
 from sqlalchemy import bindparam as bindparam_sql
@@ -313,64 +312,34 @@ class ArticleEntityExtractor:
 def _score_match(
     norm_entity: str, candidates: Sequence[Gazetteer], entity_text: str = ""
 ) -> GazetteerMatch | None:
-    """Score fuzzy matches between entity and gazetteer candidates.
+    """The candidate whose name IS this entity's name, or None.
 
-    Args:
-        norm_entity: Normalized entity text
-        candidates: List of gazetteer entries to compare against
-        entity_text: Original entity text (for logging)
+    NO SIMILARITY THRESHOLD. It accepted `fuzz.ratio >= 0.85`, which
+    matched "St. Louis City" to St. Louis COUNTY 206 times, "the Kansas
+    City Police Department" to NORTH Kansas City's 286 times,
+    "Cardinals" to "Cardinal" 802 and "Marshall" to "Marshalls" 257 --
+    different jurisdictions and unrelated places. The 640 legitimate
+    matches it also made, "Kansas City's" against "Kansas City" among
+    them, are possessives that `normalize_name` resolves before anything
+    is compared. Nothing is left for a threshold to do that is not an
+    error, and it is a hazard to leave one live on a second path.
 
-    Returns:
-        Best matching gazetteer entry with score >= 0.85, or None
+    See docs/STATEWIDE_GAZETTEER.md §8.1.
     """
     if not candidates:
         return None
-
-    # Log when doing expensive fuzzy matching on many candidates
-    if len(candidates) > 100 and entity_text:
-        logger.debug(
-            f"🔍 Fuzzy matching '{entity_text}' against {len(candidates)} candidates"
-        )
-
-    best_match: GazetteerMatch | None = None
     for entry in candidates:
         if not is_matchable_gazetteer_name(getattr(entry, "name", None)):
             continue
         name_norm = getattr(entry, "name_norm", None)
-        entry_norm = name_norm or _normalize_text(entry.name or "")
-        if not entry_norm:
-            continue
-
-        # Exact match - return immediately
-        if entry_norm == norm_entity:
-            if entity_text and len(candidates) > 100:
-                logger.debug(
-                    "✅ Exact match: '%s' → '%s'",
-                    entity_text,
-                    str(getattr(entry, "name", "")),
-                )
+        entry_norm = name_norm or normalize_name(entry.name or "")
+        if entry_norm and entry_norm == norm_entity:
             return GazetteerMatch(
                 str(getattr(entry, "id", "")),
                 1.0,
                 str(getattr(entry, "name", "")) or "",
             )
-
-        # Use rapidfuzz for fuzzy matching (10-100x faster than SequenceMatcher)
-        score = fuzz.ratio(norm_entity, entry_norm) / 100.0
-        if score >= 0.85 and (best_match is None or score > best_match.score):
-            best_match = GazetteerMatch(
-                str(getattr(entry, "id", "")),
-                score,
-                str(getattr(entry, "name", "")) or "",
-            )
-
-    if best_match and entity_text and len(candidates) > 100:
-        logger.debug(
-            f"✅ Fuzzy match: '{entity_text}' → '{best_match.name}' "
-            f"(score: {best_match.score:.2f})"
-        )
-
-    return best_match
+    return None
 
 
 def get_gazetteer_rows(

@@ -443,22 +443,36 @@ state is first seen, not ahead of time.
 
 Loads are idempotent and keyed by `(state, osm_type, osm_id)`.
 
-## 11. What this does to the tests
+## 11. What this did to the tests
 
-31 test files reference the gazetteer. The contracts to preserve, and where
-they will move:
+31 test files referenced the gazetteer. What actually happened, as
+opposed to what was predicted here before the work:
 
-| file | tests | effect |
-|---|---|---|
-| `test_gazetteer_name_guard.py` | 9 | keep; extend for §8.4 |
-| `test_gazetteer_state_resolution.py` | 5 | keep unchanged — §9 depends on exactly this behaviour |
-| `pipeline/test_entity_extraction.py` | 11 | rewrite the scoring tests; fuzzy assertions go |
-| `test_a_county_must_be_a_county.py` | 15 | keep |
-| `test_gazetteer_integration.py` | 1 | rescope from source to state |
+| file | outcome |
+|---|---|
+| `test_gazetteer_state_resolution.py` | untouched — §9 depends on exactly this behaviour, and a guess made against it on 2026-09-16 was reverted the same day |
+| `test_gazetteer_name_guard.py` | untouched; extended by `test_gazetteer_name_normalisation.py` |
+| `pipeline/test_entity_extraction.py` | two scoring tests rewritten. `test_score_match_returns_best_fuzzy_match` became `test_score_match_refuses_a_near_miss`, and a second was added for the real case: "st louis city" must not match "st louis county". `test_attach_gazetteer_matches_handles_direct_and_fuzzy` became `..._takes_the_exact_name_only`. |
+| `test_a_county_must_be_a_county.py` | untouched |
+| `test_gazetteer_integration.py` | untouched — it exercises the per-source path, which survives |
 
-Any test asserting that `get_gazetteer_rows` filters on `source_id` is
-asserting the defect and must be replaced with a state assertion, not
-deleted — the new scope needs a test of its own.
+**`get_gazetteer_rows` was NOT replaced.** The prediction here was that a
+test asserting it filters on `source_id` is asserting the defect. In the
+event the per-source path survives as a fallback for a source with no
+recorded scope, so those tests still describe live behaviour and stand.
+What was removed is the thing that made the path dangerous: `_score_match`
+no longer has a similarity threshold, so even the legacy path cannot
+produce a 0.85 match. Leaving a threshold live on a second path is a
+hazard whether or not that path currently runs.
+
+New files: `test_gazetteer_name_normalisation.py`,
+`pipeline/test_a_gazetteer_the_whole_state_shares.py`,
+`pipeline/test_a_source_reaches_only_its_own_states.py`,
+`pipeline/test_matching_is_exact_and_scoped.py`,
+`pipeline/test_the_ruler_is_compiled_once.py`,
+`pipeline/test_rematching_what_was_already_matched.py`,
+`enrichment/test_the_gate_asks_the_name_index.py`,
+`enrichment/test_a_poi_knows_its_place.py`.
 
 ## 12. Related
 
