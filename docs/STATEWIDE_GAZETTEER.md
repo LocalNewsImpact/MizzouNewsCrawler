@@ -368,6 +368,38 @@ Computed once per source and STORED, so the scope is explicit and
 auditable rather than recomputed per article. A Washington publisher then
 reads Washington, and never the Missouri gazetteer or eighteen others.
 
+### 9.1 What the scope is computed from, and what it cannot reach
+
+A source's own 20-mile OSM build already answered "what is within reach";
+joined to the state-keyed features, the answer carries a state. Measured
+2026-09-16 over 246 sources with a build: 198 reach exactly one state, 48
+reach two.
+
+**The threshold is 10%, and the distribution chose it.** Secondary states
+divide cleanly — 23 at 20% or more (Dos Mundos is 45% Kansas, Fox4KC
+40%), 7 more at 10-20%, then a single state in the 5-10% band and 17
+below 5%, several at one POI. `auroraadvertiser.net` touches Kansas by a
+single POI; admitting that hands a Missouri weekly the whole
+17,997-feature Kansas gazetteer.
+
+`datasets.metadata.default_state` fills a gap where a source has no state
+of its own — that is `resolve_source_state`'s existing contract. Only
+Mizzou declared one; WSU-Washington-State now does too, because those 38
+sources are all in Washington.
+
+**VT-Community-News must NOT.** Its 901 sources are student and community
+papers from around the country — `thedepauw.com`, `oudaily.com`,
+`loyolamaroon.com`, `umassdtorch.com` — and of them 7 carry a city, 5 a
+state and 3 a ZIP. The dataset is named for the initiative studying them,
+not for where they sit. Setting a default of VT on 2026-09-16 scoped 896
+national outlets to the Vermont gazetteer; it was reverted the same
+session.
+
+So those 901 sources have no resolvable state and are scoped to NOTHING,
+which is the safe reading of an empty scope and matches what they get
+today: the per-source builder skipped them for the same reason. Giving
+them entity matching needs locations, not a cleverer default.
+
 ## 10. Loading a state on demand
 
 The extract for a state is downloaded and installed when a source in that

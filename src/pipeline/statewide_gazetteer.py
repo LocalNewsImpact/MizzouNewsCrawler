@@ -295,3 +295,99 @@ def ensure_state(
         return {"read": 0, "written": 0, "already": 1}
     logger.info("installing the %s gazetteer from %s", code, extract_uri(code))
     return load_state(session, code, dry_run=dry_run)
+
+
+#: A secondary state needs this share of a source's own POIs to count as
+#: within reach. The distribution chose it: 23 secondary states are at
+#: 20% or more (Dos Mundos is 45% Kansas, Fox4KC 40%), 7 more at 10-20%,
+#: then one in the 5-10% band and 17 below 5% -- several at a single POI.
+#: Opening Kansas's 17,997 features to a Missouri paper on one spillover
+#: POI is the error this guards.
+BORDER_SHARE = 0.10
+
+#: What a source's own 20-mile OSM build says it can reach. Joined to the
+#: state-keyed features rather than modelled from boundaries: the build
+#: already asked "what is within 20 miles of this newsroom", and the
+#: answer carries a state now.
+_REACH = text("""
+    SELECT f.state, count(*) AS pois
+      FROM gazetteer g
+      JOIN gazetteer_features f
+        ON f.osm_type = g.osm_type AND f.osm_id = g.osm_id
+     WHERE g.source_id = :source_id
+     GROUP BY f.state
+""")
+
+
+def reachable_states(
+    session: Session, source_id: str, *, home: str | None = None
+) -> list[dict]:
+    """Which states a source may match against, and why.
+
+    The home state is always in scope, even when the OSM build says
+    nothing -- a source with no gazetteer yet still belongs somewhere.
+    A state that is not home needs `BORDER_SHARE` of the build to join it.
+    """
+    rows = [(r[0], r[1]) for r in session.execute(_REACH, {"source_id": source_id})]
+    total = sum(count for _state, count in rows) or 0
+    home_code = state_code(home)
+
+    scope: list[dict] = []
+    for state, count in rows:
+        share = (count / total) if total else 0.0
+        if state == home_code or share >= BORDER_SHARE:
+            scope.append(
+                {
+                    "state": state,
+                    "is_home": state == home_code,
+                    "pois": count,
+                    "share": round(share, 4),
+                }
+            )
+    if home_code and not any(entry["state"] == home_code for entry in scope):
+        scope.append({"state": home_code, "is_home": True, "pois": 0, "share": 0.0})
+    return sorted(scope, key=lambda entry: (not entry["is_home"], -entry["pois"]))
+
+
+_STORE_SCOPE = text("""
+    INSERT INTO source_gazetteer_scope
+      (source_id, state, is_home, pois, share, computed_at)
+    VALUES (:source_id, :state, :is_home, :pois, :share, :now)
+    ON CONFLICT (source_id, state) DO UPDATE
+       SET is_home = EXCLUDED.is_home,
+           pois = EXCLUDED.pois,
+           share = EXCLUDED.share,
+           computed_at = EXCLUDED.computed_at
+""")
+
+
+def store_scope(session: Session, source_id: str, scope: list[dict]) -> int:
+    """Record a source's scope, so a later question about why an article
+    matched another state's place has a dated answer."""
+    session.execute(
+        text("DELETE FROM source_gazetteer_scope WHERE source_id = :s"),
+        {"s": source_id},
+    )
+    now = datetime.now(timezone.utc)
+    for entry in scope:
+        session.execute(_STORE_SCOPE, {"source_id": source_id, "now": now, **entry})
+    return len(scope)
+
+
+def scope_for(session: Session, source_id: str) -> list[str]:
+    """The states this source's entities may be matched against.
+
+    Empty means no scope is recorded, and the caller must match nothing
+    rather than everything: a source whose state could not be resolved is
+    skipped with a reason, never given the whole country.
+    """
+    return [
+        row[0]
+        for row in session.execute(
+            text(
+                "SELECT state FROM source_gazetteer_scope "
+                "WHERE source_id = :s ORDER BY is_home DESC, pois DESC"
+            ),
+            {"s": source_id},
+        )
+    ]
