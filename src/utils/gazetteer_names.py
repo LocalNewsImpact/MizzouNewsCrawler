@@ -46,12 +46,18 @@ import re
 #: only of these is a description, not an identity.
 GENERIC_TOKENS = frozenset(
     {
-        # the thing
+        "a",
         "airport",
+        "an",
+        "and",
+        "annex",
         "apartments",
         "arena",
+        "at",
+        "avenue",
         "bank",
         "bar",
+        "boulevard",
         "bridge",
         "building",
         "cafe",
@@ -61,6 +67,7 @@ GENERIC_TOKENS = frozenset(
         "centre",
         "chapel",
         "church",
+        "circle",
         "city",
         "clinic",
         "club",
@@ -70,15 +77,20 @@ GENERIC_TOKENS = frozenset(
         "corner",
         "corners",
         "county",
+        "court",
         "courthouse",
+        "dam",
         "department",
         "district",
-        "dam",
-        "office",
+        "drive",
+        "east",
+        "el",
         "estates",
         "field",
+        "fieldhouse",
         "fields",
         "fire",
+        "for",
         "garage",
         "garden",
         "gardens",
@@ -88,6 +100,7 @@ GENERIC_TOKENS = frozenset(
         "hall",
         "health",
         "high",
+        "highway",
         "historical",
         "home",
         "hospital",
@@ -95,9 +108,16 @@ GENERIC_TOKENS = frozenset(
         "house",
         "inn",
         "junior",
+        "la",
         "lake",
+        "lane",
+        "las",
         "library",
         "lodge",
+        "los",
+        "lot",
+        "lots",
+        "lower",
         "market",
         "medical",
         "memorial",
@@ -106,6 +126,14 @@ GENERIC_TOKENS = frozenset(
         "motel",
         "municipal",
         "museum",
+        "new",
+        "north",
+        "northeast",
+        "northwest",
+        "of",
+        "office",
+        "old",
+        "on",
         "park",
         "parking",
         "pharmacy",
@@ -118,61 +146,38 @@ GENERIC_TOKENS = frozenset(
         "primary",
         "public",
         "restaurant",
+        "road",
+        "route",
         "rural",
         "school",
         "senior",
         "service",
         "services",
+        "shelter",
         "shop",
+        "site",
         "society",
+        "south",
+        "southeast",
+        "southwest",
         "square",
         "stadium",
         "station",
         "store",
+        "street",
         "supply",
+        "the",
         "theater",
         "theatre",
         "tower",
         "town",
         "township",
         "trail",
-        "village",
-        "works",
-        # the qualifier
-        "and",
-        "at",
-        "east",
-        "el",
-        "for",
-        "la",
-        "las",
-        "los",
-        "lower",
-        "new",
-        "north",
-        "northeast",
-        "northwest",
-        "of",
-        "old",
-        "on",
-        "south",
-        "southeast",
-        "southwest",
-        "the",
         "upper",
-        "west",
-        # the address
-        "avenue",
-        "boulevard",
-        "circle",
-        "court",
-        "drive",
-        "highway",
-        "lane",
-        "road",
-        "route",
-        "street",
+        "village",
         "way",
+        "west",
+        "works",
     }
 )
 
@@ -185,19 +190,25 @@ _LEADING_ARTICLE = re.compile(r"^the\s+")
 
 
 def normalize_name(value: object) -> str:
-    """The form a name is compared in, for gazetteer and article text alike.
+    """The canonical form of a name, for the gazetteer and for storage.
 
-    Both sides must pass through this or the comparison is not the one
-    anybody intended. Beyond case and punctuation it does two things that
-    a scorer was doing badly:
+    Case, punctuation and whitespace only. AFFIXES ARE KEPT -- both the
+    leading article and the trailing possessive -- and that is the whole
+    point of having two functions. An earlier version stripped it here, which turned
+    "Love's" into "love", "Casey's" into "casey" and "Applebee's" into
+    "applebee" -- 335 Missouri names collapsing to a single common word,
+    after which the matcher fired on the word "love" in ordinary prose.
+    Measured on the SEMO gymnastics article: `love` -> Love's, `a lot` ->
+    A Lot, `Show Me` -> Show Me's, none of them a place the story names.
 
-    - strips a LEADING article, so "the Kansas City Police Department"
-      and "Kansas City Police Department" are one name;
-    - strips a TRAILING possessive, so "Kansas City's" is "Kansas City".
+    The leading article is the same trap one word earlier: stripping it
+    here turned "The Hill" into "hill" and "The Ridge" into "ridge",
+    which then fired on those words in prose. Measured on a boil-water
+    story: `Hill` -> The Hill, `Ridge` -> The Ridge.
 
-    Those two were 640 of the corpus's fuzzy matches -- work a 0.85
-    similarity threshold was doing because normalisation had not. They
-    become exact matches here, and the threshold can go.
+    An affix is part of the place's name. It is only noise on the
+    ARTICLE's side -- "the Kansas City Police Department", "Kansas
+    City's mayor" -- which is what `lookup_keys` is for.
     """
     if not isinstance(value, str):
         return ""
@@ -205,10 +216,43 @@ def normalize_name(value: object) -> str:
     for source, target in {**_APOSTROPHES, **_DASHES}.items():
         text = text.replace(source, target)
     text = re.sub(r"[^a-z0-9\s'-]", " ", text)
-    text = re.sub(r"\s+", " ", text).strip()
-    text = _LEADING_ARTICLE.sub("", text)
-    text = _TRAILING_POSSESSIVE.sub("", text).strip()
-    return re.sub(r"\s+", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def lookup_keys(value: object) -> list[str]:
+    """The forms an ARTICLE's entity may be looked up under.
+
+    The canonical form first, then the same with a trailing possessive
+    removed. Asymmetric on purpose:
+
+        gazetteer "Love's"      -> key "love's"
+        article   "Love's"      -> tries "love's"          -> matches
+        article   "love"        -> tries "love"            -> no match
+        gazetteer "The Hill"    -> key "the hill"
+        article   "Hill"        -> tries "hill"            -> no match
+        gazetteer "Kansas City" -> key "kansas city"
+        article   "Kansas City's" -> "kansas city's", then
+                                     "kansas city"         -> matches
+        article   "the KC Police Department" -> "the kc police
+                                     department", then "kc police
+                                     department"           -> matches
+
+    That keeps the 640 possessive matches a 0.85 threshold was papering
+    over, without turning 335 business names into common words.
+    """
+    canonical = normalize_name(value)
+    if not canonical:
+        return []
+    keys = [canonical]
+    for form in (
+        _LEADING_ARTICLE.sub("", canonical),
+        _TRAILING_POSSESSIVE.sub("", canonical),
+        _TRAILING_POSSESSIVE.sub("", _LEADING_ARTICLE.sub("", canonical)),
+    ):
+        form = re.sub(r"\s+", " ", form).strip()
+        if form and form not in keys:
+            keys.append(form)
+    return keys
 
 
 def is_generic_name(name: object) -> bool:

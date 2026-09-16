@@ -19,7 +19,11 @@ from sqlalchemy.orm import Session
 from src.models import Gazetteer
 from src.models.database import safe_session_execute
 from src.pipeline.text_cleaning import decode_rot47_segments
-from src.utils.gazetteer_names import is_matchable_gazetteer_name, normalize_name
+from src.utils.gazetteer_names import (
+    is_matchable_gazetteer_name,
+    lookup_keys,
+    normalize_name,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -150,11 +154,23 @@ class ArticleEntityExtractor:
         payloads: list[dict[str, object]] = []
         for label, pattern_text in pattern_entries:
             pattern_doc = make_doc(pattern_text)
-            tokens = [
+            tokens: list[dict[str, object]] = [
                 {"LOWER": token.lower_} for token in pattern_doc if not token.is_space
             ]
-            if tokens:
-                payloads.append({"label": label, "pattern": tokens})
+            if not tokens:
+                continue
+            if len(tokens) == 1:
+                # A ONE-WORD NAME MUST BE CAPITALISED TO COUNT.
+                #
+                # Matching case-insensitively, a POI called "Mobile"
+                # fires on the word "mobile" in prose -- measured on a
+                # Kansas City policing story. A proper noun is
+                # capitalised where it names something; the common noun
+                # that shares its spelling is not. Multi-word names do
+                # not need this: "kansas city police department" is not
+                # a phrase that occurs by accident.
+                tokens[0]["IS_LOWER"] = False
+            payloads.append({"label": label, "pattern": tokens})
         if not payloads:
             logger.debug(
                 "EntityRuler skipped: %d entries filtered to zero-length patterns",
@@ -531,11 +547,24 @@ def attach_state_matches(
             index.setdefault(key, feature)
 
     for entity in entities:
-        key = normalize_name(str(entity.get("entity_text", "")))
-        if not key:
+        keys = lookup_keys(str(entity.get("entity_text", "")))
+        if not keys:
             continue
-        entity["entity_norm"] = key
-        hit = index.get(key)
+        entity["entity_norm"] = keys[0]
+        text_value = str(entity.get("entity_text", ""))
+        # Same rule as the ruler's: a one-word name that appears
+        # lowercase in the article is the common noun, not the place.
+        if " " not in text_value.strip() and text_value.strip().islower():
+            continue
+        hit = None
+        for key in keys:
+            hit = index.get(key)
+            if hit is not None:
+                # Store the form that MATCHED: the gate joins the name
+                # index on `entity_norm`, so "Kansas City's" has to be
+                # recorded as "kansas city" once that is what it hit.
+                entity["entity_norm"] = key
+                break
         if hit is None:
             continue
         entity["matched_gazetteer_id"] = hit.id
@@ -614,8 +643,14 @@ def rematch_source(
         updates = []
         for row_id, entity_text, old_norm, old_match in rows:
             counts["read"] += 1
-            norm = normalize_name(str(entity_text or ""))
-            hit = index.get(norm) if norm else None
+            keys = lookup_keys(str(entity_text or ""))
+            norm = keys[0] if keys else ""
+            hit = None
+            for key in keys:
+                hit = index.get(key)
+                if hit is not None:
+                    norm = key
+                    break
             if hit is None and old_match is None and norm == (old_norm or ""):
                 counts["unchanged"] += 1
                 continue

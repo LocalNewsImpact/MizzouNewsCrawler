@@ -29,37 +29,91 @@ import pytest
 from src.utils.gazetteer_names import (
     is_generic_name,
     is_matchable_gazetteer_name,
+    lookup_keys,
     normalize_name,
 )
 
 
 class TestTheTrailingPossessive:
-    """463 + 177 matches that a scorer was papering over."""
+    """Asymmetric, and the asymmetry is the point.
 
-    def test_a_possessive_city_is_the_city(self):
-        assert normalize_name("Kansas City's") == normalize_name("Kansas City")
-        assert normalize_name("Jefferson City's") == normalize_name("Jefferson City")
+    Stripping the possessive on BOTH sides was measured wrong on
+    2026-09-16: it turned "Love's" into "love", "Casey's" into "casey"
+    and "Applebee's" into "applebee" -- 335 Missouri names collapsing to
+    a single common word -- after which the matcher fired on the word
+    "love" in ordinary prose. On the SEMO gymnastics article it produced
+    `love` -> Love's, `a lot` -> A Lot and `Show Me` -> Show Me's, none
+    of them a place the story names.
+
+    So the gazetteer keeps its possessive, because it is part of the
+    business's name, and the ARTICLE's entity is looked up under both
+    forms. That keeps the 640 matches a 0.85 threshold was papering over
+    -- "Kansas City's" against "Kansas City" -- and loses the junk.
+    """
+
+    def test_the_gazetteer_keeps_its_possessive(self):
+        assert normalize_name("Love's") == "love's"
+        assert normalize_name("Casey's General Store") == "casey's general store"
+
+    def test_a_common_word_no_longer_matches_a_business(self):
+        """THE REGRESSION. Prose "love" must not reach Love's."""
+        assert "love" not in lookup_keys("love") or normalize_name("Love's") != "love"
+        assert lookup_keys("love") == ["love"]
+        assert normalize_name("Love's") == "love's"
+
+    def test_a_possessive_city_still_reaches_the_city(self):
+        """463 matches for "Kansas City's", 177 for "Jefferson City's"."""
+        assert normalize_name("Kansas City") in lookup_keys("Kansas City's")
+        assert normalize_name("Jefferson City") in lookup_keys("Jefferson City's")
 
     def test_a_curly_apostrophe_is_the_same_possessive(self):
         """Copy is full of them and they are a different codepoint."""
-        assert normalize_name("Jefferson City’s") == "jefferson city"
+        assert "jefferson city" in lookup_keys("Jefferson City\u2019s")
 
     def test_a_plural_possessive_too(self):
-        assert normalize_name("the Tigers'") == "tigers"
+        assert "tigers" in lookup_keys("the Tigers'")
+
+    def test_a_name_with_no_possessive_has_one_form(self):
+        """No point looking a name up twice."""
+        assert lookup_keys("Mizzou Arena") == ["mizzou arena"]
 
     def test_an_apostrophe_INSIDE_a_name_survives(self):
-        """THE REGRESSION TO GUARD. Stripping possessives anywhere rather
-        than at the end turns Lee's Summit into Lee Summit, and O'Fallon
-        into OFallon -- towns, not possessives."""
+        """Stripping possessives anywhere rather than at the end turns
+        Lee's Summit into Lee Summit, and O'Fallon into OFallon --
+        towns, not possessives."""
         assert normalize_name("Lee's Summit") == "lee's summit"
         assert normalize_name("O'Fallon") == "o'fallon"
 
+    def test_an_empty_name_has_no_keys(self):
+        assert lookup_keys("") == []
+        assert lookup_keys(None) == []
+
 
 class TestTheLeadingArticle:
-    def test_the_article_is_dropped(self):
-        assert normalize_name("the Kansas City Police Department") == (
-            normalize_name("Kansas City Police Department")
+    """The same trap as the possessive, one word earlier.
+
+    Stripping "the" from the GAZETTEER side turned "The Hill" into
+    "hill" and "The Ridge" into "ridge", which then matched those words
+    in prose. Measured on a boil-water story: `Hill` -> The Hill,
+    `Ridge` -> The Ridge, neither a place the story names.
+    """
+
+    def test_the_gazetteer_keeps_its_article(self):
+        assert normalize_name("The Hill") == "the hill"
+
+    def test_a_bare_word_no_longer_reaches_it(self):
+        """THE REGRESSION. Prose "Hill" must not match "The Hill"."""
+        assert normalize_name("The Hill") not in lookup_keys("Hill")
+
+    def test_an_article_on_the_ARTICLE_side_is_still_dropped(self):
+        """ "the Kansas City Police Department" must still reach it --
+        286 of the old fuzzy matches were that shape."""
+        assert normalize_name("Kansas City Police Department") in lookup_keys(
+            "the Kansas City Police Department"
         )
+
+    def test_both_affixes_at_once(self):
+        assert "tigers" in lookup_keys("the Tigers'")
 
     def test_a_name_beginning_with_another_word_is_untouched(self):
         assert normalize_name("Theatre Guild") == "theatre guild"
