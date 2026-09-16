@@ -292,6 +292,53 @@ features fail `is_matchable_gazetteer_name` (the guard runs at load), and
 `safeway` (251). Those are what §3.1 discards, and they are chains, which
 is the rule working.
 
+## 4d. The rematch and the re-gate, as run
+
+Rematch over 242 scoped sources and 2,901,155 stored entity rows:
+
+| | |
+|---|---|
+| matched before | 73,330 |
+| **matched after** | **124,868** (+70%) |
+| old matches cleared | 20,846 |
+| rows deduplicated away | ~3,412 |
+| articles with at least one match | 65,941 |
+
+The gate can now find institution evidence for 57,889 articles. Reground,
+re-run against the restored snapshot, across three versions of the gate:
+
+| gate | places dropped | points cleared |
+|---|---|---|
+| name only (the first cleanup) | 4,435 | 803 |
+| + `addr:city` evidence | 4,071 | 641 |
+| + statewide evidence | **3,931** | **636** |
+
+504 places and 167 points rescued from the first cleanup — geography the
+story's own institutions support and a name-only rule deleted.
+
+### 4d.1 A weakness in the evidence, and why it is contained
+
+The one-place rule admits a name that is unique in a state but is not a
+LOCAL name. Measured in the same run: a North Korea story matched Seneca
+through a Missouri POI called `China`, and a personal-finance column
+matched Maryville through one called `Social Security`. There is exactly
+one of each in the state, so §3.1 is satisfied and the name still does
+not localise anything — a federal agency's branch office is not what
+makes a story about Social Security a Maryville story.
+
+**It cannot invent geography.** `institution_places` only ever CONFIRMS a
+place the model already claimed: `grounded` checks the evidence against
+the model's own name, so a spurious city matters only if the model
+independently produced the same city. The failure mode is a wrongly-kept
+claim, never a newly-created one.
+
+Two ways to narrow it, neither implemented: reject where the entity's
+type and the gazetteer's category disagree (spaCy calls `China` a GPE
+while the gazetteer calls it a business, which is a real signal even
+though the label is unreliable on its own), and treat a national
+agency's local branch as non-localising. Both want measuring before they
+ship.
+
 ## 5. What this does not fix
 
 The ceiling on verifying induction is set upstream, not by the gazetteer:
