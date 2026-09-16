@@ -85,7 +85,7 @@ ENRICHMENT_PROVIDERS = tuple(
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 GATE_PROMPT_VERSION = "content_gate-v1"
 GATE_WINDOW_CHARS = 800
-FOCUS_PROMPT_VERSION = "focus-v1"
+FOCUS_PROMPT_VERSION = "focus-v2"
 FOCUS_MAX_CHARS = 20000
 DEFAULT_TIMEOUT_S = 300
 
@@ -572,7 +572,10 @@ def run_focus(article: ArticleInput, model: str) -> StepResult:
         response = litellm.completion(
             model=model,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=300,
+            # v2 quotes the phrase it reasoned from, for the central
+            # geography and every mention. 300 truncated the JSON and the
+            # parse failed with it.
+            max_tokens=900,
             timeout=DEFAULT_TIMEOUT_S,
             temperature=0,
             response_format={"type": "json_object"},
@@ -582,8 +585,16 @@ def run_focus(article: ArticleInput, model: str) -> StepResult:
         raw = re.sub(r"^```(json)?|```$", "", raw.strip(), flags=re.M).strip()
         parsed = json.loads(raw)
         central = parsed.get("central") or {}
-        if not central.get("city"):
-            raise ValueError("no central city in focus response")
+        # A COUNTY-ONLY ANSWER IS AN ANSWER (focus-v2).
+        #
+        # v1 could only say "city", so a story centred on a county
+        # reached for the county seat -- 24.1% of fabricated points were
+        # that. v2 tells the model to give the county and leave the city
+        # empty instead, and on a 10-article sample it did so for 3 of
+        # them. Raising here would have failed the whole focus step for
+        # exactly the articles the new prompt handles best.
+        if not central.get("city") and not central.get("county"):
+            raise ValueError("no central geography in focus response")
         usage = response.usage
         tokens_in = int(getattr(usage, "prompt_tokens", 0) or 0)
         tokens_out = int(getattr(usage, "completion_tokens", 0) or 0)
@@ -592,16 +603,23 @@ def run_focus(article: ArticleInput, model: str) -> StepResult:
             ok=True,
             payload={
                 "central": {
-                    "city": str(central.get("city"))[:120],
+                    # `or None` rather than str(): `str(None)` is the
+                    # string "None", which v1 would have written into
+                    # point_place the moment a city came back null.
+                    "city": str(central.get("city") or "")[:120] or None,
+                    "county": str(central.get("county") or "")[:120] or None,
                     "state": str(central.get("state") or "")[:40] or None,
+                    "evidence": str(central.get("evidence") or "")[:300] or None,
                 },
                 "mentions": [
                     {
-                        "city": str(m.get("city"))[:120],
+                        "city": str(m.get("city") or "")[:120] or None,
+                        "county": str(m.get("county") or "")[:120] or None,
                         "state": str(m.get("state") or "")[:40] or None,
+                        "evidence": str(m.get("evidence") or "")[:300] or None,
                     }
                     for m in (parsed.get("mentions") or [])
-                    if isinstance(m, dict) and m.get("city")
+                    if isinstance(m, dict) and (m.get("city") or m.get("county"))
                 ][:25],
                 "rationale": str(parsed.get("rationale", ""))[:300],
                 "prompt_version": FOCUS_PROMPT_VERSION,

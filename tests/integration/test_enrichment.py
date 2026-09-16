@@ -278,7 +278,12 @@ def _seed(session, n=3, dataset="Mizzou-Missouri-State"):
                 "id": f"art{i}",
                 "cl": f"cl{i}",
                 "t": f"Title {i}",
-                "c": f"Body {i}. " * 50,
+                # The body has to NAME the place the mocked payload claims.
+                # `grounding` refuses a place the article never names, so a
+                # fixture whose text says nothing about Columbia while its
+                # enrichment says "Columbia" is testing a write that no
+                # longer happens -- and should not.
+                "c": f"Body {i}. The council met in Columbia on Tuesday. " * 50,
             },
         )
     session.commit()
