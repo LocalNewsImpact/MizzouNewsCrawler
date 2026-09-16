@@ -104,6 +104,12 @@ def add_enrichment_parser(subparsers):
     )
     reprocess.add_argument("--dry-run", action="store_true")
 
+    support = actions.add_parser(
+        "point-support",
+        help="Record why each existing central place survived the gate",
+    )
+    support.add_argument("--dry-run", action="store_true")
+
     reground = actions.add_parser(
         "reground",
         help="Remove stored geography the article's own text does not support",
@@ -233,6 +239,26 @@ def handle_enrichment_command(args) -> int:
 
     try:
         with db.get_session() as session:
+            if action == "point-support":
+                counts = repository.backfill_point_support(
+                    session,
+                    dry_run=args.dry_run,
+                    on_batch=lambda n, c: logger.info(
+                        "%s points, %s named, %s by institution",
+                        n,
+                        c["named"],
+                        c["institution"],
+                    ),
+                )
+                print(
+                    f"points read:          {counts['read']}\n"
+                    f"  named in the story: {counts['named']}\n"
+                    f"  an institution     : {counts['institution']}\n"
+                    f"  neither            : {counts['unsupported']}"
+                    + ("\n(dry run — nothing written)" if args.dry_run else "")
+                )
+                return 0
+
             if action == "reground":
                 regrounded_counts = repository.reground_stored(
                     session,
