@@ -261,20 +261,16 @@ class _Client:
 
 
 class TestFetchingFromTheBucket:
-    @pytest.fixture
-    def storage(self, monkeypatch):
-        import types
-
-        module = types.SimpleNamespace()
-        monkeypatch.setitem(__import__("sys").modules, "google.cloud.storage", module)
-        return module
+    """The client is patched through this module's own seam. Patching
+    `google.cloud.storage.Client` by name imports the real module, which
+    binds as an attribute of the `google.cloud` package and defeats the
+    `sys.modules` stub tests/utils/test_raw_html_archive.py relies on --
+    a failure that only appears when both files run in one session."""
 
     def test_it_reads_the_state_csv(self, monkeypatch):
         blob = _Blob(text="osm_type,osm_id,name,lat,lon,tags\n")
         client = _Client(blob)
-        monkeypatch.setattr(
-            "google.cloud.storage.Client", lambda *a, **k: client, raising=False
-        )
+        monkeypatch.setattr(sg, "_storage_client", lambda: client)
         assert sg.download_extract("MO").startswith("osm_type")
         assert client._bucket.name == "mizzou-osm-extracts"
         assert client._bucket.asked == "poi/missouri.csv"
@@ -283,9 +279,7 @@ class TestFetchingFromTheBucket:
         """A state nobody has extracted yet is a one-time job, not a
         mystery: the message names the script and the source."""
         monkeypatch.setattr(
-            "google.cloud.storage.Client",
-            lambda *a, **k: _Client(_Blob(present=False)),
-            raising=False,
+            sg, "_storage_client", lambda: _Client(_Blob(present=False))
         )
         with pytest.raises(FileNotFoundError) as caught:
             sg.download_extract("KS")

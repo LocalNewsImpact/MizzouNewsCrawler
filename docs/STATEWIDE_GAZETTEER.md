@@ -223,6 +223,35 @@ Missouri it is a fifty-fold increase for breadth this gate does not need:
 the failures measured here are institutions, not businesses, and a denser
 business layer mostly adds ambiguous chain names that §3.1 discards.
 
+## 4b. What the change actually does, measured before shipping
+
+Step 4 of §4 says the rematch is measurable on a sample before it ships.
+Run 2026-09-16 over the first 12 scoped sources, 219,272 stored entity
+rows:
+
+| | |
+|---|---|
+| matched today (per-source gazetteer, fuzzy at 0.85) | 2,658 |
+| matched by the new rules (statewide, exact, scoped) | **5,313** |
+| old matches the new rules CLEAR | 685 |
+
+**Recall roughly doubles while the errors go.** Dropping the similarity
+threshold costs nothing because `normalize_name` recovers what it was
+papering over, and the statewide scope finds what a 22-mile slice could
+not — "Mizzou Arena" is now visible to every publisher in Missouri, not
+only those within 22 miles of it.
+
+The 685 cleared are the ones that must not survive: "St. Louis City"
+filed under St. Louis County, the Kansas City Police Department under
+North Kansas City's.
+
+Guard check against the wider pool, same run: 0 of 106,652 loaded
+features fail `is_matchable_gazetteer_name` (the guard runs at load), and
+6,554 of 83,286 (state, name) keys sit on more than one feature — led by
+`chevron` (368 features), `shell` (355), `phillips 66` (258) and
+`safeway` (251). Those are what §3.1 discards, and they are chains, which
+is the rule working.
+
 ## 5. What this does not fix
 
 The ceiling on verifying induction is set upstream, not by the gazetteer:

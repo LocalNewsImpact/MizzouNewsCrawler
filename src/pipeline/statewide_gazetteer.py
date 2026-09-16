@@ -156,14 +156,28 @@ def read_extract(handle: Iterable[str]) -> Iterator[dict]:
         }
 
 
-def download_extract(state: str) -> str:
-    """The extract's text, from the bucket."""
+def _storage_client():
+    """The GCS client, behind a seam.
+
+    Tests patch THIS rather than `google.cloud.storage.Client`. Patching
+    that by name imports the real module, which then binds as an
+    attribute of the `google.cloud` package -- and from that point
+    `from google.cloud import storage` returns the real module however
+    `sys.modules` is patched. tests/utils/test_raw_html_archive.py
+    injects a stub exactly that way and started failing when this module
+    imported the real one first.
+    """
     from google.cloud import storage  # type: ignore[attr-defined]
 
+    return storage.Client()
+
+
+def download_extract(state: str) -> str:
+    """The extract's text, from the bucket."""
     name = extract_name(state)
     if not name:
         raise ValueError(f"no extract name for state {state!r}")
-    client = storage.Client()
+    client = _storage_client()
     blob = client.bucket(GCS_BUCKET).blob(f"{GCS_PREFIX}/{name}.csv")
     if not blob.exists():
         raise FileNotFoundError(
