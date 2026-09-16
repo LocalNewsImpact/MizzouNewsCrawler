@@ -31,6 +31,12 @@ def add_gazetteer_geocode_parser(subparsers: argparse._SubParsersAction) -> None
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--concurrency", type=int, default=4)
     parser.add_argument(
+        "--table",
+        default="gazetteer",
+        choices=["gazetteer", "gazetteer_features"],
+        help="which table to resolve; gazetteer_features is the statewide one",
+    )
+    parser.add_argument(
         "--dry-run", action="store_true", help="report how many owe a lookup"
     )
     parser.set_defaults(func=handle_gazetteer_geocode_command)
@@ -48,6 +54,7 @@ def handle_gazetteer_geocode_command(args: argparse.Namespace) -> int:
             limit=args.limit,
             concurrency=args.concurrency,
             dry_run=args.dry_run,
+            table=args.table,
             on_batch=lambda n, c: logger.info(
                 "geocoded %s points, %s placed", n, c["placed"]
             ),

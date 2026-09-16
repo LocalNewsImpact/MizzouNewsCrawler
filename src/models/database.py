@@ -1185,6 +1185,7 @@ def save_article_entities(
             extractor_version=extractor_used,
             confidence=entity.get("confidence"),
             matched_gazetteer_id=entity.get("matched_gazetteer_id"),
+            matched_feature_id=entity.get("matched_feature_id"),
             match_score=entity.get("match_score"),
             match_name=entity.get("match_name"),
             meta=entity.get("meta"),

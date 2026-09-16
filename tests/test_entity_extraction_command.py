@@ -131,8 +131,10 @@ class TestEntityExtractionCommand:
 
         # Verify
         assert result == 0
-        # Should call execute twice: once for query, once for ANALYZE
-        assert mock_session.execute.call_count == 2
+        # The article query, this source's state scope
+        # (docs/STATEWIDE_GAZETTEER.md §9 -- a Washington publisher must
+        # not read Missouri's gazetteer), and the ANALYZE.
+        assert mock_session.execute.call_count == 3
 
         # Verify entity extraction pipeline was called
         extractor = mock_entity_extractor.return_value

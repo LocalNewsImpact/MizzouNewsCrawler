@@ -707,19 +707,18 @@ def reground_stored(
             rows_by_article[article_id].append((geoid, level, primary, source))
         for article_id, city in session.execute(
             text(
-                "SELECT DISTINCT ae.article_id, "
-                "       COALESCE(g.place_name, g.tags->>'addr:city') "
+                "SELECT DISTINCT ae.article_id, np.place_name "
                 "FROM article_entities ae "
-                "JOIN gazetteer g ON g.id = ae.matched_gazetteer_id "
+                "JOIN articles a ON a.id = ae.article_id "
+                "JOIN candidate_links cl ON cl.id = a.candidate_link_id "
+                "JOIN source_gazetteer_scope sc ON sc.source_id = cl.source_id "
+                "JOIN gazetteer_name_places np "
+                "  ON np.state = sc.state AND np.name_norm = ae.entity_norm "
                 "WHERE ae.article_id IN :ids "
-                "  AND ae.matched_gazetteer_id IS NOT NULL "
-                "  AND ae.entity_label IN :labels "
-                "  AND COALESCE(g.place_name, g.tags->>'addr:city') IS NOT NULL"
-            ).bindparams(
-                bindparam("ids", expanding=True),
-                bindparam("labels", expanding=True),
-            ),
-            {"ids": chunk, "labels": list(EVIDENCE_LABELS)},
+                "  AND np.place_count = 1 "
+                "  AND np.place_name IS NOT NULL"
+            ).bindparams(bindparam("ids", expanding=True)),
+            {"ids": chunk},
         ):
             cities_by_article[article_id].append(city)
 
@@ -791,43 +790,45 @@ def _confidence(meta: dict) -> float | None:
 #: from entity extraction's own output joined to the gazetteer -- the
 #: model's induction from a school or a hospital is evidence, and
 #: refusing it deleted 70 correct points in the first backfill.
-#: Labels that can carry a place. ORG and FAC are the institutions the
-#: model reasons from; GPE and LOC are places themselves. PERSON, NORP
-#: and EVENT are excluded: a surname matching a POI named after somebody
-#: is not evidence, and "Ali" matching an ALDI is how that goes wrong.
-#: 1,262 of 37,566 articles rested on that label alone.
+#: The institutions an article names, as the Census places they sit in.
 #:
-#: Not a free win -- the extractor files "Cracker Barrel" and "T.J. Maxx"
-#: as PERSON, and those matches were right. Losing them is the cheaper
-#: error: a chain resolves to the publisher's own market by construction,
-#: because the gazetteer is built per source within 22 miles, so chain
-#: evidence launders the publisher-city bias this gate exists to stop.
-EVIDENCE_LABELS = ("ORG", "FAC", "GPE", "LOC")
-
-#: `place_name` first: it is what the coordinates resolve to in Census
-#: terms, and it is present for every point that has been geocoded.
-#: `addr:city` is the OSM fallback for points not yet looked up -- a
-#: postal name, so "Saint Louis" where the Census says "St. Louis";
-#: `grounding.forms` reconciles the two.
+#: THREE THINGS CHANGED HERE, all from docs/STATEWIDE_GAZETTEER.md §8.
+#:
+#: It no longer filters on `entity_label`. That is spaCy's statistical
+#: guess, and across 2.9M rows en_core_web_sm files `Columbia` as ORG
+#: 3,047 times, `story` as ORG 2,999, `REWRITTEN` as ORG 1,726 and `Mo.`
+#: as GPE 19,206. Filtering on the unreliable field is weak protection.
+#:
+#: It no longer reads the per-source gazetteer. Every row there sits
+#: within 22.2 miles of one publisher, so a match resolved near that
+#: publisher whatever the story said -- chain evidence laundering the
+#: publisher-city bias this gate exists to stop.
+#:
+#: And it requires `place_count = 1`. A name occurring in more than one
+#: Census place locates nothing: walmart supercenter occurs in 149,
+#: pizza hut in 140, aldi in 72. That rule retires the chain problem with
+#: no brand list to maintain, and it is why the label filter is not
+#: needed -- "Cracker Barrel" fails on ambiguity rather than on its type.
+#:
+#: Scoped to the states the source actually reaches, so a Washington
+#: publisher never reads Missouri's gazetteer.
 _INSTITUTION_CITIES = text("""
-    SELECT DISTINCT COALESCE(g.place_name, g.tags->>'addr:city')
+    SELECT DISTINCT np.place_name
       FROM article_entities ae
-      JOIN gazetteer g ON g.id = ae.matched_gazetteer_id
+      JOIN articles a ON a.id = ae.article_id
+      JOIN candidate_links cl ON cl.id = a.candidate_link_id
+      JOIN source_gazetteer_scope sc ON sc.source_id = cl.source_id
+      JOIN gazetteer_name_places np
+        ON np.state = sc.state AND np.name_norm = ae.entity_norm
      WHERE ae.article_id = :id
-       AND ae.matched_gazetteer_id IS NOT NULL
-       AND ae.entity_label IN :labels
-       AND COALESCE(g.place_name, g.tags->>'addr:city') IS NOT NULL
-""").bindparams(bindparam("labels", expanding=True))
+       AND np.place_count = 1
+       AND np.place_name IS NOT NULL
+""")
 
 
 def institution_places(session: Session, article_id: str) -> list[str]:
     """Cities of the institutions this article names."""
-    return [
-        row[0]
-        for row in session.execute(
-            _INSTITUTION_CITIES, {"id": article_id, "labels": list(EVIDENCE_LABELS)}
-        )
-    ]
+    return [row[0] for row in session.execute(_INSTITUTION_CITIES, {"id": article_id})]
 
 
 def _says(
