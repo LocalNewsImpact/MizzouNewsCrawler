@@ -193,6 +193,40 @@ def _dateline_end(flat: str) -> int:
     return match.end() if match else 0
 
 
+NAMED = "named"
+INSTITUTION = "institution"
+
+
+def support_for(
+    name: str | None,
+    *,
+    content: str | None,
+    title: str | None = None,
+    publication_city: str | None = None,
+    institution_places: Iterable[str] | None = None,
+) -> str | None:
+    """WHY this place is defensible, or None if it is not.
+
+    `NAMED` when the article says the place. `INSTITUTION` when it names
+    something that sits there instead. Both pass the gate; they are not
+    equally strong, and a reviewer should be able to tell them apart --
+    167 of the corpus's central places rest on induction alone.
+
+    `grounded` is this, read as a boolean.
+    """
+    if grounded(name, content=content, title=title, publication_city=publication_city):
+        return NAMED
+    if institution_places and grounded(
+        name,
+        content=content,
+        title=title,
+        publication_city=publication_city,
+        institution_places=institution_places,
+    ):
+        return INSTITUTION
+    return None
+
+
 def grounded(
     name: str | None,
     *,

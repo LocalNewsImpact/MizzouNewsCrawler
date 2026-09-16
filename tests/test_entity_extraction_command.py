@@ -84,6 +84,11 @@ class TestEntityExtractionCommand:
 
         # Create args
         args = MagicMock()
+        # A MagicMock answers any attribute with a truthy Mock, so a
+        # new flag defaults ON unless it is pinned. argparse always
+        # sets it; these stubs have to as well.
+        args.redo_enriched = False
+        args.redo_before = None
         args.limit = 100
         args.source = None
 
@@ -123,6 +128,11 @@ class TestEntityExtractionCommand:
 
         # Create args
         args = MagicMock()
+        # A MagicMock answers any attribute with a truthy Mock, so a
+        # new flag defaults ON unless it is pinned. argparse always
+        # sets it; these stubs have to as well.
+        args.redo_enriched = False
+        args.redo_before = None
         args.limit = 100
         args.source = None
 
@@ -173,6 +183,11 @@ class TestEntityExtractionCommand:
 
         # Create args
         args = MagicMock()
+        # A MagicMock answers any attribute with a truthy Mock, so a
+        # new flag defaults ON unless it is pinned. argparse always
+        # sets it; these stubs have to as well.
+        args.redo_enriched = False
+        args.redo_before = None
         args.limit = 100
         args.source = None
 
@@ -195,6 +210,11 @@ class TestEntityExtractionCommand:
 
         # Create args with source filter
         args = MagicMock()
+        # A MagicMock answers any attribute with a truthy Mock, so a
+        # new flag defaults ON unless it is pinned. argparse always
+        # sets it; these stubs have to as well.
+        args.redo_enriched = False
+        args.redo_before = None
         args.limit = 100
         args.source = "test-source"
 
@@ -220,6 +240,11 @@ class TestEntityExtractionCommand:
 
         # Create args with custom limit
         args = MagicMock()
+        # A MagicMock answers any attribute with a truthy Mock, so a
+        # new flag defaults ON unless it is pinned. argparse always
+        # sets it; these stubs have to as well.
+        args.redo_enriched = False
+        args.redo_before = None
         args.limit = 50
         args.source = None
 
@@ -262,6 +287,11 @@ class TestEntityExtractionCommand:
 
         # Create args
         args = MagicMock()
+        # A MagicMock answers any attribute with a truthy Mock, so a
+        # new flag defaults ON unless it is pinned. argparse always
+        # sets it; these stubs have to as well.
+        args.redo_enriched = False
+        args.redo_before = None
         args.limit = 100
         args.source = None
 
@@ -301,6 +331,11 @@ class TestEntityExtractionCommand:
 
         # Create args
         args = MagicMock()
+        # A MagicMock answers any attribute with a truthy Mock, so a
+        # new flag defaults ON unless it is pinned. argparse always
+        # sets it; these stubs have to as well.
+        args.redo_enriched = False
+        args.redo_before = None
         args.limit = 100
         args.source = None
 
@@ -346,6 +381,11 @@ class TestEntityExtractionCommand:
 
         # Create args
         args = MagicMock()
+        # A MagicMock answers any attribute with a truthy Mock, so a
+        # new flag defaults ON unless it is pinned. argparse always
+        # sets it; these stubs have to as well.
+        args.redo_enriched = False
+        args.redo_before = None
         args.limit = 100
         args.source = None
 
@@ -368,6 +408,11 @@ class TestEntityExtractionCommand:
         )
 
         args = MagicMock()
+        # A MagicMock answers any attribute with a truthy Mock, so a
+        # new flag defaults ON unless it is pinned. argparse always
+        # sets it; these stubs have to as well.
+        args.redo_enriched = False
+        args.redo_before = None
         args.limit = 100
         args.source = None
 

@@ -24,7 +24,7 @@ from src.enrichment.fips import (
     resolve_geoid,
     state_geoid,
 )
-from src.enrichment.grounding import grounded
+from src.enrichment.grounding import grounded, support_for
 from src.enrichment.profiles import Profile, parse_profile
 from src.enrichment.reground import regrounded
 from src.enrichment.resolve import norm, resolve_point
@@ -645,6 +645,83 @@ _DROP = text(
 ).bindparams(bindparam("codes", expanding=True))
 
 
+_POINT_SUPPORT_ROWS = text("""
+    SELECT e.article_id, e.point_place,
+           COALESCE(a.content, a.text, ''), a.title, s.city
+      FROM article_enrichment e
+      JOIN articles a ON a.id = e.article_id
+      LEFT JOIN candidate_links cl ON cl.id = a.candidate_link_id
+      LEFT JOIN sources s ON s.id = cl.source_id
+     WHERE e.point_place IS NOT NULL
+       AND e.point_geoid_level IN ('place', 'county')
+""")
+
+_STORE_POINT_SUPPORT = text(
+    "UPDATE article_enrichment SET point_support = :support WHERE article_id = :id"
+)
+
+
+def backfill_point_support(
+    session: Session, *, dry_run: bool = True, on_batch=None
+) -> dict[str, int]:
+    """Record why each existing point survived the gate.
+
+    New rows get this from `persist_outcome`. The corpus predates the
+    column, and the reason cannot be recovered later: it is computed
+    against the article text, and datadesk -- where review happens --
+    has no access to the gate.
+
+    State-level points are skipped. `name_for('29')` is "MO", which no
+    story prints, so a state rung is exempt from grounding entirely and
+    has no support to record.
+    """
+    rows = session.execute(_POINT_SUPPORT_ROWS).all()
+    counts = {"read": len(rows), "named": 0, "institution": 0, "unsupported": 0}
+    if not rows:
+        return counts
+
+    ids = [row[0] for row in rows]
+    cities: dict[str, list[str]] = {article_id: [] for article_id in ids}
+    for start in range(0, len(ids), 1000):
+        chunk = ids[start : start + 1000]
+        for article_id, city in session.execute(
+            text(
+                "SELECT DISTINCT ae.article_id, np.place_name "
+                "FROM article_entities ae "
+                "JOIN articles a ON a.id = ae.article_id "
+                "JOIN candidate_links cl ON cl.id = a.candidate_link_id "
+                "JOIN source_gazetteer_scope sc ON sc.source_id = cl.source_id "
+                "JOIN gazetteer_name_places np "
+                "  ON np.state = sc.state AND np.name_norm = ae.entity_norm "
+                "WHERE ae.article_id IN :ids "
+                "  AND np.place_count = 1 AND np.place_name IS NOT NULL"
+            ).bindparams(bindparam("ids", expanding=True)),
+            {"ids": chunk},
+        ):
+            cities[article_id].append(city)
+
+    for index, (article_id, place, content, title, city) in enumerate(rows, start=1):
+        support = support_for(
+            place,
+            content=content,
+            title=title,
+            publication_city=city,
+            institution_places=cities.get(article_id),
+        )
+        counts[support or "unsupported"] += 1
+        if not dry_run:
+            session.execute(
+                _STORE_POINT_SUPPORT, {"id": article_id, "support": support}
+            )
+            if index % 500 == 0:
+                session.commit()
+                if on_batch:
+                    on_batch(index, counts)
+    if not dry_run:
+        session.commit()
+    return counts
+
+
 def reground_stored(
     session: Session,
     *,
@@ -1007,7 +1084,7 @@ def persist_outcome(
               scope, scope_confidence, subject, subject_confidence,
               topic, topic_confidence, format, format_confidence,
               timeframe, timeframe_confidence, user_need, user_need_confidence,
-              rationales, point_place, point_method,
+              rationales, point_place, point_method, point_support,
               point_geoid, point_geoid_level, point_lat, point_lon, point_zcta,
               geoids, geo_skip_reason, dataset_id
             ) VALUES (
@@ -1017,7 +1094,7 @@ def persist_outcome(
               :scope, :scope_confidence, :subject, :subject_confidence,
               :topic, :topic_confidence, :format, :format_confidence,
               :timeframe, :timeframe_confidence, :user_need, :user_need_confidence,
-              :rationales, :point_place, :point_method,
+              :rationales, :point_place, :point_method, :point_support,
               :point_geoid, :point_geoid_level, :point_lat, :point_lon, :point_zcta,
               :geoids, :geo_skip_reason, :dataset_id
             )
@@ -1047,6 +1124,7 @@ def persist_outcome(
               user_need_confidence = COALESCE(EXCLUDED.user_need_confidence, article_enrichment.user_need_confidence),
               rationales = COALESCE(EXCLUDED.rationales, article_enrichment.rationales),
               point_place = COALESCE(EXCLUDED.point_place, article_enrichment.point_place),
+              point_support = EXCLUDED.point_support,
               point_method = COALESCE(EXCLUDED.point_method, article_enrichment.point_method),
               point_geoid = COALESCE(EXCLUDED.point_geoid, article_enrichment.point_geoid),
               point_geoid_level = COALESCE(EXCLUDED.point_geoid_level, article_enrichment.point_geoid_level),
@@ -1079,6 +1157,23 @@ def persist_outcome(
             "rationales": json.dumps(rationales) if rationales else None,
             "point_place": point[0] if point else None,
             "point_method": point[1] if point else None,
+            # WHY the point survived, recorded where it is known. The
+            # gate accepts a place because the article names it, or
+            # because the article names an institution there; both are
+            # defensible and they are not equally strong. datadesk does
+            # the reviewing and cannot recompute this -- it has no
+            # access to the gate and no reason to.
+            "point_support": (
+                support_for(
+                    point[0],
+                    content=article.content,
+                    title=article.title,
+                    publication_city=article.publication_city,
+                    institution_places=named_places,
+                )
+                if point
+                else None
+            ),
             "point_geoid": geoid.geoid if geoid else None,
             "point_geoid_level": geoid.level if geoid else None,
             "point_lat": geoid.lat if geoid else None,
