@@ -57,6 +57,16 @@ def add_entity_extraction_parser(subparsers):
         help="Limit to a specific source name",
     )
     parser.add_argument(
+        "--redo-before",
+        default=None,
+        help=(
+            "With --redo-enriched: only articles last extracted before this "
+            "ISO timestamp. A batched run must pass the SAME value to every "
+            "invocation, or each one takes 'now' as its cutoff and reselects "
+            "what the previous one just finished."
+        ),
+    )
+    parser.add_argument(
         "--redo-enriched",
         action="store_true",
         help=(
@@ -82,7 +92,15 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
     limit = getattr(args, "limit", 100)
     source = getattr(args, "source", None)
     redo_enriched = getattr(args, "redo_enriched", False)
-    redo_started_at = datetime.now(timezone.utc)
+    # The cutoff belongs to the CAMPAIGN, not to one invocation. Taking
+    # `now` per call means a batch finished a minute ago is still "before
+    # now" on the next call, so the run reselects it and never advances.
+    redo_before = getattr(args, "redo_before", None)
+    redo_started_at = (
+        datetime.fromisoformat(redo_before)
+        if redo_before
+        else datetime.now(timezone.utc)
+    )
 
     # Log startup with visibility
     log_and_print("🚀 Starting entity extraction...")

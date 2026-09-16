@@ -88,6 +88,7 @@ class TestEntityExtractionCommand:
         # new flag defaults ON unless it is pinned. argparse always
         # sets it; these stubs have to as well.
         args.redo_enriched = False
+        args.redo_before = None
         args.limit = 100
         args.source = None
 
@@ -131,6 +132,7 @@ class TestEntityExtractionCommand:
         # new flag defaults ON unless it is pinned. argparse always
         # sets it; these stubs have to as well.
         args.redo_enriched = False
+        args.redo_before = None
         args.limit = 100
         args.source = None
 
@@ -185,6 +187,7 @@ class TestEntityExtractionCommand:
         # new flag defaults ON unless it is pinned. argparse always
         # sets it; these stubs have to as well.
         args.redo_enriched = False
+        args.redo_before = None
         args.limit = 100
         args.source = None
 
@@ -211,6 +214,7 @@ class TestEntityExtractionCommand:
         # new flag defaults ON unless it is pinned. argparse always
         # sets it; these stubs have to as well.
         args.redo_enriched = False
+        args.redo_before = None
         args.limit = 100
         args.source = "test-source"
 
@@ -240,6 +244,7 @@ class TestEntityExtractionCommand:
         # new flag defaults ON unless it is pinned. argparse always
         # sets it; these stubs have to as well.
         args.redo_enriched = False
+        args.redo_before = None
         args.limit = 50
         args.source = None
 
@@ -286,6 +291,7 @@ class TestEntityExtractionCommand:
         # new flag defaults ON unless it is pinned. argparse always
         # sets it; these stubs have to as well.
         args.redo_enriched = False
+        args.redo_before = None
         args.limit = 100
         args.source = None
 
@@ -329,6 +335,7 @@ class TestEntityExtractionCommand:
         # new flag defaults ON unless it is pinned. argparse always
         # sets it; these stubs have to as well.
         args.redo_enriched = False
+        args.redo_before = None
         args.limit = 100
         args.source = None
 
@@ -378,6 +385,7 @@ class TestEntityExtractionCommand:
         # new flag defaults ON unless it is pinned. argparse always
         # sets it; these stubs have to as well.
         args.redo_enriched = False
+        args.redo_before = None
         args.limit = 100
         args.source = None
 
@@ -404,6 +412,7 @@ class TestEntityExtractionCommand:
         # new flag defaults ON unless it is pinned. argparse always
         # sets it; these stubs have to as well.
         args.redo_enriched = False
+        args.redo_before = None
         args.limit = 100
         args.source = None
 
