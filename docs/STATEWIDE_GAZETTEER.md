@@ -150,6 +150,48 @@ claim adds nothing to the record.
 6. **Re-run `enrich reground`.** It only deletes, so restore from the
    snapshot tables first and let the improved gate re-judge the corpus.
 
+## 4a. Better sources than OSM for institutions
+
+Verified 2026-09-15 against the live services; Missouri counts are actual,
+not estimates.
+
+| source | MO rows | carries | access |
+|---|---|---|---|
+| NCES CCD public schools | 2,483 | lat/lon **and `county_code`** | Education Data API, no key |
+| NCES CCD districts | 567 | address | same API |
+| IPEDS institutions | 151 | `city`, `county_name` | same API |
+| CMS Hospital General Information | 120 | name, address, city, zip | data.cms.gov API |
+| **total** | **3,321** | | |
+
+Against 27,729 OSM features for Missouri, of which schools (3,357) and
+healthcare (1,321) are the categories these supersede.
+
+**The value is not volume.** CCD is complete by definition for public
+schools, and it carries `county_code`, so the county rung needs no
+geocoding and the place rung is one lookup with the code in
+`gazetteer_places.py`. IPEDS carries `county_name` and would supply
+Southeast Missouri State University. District names matter on their own:
+local news names districts constantly and OSM does not model them.
+
+Use these as an authoritative layer OVER OSM rather than a replacement.
+OSM keeps the categories they do not cover -- businesses, religious,
+landmarks, sports venues -- which is most of the table.
+
+**Do not plan on HIFLD.** The HIFLD Open portal was decommissioned on
+2025-08-25. The Data Rescue Project mirrored its layers to DataLumos and
+SeerAI hosts a Parquet copy on source.coop, but those are static 2025
+snapshots rather than a maintained source. Fire stations, police, EMS and
+courthouses have no live federal replacement; hospitals do, through CMS.
+
+**NCES private schools (PSS) are not in the Education Data API** -- it
+serves CCD, IPEDS and CRDC. PSS needs a direct bulk download from NCES.
+
+**Overture Maps was considered and rejected** for this purpose. Its places
+theme is denser than OSM, but at an estimated 300,000-500,000 rows for
+Missouri it is a fifty-fold increase for breadth this gate does not need:
+the failures measured here are institutions, not businesses, and a denser
+business layer mostly adds ambiguous chain names that §3.1 discards.
+
 ## 5. What this does not fix
 
 The ceiling on verifying induction is set upstream, not by the gazetteer:
