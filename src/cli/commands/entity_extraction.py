@@ -8,6 +8,7 @@ extracting location entities and storing them in the article_entities table.
 import logging
 import threading
 import time
+from functools import lru_cache
 
 from sqlalchemy import text as sql_text
 
@@ -19,8 +20,11 @@ from src.models.database import (
 from src.pipeline.entity_extraction import (
     ArticleEntityExtractor,
     attach_gazetteer_matches,
+    attach_state_matches,
     get_gazetteer_rows,
+    get_state_features,
 )
+from src.pipeline.statewide_gazetteer import scope_for
 
 logger = logging.getLogger(__name__)
 
@@ -190,13 +194,31 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
                 msg = f"📰 Processing {len(articles)} articles from {source_name}"
                 log_and_print(msg)
 
-                # Load gazetteer once per source
-                gazetteer_rows = get_gazetteer_rows(
-                    session,
-                    source_id,
-                    dataset_id,
-                )
-                log_and_print(f"   Loaded {len(gazetteer_rows)} gazetteer entries")
+                # THE STATEWIDE GAZETTEER, scoped to what this source
+                # actually reaches (docs/STATEWIDE_GAZETTEER.md §9). A
+                # Washington publisher never reads Missouri's, and a
+                # source whose state could not be resolved -- the 901
+                # national student papers -- reads nothing rather than
+                # everything.
+                states = scope_for(session, source_id)
+                if states:
+                    features = _features_for_states(session, tuple(states))
+                    gazetteer_rows = features
+                    ruler_key = "+".join(states)
+                    log_and_print(
+                        f"   {len(features)} features across {', '.join(states)}"
+                    )
+                else:
+                    # No scope recorded. Fall back to the per-source
+                    # build rather than skipping the article entirely:
+                    # the statistical entities are still worth having,
+                    # and the gate will not accept evidence from an
+                    # unscoped source anyway.
+                    gazetteer_rows = get_gazetteer_rows(session, source_id, dataset_id)
+                    ruler_key = None
+                    log_and_print(
+                        f"   no state scope; {len(gazetteer_rows)} per-source entries"
+                    )
 
                 for article_id, text, text_hash, _ in articles:
                     try:
@@ -204,16 +226,22 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
                         entities = extractor.extract(
                             text,
                             gazetteer_rows=gazetteer_rows,
+                            cache_key=ruler_key,
                         )
 
-                        # Attach gazetteer matches
-                        entities = attach_gazetteer_matches(
-                            session,
-                            source_id,
-                            dataset_id,
-                            entities,
-                            gazetteer_rows=gazetteer_rows,
-                        )
+                        # Exactly, and only within this source's states.
+                        # The similarity threshold is gone: it matched
+                        # "St. Louis City" to St. Louis COUNTY 206 times.
+                        if states:
+                            entities = attach_state_matches(entities, gazetteer_rows)
+                        else:
+                            entities = attach_gazetteer_matches(
+                                session,
+                                source_id,
+                                dataset_id,
+                                entities,
+                                gazetteer_rows=gazetteer_rows,
+                            )
 
                         # Save entities without committing (batch commit below)
                         save_article_entities(
@@ -274,3 +302,26 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
         log_and_print(error_msg, level="error")
         logger.exception("Entity extraction failed: %s", exc)
         return 1
+
+
+@lru_cache(maxsize=4)
+def _features_cache_key(states: tuple[str, ...]):
+    """Identity for a set of states; the rows themselves are fetched by
+    `_features_for_states`, which caches on this."""
+    return states
+
+
+_FEATURES: dict[tuple[str, ...], list] = {}
+
+
+def _features_for_states(session, states: tuple[str, ...]) -> list:
+    """A state set's features, fetched once per run.
+
+    Missouri is 32,327 features and Washington 49,650. Fetching them per
+    source would be a full table read for every publisher in the state.
+    """
+    if states not in _FEATURES:
+        if len(_FEATURES) >= 4:
+            _FEATURES.pop(next(iter(_FEATURES)))
+        _FEATURES[states] = get_state_features(session, list(states))
+    return _FEATURES[states]

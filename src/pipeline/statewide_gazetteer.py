@@ -158,7 +158,7 @@ def read_extract(handle: Iterable[str]) -> Iterator[dict]:
 
 def download_extract(state: str) -> str:
     """The extract's text, from the bucket."""
-    from google.cloud import storage
+    from google.cloud import storage  # type: ignore[attr-defined]
 
     name = extract_name(state)
     if not name:
@@ -274,14 +274,16 @@ def rebuild_name_index(session: Session, state: str) -> dict[str, int]:
     )
     session.execute(_REBUILD_INDEX, {"state": code, "now": datetime.now(timezone.utc)})
     session.commit()
-    rows = session.execute(
+    row = session.execute(
         text(
             "SELECT count(*), count(*) FILTER (WHERE place_count = 1) "
             "FROM gazetteer_name_places WHERE state = :s"
         ),
         {"s": code},
     ).first()
-    return {"names": rows[0] or 0, "unambiguous": rows[1] or 0}
+    if row is None:
+        return {"names": 0, "unambiguous": 0}
+    return {"names": row[0] or 0, "unambiguous": row[1] or 0}
 
 
 def ensure_state(
