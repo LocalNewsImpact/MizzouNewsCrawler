@@ -339,6 +339,50 @@ though the label is unreliable on its own), and treat a national
 agency's local branch as non-localising. Both want measuring before they
 ship.
 
+## 4e. Letting the evidence PROPOSE a point: tested, and rejected
+
+The gate is asymmetric by construction — the model proposes, the gazetteer
+only confirms or refuses. That looks like an arbitrary limit: 3,751 enriched
+articles carry institution evidence and no model point, so the gazetteer
+apparently knows where those stories are and nothing records it.
+
+Tested 2026-09-16. It does not work, and the reason is structural.
+
+**The safe candidate set is tiny.** Of the 3,751, most are articles where the
+model declined DELIBERATELY: 849 are `regional` (its geography lives in the
+place set, not a point), 231 are `national`, 120 had a point our own gate
+cleared. Restricting to articles whose scope actually expects a point, with
+evidence pointing at exactly one place, leaves **120 articles — 0.58% of the
+enriched corpus.**
+
+**And the proposals are wrong.** Across all 120:
+
+| | |
+|---|---|
+| proposed place is NOT named anywhere in the article | **82 (68.3%)** |
+| proposed place is named somewhere | 38 (31.7%) |
+
+Being named is not being central. Of the twelve read by hand, roughly two were
+defensible. The failures fall into three kinds:
+
+- **Junk POI names.** A Greene County sheriff story proposed St. Louis through
+  a POI called `George Washington`; a school ribbon-cutting proposed Kansas
+  City through one called `FEMA`; a district-championship story proposed
+  Springfield through one called `basketball`.
+- **Institutions genuinely elsewhere.** A Sedalia basketball story proposed
+  Blue Springs — the opponent's school. A Mexico signing story proposed
+  Marshall, where Missouri Valley College is.
+- **Statewide name collisions.** A Kennett church feature proposed Kansas
+  City, matching a same-named church at the other end of the state.
+
+**Why confirmation works and proposal does not.** Confirming requires two
+independent signals to coincide: the model names a place AND the article names
+an institution there. A noisy signal that agrees with an independent one is
+evidence. The same signal alone is just noise with a place attached — and at
+68.3% unnamed it would inject precisely the fabrication this work removed.
+
+The asymmetry is not a limitation to fix. It is the reason the gate is safe.
+
 ## 5. What this does not fix
 
 The ceiling on verifying induction is set upstream, not by the gazetteer:
