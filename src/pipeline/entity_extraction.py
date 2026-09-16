@@ -102,119 +102,128 @@ class ArticleEntityExtractor:
         "llc",
     )
 
+    #: Compiled rulers held at once. One per state in practice.
+    RULER_CACHE = 4
+
     def __init__(self, model_name: str = "en_core_web_sm") -> None:
         self.model_name = model_name
         self.nlp = _load_spacy_model(model_name)
         self.extractor_version = f"spacy-{model_name}-{spacy_about.__version__}"
+        self._rulers: dict[str, tuple[object, dict]] = {}
+
+    def _build(self, gazetteer_rows):
+        """(EntityRuler or None, category overrides) for a set of rows."""
+        category_overrides: dict[str, tuple[str, str | None]] = {}
+        pattern_entries: list[tuple[str, str]] = []
+        seen_patterns: set[tuple[str, str]] = set()
+        for row in gazetteer_rows or ():
+            name = getattr(row, "name", None)
+            if not name:
+                continue
+            category_key = (getattr(row, "category", None) or "").lower()
+            mapping = GAZETTEER_CATEGORY_MAPPINGS.get(
+                category_key, DEFAULT_GAZETTEER_MAPPING
+            )
+            osm_category, osm_subcategory, label_override = mapping
+            for candidate in (name, getattr(row, "name_norm", None)):
+                if not candidate or not str(candidate).strip():
+                    continue
+                normalised = _normalize_text(str(candidate))
+                if normalised:
+                    category_overrides.setdefault(
+                        normalised, (osm_category, osm_subcategory)
+                    )
+                if not is_matchable_gazetteer_name(candidate):
+                    # A POI called "A" becomes a pattern that fires on
+                    # every "a" in the article. See src/utils/gazetteer_names.
+                    continue
+                key = (label_override, str(candidate).lower())
+                if key not in seen_patterns:
+                    pattern_entries.append((label_override, str(candidate)))
+                    seen_patterns.add(key)
+
+        if not pattern_entries:
+            return None, category_overrides
+
+        make_doc = self.nlp.make_doc
+        payloads: list[dict[str, object]] = []
+        for label, pattern_text in pattern_entries:
+            pattern_doc = make_doc(pattern_text)
+            tokens = [
+                {"LOWER": token.lower_} for token in pattern_doc if not token.is_space
+            ]
+            if tokens:
+                payloads.append({"label": label, "pattern": tokens})
+        if not payloads:
+            logger.debug(
+                "EntityRuler skipped: %d entries filtered to zero-length patterns",
+                len(pattern_entries),
+            )
+            return None, category_overrides
+
+        # THE CURATED NAME WINS (2026-09-16).
+        #
+        # `overwrite_ents` defaults to False, so a span the statistical
+        # model had already claimed stayed claimed and the gazetteer
+        # pattern was dropped. "The team plays at Mizzou Arena" came back
+        # as `Arena`/PERSON -- en_core_web_sm's guess -- while "Mizzou
+        # Arena", a name we curated and geocoded to Columbia, was thrown
+        # away. The same model files `Columbia` as ORG 3,047 times,
+        # `story` as ORG 2,999 and `REWRITTEN` as ORG 1,726, so its
+        # claims are not the ones to defer to.
+        ruler = EntityRuler(
+            self.nlp,
+            validate=True,
+            phrase_matcher_attr="LOWER",
+            overwrite_ents=True,
+        )
+        ruler.add_patterns(payloads)  # type: ignore[arg-type]
+        logger.debug("EntityRuler compiled %d patterns", len(ruler.patterns))
+        return ruler, category_overrides
+
+    def _compiled(self, gazetteer_rows, cache_key):
+        """The built ruler, reused when the caller names its gazetteer.
+
+        Keyed by the caller rather than by the rows themselves: the rows
+        are ORM objects with no cheap identity, and the caller already
+        knows which gazetteer it loaded.
+        """
+        if not gazetteer_rows:
+            return None, {}
+        if cache_key is None:
+            return self._build(gazetteer_rows)
+        if cache_key not in self._rulers:
+            # Few keys -- one per state -- but a compiled ruler is large,
+            # so an unbounded cache in a long-running worker is a leak.
+            if len(self._rulers) >= self.RULER_CACHE:
+                self._rulers.pop(next(iter(self._rulers)))
+            self._rulers[cache_key] = self._build(gazetteer_rows)
+        return self._rulers[cache_key]
 
     def extract(
         self,
         text: str | None,
         *,
         gazetteer_rows: Sequence[Gazetteer] | None = None,
+        cache_key: str | None = None,
     ) -> list[dict[str, object]]:
+        """Entities in one article.
+
+        `cache_key` identifies the gazetteer the rows came from -- the
+        state, now that the gazetteer is statewide. Without it the ruler
+        is compiled from scratch for every article, which tokenises every
+        gazetteer name and adds every pattern again: tolerable at a
+        publisher's couple of thousand names, ruinous at Washington's
+        49,650. With it, one compile serves every article in that state.
+        """
         if not text:
             return []
         text = decode_rot47_segments(text) or text
 
-        category_overrides: dict[str, tuple[str, str | None]] = {}
-        pattern_entries: list[tuple[str, str]] = []
-        if gazetteer_rows:
-            seen_patterns: set[tuple[str, str]] = set()
-            for row in gazetteer_rows:
-                name = getattr(row, "name", None)
-                if not name:
-                    continue
-                category_key = (getattr(row, "category", None) or "").lower()
-                mapping = GAZETTEER_CATEGORY_MAPPINGS.get(
-                    category_key,
-                    DEFAULT_GAZETTEER_MAPPING,
-                )
-                osm_category, osm_subcategory, label_override = mapping
-                norm_name = _normalize_text(name)
-                if norm_name:
-                    category_overrides.setdefault(
-                        norm_name,
-                        (osm_category, osm_subcategory),
-                    )
-                if not is_matchable_gazetteer_name(name):
-                    # A POI called "A" becomes a pattern that fires on
-                    # every "a" in the article. See src/utils/gazetteer_names.
-                    continue
-                key = (label_override, name.lower())
-                if key not in seen_patterns:
-                    pattern_entries.append((label_override, name))
-                    seen_patterns.add(key)
-
-                name_norm = getattr(row, "name_norm", None)
-                if not is_matchable_gazetteer_name(name_norm):
-                    name_norm = None
-                if name_norm and name_norm.strip():
-                    norm_norm = _normalize_text(name_norm)
-                    if norm_norm:
-                        category_overrides.setdefault(
-                            norm_norm,
-                            (osm_category, osm_subcategory),
-                        )
-                    key_norm = (label_override, name_norm.lower())
-                    if key_norm not in seen_patterns:
-                        pattern_entries.append((label_override, name_norm))
-                        seen_patterns.add(key_norm)
-
+        patterns, category_overrides = self._compiled(gazetteer_rows, cache_key)
         doc = self.nlp(text)
-        if pattern_entries:
-            make_doc = self.nlp.make_doc
-            pattern_docs = [
-                (label, make_doc(pattern_text))
-                for label, pattern_text in pattern_entries
-            ]
-            pattern_docs = [
-                (label, pattern_doc)
-                for label, pattern_doc in pattern_docs
-                if len(pattern_doc)
-            ]
-            if not pattern_docs:
-                logger.debug(
-                    "EntityRuler skipped: %d gazetteer entries filtered to"
-                    " zero-length patterns",
-                    len(pattern_entries),
-                )
-            else:
-                pattern_payloads: Sequence[dict[str, object]] = [
-                    {
-                        "label": label,
-                        "pattern": [
-                            {"LOWER": token.lower_}
-                            for token in pattern_doc
-                            if not token.is_space
-                        ],
-                    }
-                    for label, pattern_doc in pattern_docs
-                ]
-                pattern_payloads = [
-                    payload for payload in pattern_payloads if payload["pattern"]
-                ]
-                sample_label, sample_doc = pattern_docs[0]
-                logger.debug(
-                    "EntityRuler sample payload label=%s text=%s",
-                    sample_label,
-                    sample_doc.text,
-                )
-                logger.debug(
-                    "EntityRuler applying %d patterns for gazetteer rows",
-                    len(pattern_payloads),
-                )
-                ruler = EntityRuler(
-                    self.nlp,
-                    validate=True,
-                    phrase_matcher_attr="LOWER",
-                )
-                ruler.add_patterns(pattern_payloads)  # type: ignore[arg-type]
-                logger.debug(
-                    "EntityRuler stored %d patterns",
-                    len(ruler.patterns),
-                )
-                ruler(doc)
+        if patterns is not None:
+            patterns(doc)
         results: list[dict[str, object]] = []
         seen_spans: set[tuple[int, int, str]] = set()
         seen_norms: set[tuple[str, str]] = set()
