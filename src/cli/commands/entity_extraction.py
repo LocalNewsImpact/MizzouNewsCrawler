@@ -8,6 +8,7 @@ extracting location entities and storing them in the article_entities table.
 import logging
 import threading
 import time
+from datetime import datetime, timezone
 from functools import lru_cache
 
 from sqlalchemy import text as sql_text
@@ -55,6 +56,16 @@ def add_entity_extraction_parser(subparsers):
         type=str,
         help="Limit to a specific source name",
     )
+    parser.add_argument(
+        "--redo-enriched",
+        action="store_true",
+        help=(
+            "Re-extract articles that already have entities, for the enriched "
+            "corpus only. The spans are what changed: entities extracted under "
+            "the per-source gazetteer are frozen at the spans spaCy chose then, "
+            "and a rematch cannot reach inside them."
+        ),
+    )
     parser.set_defaults(func=handle_entity_extraction_command)
 
 
@@ -70,6 +81,8 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
     """
     limit = getattr(args, "limit", 100)
     source = getattr(args, "source", None)
+    redo_enriched = getattr(args, "redo_enriched", False)
+    redo_started_at = datetime.now(timezone.utc)
 
     # Log startup with visibility
     log_and_print("🚀 Starting entity extraction...")
@@ -123,9 +136,39 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
                 -- content before insert -- rows with a perfectly good cleaned
                 -- body were skipped because the raw capture had been emptied.
                 WHERE a.text IS NOT NULL
-                AND a.entities_extracted_at IS NULL
                 AND a.status NOT IN ('error', 'paywall', 'wire', 'not_article')
                 """
+                + (
+                    # RE-EXTRACTION, not a wider net.
+                    #
+                    # Stored spans come from the extraction that produced
+                    # them, and the per-source gazetteer chose different
+                    # ones: "Liberal Arts Week Three Rivers College" where
+                    # the statewide gazetteer holds "Three Rivers College".
+                    # A rematch compares stored text and cannot reach
+                    # inside a span, so those articles keep failing the
+                    # gate however good the gazetteer gets.
+                    #
+                    # Scoped to the enriched corpus because that is what
+                    # the grounding gate reads.
+                    """
+                AND EXISTS (SELECT 1 FROM article_enrichment e
+                             WHERE e.article_id = a.id)
+                -- Resumability. Without it the same LIMIT rows come back
+                -- on every pass, a batched run reprocesses its first
+                -- batch for ever, and a progress check reads that as
+                -- "no progress" and stops. `entities_extracted_at` is
+                -- stamped as each batch commits, so this shrinks as the
+                -- run proceeds -- and a run interrupted halfway resumes
+                -- where it stopped rather than starting again.
+                AND (a.entities_extracted_at IS NULL
+                     OR a.entities_extracted_at < :redo_before)
+                """
+                    if redo_enriched
+                    else """
+                AND a.entities_extracted_at IS NULL
+                """
+                )
                 + ("AND cl.source = :source" if source else "")
                 + """
                 ORDER BY cl.source_id, cl.dataset_id
@@ -137,6 +180,11 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
             params = {"limit": limit}
             if source:
                 params["source"] = source
+            if redo_enriched:
+                # Set once when the command starts, so every batch of one
+                # run shares a cutoff and articles this run has already
+                # done fall out of the next batch.
+                params["redo_before"] = redo_started_at
 
             result = safe_session_execute(session, query, params)
             rows = result.fetchall()
