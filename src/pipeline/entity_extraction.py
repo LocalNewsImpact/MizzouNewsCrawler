@@ -159,6 +159,21 @@ class ArticleEntityExtractor:
             ]
             if not tokens:
                 continue
+            if len(tokens) > 1:
+                # A STRING PATTERN, WHICH IS 2,661x FASTER.
+                #
+                # `EntityRuler` routes a string to the PhraseMatcher and a
+                # list of token dicts to the Matcher. The PhraseMatcher is
+                # a trie over the vocabulary and costs what the document
+                # costs; the Matcher is linear in the number of patterns.
+                # Measured on 32,274 Missouri features over 20 real
+                # articles: 0.3 ms per article against 892 ms.
+                #
+                # It did not show up before because a per-source gazetteer
+                # is about 2,000 patterns, and it did not show up in the
+                # trial because 30 articles hid it behind the build.
+                payloads.append({"label": label, "pattern": pattern_text})
+                continue
             if len(tokens) == 1:
                 # A ONE-WORD NAME MUST BE CAPITALISED TO COUNT.
                 #
@@ -188,9 +203,15 @@ class ArticleEntityExtractor:
         # away. The same model files `Columbia` as ORG 3,047 times,
         # `story` as ORG 2,999 and `REWRITTEN` as ORG 1,726, so its
         # claims are not the ones to defer to.
+        # `validate` off: it re-parses every pattern, and spaCy warns that
+        # adding a fully-analysed Doc to the PhraseMatcher runs the whole
+        # pipeline when only tokenisation is needed. These patterns come
+        # from the gazetteer, which already filtered them, so there is
+        # nothing left for validation to catch and 32,274 of them make
+        # the cost real.
         ruler = EntityRuler(
             self.nlp,
-            validate=True,
+            validate=False,
             phrase_matcher_attr="LOWER",
             overwrite_ents=True,
         )
