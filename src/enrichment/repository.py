@@ -924,6 +924,22 @@ def persist_outcome(
                 if hit is not None and hit.level != "state":
                     point = (central["city"], "focus_model")
                     geoid = hit
+            # A COUNTY-ONLY CENTRE (focus-v2).
+            #
+            # v1 could only answer with a city, so a story centred on a
+            # county reached for the county seat: "Jackson County
+            # Detention Center" came back as Kansas City, and 24.1% of
+            # fabricated points were that shape. v2 gives the county and
+            # leaves the city empty. Dropping that answer here would
+            # throw away the fix and leave those stories with no
+            # geography at all.
+            if geoid is None and central.get("county"):
+                c_state = central.get("state") or article.publication_state
+                if c_state and _says(article, central["county"], named_places):
+                    hit = county_geoid(central["county"], c_state)
+                    if hit is not None:
+                        point = (central["county"], "focus_model_county")
+                        geoid = hit
             if geoid is None:
                 point = resolve_point(places_payload, article.publication_city)
                 if point and not _says(article, point[0], named_places):
