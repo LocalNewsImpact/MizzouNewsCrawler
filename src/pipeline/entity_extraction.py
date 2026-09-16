@@ -577,3 +577,96 @@ def attach_state_matches(
         # `story` as ORG 2,999 and `REWRITTEN` as ORG 1,726.
         entity["osm_category"] = hit.category
     return entities
+
+
+#: One source's stored entities, oldest id first, for keyset paging.
+#: EXISTS rather than a join to `source_gazetteer_scope`: that table has
+#: a row per state, so joining it multiplies a two-state source's
+#: entities -- 3,619,730 rows against the 2,966,298 that exist.
+_SOURCE_ENTITIES = text_sql("""
+    SELECT ae.id, ae.entity_text, ae.entity_norm, ae.matched_gazetteer_id
+      FROM article_entities ae
+     WHERE EXISTS (
+             SELECT 1 FROM articles a
+               JOIN candidate_links cl ON cl.id = a.candidate_link_id
+              WHERE a.id = ae.article_id AND cl.source_id = :source_id)
+       AND ae.id > :after
+     ORDER BY ae.id
+     LIMIT :batch
+""")
+
+_REMATCH_UPDATE = text_sql("""
+    UPDATE article_entities
+       SET entity_norm = :entity_norm,
+           matched_gazetteer_id = :matched_gazetteer_id,
+           match_score = :match_score,
+           match_name = :match_name,
+           osm_category = :osm_category
+     WHERE id = :id
+""")
+
+
+def rematch_source(
+    session: Session,
+    source_id: str,
+    features: Sequence[Feature],
+    *,
+    batch: int = 5000,
+    dry_run: bool = False,
+) -> dict[str, int]:
+    """Re-match one source's stored entities against its states.
+
+    spaCy is not re-run: `entity_text` is already stored, and what
+    changed is the normalisation, the scope and the threshold. So this
+    re-asks the matching question over 2.97M existing rows rather than
+    re-reading 20,521 articles.
+
+    A row that no longer matches is CLEARED, not left alone. The old
+    matches were made at `fuzz.ratio >= 0.85` against one publisher's
+    22-mile slice; leaving them would keep exactly the errors this
+    replaces -- "St. Louis City" filed under St. Louis County, 206 times.
+    """
+    index: dict[str, Feature] = {}
+    for feature in features:
+        key = feature.name_norm or normalize_name(feature.name)
+        if key:
+            index.setdefault(key, feature)
+
+    counts = {"read": 0, "matched": 0, "cleared": 0, "unchanged": 0}
+    after = ""
+    while True:
+        rows = session.execute(
+            _SOURCE_ENTITIES,
+            {"source_id": source_id, "after": after, "batch": batch},
+        ).all()
+        if not rows:
+            break
+        after = rows[-1][0]
+        updates = []
+        for row_id, entity_text, old_norm, old_match in rows:
+            counts["read"] += 1
+            norm = normalize_name(str(entity_text or ""))
+            hit = index.get(norm) if norm else None
+            if hit is None and old_match is None and norm == (old_norm or ""):
+                counts["unchanged"] += 1
+                continue
+            if hit is not None:
+                counts["matched"] += 1
+            elif old_match is not None:
+                counts["cleared"] += 1
+            else:
+                counts["unchanged"] += 1
+            updates.append(
+                {
+                    "id": row_id,
+                    "entity_norm": norm,
+                    "matched_gazetteer_id": hit.id if hit else None,
+                    "match_score": 1.0 if hit else None,
+                    "match_name": hit.name if hit else None,
+                    "osm_category": hit.category if hit else None,
+                }
+            )
+        if updates and not dry_run:
+            session.execute(_REMATCH_UPDATE, updates)
+            session.commit()
+    return counts
