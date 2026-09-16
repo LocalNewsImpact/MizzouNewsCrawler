@@ -281,3 +281,36 @@ class TestScopingAndProgress:
         gp.geocode(session, dry_run=False, on_batch=lambda n, c: seen.append(n))
         assert seen == [200]
         assert session.commits >= 2
+
+
+class TestWhichTableIsResolved:
+    """`gazetteer` is the per-source build; `gazetteer_features` is the
+    statewide one that replaces it for matching. Both carry points, and
+    the statewide one needs every point resolved rather than only the
+    features some article happened to match -- the ambiguity rule counts
+    places across every feature sharing a name."""
+
+    def test_the_table_name_is_whitelisted(self):
+        """It reaches SQL."""
+        with pytest.raises(ValueError):
+            gp.pending(_Session(), table="articles; DROP TABLE gazetteer")
+
+    def test_the_per_source_table_narrows_to_matched_features(self):
+        session = _Session()
+        gp.geocode(session, table="gazetteer", dry_run=True)
+        assert "matched_gazetteer_id = g.id" in session.statements[0]
+
+    def test_the_statewide_table_does_not_narrow(self):
+        """A statewide feature is not tied to a publisher, and §3.1 needs
+        a place for every one of them to count ambiguity."""
+        session = _Session()
+        gp.geocode(session, table="gazetteer_features", dry_run=True)
+        assert "matched_gazetteer_id" not in session.statements[0]
+        assert "FROM gazetteer_features" in session.statements[0]
+
+    def test_the_update_targets_the_same_table(self, monkeypatch):
+        monkeypatch.setattr(gp, "resolve", lambda *_a, **_k: gp.parse(SEMO))
+        session = _Session([("g1", 37.0, -89.0)])
+        gp.geocode(session, table="gazetteer_features", dry_run=False)
+        update = next(s for s in session.statements if "UPDATE" in s)
+        assert "UPDATE gazetteer_features" in update

@@ -48,6 +48,7 @@ def handle_gazetteer_geocode_command(args: argparse.Namespace) -> int:
             limit=args.limit,
             concurrency=args.concurrency,
             dry_run=args.dry_run,
+            table=args.table,
             on_batch=lambda n, c: logger.info(
                 "geocoded %s points, %s placed", n, c["placed"]
             ),

@@ -144,9 +144,15 @@ def resolve(
         return placement
 
 
+#: The two tables that carry points. `gazetteer` is the per-source build;
+#: `gazetteer_features` is the statewide one that replaces it for
+#: matching. Whitelisted rather than interpolated freely, because the
+#: name reaches SQL.
+TABLES = ("gazetteer", "gazetteer_features")
+
 _PENDING = """
     SELECT g.id, g.lat, g.lon
-      FROM gazetteer g
+      FROM {table} g
      WHERE g.geocoded_at IS NULL
        AND g.lat IS NOT NULL AND g.lon IS NOT NULL
 """
@@ -158,20 +164,31 @@ _ONLY_MATCHED = """
                     WHERE ae.matched_gazetteer_id = g.id)
 """
 
-_STORE = text("""
-    UPDATE gazetteer
+_STORE = """
+    UPDATE {table}
        SET place_geoid = :place_geoid,
            place_name = :place_name,
            county_geoid = :county_geoid,
            geocoded_at = :now
      WHERE id = :id
-""")
+"""
 
 
 def pending(
-    session: Session, *, only_matched: bool = True, limit: int | None = None
+    session: Session,
+    *,
+    only_matched: bool = True,
+    limit: int | None = None,
+    table: str = "gazetteer",
 ) -> list[tuple[str, float, float]]:
-    sql = _PENDING + (_ONLY_MATCHED if only_matched else "") + " ORDER BY g.id"
+    if table not in TABLES:
+        raise ValueError(f"unknown gazetteer table {table!r}")
+    # The statewide table has no per-article matches to narrow by: its
+    # whole point is that a feature is not tied to one publisher. The
+    # ambiguity index in §3.1 counts places across every feature sharing
+    # a name, so all of them need a place.
+    narrow = _ONLY_MATCHED if (only_matched and table == "gazetteer") else ""
+    sql = _PENDING.format(table=table) + narrow + " ORDER BY g.id"
     if limit:
         sql += f" LIMIT {int(limit)}"
     return [(r[0], r[1], r[2]) for r in session.execute(text(sql))]
@@ -186,9 +203,11 @@ def geocode(
     dry_run: bool = False,
     call_recorder: Any | None = None,
     on_batch: Any | None = None,
+    table: str = "gazetteer",
 ) -> dict[str, int]:
     """Resolve pending points and store what they resolve to."""
-    rows = pending(session, only_matched=only_matched, limit=limit)
+    rows = pending(session, only_matched=only_matched, limit=limit, table=table)
+    store = text(_STORE.format(table=table))
     counts = {"pending": len(rows), "placed": 0, "no_place": 0, "failed": 0}
     if not rows or dry_run:
         return counts
@@ -206,7 +225,7 @@ def geocode(
                 continue
             counts["placed" if placement.place_geoid else "no_place"] += 1
             session.execute(
-                _STORE,
+                store,
                 {
                     "id": gid,
                     "place_geoid": placement.place_geoid,
