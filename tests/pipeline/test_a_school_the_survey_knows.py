@@ -26,6 +26,7 @@ from src.pipeline.school_gazetteer import (
     normalize_city,
     read_places,
     read_schools,
+    school_stem,
 )
 
 CENSUS = (
@@ -81,6 +82,43 @@ class TestTheNameANewspaperPrints:
     def test_an_empty_name_yields_nothing(self):
         assert name_variants("") == []
         assert name_variants(None) == []
+
+
+class TestTheShortFormAStoryWrites:
+    """A story writes "Southern Boone beat Blair Oaks", not "Southern
+    Boone High School beat Blair Oaks High School". The short form is 287
+    articles for Southern Boone alone, and the index held none of them."""
+
+    PLACES = {"poplar bluff", "st clair", "columbia", "ashland", "st peters"}
+
+    @pytest.mark.parametrize(
+        "official,short",
+        [
+            ("Southern Boone High School", "Southern Boone"),
+            ("Blair Oaks High School", "Blair Oaks"),
+            ("Blue Springs South High School", "Blue Springs South"),
+            ("Saxony Lutheran High School", "Saxony Lutheran"),
+        ],
+    )
+    def test_the_short_form_is_produced(self, official, short):
+        assert school_stem(official, self.PLACES) == short
+
+    @pytest.mark.parametrize(
+        "official,why",
+        [
+            ("Poplar Bluff High School", "the stem is the town"),
+            ("St Clair High School", "the stem is the town"),
+            ("St Peters Elementary", "the stem is a DIFFERENT town"),
+            ("Main Street Elementary", "which school in town, not a name"),
+            ("North Elementary", "which school in town, not a name"),
+            ("Battle High School", "one word could be a surname"),
+        ],
+    )
+    def test_an_unsafe_stem_is_refused(self, official, why):
+        assert school_stem(official, self.PLACES) is None, why
+
+    def test_a_name_with_no_type_word_yields_no_stem(self):
+        assert school_stem("Saxony Lutheran Academy", self.PLACES) is None
 
 
 class TestASaintIsASaint:

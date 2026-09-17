@@ -102,6 +102,41 @@ def name_variants(name: str) -> list[str]:
     return [form.title() for form in forms]
 
 
+#: What a school is called once the kind of school is dropped. A story
+#: writes "Southern Boone beat Blair Oaks", not "Southern Boone High
+#: School beat Blair Oaks High School".
+_TYPE_TAIL = re.compile(
+    r"\s+(senior\s+)?(high|elementary|middle|junior\s+high|primary|"
+    r"intermediate)(\s+school)?$",
+    re.I,
+)
+
+#: A stem starting with one of these is a description of which school in
+#: town, not a name: `Main Street Elementary`, `North Elementary`.
+_GENERIC_STEM = re.compile(
+    r"^(main street|north|south|east|west|central|city|county)\b", re.I
+)
+
+
+def school_stem(name: str, places: set[str]) -> str | None:
+    """`Southern Boone High School` -> `Southern Boone`, when that is safe.
+
+    THE STEM MUST NOT BE A PLACE. Most school names are their own town --
+    `Poplar Bluff High School`, `St. Clair High School` -- and the stem is
+    then the town, which locates nothing new and can locate the WRONG
+    thing: `St Peters Elementary` is in Joplin, and St. Peters is a city
+    near St. Louis. 184 stems are excluded on that rule, against 107 kept.
+
+    Two words at least, so a stem cannot collapse to a surname.
+    """
+    stem = _TYPE_TAIL.sub("", name).strip()
+    if stem.lower() == name.lower() or len(stem.split()) < 2:
+        return None
+    if _GENERIC_STEM.match(stem) or normalize_city(stem) in places:
+        return None
+    return stem if is_matchable_gazetteer_name(stem) else None
+
+
 def normalize_city(value: str | None) -> str:
     """`St Louis`, `Saint Louis`, `St.Louis` and `St. Louis` are one place.
 
@@ -156,7 +191,14 @@ def read_schools(
         school_id = (row.get("school_id") or "").strip()
         if not school_id:
             continue
-        for index, variant in enumerate(name_variants(row.get("name") or "")):
+        forms = name_variants(row.get("name") or "")
+        # The short form a story actually writes, where it is safe.
+        known_places = {normalize_city(p) for _, p in places.values()}
+        for form in list(forms):
+            stem = school_stem(form, known_places)
+            if stem and stem.lower() not in {f.lower() for f in forms}:
+                forms.append(stem)
+        for index, variant in enumerate(forms):
             # The same guard the OSM path applies, so one corpus, one rule.
             if not is_matchable_gazetteer_name(variant):
                 continue
