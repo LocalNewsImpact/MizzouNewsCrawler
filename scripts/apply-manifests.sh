@@ -85,6 +85,12 @@ apply_crawler() {
     # deployed.
     apply_file k8s/argo/housekeeping-workflow.yaml
     apply_file k8s/argo/housekeeping-cronworkflow.yaml
+    # On-demand enrichment for one named dataset. No schedule fires it -- the
+    # enrichment CronJob names Mizzou-Missouri-State in its args, so a second
+    # dataset that acquires a profile has no entry point otherwise. Applied
+    # here for the same reason as the two above: a template that lives only in
+    # the repository is a stage that cannot be run.
+    apply_file k8s/argo/dataset-enrichment-workflow.yaml
 }
 
 apply_all() {
