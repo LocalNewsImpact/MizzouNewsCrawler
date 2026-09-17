@@ -33,7 +33,16 @@ Two sheets from ``murrow_stories_labeled with random sample human check``:
     drift; without it the comparison conflates the two.
 
 ``news``
-    The fuller raw body (median 3,474 chars against inputtext's 3,206),
+    The fuller raw body, written to BOTH ``articles.text`` and
+    ``articles.content``. The two columns are documented as cleaned body and
+    raw capture, but in this corpus they are the same string: 3,000 of 3,000
+    sampled labeled articles have them byte-identical, and `content` holds
+    plain text rather than markup. Writing only ``text`` silently excludes the
+    article from enrichment, whose candidate query requires
+    ``coalesce(a.content, '') <> ''`` -- the 474 rows from the first pass were
+    the only text-without-content articles in a corpus of 85,365.
+
+    Median 3,474 chars against inputtext's 3,206,
     mojibake in 382 of 485 rows from a UTF-8 → latin-1 → UTF-8 → mac-roman
     round trip. ``ftfy`` unwinds it and restores the apostrophes that
     inputtext lost, taking 131 rows with usable apostrophes to 429.
@@ -411,6 +420,9 @@ def build_records(rows: list[dict[str, Any]], hosts: dict[str, dict[str, Any]]):
             "author": author(row),
             "publish_date": published,
             "text": body,
+            # Both, deliberately. Enrichment selects on `content`; the
+            # classifier prefers `text`. See the module docstring.
+            "content": body,
             "text_hash": text_hash(body),
             "status": "labeled",
             "wire_check_status": WIRE_CHECK_STATUS,
@@ -475,14 +487,14 @@ RETURNING id
 # database derives from text, and naming it in the column list is an error.
 INSERT_ARTICLE = text("""
 INSERT INTO articles
-    (id, candidate_link_id, url, title, author, publish_date, text,
+    (id, candidate_link_id, url, title, author, publish_date, text, content,
      text_hash, status, wire_check_status, wire_check_metadata,
      primary_label, alternate_label,
      label_version, label_model_version, labels_updated_at,
      extraction_version, extracted_at, dataset_id, metadata, created_at)
 VALUES
     (:id, :candidate_link_id, :url, :title, :author, :publish_date, :text,
-     :text_hash, :status, :wire_check_status,
+     :content, :text_hash, :status, :wire_check_status,
      CAST(:wire_check_metadata AS json), :primary_label, :alternate_label,
      :label_version, :label_model_version, NOW(),
      :extraction_version, NOW(), :dataset_id, CAST(:metadata AS json), NOW())
