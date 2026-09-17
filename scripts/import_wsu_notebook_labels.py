@@ -61,6 +61,16 @@ source rows rather than creating duplicates:
 Nine hosts are not publishers (``drive.google.com`` and friends, plus rows
 where a headline was pasted into the URL column) and are skipped.
 
+Twelve rows have no body: the sheet holds the literal string ``nan``, which is
+what pandas writes for NaN and what reads back as an ordinary three-character
+string. They are skipped, because an article whose body is "nan" is not an
+article -- the notebook classified all twelve as Civic Life, which is the label
+the model returns when given no signal. Five are ``khq.com`` ``/video_`` pages
+that have no prose to begin with; seven are TownNews/BLOX ``/article_`` pages
+whose text exists but was paywalled when the notebook ran, and those are worth
+re-fetching through the extraction stack, which decodes the ROT47 body BLOX
+serves behind its paywall.
+
 Why candidate_links rows are created
 ------------------------------------
 ``articles.candidate_link_id`` is NOT NULL with an FK to ``candidate_links``,
@@ -219,6 +229,10 @@ HUMAN_CHECK_SPELLINGS = {
 
 _URL_RE = re.compile(r"https?://([^/]+)(.*)$", re.IGNORECASE)
 
+#: Values that mean "this cell was empty" by the time a DataFrame has been
+#: written to a spreadsheet and read back. None of them is a body.
+_NULL_STRINGS = frozenset({"nan", "none", "null", "n/a", "na", "-"})
+
 
 def repair_text(value: Any) -> str:
     """Unwind the spreadsheet's double mis-decoding.
@@ -233,7 +247,13 @@ def repair_text(value: Any) -> str:
     if value is None:
         return ""
     s = str(value)
-    if not s or s == "None":
+    # "nan" is a body in 12 rows: pandas wrote its NaN out as text when the
+    # sheet was exported, and read back it is an ordinary three-character
+    # string. Taken as a body it produced 12 articles the notebook classified
+    # from no signal at all -- every one came back Civic Life, which is what
+    # the model answers when handed nothing. "None" arrives the same way from
+    # Python's own str(None).
+    if not s or s.strip().lower() in _NULL_STRINGS:
         return ""
     return ftfy.fix_text(s, normalization="NFC")
 
