@@ -206,13 +206,13 @@ class TestTheNameIndex:
     walmart supercenter occurs in 149, pizza hut in 140, aldi in 72."""
 
     def test_it_counts_distinct_places_per_name(self):
-        session = _Session(answers=[[], [], [(10, 7)]])
+        session = _Session(answers=[[], [], [], [(10, 7)]])
         result = sg.rebuild_name_index(session, "MO")
-        assert result == {"names": 10, "unambiguous": 7}
+        assert result == {"names": 10, "unambiguous": 7, "dropped": 0}
 
     def test_the_geoid_is_set_only_when_the_name_is_unambiguous(self):
         """Otherwise a caller reads an answer off an ambiguous name."""
-        session = _Session(answers=[[], [], [(0, 0)]])
+        session = _Session(answers=[[], [], [], [(0, 0)]])
         sg.rebuild_name_index(session, "MO")
         insert = next(
             s for s in session.statements if "INSERT INTO gazetteer_name_places" in s
@@ -220,9 +220,51 @@ class TestTheNameIndex:
         assert "CASE WHEN count(DISTINCT place_geoid) = 1" in insert
 
     def test_it_is_rebuilt_rather_than_appended(self):
-        session = _Session(answers=[[], [], [(0, 0)]])
+        session = _Session(answers=[[], [], [], [(0, 0)]])
         sg.rebuild_name_index(session, "MO")
         assert "DELETE FROM gazetteer_name_places" in session.statements[0]
+
+    def test_the_index_drops_names_the_guard_refuses(self, monkeypatch):
+        """Missouri was loaded before the sports vocabulary was added to
+        the guard, so 48 of its names are `Basketball`, `Locker Rooms`,
+        `The Track`. The FEATURES stay -- `article_entities` has a foreign
+        key onto them and deleting one erases what an article matched --
+        so the INDEX row goes instead, and a state loaded under an older
+        guard is corrected on its next rebuild."""
+        session = _Session(
+            answers=[
+                [],
+                [],  # delete, rebuild
+                [("basketball",), ("battle high school",)],  # what the index holds
+                [],  # the delete
+                [(2, 1)],  # the count
+            ]
+        )
+        result = sg.rebuild_name_index(session, "MO")
+        assert result["dropped"] == 1
+        deletes = [
+            p
+            for s_, p in zip(session.statements, session.params, strict=True)
+            if "DELETE FROM gazetteer_name_places" in s_ and "name_norm IN" in s_
+        ]
+        assert deletes and deletes[0]["names"] == ["basketball"]
+
+    def test_nothing_is_deleted_when_every_name_is_matchable(self):
+        session = _Session(
+            answers=[
+                [],
+                [],
+                [("battle high school",)],
+                [(1, 1)],
+            ]
+        )
+        result = sg.rebuild_name_index(session, "MO")
+        assert result["dropped"] == 0
+        assert not [
+            s_
+            for s_ in session.statements
+            if "DELETE FROM gazetteer_name_places" in s_ and "name_norm IN" in s_
+        ]
 
     def test_an_unresolvable_state_raises(self):
         with pytest.raises(ValueError):
@@ -234,7 +276,7 @@ class TestTheNameIndex:
         Wildwood" -- so every Missouri story naming a Bethel Church
         resolved there. Filtering unplaced features out before counting
         is what made a name with 52 bearers look like a name with one."""
-        session = _Session(answers=[[], [], [(0, 0)]])
+        session = _Session(answers=[[], [], [], [(0, 0)]])
         sg.rebuild_name_index(session, "MO")
         insert = next(
             s for s in session.statements if "INSERT INTO gazetteer_name_places" in s
@@ -247,7 +289,7 @@ class TestTheNameIndex:
     def test_the_answer_is_withheld_when_any_bearer_is_unplaced(self):
         """One known place is not one place when others are unaccounted
         for. The geoid and the name are both gated on there being none."""
-        session = _Session(answers=[[], [], [(0, 0)]])
+        session = _Session(answers=[[], [], [], [(0, 0)]])
         sg.rebuild_name_index(session, "MO")
         insert = next(
             s for s in session.statements if "INSERT INTO gazetteer_name_places" in s
@@ -261,7 +303,7 @@ class TestTheNameIndex:
     def test_a_name_with_no_placed_feature_is_absent_entirely(self):
         """Counting unplaced features must not admit a name that has only
         unplaced ones -- it locates nothing and belongs nowhere."""
-        session = _Session(answers=[[], [], [(0, 0)]])
+        session = _Session(answers=[[], [], [], [(0, 0)]])
         sg.rebuild_name_index(session, "MO")
         insert = next(
             s for s in session.statements if "INSERT INTO gazetteer_name_places" in s
@@ -364,8 +406,36 @@ class TestReportingWhatIsInstalled:
             return {"read": 3, "written": 3}
 
         monkeypatch.setattr(sg, "load_state", fake_load)
+        # The school load reaches GCS, and importing the real
+        # `google.cloud.storage` binds it as an attribute of the
+        # `google.cloud` package -- from then on `from google.cloud import
+        # storage` returns the real module however `sys.modules` is
+        # patched, and tests/utils/test_raw_html_archive.py fails. Stub it:
+        # this test is about `load_state` being dispatched, not schools.
+        from src.pipeline import school_gazetteer
+
+        monkeypatch.setattr(
+            school_gazetteer, "load_schools", lambda *a, **k: {"written": 0}
+        )
         assert sg.ensure_state(session, "MO")["written"] == 3
         assert called["state"] == "MO"
+
+    def test_schools_failing_does_not_fail_the_install(self, monkeypatch):
+        """The OSM gazetteer is installed by the time schools are tried,
+        and a state is usable without them. A bucket that will not answer
+        must not leave the caller with no gazetteer at all."""
+        from src.pipeline import school_gazetteer
+
+        session = _Session(answers=[[]])
+        monkeypatch.setattr(sg, "load_state", lambda *a, **k: {"read": 3, "written": 3})
+
+        def refuse(*args, **kwargs):
+            raise RuntimeError("the bucket is not answering")
+
+        monkeypatch.setattr(school_gazetteer, "load_schools", refuse)
+        result = sg.ensure_state(session, "MO")
+        assert result["written"] == 3
+        assert result["schools"] == 0
 
 
 class TestTheCategoryIndexIgnoresMalformedFilters:

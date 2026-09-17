@@ -38,7 +38,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Iterator
 
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
 from src.enrichment.fips import STATE_FIPS, STATE_NAME_TO_USPS, _usps
@@ -306,6 +306,7 @@ def rebuild_name_index(session: Session, state: str) -> dict[str, int]:
         text("DELETE FROM gazetteer_name_places WHERE state = :s"), {"s": code}
     )
     session.execute(_REBUILD_INDEX, {"state": code, "now": datetime.now(timezone.utc)})
+    dropped = _drop_unmatchable(session, code)
     session.commit()
     row = session.execute(
         text(
@@ -315,8 +316,53 @@ def rebuild_name_index(session: Session, state: str) -> dict[str, int]:
         {"s": code},
     ).first()
     if row is None:
-        return {"names": 0, "unambiguous": 0}
-    return {"names": row[0] or 0, "unambiguous": row[1] or 0}
+        return {"names": 0, "unambiguous": 0, "dropped": dropped}
+    return {
+        "names": row[0] or 0,
+        "unambiguous": row[1] or 0,
+        "dropped": dropped,
+    }
+
+
+def _drop_unmatchable(session: Session, code: str) -> int:
+    """Names the guard refuses, out of the INDEX rather than the features.
+
+    `read_extract` applies `is_matchable_gazetteer_name` when a state is
+    loaded, so junk never enters. Missouri was loaded before the sports
+    vocabulary was added to that guard, and 48 of its names are things
+    like `Basketball`, `Locker Rooms`, `The Track` and `High School
+    football field` -- each one an EntityRuler pattern that proposes a
+    city whenever its words appear in prose.
+
+    THE FEATURES STAY. `article_entities.matched_feature_id` has a
+    foreign key onto them, so deleting one erases the record of what an
+    article actually matched; the delete is refused outright, which is
+    the constraint doing its job. Dropping the INDEX row stops the name
+    answering without losing the history.
+
+    It runs on every rebuild, so a state loaded under an older guard is
+    corrected the next time its index is built rather than staying wrong
+    until somebody remembers.
+    """
+    refused = [
+        row[0]
+        for row in session.execute(
+            text("SELECT name_norm FROM gazetteer_name_places WHERE state = :s"),
+            {"s": code},
+        )
+        if not is_matchable_gazetteer_name(row[0])
+    ]
+    if not refused:
+        return 0
+    session.execute(
+        text(
+            "DELETE FROM gazetteer_name_places "
+            "WHERE state = :s AND name_norm IN :names"
+        ).bindparams(bindparam("names", expanding=True)),
+        {"s": code, "names": refused},
+    )
+    logger.info("%s: dropped %d unmatchable names from the index", code, len(refused))
+    return len(refused)
 
 
 def ensure_state(
@@ -329,7 +375,34 @@ def ensure_state(
     if state_is_loaded(session, code):
         return {"read": 0, "written": 0, "already": 1}
     logger.info("installing the %s gazetteer from %s", code, extract_uri(code))
-    return load_state(session, code, dry_run=dry_run)
+    result = load_state(session, code, dry_run=dry_run)
+
+    # SCHOOLS COME FROM THE FEDERAL SURVEYS, NOT FROM WHOEVER MAPPED THEM.
+    #
+    # OSM school coverage is whatever volunteers happened to enter, and
+    # what they did not enter is what local stories are about: Missouri's
+    # OSM index held 3,759 school names and none of Battle High School,
+    # Smith-Cotton, Warrior Ridge, Hickman or Rock Bridge. A missing
+    # school is a refused point, because the gate admits an unnamed place
+    # only when a named institution resolves there.
+    #
+    # A state without an extract is not a failure of the state: the OSM
+    # gazetteer is installed either way, and the school file is built by
+    # `scripts/build_school_extract.py` when somebody gets to it.
+    try:
+        from src.pipeline import school_gazetteer
+
+        schools = school_gazetteer.load_schools(session, code, dry_run=dry_run)
+        result["schools"] = schools.get("written", 0)
+    except Exception as exc:  # noqa: BLE001 - see below
+        # BROAD ON PURPOSE. The OSM gazetteer is installed by the time we
+        # get here, and the state is usable without its schools. A missing
+        # extract, a bucket that will not answer, a credential that has
+        # expired -- none of them is a reason to report the install as
+        # failed and leave the caller with no gazetteer at all.
+        logger.warning("%s: schools not installed (%s)", code, exc)
+        result["schools"] = 0
+    return result
 
 
 #: A secondary state needs this share of a source's own POIs to count as
