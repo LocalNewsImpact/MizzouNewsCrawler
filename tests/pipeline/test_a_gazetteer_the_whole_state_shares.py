@@ -188,13 +188,73 @@ class TestLoading:
 
 
 class TestOnDemand:
-    def test_a_state_already_present_is_not_reloaded(self):
-        session = _Session(answers=[[(1,)]])
-        assert sg.ensure_state(session, "MO") == {
-            "read": 0,
-            "written": 0,
-            "already": 1,
-        }
+    @staticmethod
+    def _stub_layers(monkeypatch, calls):
+        """Record which school-layer calls a run makes, without a bucket."""
+        from src.pipeline import school_gazetteer
+
+        def load_schools(*args, **kwargs):
+            calls["load_schools"] = True
+            return {"written": 7}
+
+        def stem_features(*args, **kwargs):
+            calls["stem_features"] = True
+            return {"written": 3}
+
+        monkeypatch.setattr(school_gazetteer, "load_schools", load_schools)
+        monkeypatch.setattr(school_gazetteer, "stem_features", stem_features)
+
+    def test_a_state_already_present_is_not_reloaded(self, monkeypatch):
+        calls: dict[str, bool] = {}
+        self._stub_layers(monkeypatch, calls)
+        # present, and its schools are present too
+        session = _Session(answers=[[(1,)], [(1,)]])
+        monkeypatch.setattr(
+            sg, "load_state", lambda *a, **k: pytest.fail("reloaded a present state")
+        )
+        result = sg.ensure_state(session, "MO")
+        assert result["already"] == 1
+        assert result["written"] == 0
+        assert "load_schools" not in calls
+
+    def test_a_state_already_present_still_gets_its_missing_schools(self, monkeypatch):
+        """The WA regression. Gating the whole install on one "is this state
+        present?" check meant Washington -- whose OSM layer was loaded before
+        the school layer existed -- answered yes and returned. It held 49,584
+        OSM features and 0 school records, and no number of runs could change
+        that."""
+        calls: dict[str, bool] = {}
+        self._stub_layers(monkeypatch, calls)
+        # present, but with no ccd/pss rows
+        session = _Session(answers=[[(1,)], []])
+        monkeypatch.setattr(
+            sg, "load_state", lambda *a, **k: pytest.fail("reloaded a present state")
+        )
+        result = sg.ensure_state(session, "WA")
+        assert result["already"] == 1
+        assert calls.get("load_schools") is True
+        assert result["schools"] == 7
+
+    def test_stems_are_installed_as_part_of_the_state(self, monkeypatch):
+        """Missouri's 114 stems were produced by hand because nothing called
+        `stem_features`, so a second state would silently have had none -- and
+        a stem is what lets a bare "Tolton" match Tolton Catholic High
+        School."""
+        calls: dict[str, bool] = {}
+        self._stub_layers(monkeypatch, calls)
+        session = _Session(answers=[[(1,)], [(1,)]])
+        result = sg.ensure_state(session, "WA")
+        assert calls.get("stem_features") is True
+        assert result["stems"] == 3
+
+    def test_the_school_check_looks_for_the_surveys_not_for_osm(self):
+        """OSM's own school POIs are nodes and ways. Asking whether the state
+        has any school-category feature would answer yes for a state that has
+        never seen CCD or PSS."""
+        session = _Session(answers=[[]])
+        assert sg.schools_are_loaded(session, "WA") is False
+        assert "osm_type = ANY" in session.statements[0]
+        assert session.params[0]["sources"] == ["ccd", "pss"]
 
     def test_an_unresolvable_state_is_skipped_not_guessed(self):
         session = _Session()
