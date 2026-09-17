@@ -110,6 +110,17 @@ def add_enrichment_parser(subparsers):
     )
     support.add_argument("--dry-run", action="store_true")
 
+    restore = actions.add_parser(
+        "restore-points",
+        help="Write points the gate refused once and would now keep",
+    )
+    restore.add_argument("--limit", type=int, default=None)
+    restore.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="report what would be written and write nothing",
+    )
+
     reground = actions.add_parser(
         "reground",
         help="Remove stored geography the article's own text does not support",
@@ -255,6 +266,21 @@ def handle_enrichment_command(args) -> int:
                     f"  named in the story: {counts['named']}\n"
                     f"  an institution     : {counts['institution']}\n"
                     f"  neither            : {counts['unsupported']}"
+                    + ("\n(dry run — nothing written)" if args.dry_run else "")
+                )
+                return 0
+
+            if action == "restore-points":
+                from src.enrichment import restore_points
+
+                counts = restore_points.restore(
+                    session, dry_run=args.dry_run, limit=args.limit
+                )
+                print(
+                    f"points the gate would now keep: {counts['candidates']}\n"
+                    f"  named in the story          : {counts['named']}\n"
+                    f"  an institution sits there   : {counts['institution']}\n"
+                    f"  written                     : {counts['written']}"
                     + ("\n(dry run — nothing written)" if args.dry_run else "")
                 )
                 return 0
