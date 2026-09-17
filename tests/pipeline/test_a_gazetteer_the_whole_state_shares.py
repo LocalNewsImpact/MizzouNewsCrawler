@@ -364,6 +364,17 @@ class TestReportingWhatIsInstalled:
             return {"read": 3, "written": 3}
 
         monkeypatch.setattr(sg, "load_state", fake_load)
+        # The school load reaches GCS, and importing the real
+        # `google.cloud.storage` binds it as an attribute of the
+        # `google.cloud` package -- from then on `from google.cloud import
+        # storage` returns the real module however `sys.modules` is
+        # patched, and tests/utils/test_raw_html_archive.py fails. Stub it:
+        # this test is about `load_state` being dispatched, not schools.
+        from src.pipeline import school_gazetteer
+
+        monkeypatch.setattr(
+            school_gazetteer, "load_schools", lambda *a, **k: {"written": 0}
+        )
         assert sg.ensure_state(session, "MO")["written"] == 3
         assert called["state"] == "MO"
 
