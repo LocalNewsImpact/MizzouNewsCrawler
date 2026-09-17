@@ -228,6 +228,46 @@ class TestTheNameIndex:
         with pytest.raises(ValueError):
             sg.rebuild_name_index(_Session(), "ZZ")
 
+    def test_an_unplaced_feature_still_counts_against_the_name(self):
+        """THE DEFECT. `bethel church` has 52 features in Missouri, 51 of
+        them with no place, and the index called it "unambiguously
+        Wildwood" -- so every Missouri story naming a Bethel Church
+        resolved there. Filtering unplaced features out before counting
+        is what made a name with 52 bearers look like a name with one."""
+        session = _Session(answers=[[], [], [(0, 0)]])
+        sg.rebuild_name_index(session, "MO")
+        insert = next(
+            s for s in session.statements if "INSERT INTO gazetteer_name_places" in s
+        )
+        assert "count(*) FILTER (WHERE place_geoid IS NULL) > 0" in insert
+        assert (
+            "WHERE state = :state\n     GROUP BY" in insert
+        ), "the rebuild still filters unplaced features out before counting"
+
+    def test_the_answer_is_withheld_when_any_bearer_is_unplaced(self):
+        """One known place is not one place when others are unaccounted
+        for. The geoid and the name are both gated on there being none."""
+        session = _Session(answers=[[], [], [(0, 0)]])
+        sg.rebuild_name_index(session, "MO")
+        insert = next(
+            s for s in session.statements if "INSERT INTO gazetteer_name_places" in s
+        )
+        gate = (
+            "CASE WHEN count(DISTINCT place_geoid) = 1\n"
+            "                 AND count(*) FILTER (WHERE place_geoid IS NULL) = 0"
+        )
+        assert insert.count(gate) == 2, "geoid and name must both be gated"
+
+    def test_a_name_with_no_placed_feature_is_absent_entirely(self):
+        """Counting unplaced features must not admit a name that has only
+        unplaced ones -- it locates nothing and belongs nowhere."""
+        session = _Session(answers=[[], [], [(0, 0)]])
+        sg.rebuild_name_index(session, "MO")
+        insert = next(
+            s for s in session.statements if "INSERT INTO gazetteer_name_places" in s
+        )
+        assert "HAVING count(DISTINCT place_geoid) > 0" in insert
+
 
 class _Blob:
     def __init__(self, text=None, present=True):

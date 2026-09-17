@@ -256,15 +256,34 @@ _REBUILD_INDEX = text("""
     INSERT INTO gazetteer_name_places
       (state, name_norm, place_count, place_geoid, place_name, updated_at)
     SELECT state, name_norm,
-           count(DISTINCT place_geoid) AS place_count,
+           -- AN UNPLACED FEATURE STILL COUNTS AGAINST THE NAME.
+           --
+           -- Filtering them out before counting made a name look
+           -- unambiguous when it is not: `bethel church` has 52 features
+           -- in Missouri, 51 of them without a place, and the index
+           -- called it "unambiguously Wildwood". Every Missouri story
+           -- naming a Bethel Church resolved there with total
+           -- confidence -- the statewide collision §4e blamed for the
+           -- Kennett church matching one at the other end of the state.
+           --
+           -- We do not know WHERE the unplaced ones are, only that they
+           -- are other features wearing the same name, so they add one
+           -- to the count rather than their own number: enough to deny
+           -- the name a single answer, without inventing places.
+           count(DISTINCT place_geoid)
+             + CASE WHEN count(*) FILTER (WHERE place_geoid IS NULL) > 0
+                    THEN 1 ELSE 0 END AS place_count,
            CASE WHEN count(DISTINCT place_geoid) = 1
+                 AND count(*) FILTER (WHERE place_geoid IS NULL) = 0
                 THEN min(place_geoid) END,
            CASE WHEN count(DISTINCT place_geoid) = 1
+                 AND count(*) FILTER (WHERE place_geoid IS NULL) = 0
                 THEN min(place_name) END,
            :now
       FROM gazetteer_features
-     WHERE state = :state AND place_geoid IS NOT NULL
+     WHERE state = :state
      GROUP BY state, name_norm
+    HAVING count(DISTINCT place_geoid) > 0
     ON CONFLICT (state, name_norm) DO UPDATE
        SET place_count = EXCLUDED.place_count,
            place_geoid = EXCLUDED.place_geoid,
