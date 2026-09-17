@@ -367,6 +367,23 @@ class TestReportingWhatIsInstalled:
         assert sg.ensure_state(session, "MO")["written"] == 3
         assert called["state"] == "MO"
 
+    def test_schools_failing_does_not_fail_the_install(self, monkeypatch):
+        """The OSM gazetteer is installed by the time schools are tried,
+        and a state is usable without them. A bucket that will not answer
+        must not leave the caller with no gazetteer at all."""
+        from src.pipeline import school_gazetteer
+
+        session = _Session(answers=[[]])
+        monkeypatch.setattr(sg, "load_state", lambda *a, **k: {"read": 3, "written": 3})
+
+        def refuse(*args, **kwargs):
+            raise RuntimeError("the bucket is not answering")
+
+        monkeypatch.setattr(school_gazetteer, "load_schools", refuse)
+        result = sg.ensure_state(session, "MO")
+        assert result["written"] == 3
+        assert result["schools"] == 0
+
 
 class TestTheCategoryIndexIgnoresMalformedFilters:
     def test_a_filter_without_an_equals_is_skipped(self, monkeypatch):

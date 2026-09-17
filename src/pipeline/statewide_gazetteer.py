@@ -329,7 +329,34 @@ def ensure_state(
     if state_is_loaded(session, code):
         return {"read": 0, "written": 0, "already": 1}
     logger.info("installing the %s gazetteer from %s", code, extract_uri(code))
-    return load_state(session, code, dry_run=dry_run)
+    result = load_state(session, code, dry_run=dry_run)
+
+    # SCHOOLS COME FROM THE FEDERAL SURVEYS, NOT FROM WHOEVER MAPPED THEM.
+    #
+    # OSM school coverage is whatever volunteers happened to enter, and
+    # what they did not enter is what local stories are about: Missouri's
+    # OSM index held 3,759 school names and none of Battle High School,
+    # Smith-Cotton, Warrior Ridge, Hickman or Rock Bridge. A missing
+    # school is a refused point, because the gate admits an unnamed place
+    # only when a named institution resolves there.
+    #
+    # A state without an extract is not a failure of the state: the OSM
+    # gazetteer is installed either way, and the school file is built by
+    # `scripts/build_school_extract.py` when somebody gets to it.
+    try:
+        from src.pipeline import school_gazetteer
+
+        schools = school_gazetteer.load_schools(session, code, dry_run=dry_run)
+        result["schools"] = schools.get("written", 0)
+    except Exception as exc:  # noqa: BLE001 - see below
+        # BROAD ON PURPOSE. The OSM gazetteer is installed by the time we
+        # get here, and the state is usable without its schools. A missing
+        # extract, a bucket that will not answer, a credential that has
+        # expired -- none of them is a reason to report the install as
+        # failed and leave the caller with no gazetteer at all.
+        logger.warning("%s: schools not installed (%s)", code, exc)
+        result["schools"] = 0
+    return result
 
 
 #: A secondary state needs this share of a source's own POIs to count as
