@@ -216,6 +216,27 @@ def state_is_loaded(session: Session, state: str) -> bool:
     return found is not None
 
 
+#: The federal surveys the school layer is built from. `osm_type` records
+#: which source a feature came from, so these two values are what "this state
+#: has its schools" means — OSM's own school POIs are nodes and ways and say
+#: nothing about whether CCD and PSS were ever loaded.
+_SCHOOL_SOURCES = ("ccd", "pss")
+
+
+def schools_are_loaded(session: Session, state: str) -> bool:
+    code = state_code(state)
+    if not code:
+        return False
+    found = session.execute(
+        text(
+            "SELECT 1 FROM gazetteer_features "
+            "WHERE state = :s AND osm_type = ANY(:sources) LIMIT 1"
+        ),
+        {"s": code, "sources": list(_SCHOOL_SOURCES)},
+    ).first()
+    return found is not None
+
+
 def load_state(
     session: Session,
     state: str,
@@ -368,14 +389,25 @@ def _drop_unmatchable(session: Session, code: str) -> int:
 def ensure_state(
     session: Session, state: str, *, dry_run: bool = False
 ) -> dict[str, int]:
-    """Load a state if it is not already present. The on-demand entry."""
+    """Install every layer a state is missing. The on-demand entry.
+
+    The layers are installed independently because they were built at
+    different times. Washington's OSM layer was loaded before the school
+    layer existed, so a single "is the state present?" gate over the whole
+    install answered yes and returned, and WA could never acquire schools on
+    demand however many times this ran: 49,584 OSM features and 0 school
+    records. Each layer therefore checks for itself, and each is idempotent,
+    so the cost of a state that is fully installed is three counts.
+    """
     code = state_code(state)
     if not code:
         return {"read": 0, "written": 0, "skipped": 1}
+
     if state_is_loaded(session, code):
-        return {"read": 0, "written": 0, "already": 1}
-    logger.info("installing the %s gazetteer from %s", code, extract_uri(code))
-    result = load_state(session, code, dry_run=dry_run)
+        result: dict[str, int] = {"read": 0, "written": 0, "already": 1}
+    else:
+        logger.info("installing the %s gazetteer from %s", code, extract_uri(code))
+        result = load_state(session, code, dry_run=dry_run)
 
     # SCHOOLS COME FROM THE FEDERAL SURVEYS, NOT FROM WHOEVER MAPPED THEM.
     #
@@ -392,8 +424,20 @@ def ensure_state(
     try:
         from src.pipeline import school_gazetteer
 
-        schools = school_gazetteer.load_schools(session, code, dry_run=dry_run)
-        result["schools"] = schools.get("written", 0)
+        if schools_are_loaded(session, code):
+            result["schools"] = 0
+            result["schools_already"] = 1
+        else:
+            schools = school_gazetteer.load_schools(session, code, dry_run=dry_run)
+            result["schools"] = schools.get("written", 0)
+
+        # Stemming is part of installing a state, not a one-off. It is what
+        # lets "Tolton" match Tolton Catholic High School, and it has to run
+        # after the schools it stems are present. Missouri's 114 stems were
+        # produced by hand because this was never wired in, which meant a
+        # second state would have silently had none.
+        stems = school_gazetteer.stem_features(session, code, dry_run=dry_run)
+        result["stems"] = stems.get("written", 0)
     except Exception as exc:  # noqa: BLE001 - see below
         # BROAD ON PURPOSE. The OSM gazetteer is installed by the time we
         # get here, and the state is usable without its schools. A missing
@@ -401,7 +445,8 @@ def ensure_state(
         # expired -- none of them is a reason to report the install as
         # failed and leave the caller with no gazetteer at all.
         logger.warning("%s: schools not installed (%s)", code, exc)
-        result["schools"] = 0
+        result.setdefault("schools", 0)
+        result.setdefault("stems", 0)
     return result
 
 
