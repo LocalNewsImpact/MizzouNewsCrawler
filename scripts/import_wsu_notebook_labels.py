@@ -61,6 +61,23 @@ article cannot exist without one. They are written with
 ``discovered_by='manual-import'``, matching the 717 rows already imported
 that way.
 
+Labels live in two places, and both must be written
+---------------------------------------------------
+``article_labels`` is the versioned store — one row per
+``(article_id, label_version)``, carrying the model version, the confidences
+and the full prediction set. ``articles.primary_label`` is a denormalised copy
+for querying. Writing only the copy leaves the label invisible to everything
+that reads the versioned store, including ``analyze``'s own change report,
+which outer-joins ``article_labels`` to compute the diff: a re-run against a
+corpus with only the copy populated reports every old label as empty and every
+new one as a change, so the comparison silently measures nothing.
+
+So the import writes both, and the label row is upserted on
+``uq_article_label_version`` independently of whether the article was newly
+inserted. A second run therefore repairs missing label rows instead of doing
+nothing, which is what an import of a curated set needs — the article is
+keyed on its URL and cannot be inserted twice.
+
 Syndication is kept, not collapsed
 ----------------------------------
 38 headlines appear more than once and 33 of those span multiple hosts: the
@@ -121,11 +138,22 @@ WIRE_CHECK_STATUS = "local"
 WIRE_CHECK_AUTHORITY = "wsu-curated-url-set"
 DISCOVERED_BY = "manual-import"
 
-# The Snohomish outlets renamed on 2025-12-18. Rows carrying the old domain
-# belong to the source row that already holds the new one.
+# Two Snohomish outlets moved domains after 2025-12-17. Rows carrying an old
+# domain belong to the source row that holds the new one.
 HOST_RENAMES = {
     "lynnwoodtoday.com": "mylynnwoodnews.com",
     "mltnews.com": "mymltnews.com",
+}
+
+# NEVER FETCH THESE. Both old domains are gone, not merely renamed:
+# lynnwoodtoday.com left the publisher's control and now serves gambling spam,
+# and mltnews.com does not resolve. The stored URL stays as written because it
+# is the provenance -- the address the story was published at and the notebook
+# classified -- so the article instead carries a marker saying the address is
+# dead, and the candidate link is never a fetch candidate.
+RETIRED_DOMAINS = {
+    "lynnwoodtoday.com": "left the publisher's control; now serves gambling spam",
+    "mltnews.com": "does not resolve",
 }
 
 # Hosts that are file stores, search engines and CDNs rather than publishers.
@@ -204,11 +232,14 @@ def repair_text(value: Any) -> str:
 def normalise_url(value: Any) -> tuple[str, str] | None:
     """Return ``(url_to_store, lookup_host)`` for a real article URL, else None.
 
-    The stored URL keeps the host exactly as written, ``www`` included. The
-    crawler will later rediscover these articles at the host the source row
-    records, so rewriting the host here would both break a re-fetch — an old
-    domain's path need not exist on the new one — and guarantee a second row
-    for every story when discovery finds the form we chose to discard.
+    The stored URL keeps the host exactly as written, ``www`` included. For a
+    live host, rewriting it would both break a re-fetch — an old domain's path
+    need not exist on the new one — and guarantee a second row per story when
+    discovery finds the form we chose to discard. For the two retired domains
+    the reason is different and stronger: their paths cannot be rewritten onto
+    the successor because nobody can check them, and the address as written is
+    the story's provenance. Those rows are marked instead; see
+    ``RETIRED_DOMAINS``.
 
     Only fragments, query strings and a trailing slash are dropped, so the
     same story submitted twice with different tracking parameters collides on
@@ -342,6 +373,18 @@ def build_records(rows: list[dict[str, Any]], hosts: dict[str, dict[str, Any]]):
             "human_check": human_check(row),
             "media": media(row),
         }
+        # `host` is the attribution key, already mapped to the live successor,
+        # so the marker has to test the host the URL is actually stored on.
+        stored_host = url.split("//", 1)[-1].split("/", 1)[0].lower()
+        if stored_host.startswith("www."):
+            stored_host = stored_host[4:]
+        if stored_host in RETIRED_DOMAINS:
+            # Read by anything that might otherwise fetch this address.
+            notebook["retired_domain"] = {
+                "host": stored_host,
+                "reason": RETIRED_DOMAINS[stored_host],
+                "do_not_fetch": True,
+            }
 
         link = {
             "id": link_id,
@@ -447,6 +490,30 @@ ON CONFLICT (url) DO NOTHING
 RETURNING id
 """)
 
+# The versioned label store. Upserted rather than skipped on conflict: a
+# re-run's job is to repair a label row the first pass failed to write.
+UPSERT_LABEL = text("""
+INSERT INTO article_labels
+    (id, article_id, label_version, model_version, model_path,
+     primary_label, primary_label_confidence,
+     alternate_label, alternate_label_confidence, applied_at, meta)
+VALUES
+    (:id, :article_id, :label_version, :model_version, :model_path,
+     :primary_label, NULL, :alternate_label, NULL, NOW(),
+     CAST(:meta AS json))
+ON CONFLICT (article_id, label_version) DO UPDATE SET
+    primary_label = EXCLUDED.primary_label,
+    alternate_label = EXCLUDED.alternate_label,
+    model_version = EXCLUDED.model_version,
+    applied_at = EXCLUDED.applied_at,
+    meta = EXCLUDED.meta
+RETURNING id
+""")
+
+# The article may already exist from an earlier run, and its id is needed to
+# anchor the label row. The URL is the only key both runs agree on.
+ARTICLE_ID_FOR_URL = text("SELECT id FROM articles WHERE url = :url")
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -501,19 +568,46 @@ def main() -> int:
             print("\n--dry-run: nothing written")
             return 0
 
-        written_links = written_articles = 0
+        written_links = written_articles = written_labels = 0
+        missing = 0
         for link, article in records:
-            if session.execute(INSERT_LINK, link).first() is None:
-                # The URL already exists, so the article it anchors does too.
-                continue
-            written_links += 1
+            if session.execute(INSERT_LINK, link).first() is not None:
+                written_links += 1
             if session.execute(INSERT_ARTICLE, article).first() is not None:
                 written_articles += 1
+                article_id = article["id"]
+            else:
+                # The article already exists from an earlier run. Its own id was
+                # generated then, not now, so the label has to be anchored to
+                # the stored row rather than to this pass's UUID.
+                found = session.execute(
+                    ARTICLE_ID_FOR_URL, {"url": article["url"]}
+                ).first()
+                if found is None:
+                    missing += 1
+                    continue
+                article_id = found[0]
+            session.execute(
+                UPSERT_LABEL,
+                {
+                    "id": str(uuid.uuid4()),
+                    "article_id": article_id,
+                    "label_version": LABEL_VERSION,
+                    "model_version": LABEL_MODEL_VERSION,
+                    "model_path": None,
+                    "primary_label": article["primary_label"],
+                    "alternate_label": article["alternate_label"],
+                    "meta": json.dumps({"source": "wsu-notebook-import"}),
+                },
+            )
+            written_labels += 1
         session.commit()
         print(
-            f"\nwrote {written_links} candidate_links "
-            f"and {written_articles} articles"
+            f"\nwrote {written_links} candidate_links, "
+            f"{written_articles} articles, {written_labels} label rows"
         )
+        if missing:
+            print(f"WARNING: {missing} records had neither a new nor a stored article")
     return 0
 
 
