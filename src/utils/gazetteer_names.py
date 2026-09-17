@@ -44,8 +44,60 @@ import re
 
 #: Words that describe a KIND of place rather than name one. A name made
 #: only of these is a description, not an identity.
+#:
+#: THE SPORTS AND FACILITY VOCABULARY WAS MISSING (2026-09-17). The set
+#: held `field`, `pool`, `court`, `gym`, `parking` -- so the rule was
+#: right and its vocabulary was half-written. `Basketball`, `Locker
+#: Rooms`, `The Track` and `High School football field` are real OSM
+#: features: a mapper put a description in the `name` tag, which is what
+#: that tag is not for. Each became an EntityRuler pattern, so the word
+#: "basketball" anywhere in an article proposed a city -- `basketball` ->
+#: Springfield on an MU sports-betting story, `honor roll` -> North
+#: Kansas City on an elementary school honour roll.
 GENERIC_TOKENS = frozenset(
     {
+        # Sports and the parts of a sports facility.
+        "baseball",
+        "basketball",
+        "bleachers",
+        "concessions",
+        "courts",
+        "diamond",
+        "dugout",
+        "football",
+        "golf",
+        "gymnasium",
+        "hockey",
+        "locker",
+        "lockers",
+        "pitch",
+        "rink",
+        "soccer",
+        "softball",
+        "stands",
+        "tennis",
+        "track",
+        "volleyball",
+        # Plaques and markers. `Honor Roll` is a memorial board, and the
+        # all-tokens-generic rule keeps anything with a real name in it:
+        # "Vietnam Veterans Memorial" survives because `vietnam` does.
+        "honor",
+        "marker",
+        "memorial",
+        "plaque",
+        "roll",
+        # Rooms and fixtures somebody named instead of describing.
+        "bathroom",
+        "bathrooms",
+        "entrance",
+        "exit",
+        "pavilion",
+        "restroom",
+        "restrooms",
+        "room",
+        "rooms",
+        "storage",
+        "toilets",
         "a",
         "airport",
         "an",
@@ -96,7 +148,6 @@ GENERIC_TOKENS = frozenset(
         "gardens",
         "grill",
         "gym",
-        "gymnasium",
         "hall",
         "health",
         "high",
@@ -120,7 +171,6 @@ GENERIC_TOKENS = frozenset(
         "lower",
         "market",
         "medical",
-        "memorial",
         "middle",
         "mill",
         "motel",
