@@ -52,7 +52,63 @@ STAGE = "extraction"
 #: bodies ROT47-encoded and `kE23=6 4=2DDlQ` is `<table class="p`; where
 #: the decode did not run, the body is unreadable and every field derived
 #: from it is wrong.
-ROT47_MARKERS = ("k^Am", "kE23=6", "lQA5C2?<Qm")
+#:
+#: THE DETECTOR WAS ASKING WHETHER THE TEXT HAD BEEN ENCODED, NOT WHETHER
+#: IT STILL IS.
+#:
+#: `text_cleaning` decodes a PAIRED `kAm ... k^Am` span and rewrites it,
+#: which consumes the very markers this looked for. So the two outcomes
+#: were not symmetric: a body the decoder never touched kept `k^Am` and
+#: was caught, and a body the decoder half-decoded lost `k^Am` while
+#: keeping every fragment that fell outside a paragraph pair -- and was
+#: waved through. Measured over the enriched corpus on 2026-09-17: 11
+#: articles carried `k^Am`, 561 carried ciphertext. Two per cent.
+#:
+#: The residue is encoded HTML, so the markers are the ENCODINGS of the
+#: HTML that survives: `&amp;` is `U2>Aj`, which is why University
+#: Hospital reached the corpus as `U2>Ajniversity Hospital` and the
+#: gazetteer never matched it. Derived rather than guessed -- see
+#: `_html_ciphertext` -- and held to four characters, because `&#`
+#: encodes to `UR` and that occurs inside MISSO(UR)I.
+_ROT47_HTML = (
+    "<p>",
+    "</p>",
+    "<p ",
+    "&amp;",
+    "&quot;",
+    "&nbsp;",
+    'class="',
+    "<a href",
+    "</a>",
+    "<em>",
+    "</em>",
+    "<strong>",
+    "</strong>",
+    "<br",
+    "<hr",
+    "<span",
+    "<table",
+)
+
+
+def _html_ciphertext() -> tuple[str, ...]:
+    """What the markup above looks like once ROT47 has been applied.
+
+    Computed from the HTML rather than written out, so a marker cannot be
+    transcribed wrongly, and filtered to four characters because shorter
+    ones occur in English: `&#` becomes `UR`, which is inside MISSOURI.
+    """
+    from src.pipeline.text_cleaning import _rot47
+
+    return tuple(sorted({c for c in map(_rot47, _ROT47_HTML) if len(c) >= 4}))
+
+
+#: The markers this detector shipped with. `lQA5C2?<Qm` is `="pdrank">`,
+#: an attribute value rather than a tag, so nothing derived from the HTML
+#: above reproduces it. Kept so the wider net cannot narrow the old one.
+_ORIGINAL_MARKERS = ("k^Am", "kE23=6", "lQA5C2?<Qm")
+
+ROT47_MARKERS = tuple(sorted(set(_html_ciphertext()) | set(_ORIGINAL_MARKERS)))
 
 
 def _looks_rot47(text: str | None) -> bool:
