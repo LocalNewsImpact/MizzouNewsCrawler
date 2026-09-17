@@ -38,7 +38,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Iterator
 
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
 from src.enrichment.fips import STATE_FIPS, STATE_NAME_TO_USPS, _usps
@@ -306,6 +306,7 @@ def rebuild_name_index(session: Session, state: str) -> dict[str, int]:
         text("DELETE FROM gazetteer_name_places WHERE state = :s"), {"s": code}
     )
     session.execute(_REBUILD_INDEX, {"state": code, "now": datetime.now(timezone.utc)})
+    dropped = _drop_unmatchable(session, code)
     session.commit()
     row = session.execute(
         text(
@@ -315,8 +316,53 @@ def rebuild_name_index(session: Session, state: str) -> dict[str, int]:
         {"s": code},
     ).first()
     if row is None:
-        return {"names": 0, "unambiguous": 0}
-    return {"names": row[0] or 0, "unambiguous": row[1] or 0}
+        return {"names": 0, "unambiguous": 0, "dropped": dropped}
+    return {
+        "names": row[0] or 0,
+        "unambiguous": row[1] or 0,
+        "dropped": dropped,
+    }
+
+
+def _drop_unmatchable(session: Session, code: str) -> int:
+    """Names the guard refuses, out of the INDEX rather than the features.
+
+    `read_extract` applies `is_matchable_gazetteer_name` when a state is
+    loaded, so junk never enters. Missouri was loaded before the sports
+    vocabulary was added to that guard, and 48 of its names are things
+    like `Basketball`, `Locker Rooms`, `The Track` and `High School
+    football field` -- each one an EntityRuler pattern that proposes a
+    city whenever its words appear in prose.
+
+    THE FEATURES STAY. `article_entities.matched_feature_id` has a
+    foreign key onto them, so deleting one erases the record of what an
+    article actually matched; the delete is refused outright, which is
+    the constraint doing its job. Dropping the INDEX row stops the name
+    answering without losing the history.
+
+    It runs on every rebuild, so a state loaded under an older guard is
+    corrected the next time its index is built rather than staying wrong
+    until somebody remembers.
+    """
+    refused = [
+        row[0]
+        for row in session.execute(
+            text("SELECT name_norm FROM gazetteer_name_places WHERE state = :s"),
+            {"s": code},
+        )
+        if not is_matchable_gazetteer_name(row[0])
+    ]
+    if not refused:
+        return 0
+    session.execute(
+        text(
+            "DELETE FROM gazetteer_name_places "
+            "WHERE state = :s AND name_norm IN :names"
+        ).bindparams(bindparam("names", expanding=True)),
+        {"s": code, "names": refused},
+    )
+    logger.info("%s: dropped %d unmatchable names from the index", code, len(refused))
+    return len(refused)
 
 
 def ensure_state(
