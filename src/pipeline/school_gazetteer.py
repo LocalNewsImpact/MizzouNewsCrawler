@@ -35,7 +35,7 @@ import logging
 import re
 from collections.abc import Iterable, Iterator
 
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
 from src.utils.gazetteer_names import is_matchable_gazetteer_name, normalize_name
@@ -107,19 +107,31 @@ def name_variants(name: str) -> list[str]:
 #: School beat Blair Oaks High School".
 _TYPE_TAIL = re.compile(
     r"\s+(senior\s+)?(high|elementary|middle|junior\s+high|primary|"
-    r"intermediate)(\s+school)?$",
+    r"intermediate|university|college|community\s+college)(\s+school)?$",
     re.I,
 )
 
-#: A stem starting with one of these is a description of which school in
-#: town, not a name: `Main Street Elementary`, `North Elementary`.
-_GENERIC_STEM = re.compile(
-    r"^(main street|north|south|east|west|central|city|county)\b", re.I
+#: A stem that IS one of these says WHICH school in town rather than
+#: naming one. Matched whole, not as a prefix: `Central Methodist` and
+#: `North Callaway` are real names and a prefix rule refused both.
+#: Single generic words are already refused by the two-word rule.
+_GENERIC_STEM = frozenset(
+    {"main street", "north", "south", "east", "west", "central", "city", "county"}
 )
+
+#: `Missouri Western State University` is `Missouri Western` in a story,
+#: never `Missouri Western State`. Stripped after the type word.
+_TRAILING_STATE = re.compile(r"\s+state$", re.I)
 
 
 def school_stem(name: str, places: set[str]) -> str | None:
     """`Southern Boone High School` -> `Southern Boone`, when that is safe.
+
+    Universities too: a story writes "Southeast Missouri State gymnastics"
+    and "Missouri Western hosts", never the registered name. Ten such
+    stems appear in 335 Missouri articles and none of them is a town --
+    `Missouri Western`, `Missouri Southern`, `Central Methodist`,
+    `Mineral Area`, `Southwest Baptist`.
 
     THE STEM MUST NOT BE A PLACE. Most school names are their own town --
     `Poplar Bluff High School`, `St. Clair High School` -- and the stem is
@@ -130,9 +142,12 @@ def school_stem(name: str, places: set[str]) -> str | None:
     Two words at least, so a stem cannot collapse to a surname.
     """
     stem = _TYPE_TAIL.sub("", name).strip()
-    if stem.lower() == name.lower() or len(stem.split()) < 2:
+    if stem.lower() == name.lower():
         return None
-    if _GENERIC_STEM.match(stem) or normalize_city(stem) in places:
+    stem = _TRAILING_STATE.sub("", stem).strip()
+    if len(stem.split()) < 2:
+        return None
+    if stem.lower() in _GENERIC_STEM or normalize_city(stem) in places:
         return None
     return stem if is_matchable_gazetteer_name(stem) else None
 
@@ -214,6 +229,104 @@ def read_schools(
                 "place_name": place_name,
                 "county_geoid": (row.get("county_geoid") or "").strip() or None,
             }
+
+
+#: Categories where a name is an institution whose location identifies a
+#: story. A shop or a bus stop is not, and stemming one yields a surname.
+STEMMABLE = ("schools", "religious", "government", "healthcare", "emergency")
+
+_STEM_ROWS = text("""
+    SELECT f.name, f.name_norm, f.category, f.place_geoid, f.place_name,
+           f.county_geoid, min(f.lat) AS lat, min(f.lon) AS lon
+      FROM gazetteer_features f
+      JOIN gazetteer_name_places np
+        ON np.state = f.state AND np.name_norm = f.name_norm
+     WHERE f.state = :state
+       AND f.category IN :cats
+       AND f.place_geoid IS NOT NULL
+       AND np.place_count = 1
+     GROUP BY f.name, f.name_norm, f.category, f.place_geoid, f.place_name,
+              f.county_geoid
+""")
+
+
+def stem_features(session: Session, state: str, *, dry_run: bool = False) -> dict:
+    """Add the short form for every institution in the index, not just NCES.
+
+    `read_schools` stems the federal extract, and universities are not in
+    it -- CCD and PSS are K-12. So `Southeast Missouri State University`
+    sat in the index from OSM while every story wrote "Southeast Missouri
+    State gymnastics", and nothing matched.
+
+    The same safety rule applies: the stem must not be a place, must keep
+    two words, and must survive the name guard. Measured over Missouri,
+    117 stems reach about 2,200 articles and none of them is a town.
+    """
+    from datetime import datetime, timezone
+
+    known = {
+        row[0]
+        for row in session.execute(
+            text("SELECT name_norm FROM gazetteer_name_places WHERE state = :s"),
+            {"s": state},
+        )
+    }
+    places = {
+        normalize_city(row[0])
+        for row in session.execute(
+            text(
+                "SELECT DISTINCT place_name FROM gazetteer_features "
+                "WHERE state = :s AND place_name IS NOT NULL"
+            ),
+            {"s": state},
+        )
+    }
+    rows = (
+        session.execute(
+            _STEM_ROWS.bindparams(bindparam("cats", expanding=True)),
+            {"state": state, "cats": list(STEMMABLE)},
+        )
+        .mappings()
+        .all()
+    )
+
+    now = datetime.now(timezone.utc)
+    seen: set[str] = set()
+    written = 0
+    for row in rows:
+        stem = school_stem(row["name"], places)
+        if not stem:
+            continue
+        stem_norm = normalize_name(stem)
+        if stem_norm in known or stem_norm in seen:
+            continue
+        seen.add(stem_norm)
+        if dry_run:
+            written += 1
+            continue
+        session.execute(
+            _INSERT,
+            {
+                "id": f"{state}:stem:{stem_norm}",
+                "state": state,
+                "osm_type": "stem",
+                "osm_id": stem_norm,
+                "name": stem,
+                "name_norm": stem_norm,
+                "category": row["category"],
+                "lat": row["lat"],
+                "lon": row["lon"],
+                "place_geoid": row["place_geoid"],
+                "place_name": row["place_name"],
+                "county_geoid": row["county_geoid"],
+                "now": now,
+                "tags": "{}",
+            },
+        )
+        written += 1
+    if not dry_run:
+        session.commit()
+    return {"candidates": len(rows), "written": written}
 
 
 _INSERT = text("""

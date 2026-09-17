@@ -121,6 +121,35 @@ class TestTheShortFormAStoryWrites:
         assert school_stem("Saxony Lutheran Academy", self.PLACES) is None
 
 
+class TestTheShortFormOfAUniversity:
+    """CCD and PSS are K-12. `Southeast Missouri State University` sits in
+    the index from OSM, every story writes "Southeast Missouri State
+    gymnastics", and nothing matched -- which is why stemming runs over
+    the whole index rather than the federal extract alone."""
+
+    PLACES = {"columbia", "poplar bluff", "marshall", "west plains"}
+
+    @pytest.mark.parametrize(
+        "official,short",
+        [
+            ("Southeast Missouri State University", "Southeast Missouri"),
+            ("Missouri Western State University", "Missouri Western"),
+            ("Central Methodist University", "Central Methodist"),
+            ("Three Rivers College", "Three Rivers"),
+            ("Mineral Area College", "Mineral Area"),
+        ],
+    )
+    def test_the_short_form_is_produced(self, official, short):
+        assert school_stem(official, self.PLACES) == short
+
+    def test_a_generic_stem_is_matched_whole_not_as_a_prefix(self):
+        """`Central Methodist` and `North Callaway` are real names. A
+        prefix rule refused both."""
+        assert school_stem("Central Methodist University", self.PLACES)
+        assert school_stem("North Callaway High School", self.PLACES)
+        assert school_stem("Main Street Elementary", self.PLACES) is None
+
+
 class TestASaintIsASaint:
     """164 Missouri schools say `St Louis` and 92 say `Saint Louis`; the
     Census file says `St. Louis`. Untreated, 474 of 2,974 schools resolved
