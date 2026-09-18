@@ -1889,6 +1889,24 @@ class ContentExtractor:
         self._auth_config_cache[cache_key] = result
         return result
 
+    @staticmethod
+    def _bare_host(domain: str) -> str:
+        """The host as `sources` stores it: no userinfo, no port, no www."""
+        host = (domain or "").lower().split("@")[-1].split(":")[0]
+        return host[4:] if host.startswith("www.") else host
+
+    def _requires_login(self, domain: str) -> bool:
+        """Whether this publisher's articles are behind a subscriber login.
+
+        Reads the same cached auth config the login itself uses, which returns
+        a dict only when `sources.requires_login` is set, so there is one
+        answer and it cannot drift between the two callers.
+        """
+        try:
+            return self._get_domain_auth_config(self._bare_host(domain)) is not None
+        except Exception:
+            return False
+
     def _ensure_authenticated(self, driver, domain: str) -> None:
         """Ensure the shared driver holds a session for a login-gated domain.
 
@@ -2830,11 +2848,38 @@ class ContentExtractor:
         # ESCALATION STRATEGY: For Cloudflare-protected sites marked as 'selenium',
         # try cloudscraper first before falling back to Selenium. CloudScraper
         # handles Cloudflare JS challenges automatically and is much faster than Selenium.
-        skip_http_methods = extraction_method in {"selenium", "unblock"}
+        # A CREDENTIALED HOST TAKES ONE PATH: LOG IN, NAVIGATE, EXTRACT.
+        #
+        # None of the unauthenticated cascade applies to it. The retries,
+        # proxy rotation, cloudscraper escalation and AMP preemption all exist
+        # to get past a refusal, and a subscriber session is how this host is
+        # not refused. Every one of them fetches the page anonymously, which
+        # returns the wall -- a 200 with content that extraction then accepts.
+        #
+        # On 2026-09-18 that filed 13 of 19 Port Townsend Leader articles as
+        # `paywall` against a working credential, off a page whose own text
+        # read "access this content ... login".
+        #
+        # Read once, here, because two later branches clear `skip_http_methods`
+        # and both have to know not to.
+        credentialed = self._requires_login(domain)
+        skip_http_methods = credentialed or extraction_method in {
+            "selenium",
+            "unblock",
+        }
+        if credentialed:
+            logger.info(
+                "🔐 %s has a subscriber login - authenticated browser only, "
+                "skipping the unauthenticated cascade",
+                domain,
+            )
         cloudflare_escalation_enabled = (
             extraction_method == "selenium"
             and protection_type == "cloudflare"
             and CLOUDSCRAPER_AVAILABLE
+            # cloudscraper solves a JS challenge anonymously. On a credentialed
+            # host that buys a wall instead of an article.
+            and not credentialed
         )
         if cloudflare_escalation_enabled:
             logger.info(
@@ -2852,8 +2897,16 @@ class ContentExtractor:
             )
             logger.info(escalation_summary)
 
-        # Check for preemptive AMP fetch (allows bypassing Selenium/blocking)
-        if not html_for_methods and self._get_domain_amp_support(domain):
+        # Check for preemptive AMP fetch (allows bypassing Selenium/blocking).
+        # Not for a credentialed host: the AMP copy is served unauthenticated,
+        # so this fetches the wall, assigns it as the body AND clears
+        # skip_http_methods below -- which would undo the decision above and
+        # hand the anonymous parsers a paywall notice to parse.
+        if (
+            not html_for_methods
+            and not credentialed
+            and self._get_domain_amp_support(domain)
+        ):
             amp_html = self._fetch_amp_html(url)
             if amp_html:
                 logger.info(f"⚡️ Preemptively fetched AMP content for {domain}")
