@@ -207,6 +207,16 @@ class TestExtractionActuallySeesThem:
             ]
         )
 
+    def test_a_replaced_body_stops_claiming_it_was_imported(self):
+        """`extraction_version` is NULL on a fresh extraction, so
+        `manual-import-v1` is what marks a body the spreadsheet supplied.
+        Keeping it through a refetch made four crawled articles count as never
+        crawled, and "which hosts can we fetch?" answered with the notebook's
+        text for all of them."""
+        source = self._extraction_source()
+        refetch_sql = source.split("ARTICLE_REFETCH_SQL = text(")[1].split('")')[0]
+        assert "extraction_version = NULL" in refetch_sql
+
     def test_the_replacement_is_the_only_statement_that_writes_content(self):
         """`ARTICLE_UPDATE_SQL` omits `content` to make the canonical capture
         immutable by construction. Keeping the replacement separate is what
