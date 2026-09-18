@@ -71,6 +71,11 @@ _MARK_ARTICLE = text("""
      WHERE id = :id
 """)
 
+#: `dataset` is matched against the SLUG as well as the id, because the slug is
+#: what a person has: `--dataset WSU-Washington-State`. Comparing it to
+#: `articles.dataset_id`, which holds a UUID, matched nothing and the listing
+#: reported "nothing is waiting to be fetched again" over a queue that had
+#: work in it -- a wrong answer that reads exactly like the right one.
 _MARKED = text("""
     SELECT a.id, a.url, a.status AS article_status, a.text_length,
            a.metadata->'refetch'->>'reason'   AS reason,
@@ -79,8 +84,13 @@ _MARKED = text("""
            a.metadata->'refetch'->>'previous_link_status' AS previous
       FROM articles a
       JOIN candidate_links cl ON cl.id = a.candidate_link_id
+      LEFT JOIN datasets d ON d.id = a.dataset_id
      WHERE cl.status = :refetch
-       AND (CAST(:dataset AS varchar) IS NULL OR a.dataset_id = CAST(:dataset AS varchar))
+       AND (
+             CAST(:dataset AS varchar) IS NULL
+             OR a.dataset_id = CAST(:dataset AS varchar)
+             OR d.slug = CAST(:dataset AS varchar)
+           )
      ORDER BY a.url
 """)
 

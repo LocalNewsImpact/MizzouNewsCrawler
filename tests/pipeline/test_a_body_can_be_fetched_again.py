@@ -141,6 +141,26 @@ class TestWhatARewindWrites:
         assert not any(p and "note" in p for p in session.params)
 
 
+class TestTheListingAcceptsTheNameYouHave:
+    """`--dataset WSU-Washington-State` is what a person types. Matching that
+    against `articles.dataset_id`, which holds a UUID, found nothing and the
+    command printed "nothing is waiting to be fetched again" over a queue with
+    work in it -- a wrong answer indistinguishable from the right one."""
+
+    def test_a_slug_is_matched_as_well_as_an_id(self):
+        session = _Session(answers=[[]])
+        refetch.marked(session, "WSU-Washington-State")
+        sql = session.statements[0]
+        assert "d.slug = CAST(:dataset AS varchar)" in sql
+        assert "a.dataset_id = CAST(:dataset AS varchar)" in sql
+        assert "LEFT JOIN datasets" in sql
+
+    def test_no_dataset_lists_every_rewound_article(self):
+        session = _Session(answers=[[]])
+        refetch.marked(session)
+        assert session.params[0]["dataset"] is None
+
+
 class TestGivingUp:
     def test_clear_restores_the_status_the_link_had(self):
         """A page with no prose, or a login that cannot be made to work: the
