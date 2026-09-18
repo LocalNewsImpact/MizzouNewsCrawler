@@ -551,6 +551,16 @@ ARTICLE_UPDATE_SQL = text(
 #: the classify and enrich stages rather than discarded here.
 ARTICLE_REFETCH_SQL = text(
     "UPDATE articles SET content = :content, text = :text, "
+    # CLEARED, NOT KEPT. A fresh extraction never writes this column -- it is
+    # NULL on 164,202 of the corpus's articles -- so an imported body is the
+    # only thing that carries `manual-import-v1`, and that is exactly what
+    # distinguishes text the spreadsheet supplied from text we fetched.
+    #
+    # Leaving it meant a refetched article went on claiming it was imported
+    # while holding a crawled body. Asked "which of these hosts can we actually
+    # fetch?", the corpus answered with the notebook's text for every one of
+    # them, and four refetched articles counted as never crawled.
+    "extraction_version = NULL, "
     "text_hash = :text_hash, title = coalesce(:title, title), "
     "author = coalesce(:author, author), "
     "publish_date = coalesce(:publish_date, publish_date), "
