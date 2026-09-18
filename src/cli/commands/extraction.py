@@ -579,6 +579,16 @@ from src.pipeline.refetch import REFETCH  # noqa: E402
 
 LINK_STATUS_CLAUSE = f"WHERE cl.status IN ('article', '{REFETCH}')"
 
+#: How many consecutive empty polls a REWORK run tolerates before it stops.
+#:
+#: Waiting is right for the pipeline, whose queue is fed continuously. A rework
+#: set is bounded and known, so an empty poll means every domain in it is
+#: failing, and waiting cannot change that. Three polls is ~90s at the default
+#: 30s delay -- long enough to ride out one domain's cooldown, short enough that
+#: an unfetchable set costs a minute instead of the two hours that killed the
+#: housekeeping workflow twice on 2026-09-18.
+REWORK_EMPTY_POLL_LIMIT = int(os.getenv("REWORK_EMPTY_POLL_LIMIT", "3"))
+
 ARTICLE_STATUS_UPDATE_SQL = text("UPDATE articles SET status = :status WHERE id = :id")
 
 ARTICLE_MARK_WIRE_PENDING_SQL = text(
@@ -756,6 +766,18 @@ def _links_owed_a_fetch(session):
     from src.pipeline.rework import links_to_fetch
 
     return links_to_fetch(session)
+
+
+def _count_rework_attempt(session, link_ids):
+    """Spend an attempt on these links -- `src.pipeline.rework`.
+
+    Counted at the start, so a link that has exhausted its attempts is closed
+    before the run tries it again rather than after. Returns the ids given up
+    on, for the caller to drop from the set it holds.
+    """
+    from src.pipeline.rework import count_attempt
+
+    return count_attempt(session, link_ids)
 
 
 def _settle_rework(session):
@@ -998,6 +1020,10 @@ def handle_extraction_command(args) -> int:
         domains_for_cleaning: dict[str, list[str]] = defaultdict(list)
         batch_num = 0
         total_processed = 0
+        # A rework run stops waiting for a set it cannot fetch; the pipeline
+        # keeps waiting, because its queue is fed continuously.
+        is_rework = getattr(args, "rework", False) is True
+        empty_polls = 0
 
         # Store whether we detected single-domain dataset
         is_single_domain_dataset = domain_analysis.get("is_single_domain", False)
@@ -1095,6 +1121,8 @@ def handle_extraction_command(args) -> int:
             logger.info(f"Batch {batch_num}: {result}")
 
             # Stop if no articles were processed
+            if articles_processed > 0:
+                empty_polls = 0
             if articles_processed == 0:
                 if result.get("nothing_owed"):
                     # Not a cooldown: the rework set is empty, so no amount
@@ -1102,8 +1130,28 @@ def handle_extraction_command(args) -> int:
                     print("📭 Nothing owes a fetch")
                     break
                 if USE_WORK_QUEUE:
-                    # In work queue mode, no articles means all domains are
-                    # in cooldown or assigned to other workers. Wait and retry.
+                    # A REWORK RUN DOES NOT WAIT FOR A SET IT CANNOT FETCH.
+                    #
+                    # Waiting is right for the pipeline, whose queue is fed
+                    # continuously: a cooldown passes and more work arrives.
+                    # A rework set is bounded and known, so "nothing servable"
+                    # means every one of its domains is failing -- and waiting
+                    # cannot change that. Four links on newspressnow.com and
+                    # fultonsun.com held the step for two hours, 249 batches
+                    # and 0 articles, until the pod deadline killed it and the
+                    # workflow failed without reaching classify or enrich.
+                    empty_polls += 1
+                    if is_rework and empty_polls >= REWORK_EMPTY_POLL_LIMIT:
+                        print(
+                            f"📭 Rework set unservable after {empty_polls} "
+                            f"polls - every domain is in cooldown"
+                        )
+                        logger.info(
+                            "rework: giving up after %d empty polls; the set's "
+                            "domains are all failing",
+                            empty_polls,
+                        )
+                        break
                     retry_delay = int(os.getenv("WORK_QUEUE_RETRY_DELAY", "30"))
                     print(
                         f"⏳ No articles available - all domains in cooldown. "
@@ -1532,6 +1580,14 @@ def _process_batch(
             if settled:
                 logger.info("rework: %d records finished with housekeeping", settled)
             rework_ids = _links_owed_a_fetch(session)
+            # Spend an attempt on each and drop the ones that just ran out.
+            # Filtered in place rather than re-read: the direct path below
+            # reuses this set, and asking the database again is a second query
+            # for an answer already held.
+            if rework_ids:
+                abandoned = _count_rework_attempt(session, rework_ids)
+                if abandoned:
+                    rework_ids = [i for i in rework_ids if i not in abandoned]
             if not rework_ids:
                 # `nothing_owed` ENDS the batch loop. Returning 0 only
                 # skipped a batch: in work-queue mode the loop reads zero
