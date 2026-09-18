@@ -40,6 +40,10 @@ class FetchPlan:
     allow_cloudflare_escalation: bool
     #: Preemptively fetch the AMP copy, which is served unauthenticated.
     allow_amp: bool
+    #: Use the tls_client rung -- same Squid egress, Chrome-like TLS
+    #: fingerprint. Anonymous, and enabled for every host by default, not only
+    #: the ones flagged `unblock`.
+    allow_tls_capture: bool
     #: True when this host's articles are behind a subscriber login.
     credentialed: bool
     #: Short phrase naming why, for the log line.
@@ -71,6 +75,17 @@ def plan_fetch(
             skip_http_methods=True,
             allow_cloudflare_escalation=False,
             allow_amp=False,
+            # The tls_client rung fires for every host, not only those flagged
+            # `unblock`, and it is an anonymous fetch. On 2026-09-18 it knocked
+            # on ptleader twice before the browser opened, read the 301 as a
+            # proxy challenge, and had the router back off BOTH proxies for the
+            # host for 600s. The browser then arrived from the same egress and
+            # met a CAPTCHA.
+            #
+            # An anonymous knock does not merely waste a request on a host we
+            # hold a subscription to: it spends that host's patience, and the
+            # authenticated attempt is what pays for it.
+            allow_tls_capture=False,
             credentialed=True,
             reason="subscriber login: authenticated browser only",
         )
@@ -90,6 +105,7 @@ def plan_fetch(
         # is "do not preemptively fetch": the AMP copy is a guess about a URL
         # that may not exist, and guessing wrong costs a request.
         allow_amp=bool(amp_supported),
+        allow_tls_capture=True,
         credentialed=False,
         reason=(
             "cloudflare: cloudscraper before selenium"

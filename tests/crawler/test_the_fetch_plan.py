@@ -49,6 +49,22 @@ class TestTheCredentialedBranch:
         assert plan.allow_cloudflare_escalation is False
         assert plan.skip_http_methods is True
 
+    def test_it_refuses_the_tls_capture_rung(self):
+        """That rung is anonymous and fires for every host, not only the ones
+        flagged `unblock`. On 2026-09-18 it knocked on ptleader twice before the
+        browser opened, read the 301 as a proxy challenge, and had the router
+        back off both proxies for the host for 600s -- so the authenticated
+        attempt arrived from a poisoned egress and met a CAPTCHA."""
+        assert _plan(credentialed=True).allow_tls_capture is False
+
+    def test_it_refuses_the_tls_rung_even_for_an_unblock_flagged_host(self):
+        """`unblock` is the one case where that rung is mandatory rather than
+        advisory, and a subscription still outranks it."""
+        assert (
+            _plan(credentialed=True, extraction_method="unblock").allow_tls_capture
+            is False
+        )
+
     def test_it_refuses_amp(self):
         """The AMP copy is served unauthenticated, and the AMP branch assigns
         what it fetches as the body."""
@@ -76,6 +92,7 @@ class TestTheCredentialedBranch:
             assert plan.skip_http_methods is True, (method, protection, scraper, amp)
             assert plan.allow_cloudflare_escalation is False
             assert plan.allow_amp is False
+            assert plan.allow_tls_capture is False
 
     def test_the_reason_names_the_login(self):
         assert "login" in _plan(credentialed=True).reason
@@ -142,6 +159,12 @@ class TestTheUnauthenticatedBranch:
         not say. A guess about a URL that may not exist costs a request."""
         plan = _plan(amp_supported=None)
         assert plan.allow_amp is False
+
+    def test_the_tls_rung_stays_available_anonymously(self):
+        """It is the cheap disguise between a plain HTTP client and a browser;
+        removing it for everybody sends most refusals straight to Selenium."""
+        assert _plan().allow_tls_capture is True
+        assert _plan(extraction_method="unblock").allow_tls_capture is True
 
     def test_credentialed_is_false_so_callers_can_branch_on_it(self):
         assert _plan().credentialed is False
@@ -228,6 +251,16 @@ class TestExtractContentHonoursThePlan:
         assert (
             "cloudflare_escalation_enabled = plan.allow_cloudflare_escalation" in body
         )
+
+    def test_the_tls_rung_is_gated_on_the_plan(self):
+        """skip_http_methods does not cover it: it is a separate rung with its
+        own condition, which is how an anonymous fetch survived the first
+        version of this change and reached ptleader before the login did."""
+        from pathlib import Path
+
+        body = Path("src/crawler/__init__.py").read_text()
+        gate = body.split("try_tls_capture = (")[1].split("\n        )")[0]
+        assert "plan.allow_tls_capture" in gate
 
     def test_amp_success_may_still_reopen_parsers_for_an_anonymous_host(self):
         """Deliberately unchanged: on an anonymous host a successful AMP fetch is
