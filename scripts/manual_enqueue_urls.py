@@ -95,6 +95,31 @@ def _read_urls(path: Path, column: str | None) -> list[str]:
     return unique_urls
 
 
+def _lookup_host(host: str) -> str:
+    """The host as `sources` keys it: lowercase, no port, no `www.`."""
+    host = (host or "").lower().split("@")[-1].split(":")[0]
+    return host[4:] if host.startswith("www.") else host
+
+
+def _load_sources(db: DatabaseManager) -> dict:
+    """Every source, keyed by the host a URL will present.
+
+    Keyed on the stripped form so `www.spokesman.com` in a URL finds the
+    `www.spokesman.com` source row and `ptleader.com` finds `ptleader.com`,
+    whichever spelling each happens to store.
+    """
+    from sqlalchemy import text
+
+    with db.get_session() as session:
+        rows = session.execute(
+            text("SELECT id, host, canonical_name, city, county, type FROM sources")
+        ).mappings()
+        out = {}
+        for row in rows:
+            out[_lookup_host(row["host"])] = dict(row)
+    return out
+
+
 def _build_dataframe(
     urls: Sequence[str],
     status: str,
@@ -102,22 +127,55 @@ def _build_dataframe(
     priority: int,
     metadata_flag: bool,
     dataset_id: str | None,
-) -> pd.DataFrame:
-    """Convert URL sequence into a candidate_links DataFrame."""
+    sources: dict | None = None,
+) -> tuple[pd.DataFrame, dict[str, int]]:
+    """Convert URL sequence into a candidate_links DataFrame.
+
+    Returns the frame and a count of URLs per host that no source row claims.
+
+    A LINK WITHOUT source_id IS INVISIBLE TO ENRICHMENT.
+    -----------------------------------------------------
+    This used to set `source` and `source_name` to the bare host and leave
+    `source_id` NULL. Extraction is unaffected -- it LEFT JOINs sources -- and
+    so is classification, so such an article looks finished. Enrichment's
+    candidate query does not:
+
+        JOIN dataset_sources ds ON ds.source_id = cl.source_id
+
+    An inner join on NULL matches nothing, so the article is never a candidate,
+    never gets a place, and nothing reports it as skipped. The publisher's city
+    and state, which the geography prompt is grounded on, also hang off that id.
+
+    So the id is resolved here from the host, and the denormalised columns that
+    every discovery-written row carries are filled from the same source record
+    rather than from the URL string.
+    """
 
     rows = []
+    unknown: dict[str, int] = {}
+    sources = sources or {}
     for raw in urls:
         parsed = urlparse(raw)
         host = parsed.netloc or "manual-import"
         normalized = normalize_url(raw)
+        source = sources.get(_lookup_host(host))
+        if source is None:
+            unknown[_lookup_host(host)] = unknown.get(_lookup_host(host), 0) + 1
         row = {
             "url": normalized,
-            "source": host,
-            "source_name": host,
+            # `source` carries the publisher NAME on every row discovery
+            # writes, not the host; 259,025 rows disagree with the host.
+            "source": (source or {}).get("canonical_name") or host,
+            "source_name": (source or {}).get("canonical_name") or host,
             "status": status,
             "discovered_by": discovered_by,
             "priority": priority,
         }
+        if source:
+            row["source_id"] = source["id"]
+            row["source_city"] = source.get("city")
+            row["source_county"] = source.get("county")
+            row["source_type"] = source.get("type")
         if metadata_flag:
             row["meta"] = json.dumps({"manual_import": True})
         if dataset_id:
@@ -125,7 +183,7 @@ def _build_dataframe(
         rows.append(row)
 
     df = pd.DataFrame(rows)
-    return df
+    return df, unknown
 
 
 def _slugify(value: str) -> str:
@@ -195,6 +253,27 @@ def _ensure_dataset(
     return str(dataset.id), True, slug
 
 
+def _report_unknown(unknown: dict[str, int], allowed: bool) -> None:
+    """Name the hosts no source claims, and what that costs.
+
+    Printed rather than logged, and printed whether or not the run proceeds: a
+    link with no source_id is invisible to enrichment and nothing downstream
+    will ever say so.
+    """
+    if not unknown:
+        return
+    total = sum(unknown.values())
+    verb = "enqueued anyway" if allowed else "refused"
+    print(
+        f"\n{total} URL(s) across {len(unknown)} host(s) have no source row "
+        f"({verb}). Their articles would extract and classify but could never "
+        f"be enriched -- enrichment joins dataset_sources on "
+        f"candidate_links.source_id:"
+    )
+    for host, count in sorted(unknown.items(), key=lambda kv: -kv[1]):
+        print(f"  {count:5}  {host}")
+
+
 def enqueue_urls(
     input_path: Path,
     status: str,
@@ -205,6 +284,7 @@ def enqueue_urls(
     column: str | None,
     metadata_flag: bool,
     dry_run: bool,
+    allow_unknown_hosts: bool = False,
 ) -> int:
     """Insert the provided URLs into candidate_links.
 
@@ -216,25 +296,33 @@ def enqueue_urls(
         print("No URLs found in input file. Nothing to do.")
         return 0
 
-    if dry_run:
-        df = _build_dataframe(
-            urls,
-            status,
-            discovered_by,
-            priority,
-            metadata_flag,
-            dataset_id=None,
-        )
-        print("Dry run -- would enqueue the following preview:")
-        try:
-            preview = df.head().to_markdown(index=False)
-        except Exception:
-            preview = df.head().to_string(index=False)
-        print(preview)
-        print(f"Total URLs prepared: {len(df)}")
-        return 0
-
+    # The sources are read even for a dry run: which hosts have no source row
+    # is the thing worth knowing BEFORE writing, since a link without a
+    # source_id extracts and classifies normally and is then invisible to
+    # enrichment for good.
     with DatabaseManager() as db:
+        sources = _load_sources(db)
+
+        if dry_run:
+            df, unknown = _build_dataframe(
+                urls,
+                status,
+                discovered_by,
+                priority,
+                metadata_flag,
+                dataset_id=None,
+                sources=sources,
+            )
+            print("Dry run -- would enqueue the following preview:")
+            try:
+                preview = df.head().to_markdown(index=False)
+            except Exception:
+                preview = df.head().to_string(index=False)
+            print(preview)
+            print(f"Total URLs prepared: {len(df)}")
+            _report_unknown(unknown, allow_unknown_hosts)
+            return 0
+
         resolved_dataset_id, created_dataset, dataset_slug = _ensure_dataset(
             db,
             dataset_id,
@@ -243,14 +331,25 @@ def enqueue_urls(
             discovered_by,
         )
 
-        df = _build_dataframe(
+        df, unknown = _build_dataframe(
             urls,
             status,
             discovered_by,
             priority,
             metadata_flag,
             dataset_id=resolved_dataset_id,
+            sources=sources,
         )
+
+        if unknown and not allow_unknown_hosts:
+            _report_unknown(unknown, allow_unknown_hosts)
+            print(
+                "Nothing written. Add these hosts as sources, or pass "
+                "--allow-unknown-hosts to enqueue them knowing their articles "
+                "cannot be enriched."
+            )
+            return 0
+        _report_unknown(unknown, allow_unknown_hosts)
 
         inserted = db.upsert_candidate_links(
             df, if_exists="append", dataset_id=resolved_dataset_id
@@ -320,6 +419,16 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Print the rows that would be inserted without touching the DB",
     )
+    parser.add_argument(
+        "--allow-unknown-hosts",
+        action="store_true",
+        help=(
+            "Enqueue URLs whose host has no source row. Their articles can "
+            "never be enriched -- enrichment joins dataset_sources on "
+            "candidate_links.source_id and an inner join on NULL matches "
+            "nothing -- so this is refused by default."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -336,6 +445,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         column=args.column,
         metadata_flag=args.mark_manual,
         dry_run=args.dry_run,
+        allow_unknown_hosts=args.allow_unknown_hosts,
     )
 
     return 0 if inserted or args.dry_run else 1
