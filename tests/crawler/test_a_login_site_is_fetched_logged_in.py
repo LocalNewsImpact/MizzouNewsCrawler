@@ -58,44 +58,9 @@ class TestRequiresLogin:
         assert obj._requires_login("ptleader.com") is False
 
 
-class TestNothingCanUndoTheDecision:
-    """`credentialed` is read once and two later branches clear
-    `skip_http_methods`. Either one re-enables the anonymous path, and the
-    anonymous path is what returns the wall."""
-
-    def _body(self) -> str:
-        from pathlib import Path
-
-        return Path("src/crawler/__init__.py").read_text()
-
-    def test_being_credentialed_skips_the_http_methods(self):
-        body = self._body()
-        assert "credentialed = self._requires_login(domain)" in body
-        assert "skip_http_methods = credentialed or extraction_method in {" in body
-
-    def test_cloudflare_escalation_is_off_for_a_credentialed_host(self):
-        """cloudscraper solves a JS challenge anonymously, which on a
-        credentialed host buys a wall instead of an article."""
-        body = self._body()
-        block = body.split("cloudflare_escalation_enabled = (")[1].split(")")[0]
-        assert "not credentialed" in block
-
-    def test_amp_preemption_is_off_for_a_credentialed_host(self):
-        """The AMP copy is served unauthenticated, and the AMP branch assigns
-        it as the body AND clears skip_http_methods -- so leaving it on undoes
-        the decision and hands the parsers a paywall notice."""
-        body = self._body()
-        amp = body.split("Check for preemptive AMP fetch")[1][:600]
-        assert "not credentialed" in amp
-        assert "and self._get_domain_amp_support(domain)" in amp
-
-    def test_the_decision_precedes_both_branches_that_clear_the_flag(self):
-        body = self._body()
-        decided = body.index("credentialed = self._requires_login(domain)")
-        cloudflare = body.index("skip_http_methods = False  # Allow HTTP methods")
-        amp = body.index("Check for preemptive AMP fetch")
-        assert decided < cloudflare
-        assert decided < amp
+# The branching itself is covered behaviourally in test_the_fetch_plan.py.
+# It used to be asserted here by matching source strings, which broke on a
+# restructure that changed no behaviour -- the reason those went.
 
 
 class TestOneSessionPerRun:

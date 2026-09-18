@@ -92,7 +92,11 @@ def test_no_writer_quotes_the_value(method):
     input in quotes would refill the column one publisher at a time, and
     the only symptom would be a publisher quietly never escalated."""
     quoted = '"' + "'" + method + "'" + '"'
-    for path in (CRAWLER, ROOT / "src/crawler/proxy_router.py"):
+    for path in (
+        CRAWLER,
+        ROOT / "src/crawler/proxy_router.py",
+        ROOT / "src/crawler/fetch_plan.py",
+    ):
         assert quoted not in _code(path), f"{path.name} quotes {method}"
 
 
@@ -100,10 +104,35 @@ def test_the_column_is_read_by_something_that_would_notice():
     """The value gates whether HTTP methods are skipped entirely. A
     quoted value falls through every branch and the publisher is fetched
     the ordinary way -- which is exactly what happened to five publishers
-    serving JavaScript-rendered pages."""
-    match = re.search(
-        r"skip_http_methods\s*=\s*extraction_method in \{([^}]*)\}", _code(CRAWLER)
-    )
-    assert match, "the method no longer gates HTTP fetching"
-    named = {v.strip().strip("\"'") for v in match.group(1).split(",") if v.strip()}
-    assert named <= METHODS, f"{named - METHODS} is not a known method"
+    serving JavaScript-rendered pages.
+
+    Asked of the decision rather than of the source text. This used to match
+    `skip_http_methods = extraction_method in {...}` with a regex, which broke
+    when that moved into `src/crawler/fetch_plan.py` without the behaviour
+    changing at all."""
+    from src.crawler.fetch_plan import BROWSER_ONLY_METHODS
+
+    assert BROWSER_ONLY_METHODS, "the method no longer gates HTTP fetching"
+    unknown = set(BROWSER_ONLY_METHODS) - METHODS
+    assert not unknown, f"{unknown} is not a known method"
+
+
+@pytest.mark.parametrize("method", sorted({"selenium", "unblock"}))
+def test_a_quoted_value_does_not_reach_the_browser(method):
+    """The failure itself: the column held six characters where four were
+    meant, so the comparison missed and the publisher was fetched without a
+    browser for the life of the column. A test that only checks the literals
+    are spelled correctly would not have caught it."""
+    from src.crawler.fetch_plan import plan_fetch
+
+    def plan(value):
+        return plan_fetch(
+            credentialed=False,
+            extraction_method=value,
+            protection_type=None,
+            cloudscraper_available=False,
+            amp_supported=False,
+        )
+
+    assert plan(method).skip_http_methods is True
+    assert plan(f"'{method}'").skip_http_methods is False

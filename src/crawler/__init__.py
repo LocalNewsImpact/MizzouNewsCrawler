@@ -43,6 +43,7 @@ from src.utils.bot_sensitivity_manager import BotSensitivityManager
 from src.utils.comprehensive_telemetry import ExtractionMetrics
 
 from .browser_errors import interstitial_error
+from .fetch_plan import plan_fetch
 from .fingerprint_profile import (
     FingerprintProfile,
     load_fingerprint_profile,
@@ -2845,48 +2846,26 @@ class ContentExtractor:
         domain = urlparse(url).netloc
         extraction_method, protection_type = self._get_domain_extraction_method(domain)
 
-        # ESCALATION STRATEGY: For Cloudflare-protected sites marked as 'selenium',
-        # try cloudscraper first before falling back to Selenium. CloudScraper
-        # handles Cloudflare JS challenges automatically and is much faster than Selenium.
-        # A CREDENTIALED HOST TAKES ONE PATH: LOG IN, NAVIGATE, EXTRACT.
-        #
-        # None of the unauthenticated cascade applies to it. The retries,
-        # proxy rotation, cloudscraper escalation and AMP preemption all exist
-        # to get past a refusal, and a subscriber session is how this host is
-        # not refused. Every one of them fetches the page anonymously, which
-        # returns the wall -- a 200 with content that extraction then accepts.
-        #
-        # On 2026-09-18 that filed 13 of 19 Port Townsend Leader articles as
-        # `paywall` against a working credential, off a page whose own text
-        # read "access this content ... login".
-        #
-        # Read once, here, because two later branches clear `skip_http_methods`
-        # and both have to know not to.
-        credentialed = self._requires_login(domain)
-        skip_http_methods = credentialed or extraction_method in {
-            "selenium",
-            "unblock",
-        }
-        if credentialed:
-            logger.info(
-                "🔐 %s has a subscriber login - authenticated browser only, "
-                "skipping the unauthenticated cascade",
-                domain,
-            )
-        cloudflare_escalation_enabled = (
-            extraction_method == "selenium"
-            and protection_type == "cloudflare"
-            and CLOUDSCRAPER_AVAILABLE
-            # cloudscraper solves a JS challenge anonymously. On a credentialed
-            # host that buys a wall instead of an article.
-            and not credentialed
+        # WHICH PATHS THIS HOST MAY USE, DECIDED ONCE. See fetch_plan.py: this
+        # used to be three inline branches, two of which cleared a flag the
+        # first had set, which is survivable while every path is anonymous and
+        # is not once a host must be fetched through a subscriber session.
+        plan = plan_fetch(
+            credentialed=self._requires_login(domain),
+            extraction_method=extraction_method,
+            protection_type=protection_type,
+            cloudscraper_available=CLOUDSCRAPER_AVAILABLE,
+            amp_supported=self._get_domain_amp_support(domain),
         )
+        skip_http_methods = plan.skip_http_methods
+        cloudflare_escalation_enabled = plan.allow_cloudflare_escalation
+        if plan.credentialed:
+            logger.info("🔐 %s - %s", domain, plan.reason)
         if cloudflare_escalation_enabled:
             logger.info(
                 f"🚀 ESCALATION: {domain} has Cloudflare protection - "
                 f"trying cloudscraper before Selenium (faster bypass)"
             )
-            skip_http_methods = False  # Allow HTTP methods (cloudscraper) to try first
 
             # Log the full escalation strategy
             escalation_summary = (
@@ -2898,15 +2877,10 @@ class ContentExtractor:
             logger.info(escalation_summary)
 
         # Check for preemptive AMP fetch (allows bypassing Selenium/blocking).
-        # Not for a credentialed host: the AMP copy is served unauthenticated,
-        # so this fetches the wall, assigns it as the body AND clears
-        # skip_http_methods below -- which would undo the decision above and
-        # hand the anonymous parsers a paywall notice to parse.
-        if (
-            not html_for_methods
-            and not credentialed
-            and self._get_domain_amp_support(domain)
-        ):
+        # `plan.allow_amp` is false for a credentialed host: the AMP copy is
+        # served unauthenticated, so this would fetch the wall, assign it as the
+        # body and re-enable the anonymous parsers on a paywall notice.
+        if not html_for_methods and plan.allow_amp:
             amp_html = self._fetch_amp_html(url)
             if amp_html:
                 logger.info(f"⚡️ Preemptively fetched AMP content for {domain}")
