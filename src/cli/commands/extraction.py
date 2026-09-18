@@ -536,6 +536,49 @@ ARTICLE_UPDATE_SQL = text(
     "WHERE id = :id"
 )
 
+#: THE ONE STATEMENT THAT MAY REPLACE `content`.
+#:
+#: `ARTICLE_UPDATE_SQL` above omits `content` on purpose, to make the canonical
+#: capture immutable by construction rather than by every caller remembering
+#: not to touch it. A re-fetch is the single case where replacing it is the
+#: entire intent: the stored capture is a paywall teaser or nothing, and a
+#: subscription now exists that yields the story.
+#:
+#: Keeping that as a separate statement is what preserves the immutability --
+#: it holds everywhere except the one path a person had to ask for by name, via
+#: `src.pipeline.refetch`. The article keeps its id, so its labels, enrichment,
+#: entities, places and geoids stay attached and are re-answered afterwards by
+#: the classify and enrich stages rather than discarded here.
+ARTICLE_REFETCH_SQL = text(
+    "UPDATE articles SET content = :content, text = :text, "
+    "text_hash = :text_hash, title = coalesce(:title, title), "
+    "author = coalesce(:author, author), "
+    "publish_date = coalesce(:publish_date, publish_date), "
+    "status = :status, extracted_at = :extracted_at, "
+    "raw_gcs_path = coalesce(:raw_gcs_path, raw_gcs_path), "
+    "metadata = jsonb_set(coalesce(metadata::jsonb, '{}'::jsonb), "
+    "                     '{refetch,completed_at}', to_jsonb(CAST(:extracted_at AS text)), true)::json "
+    "WHERE id = :id"
+)
+
+#: The article a rewound link already has. Its id is what must survive.
+ARTICLE_FOR_LINK_SQL = text(
+    "SELECT id FROM articles WHERE candidate_link_id = :candidate_link_id"
+)
+
+#: THE ANCHOR THE FILTERS BELOW ARE INJECTED AFTER.
+#:
+#: Three `.replace()` calls target this clause by its literal text to add the
+#: rework, dataset and source filters. `str.replace` that matches nothing
+#: reports success, so editing the clause in the query without editing them
+#: drops the filters silently -- and extraction with no dataset filter takes
+#: every dataset. Held here so there is one spelling, and asserted at use.
+#: Imported rather than spelled again: the rewind writes this status and the
+#: selectors read it, and two spellings of it would be two behaviours.
+from src.pipeline.refetch import REFETCH  # noqa: E402
+
+LINK_STATUS_CLAUSE = f"WHERE cl.status IN ('article', '{REFETCH}')"
+
 ARTICLE_STATUS_UPDATE_SQL = text("UPDATE articles SET status = :status WHERE id = :id")
 
 ARTICLE_MARK_WIRE_PENDING_SQL = text(
@@ -546,6 +589,24 @@ ARTICLE_MARK_WIRE_PENDING_SQL = text(
 ARTICLE_MARK_WIRE_COMPLETE_SQL = text(
     "UPDATE articles SET wire_check_status = 'complete', wire_check_error = NULL WHERE id = :id"
 )
+
+
+def _inject_filter(query: str, clause: str) -> str:
+    """Add `clause` to the candidate-link query, or raise.
+
+    The filters are injected by text substitution, and a substitution that
+    matches nothing returns the query unchanged while reporting success. An
+    extraction run whose dataset filter vanished takes every dataset, which is
+    why this raises rather than returning the query it was given.
+    """
+    if LINK_STATUS_CLAUSE not in query:
+        raise RuntimeError(
+            f"cannot add {clause!r}: the query no longer contains "
+            f"{LINK_STATUS_CLAUSE!r}"
+        )
+    return query.replace(
+        LINK_STATUS_CLAUSE, f"{LINK_STATUS_CLAUSE}\n                    {clause}"
+    )
 
 
 def _format_cleaned_authors(authors):
@@ -620,12 +681,16 @@ def _analyze_dataset_domains(args, session):
     SELECT DISTINCT cl.url
     FROM candidate_links cl
     LEFT JOIN sources s ON cl.source_id = s.id
-    WHERE cl.status = 'article'
+    -- `refetch` is a rewind: a link whose article holds a paywall teaser or
+    -- nothing, put there on purpose by `src.pipeline.refetch`. It is the one
+    -- status where an existing article does NOT disqualify the link, because
+    -- replacing that article's body is the whole point. See refetch.py.
+    WHERE cl.status IN ('article', 'refetch')
     AND (s.status IS NULL OR s.status = 'active')
-    AND NOT EXISTS (
+    AND (cl.status = 'refetch' OR NOT EXISTS (
         SELECT 1 FROM articles a
         WHERE a.candidate_link_id = cl.id
-    )
+    ))
     """
 
     params = {}
@@ -1515,11 +1580,13 @@ def _process_batch(
             SELECT cl.id, cl.url, cl.source, cl.status, s.canonical_name, cl.meta
             FROM candidate_links cl
             LEFT JOIN sources s ON cl.source_id = s.id
-            WHERE cl.status = 'article'
-            AND NOT EXISTS (
+            -- See the note on `refetch` above: a rewound link keeps its
+            -- article and is fetched anyway.
+            WHERE cl.status IN ('article', 'refetch')
+            AND (cl.status = 'refetch' OR NOT EXISTS (
                 SELECT 1 FROM articles a
                 WHERE a.candidate_link_id = cl.id
-            )
+            ))
             AND (s.status IS NULL OR s.status = 'active')
             ORDER BY RANDOM()  -- Use random order to mix domains
             LIMIT :limit_with_buffer
@@ -1541,21 +1608,13 @@ def _process_batch(
             # Already read above, before either path: the same set, asked
             # once.
             if rework_ids:
-                q = q.replace(
-                    "WHERE cl.status = 'article'",
-                    """WHERE cl.status = 'article'
-                    AND cl.id = ANY(:link_ids)""",
-                )
+                q = _inject_filter(q, "AND cl.id = ANY(:link_ids)")
                 params["link_ids"] = rework_ids
                 logger.info("rework: %d links owe a fetch", len(rework_ids))
 
             # Add dataset filter if specified (dataset is already resolved to UUID)
             if getattr(args, "dataset", None):
-                q = q.replace(
-                    "WHERE cl.status = 'article'",
-                    """WHERE cl.status = 'article'
-                    AND cl.dataset_id = :dataset""",
-                )
+                q = _inject_filter(q, "AND cl.dataset_id = :dataset")
                 params["dataset"] = args.dataset
                 logger.info(
                     "🔍 Extraction query filtering by dataset: %s", args.dataset
@@ -1571,10 +1630,7 @@ def _process_batch(
                         "AND cl.source = :source AND cl.dataset_id",
                     )
                 else:
-                    q = q.replace(
-                        "WHERE cl.status = 'article'",
-                        "WHERE cl.status = 'article' AND cl.source = :source",
-                    )
+                    q = _inject_filter(q, "AND cl.source = :source")
                 params["source"] = args.source
 
             # Add row-level locking for parallel processing (PostgreSQL only)
@@ -2367,31 +2423,84 @@ def _process_batch(
                         except Exception:
                             logger.exception("Failed to log diagnostic SQL/params")
 
-                    insert_result = safe_session_execute(
-                        session,
-                        ARTICLE_INSERT_SQL,
-                        {
-                            "id": article_id,
-                            "candidate_link_id": str(url_id),
-                            "url": article_url,
-                            "title": content.get("title"),
-                            "author": cleaned_author,
-                            "publish_date": content.get("publish_date"),
-                            "content": content_text,
-                            "text": cleaned_text,  # cleaned; raw stays in content
-                            "status": article_status,
-                            "metadata": json.dumps(content.get("metadata", {})),
-                            "wire": wire_service_info,
-                            "wire_check_status": wire_check_status,
-                            "wire_check_attempted_at": None,
-                            "wire_check_error": None,
-                            "wire_check_metadata": None,
-                            "extracted_at": now.isoformat(),
-                            "created_at": now.isoformat(),
-                            "text_hash": text_hash,
-                            "raw_gcs_path": raw_gcs_path,
-                        },
-                    )
+                    # A REWOUND LINK REPLACES ITS ARTICLE INSTEAD OF INSERTING.
+                    #
+                    # ARTICLE_INSERT_SQL ends ON CONFLICT DO NOTHING against
+                    # uq_articles_url, so inserting here for a URL that already
+                    # has an article fetches the page, pays for the request and
+                    # throws the body away -- while the code below reads the
+                    # conflict as "the article exists under another link" and
+                    # moves on. For a re-fetch that is the exact opposite of
+                    # what was asked for, and it would look like it worked.
+                    # Only a rewound link can already have an article: the
+                    # selectors exclude one for every other status. Gating on
+                    # that keeps the ordinary path exactly as it was -- no
+                    # extra query per extraction, and no new way for it to
+                    # behave differently.
+                    existing_id = None
+                    if status == REFETCH:
+                        existing = safe_session_execute(
+                            session,
+                            ARTICLE_FOR_LINK_SQL,
+                            {"candidate_link_id": str(url_id)},
+                        )
+                        row = existing.first() if existing is not None else None
+                        existing_id = row[0] if row else None
+                    if existing_id:
+                        safe_session_execute(
+                            session,
+                            ARTICLE_REFETCH_SQL,
+                            {
+                                "id": existing_id,
+                                "content": content_text,
+                                "text": cleaned_text,
+                                "text_hash": text_hash,
+                                "title": content.get("title"),
+                                "author": cleaned_author,
+                                "publish_date": content.get("publish_date"),
+                                "status": article_status,
+                                "extracted_at": now.isoformat(),
+                                "raw_gcs_path": raw_gcs_path,
+                            },
+                        )
+                        logger.info(
+                            "refetch: replaced the body of %s (%s)",
+                            existing_id,
+                            article_url,
+                        )
+                        article_id = existing_id
+                        insert_result = None
+                    else:
+                        insert_result = safe_session_execute(
+                            session,
+                            ARTICLE_INSERT_SQL,
+                            {
+                                "id": article_id,
+                                "candidate_link_id": str(url_id),
+                                "url": article_url,
+                                "title": content.get("title"),
+                                "author": cleaned_author,
+                                "publish_date": content.get("publish_date"),
+                                "content": content_text,
+                                # cleaned; raw stays in content
+                                "text": cleaned_text,
+                                "status": article_status,
+                                "metadata": json.dumps(content.get("metadata", {})),
+                                "wire": wire_service_info,
+                                "wire_check_status": wire_check_status,
+                                "wire_check_attempted_at": None,
+                                "wire_check_error": None,
+                                "wire_check_metadata": None,
+                                "extracted_at": now.isoformat(),
+                                "created_at": now.isoformat(),
+                                "text_hash": text_hash,
+                                "raw_gcs_path": raw_gcs_path,
+                            },
+                        )
+                    # A replacement wrote a row by definition, so the
+                    # conflict accounting below applies only to the insert.
+                    if existing_id:
+                        inserted = 1
                     # Did the INSERT actually write a row? ARTICLE_INSERT_SQL
                     # ends in ON CONFLICT DO NOTHING against uq_articles_url, so
                     # a URL already stored under a different candidate_link is
@@ -2405,7 +2514,8 @@ def _process_batch(
                     # Claim 'extracted' only when a row was written. A conflict
                     # is not an error -- the article exists, under another link --
                     # but this link did not produce one and must not say it did.
-                    inserted = getattr(insert_result, "rowcount", 1)
+                    else:
+                        inserted = getattr(insert_result, "rowcount", 1)
                     if inserted == 0:
                         # A conflict means the corpus already holds this story
                         # under another URL. Say so on the link.
