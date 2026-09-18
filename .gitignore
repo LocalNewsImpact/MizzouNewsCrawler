@@ -146,6 +146,14 @@ warc_import_progress.json
 
 # CSV exports and scan results
 *.csv
+# The school extract builder writes a PAIR of files per state into the
+# directory it is run from, and only one of them is a .csv. Without this the
+# .txt half is left untracked in the repository root by every run for a state
+# the gazetteer has not seen -- census_places_WA.txt after the first Washington
+# build. Both are uploaded to gs://mizzou-osm-extracts/schools/ and read back
+# from there, so neither belongs in git.
+census_places_*.txt
+schools_*.csv
 !sources/publinks.csv
 !data/samples/*.csv
 !reports/manual_enqueue_template.csv
