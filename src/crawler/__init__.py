@@ -3214,8 +3214,15 @@ class ContentExtractor:
         # proxy challenge as terminal. As a general rung it is advisory: a
         # refusal just means this rung failed, and Selenium still gets its turn.
         domain_requires_unblock = extraction_method == "unblock"
-        try_tls_capture = bool(missing_fields) and (
-            domain_requires_unblock or self._tls_capture_fallback_enabled()
+        try_tls_capture = (
+            bool(missing_fields)
+            # NOT FOR A CREDENTIALED HOST. This rung is anonymous, and it is a
+            # general fallback rather than one reserved for `unblock` hosts, so
+            # without this it runs before the browser on a publisher we hold a
+            # subscription to -- knocking, being refused, and spending that
+            # host's patience before the authenticated attempt arrives.
+            and plan.allow_tls_capture
+            and (domain_requires_unblock or self._tls_capture_fallback_enabled())
         )
 
         if try_tls_capture:
