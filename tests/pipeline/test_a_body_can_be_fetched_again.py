@@ -245,3 +245,87 @@ class TestTheFiltersCannotSilentlyVanish:
 
         assert refetch.REFETCH in extraction.LINK_STATUS_CLAUSE
         assert extraction.REFETCH == refetch.REFETCH
+
+
+class TestARowStopsAsking:
+    """Four links sat open in `pipeline_rework` from 2026-09-14 on hosts where
+    Selenium fails every time. The queue served them, all failed, their domains
+    entered cooldown, and the step waited 30s and asked again for two hours
+    until the pod deadline killed the workflow -- twice, neither run reaching
+    classify or enrich."""
+
+    def test_a_spent_row_is_not_served_again(self):
+        from src.pipeline import rework
+
+        session = _Session(answers=[[]])
+        rework.links_to_fetch(session)
+        sql = session.statements[0]
+        assert "coalesce(r.attempts, 0) < :max_attempts" in sql
+        assert session.params[0]["max_attempts"] == rework.MAX_ATTEMPTS
+
+    def test_taking_a_row_spends_an_attempt(self):
+        from src.pipeline import rework
+
+        session = _Session()
+        rework.count_attempt(session, ["l1", "l2"])
+        assert any(
+            "attempts = coalesce(attempts, 0) + 1" in s for s in session.statements
+        )
+        assert session.commits == 1
+
+    def test_a_row_at_the_limit_is_closed_with_a_reason(self):
+        """Otherwise it is excluded from selection but never settles, and the
+        'anything owed' count reports work nobody will ever do."""
+        from src.pipeline import rework
+
+        session = _Session(answers=[[], [("l1",)]])
+        abandoned = rework.count_attempt(session, ["l1"])
+        assert abandoned == {"l1"}
+        close = next(s for s in session.statements if "outcome = :outcome" in s)
+        assert "coalesce(attempts, 0) >= :max_attempts" in close
+        assert any(p and p.get("outcome") == rework.ABANDONED for p in session.params)
+
+    def test_it_returns_ids_rather_than_making_the_caller_re_read(self):
+        """`_process_batch` asks `_links_owed_a_fetch` exactly once and the
+        direct path reuses that set, so re-reading it would be a second query
+        for an answer already held -- and a test already pins that count."""
+        import inspect
+
+        from src.cli.commands import extraction
+
+        body = inspect.getsource(extraction._process_batch)
+        assert body.count("_links_owed_a_fetch(session)") == 1
+        assert "if i not in abandoned" in body
+
+    def test_the_outcome_matches_what_enrichment_calls_it(self):
+        """One answer to "why did this stop" across stages."""
+        from src.pipeline import rework
+
+        assert rework.ABANDONED == "failed_max_attempts"
+
+    def test_counting_nothing_touches_nothing(self):
+        from src.pipeline import rework
+
+        session = _Session()
+        assert rework.count_attempt(session, []) == set()
+        assert session.statements == []
+
+
+class TestAReworkRunStopsWaiting:
+    def test_the_poll_limit_is_bounded_and_overridable(self):
+        from src.cli.commands import extraction
+
+        assert extraction.REWORK_EMPTY_POLL_LIMIT >= 1
+        assert extraction.REWORK_EMPTY_POLL_LIMIT <= 10
+
+    def test_only_a_rework_run_gives_up_on_a_cooldown(self):
+        """The pipeline's queue is fed continuously, so waiting there is right:
+        a cooldown passes and more work arrives. Breaking out of that loop
+        unconditionally would stop ordinary extraction on the first quiet poll."""
+        from pathlib import Path
+
+        source = Path("src/cli/commands/extraction.py").read_text()
+        guard = "if is_rework and empty_polls >= REWORK_EMPTY_POLL_LIMIT:"
+        assert guard in source
+        # and the streak resets when a batch does produce work
+        assert "if articles_processed > 0:\n                empty_polls = 0" in source

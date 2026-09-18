@@ -36,13 +36,36 @@ leaves the work owed and tomorrow's run finds it.
 
 from __future__ import annotations
 
+import logging
+
 from sqlalchemy import text
+
+logger = logging.getLogger(__name__)
 
 #: A link is ready to fetch when it is at this status and has no article.
 #: Both conditions are extraction's own: its batch query reads
 #: `candidate_links.status = 'article'` and excludes links that already
 #: have an article, so a row for one of those would never close.
 FETCHABLE = "article"
+
+#: How many runs may take a rework row before it is given up on.
+#:
+#: Four links sat open from 2026-09-14, three on newspressnow.com and one on
+#: fultonsun.com, where Selenium fails every time -- the extraction log reached
+#: failure #136. The queue served them, every one failed, their domains entered
+#: cooldown, and the step then waited 30 seconds and asked again for two hours
+#: until the pod deadline killed the workflow. Both of the last two housekeeping
+#: runs died that way without reaching classify or enrich.
+#:
+#: The bound belongs on the row, not in the run: the run that gives up is never
+#: the run that tried before it, so three runs of infinite patience look exactly
+#: like one. `reclaim.MAX_RECLAIMS` bounds the wire check the same way.
+MAX_ATTEMPTS = 3
+
+#: The outcome written when the bound is reached. The same word enrichment's
+#: orchestrator uses for the same judgement, so "why did this stop" has one
+#: answer across stages.
+ABANDONED = "failed_max_attempts"
 
 
 def _stage_statuses(record_type: str) -> list[str]:
@@ -65,19 +88,69 @@ def _stage_statuses(record_type: str) -> list[str]:
 
 
 def links_to_fetch(session) -> list[str]:
-    """Flagged links that are ready to be fetched, and nothing else."""
+    """Flagged links that are ready to be fetched, and nothing else.
+
+    A row at `MAX_ATTEMPTS` is excluded. Without that the same unfetchable link
+    is served on every run for ever, and the run cannot tell a link nobody has
+    tried from one that has failed a hundred times.
+    """
     rows = session.execute(
         text(
             "SELECT DISTINCT cl.id FROM pipeline_rework r "
             "JOIN candidate_links cl ON cl.id = r.record_id "
             "WHERE r.record_type = 'candidate_link' AND r.done_at IS NULL "
             "AND cl.status = :fetchable "
+            "AND coalesce(r.attempts, 0) < :max_attempts "
             "AND NOT EXISTS (SELECT 1 FROM articles a "
             "                WHERE a.candidate_link_id = cl.id)"
         ),
-        {"fetchable": FETCHABLE},
+        {"fetchable": FETCHABLE, "max_attempts": MAX_ATTEMPTS},
     ).fetchall()
     return [r[0] for r in rows]
+
+
+def count_attempt(session, record_ids: list[str]) -> set[str]:
+    """Spend an attempt on these records; return the ones now given up on.
+
+    Called at the START of a step, matching `settle`: a row closed by a run's
+    own attempt reads as closed on the next run rather than mid-flight.
+
+    The ids come back rather than a count so the caller can drop them from the
+    set it already holds. Re-reading `links_to_fetch` would be the obvious
+    alternative and is wrong: the direct path reuses the set the guard read, and
+    asking twice is a second query for an answer already in hand.
+
+    The count is per ROW, not per stage, because what is being bounded is how
+    many times anybody has tried this record -- a link that cannot be fetched
+    does not become fetchable because a different stage asked.
+    """
+    if not record_ids:
+        return set()
+    session.execute(
+        text(
+            "UPDATE pipeline_rework SET attempts = coalesce(attempts, 0) + 1 "
+            "WHERE done_at IS NULL AND record_id = ANY(:ids)"
+        ),
+        {"ids": list(record_ids)},
+    )
+    spent = session.execute(
+        text(
+            "UPDATE pipeline_rework SET done_at = now(), outcome = :outcome "
+            "WHERE done_at IS NULL AND record_id = ANY(:ids) "
+            "AND coalesce(attempts, 0) >= :max_attempts "
+            "RETURNING record_id"
+        ),
+        {"ids": list(record_ids), "outcome": ABANDONED, "max_attempts": MAX_ATTEMPTS},
+    )
+    abandoned = {row[0] for row in (spent.fetchall() if spent is not None else [])}
+    session.commit()
+    if abandoned:
+        logger.info(
+            "rework: gave up on %d record(s) after %d attempts",
+            len(abandoned),
+            MAX_ATTEMPTS,
+        )
+    return abandoned
 
 
 def articles_in(session, statuses) -> list[str]:
