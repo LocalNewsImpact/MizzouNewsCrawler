@@ -129,9 +129,10 @@ class TestALoggedInPageIsNotAChallenge:
         detections = source.count("self._detect_captcha_or_challenge(")
         guarded = source.count("self._challenge_check_applies(")
         assert detections == 2, "the two detection sites this guards"
-        assert (
-            guarded == detections
-        ), "a detection site without the guard reintroduces the ladder"
+        assert guarded == detections + 1, (
+            "each detection guarded, plus the guard that routes a credentialed "
+            "host away from the subscription-wall scan"
+        )
 
     def test_the_backoff_ladder_is_behind_the_check_too(self):
         source = inspect.getsource(ContentExtractor.extract_content)
@@ -139,3 +140,105 @@ class TestALoggedInPageIsNotAChallenge:
         assert source.index(
             "if not self._challenge_check_applies(domain):"
         ) < source.index("self._handle_captcha_backoff(domain)")
+
+
+class TestALoggedInPageIsJudgedByItsText:
+    """`_detect_subscription_wall` counts marketing phrases anywhere in the page
+    and fires at two. A logged-in ptleader page carries "subscribe",
+    "subscription", "subscriber" and "enter your email" in its footer, so on
+    2026-09-19 every article of a working session logged "Subscription wall
+    detected (4 indicators found)" and then extracted the full story -- two
+    ~80-second stalls per article for a verdict that was wrong."""
+
+    # Length matters: the ptleader bodies this recovered run 1,791-4,483 chars,
+    # where a one-line newsletter tail is a rounding error. A 300-char fixture
+    # would put the tail's utility words over MAX_UTILITY_WORD_RATE on their own.
+    STORY = (
+        "During its Oct. 21 meeting, the Port Townsend City Council authorized the "
+        "city manager to award a contract for the Mountain View Commons portable. "
+        "Councilmembers said the building has been vacant since the spring and that "
+        "the YMCA would take on maintenance under the agreement. The vote was "
+        "unanimous, with one member absent. The council heard from several residents "
+        "who said the portable had been a fixture of the commons for two decades and "
+        "asked what would happen to the programs it housed. City staff said the "
+        "agreement transfers maintenance to the YMCA but leaves the building in "
+        "public ownership, and that a report on the programs would come back to the "
+        "council in the spring. The mayor said the arrangement had been discussed at "
+        "three previous meetings and that the city had no money budgeted for the "
+        "repairs the building needs. A representative of the YMCA told the council "
+        "the organization intended to keep the space open to the same groups that "
+        "use it now, and that it would apply for a county grant to pay for a new "
+        "roof before the winter."
+    )
+    # The tail production actually leaves on a ptleader story, in proportion.
+    TAIL = " For more stories like this, sign up for our newsletter."
+    # A body that is only furniture: what a lapsed session gets back.
+    FURNITURE = (
+        "Subscribe Subscription Subscriber Enter your email Sign in Register now "
+        "Create an account Get unlimited access Members only Premium content"
+    )
+
+    def _extractor(self, monkeypatch, body):
+        obj = ContentExtractor.__new__(ContentExtractor)
+        monkeypatch.setattr(
+            ContentExtractor,
+            "_get_domain_auth_config",
+            lambda self, h: {"mechanism": "simplecirc"},
+        )
+        monkeypatch.setattr(
+            ContentExtractor,
+            "_phase",
+            lambda self, name: __import__("contextlib").nullcontext(),
+        )
+        monkeypatch.setattr(
+            ContentExtractor, "_extract_content", lambda self, soup: body
+        )
+        return obj
+
+    class _Driver:
+        page_source = "<html><body>whatever</body></html>"
+
+    def test_a_story_carrying_the_newsletter_tail_is_not_a_wall(self, monkeypatch):
+        obj = self._extractor(monkeypatch, self.STORY + self.TAIL)
+        assert obj._logged_in_page_withheld_the_story(self._Driver(), "u") is False
+
+    def test_no_story_means_the_session_is_not_getting_the_text(self, monkeypatch):
+        obj = self._extractor(monkeypatch, self.FURNITURE)
+        assert obj._logged_in_page_withheld_the_story(self._Driver(), "u") is True
+
+    def test_a_driver_fault_is_not_a_verdict(self, monkeypatch):
+        obj = ContentExtractor.__new__(ContentExtractor)
+        monkeypatch.setattr(
+            ContentExtractor, "_get_domain_auth_config", lambda self, h: {"m": 1}
+        )
+        monkeypatch.setattr(
+            ContentExtractor,
+            "_phase",
+            lambda self, name: __import__("contextlib").nullcontext(),
+        )
+
+        class _Broken:
+            @property
+            def page_source(self):
+                raise RuntimeError("driver gone")
+
+        assert obj._logged_in_page_withheld_the_story(_Broken(), "u") is False
+
+    def test_navigation_routes_a_credentialed_host_away_from_the_keyword_scan(self):
+        source = inspect.getsource(ContentExtractor._navigate_with_human_behavior)
+        gate = source.index(
+            "if not self._challenge_check_applies(domain):\n                if self._logged_in_page_withheld_the_story("
+        )
+        assert gate < source.index("modal_closed = self._try_close_modals(")
+        assert gate < source.index("if self._detect_subscription_wall(")
+
+    def test_the_subscription_modal_dance_is_skipped_for_a_credentialed_host(self):
+        """Each `_try_close_modals` attempt cost ~80 seconds on 2026-09-19, and a
+        subscriber's modal is not what withholds the text. The gate returns
+        before the subscription-wall path is reached; the only earlier call sits
+        inside the CAPTCHA branch, which `_challenge_check_applies` already
+        closes for this host."""
+        source = inspect.getsource(ContentExtractor._navigate_with_human_behavior)
+        gate = source.index("if not self._challenge_check_applies(domain):")
+        assert gate < source.index("modal_closed = self._try_close_modals(")
+        assert gate < source.index("if self._detect_subscription_wall(")
