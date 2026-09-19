@@ -778,6 +778,40 @@ def _links_owed_a_fetch(session):
     return links_to_fetch(session)
 
 
+def _judge_captured_body(session, *, text_hash, candidate_link_id, http_status):
+    """Whether a captured body belongs to the URL that was requested.
+
+    The counting query is bounded and runs on `ix_articles_text_hash`, so the
+    cost is an index scan of a handful of rows rather than a scan of the corpus.
+    A database error answers "keep": refusing a body because a count failed
+    would lose articles to a transient fault.
+    """
+    from src.crawler.duplicate_body import (
+        OTHER_URL_LIMIT,
+        SAME_HOST_BODY_COUNT_SQL,
+        BodyVerdict,
+        judge_body,
+    )
+
+    try:
+        result = safe_session_execute(
+            session,
+            text(SAME_HOST_BODY_COUNT_SQL),
+            {
+                "text_hash": text_hash,
+                "candidate_link_id": candidate_link_id,
+                # One more than the threshold is all the answer needs to clear.
+                "probe": OTHER_URL_LIMIT + 1,
+            },
+        )
+        row = result.first() if result is not None else None
+        count = int(row[0]) if row else 0
+    except Exception as exc:  # noqa: BLE001 - see the docstring
+        logger.warning("could not count duplicate bodies: %s", exc)
+        return BodyVerdict(keep=True)
+    return judge_body(same_host_url_count=count, http_status=http_status)
+
+
 def _count_rework_attempt(session, link_ids):
     """Spend an attempt on these links -- `src.pipeline.rework`.
 
@@ -2436,6 +2470,41 @@ def _process_batch(
                     # extraction records it as article_entities.article_text_hash to
                     # mark which version of the text its entities came from.
                     text_hash = calculate_content_hash(cleaned_text)
+
+                    # IS THIS BODY ALREADY IN THE CORPUS UNDER OTHER URLS OF
+                    # THIS HOST?
+                    #
+                    # The verdict above catches a wall two ways -- too little
+                    # text, or explicit paywall wording -- and the Port Townsend
+                    # Leader's fallback page is neither: 2,215 characters of a
+                    # concert listing with no subscription language, stored as
+                    # the body of two different articles. What gives it away is
+                    # that it was already here.
+                    #
+                    # Checked after the hash exists and before the row is
+                    # written, which is the only window where both facts are in
+                    # hand. Only when the status did not already settle it.
+                    if article_status not in ("paywall", "not_article", "wire"):
+                        body_verdict = _judge_captured_body(
+                            session,
+                            text_hash=text_hash,
+                            candidate_link_id=str(url_id),
+                            http_status=getattr(
+                                extractor, "_last_fetch_http_status", None
+                            ),
+                        )
+                        if not body_verdict.keep:
+                            logger.warning(
+                                "Refusing the captured body for %s: %s",
+                                url,
+                                body_verdict.reason,
+                            )
+                            article_status = "not_article"
+                            # Emptied for the same reason the paywall branch
+                            # empties it: a refused capture must never be
+                            # readable as a body.
+                            cleaned_text = ""
+                            text_hash = calculate_content_hash("")
 
                     metrics.set_content_type_detection(detection_payload)
                     _attach_driver_metrics(metrics, extractor, domain)
