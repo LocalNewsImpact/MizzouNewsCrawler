@@ -49,6 +49,7 @@ from .fingerprint_profile import (
     load_fingerprint_profile,
     prepare_user_data_dir,
 )
+from .headline import headline_from_title
 from .proxy_config import ProxyProvider, get_proxy_manager
 from .proxy_relay import get_relay_proxy
 from .utils import mask_proxy_url
@@ -6847,23 +6848,41 @@ class ContentExtractor:
         return False
 
     def _extract_title(self, soup: BeautifulSoup) -> Optional[str]:
-        """Extract article title."""
-        # Try Open Graph title first
+        """Extract article title, without the publication's own name.
+
+        `<title>` is conventionally headline + separator + publication, and the
+        publication is already on the row. It is also not reliably populated:
+        the Port Townsend Leader serves "- Port Townsend & Jefferson County
+        Leader" on a good article page, with the headline only in the `<h1>`.
+        Preferring a non-empty `<title>` there returns the masthead as the
+        story's name and never reaches the `<h1>` that has the answer -- which
+        overwrote 26 clean headlines from the WSU tracker with 4 titles that
+        were only the publication and 20 carrying it as a suffix.
+        """
+        # og:title first: it is the publisher saying what the headline is, and
+        # it usually carries no masthead. Strip one anyway if it does.
         og_title = soup.find("meta", property="og:title")
         if isinstance(og_title, Tag):
             content = og_title.get("content")
             if content:
-                return str(content).strip()
+                headline = headline_from_title(str(content))
+                if headline:
+                    return headline
 
-        # Try standard title tag
+        # The title tag, minus the publication. Empty means it told us nothing.
         title_tag = soup.find("title")
         if title_tag:
-            return title_tag.get_text().strip()
+            headline = headline_from_title(title_tag.get_text())
+            if headline:
+                return headline
 
-        # Try h1 as fallback
+        # The h1 -- reached now when the title tag held only a masthead, which
+        # for some publishers is every article.
         h1_tag = soup.find("h1")
         if h1_tag:
-            return h1_tag.get_text().strip()
+            headline = headline_from_title(h1_tag.get_text())
+            if headline:
+                return headline
 
         return None
 
