@@ -11,6 +11,7 @@ matter.
 from __future__ import annotations
 
 import inspect
+import re
 from pathlib import Path
 
 from src.cli.commands import cleaning, extraction, rot47_body_repair
@@ -118,3 +119,44 @@ class TestTheMigrationSaysWhatItMeasures:
 
     def test_it_follows_the_current_head(self):
         assert 'down_revision = "z6f7a8b9c0d1"' in MIGRATION.read_text()
+
+
+class TestNoStatementAnywhereNamesTheOldColumn:
+    """The rename missed `orchestration/continuous_processor.py` because the
+    sweep covered src/, scripts/, tests/ and backend/ and the processor image
+    also copies orchestration/. Its 60-second cycle then failed on
+    `column "content" does not exist` from the moment the migration ran.
+
+    So the sweep is a test now, over every root an image copies, with the
+    same column-shaped patterns. `article.content` is deliberately absent:
+    that is `ArticleInput.content`, enrichment's internal dataclass field.
+    """
+
+    ROOTS = ("src", "orchestration", "backend", "scripts", "sitecustomize.py")
+    COLUMN_SHAPED = re.compile(
+        r"a\.content\b|articles\.content\b|\bSET content\b|:content\b"
+        r"|\bcontent (IS|LIKE)\b|, content, text\b|content, text_hash"
+        r"|\bArticle\.content\b|\brow\.content\b"
+    )
+
+    def test_every_root_an_image_copies_is_clean(self):
+        repo = Path(__file__).resolve().parents[1]
+        offenders = []
+        for root in self.ROOTS:
+            path = repo / root
+            files = [path] if path.is_file() else path.rglob("*.py")
+            for file in files:
+                if "__pycache__" in file.parts:
+                    continue
+                for lineno, line in enumerate(
+                    file.read_text(encoding="utf-8").splitlines(), 1
+                ):
+                    stripped = line.lstrip()
+                    # Python and SQL comments may recount history by its old name.
+                    if stripped.startswith(("#", "--")):
+                        continue
+                    if self.COLUMN_SHAPED.search(line):
+                        offenders.append(
+                            f"{file.relative_to(repo)}:{lineno}: {line.strip()[:80]}"
+                        )
+        assert not offenders, "\n".join(offenders)
