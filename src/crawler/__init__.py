@@ -1910,6 +1910,21 @@ class ContentExtractor:
         except Exception:
             return False
 
+    def _challenge_check_applies(self, domain: str) -> bool:
+        """Whether the anonymous challenge machinery may run for this host.
+
+        Not for a login-gated publisher. A logged-in article page carries the
+        word "recaptcha" in its comment form, which is all
+        `_detect_captcha_or_challenge` needs -- and on 2026-09-19 the first
+        credentialed re-fetch of ptleader.com spent ten minutes on ONE URL in
+        modal-closing, driver resets and press-and-hold attempts against a
+        page whose article text had already been parsed, with a domain
+        backoff of up to ninety minutes waiting behind it for the other
+        sixteen. A credentialed host is login, navigate, extract. A page that
+        is not the story fails the body gates at write time instead.
+        """
+        return not self._requires_login(domain)
+
     def _ensure_authenticated(self, driver, domain: str) -> None:
         """Ensure the shared driver holds a session for a login-gated domain.
 
@@ -3373,7 +3388,12 @@ class ContentExtractor:
             protection_type = result.get("_bot_protection_type")
             if not protection_type and detection_info:
                 protection_type = detection_info.get("type")
-            if protection_type and self._is_js_required_protection(protection_type):
+            if not self._challenge_check_applies(domain):
+                # No backoff ladder for a credentialed host: the next article
+                # is fetched logged in like this one was, and a domain-wide
+                # wait would only stall the run.
+                logger.info("No challenge backoff for login-gated host %s", domain)
+            elif protection_type and self._is_js_required_protection(protection_type):
                 self._handle_captcha_backoff(domain)
             else:
                 self._handle_rate_limit_error(domain)
@@ -6038,7 +6058,10 @@ class ContentExtractor:
             try:
                 # NEW: Check for actual CAPTCHA or bot challenges BEFORE subscription wall
                 # This prevents false positive subscription wall detections on challenge pages
-                if self._detect_captcha_or_challenge(driver):
+                # Never for a login-gated host -- see _challenge_check_applies.
+                if self._challenge_check_applies(
+                    domain
+                ) and self._detect_captcha_or_challenge(driver):
                     logger.warning(f"CAPTCHA or bot challenge detected on {url}")
 
                     # Try to bypass the challenge (click buttons, wait for JS)
@@ -6077,7 +6100,9 @@ class ContentExtractor:
 
                     # Try detection and bypass again
                     try:
-                        if self._detect_captcha_or_challenge(driver):
+                        if self._challenge_check_applies(
+                            domain
+                        ) and self._detect_captcha_or_challenge(driver):
                             if self._try_bypass_challenge(driver, url):
                                 logger.info("Bypassed after driver reset")
                                 if not self._detect_subscription_wall(driver):

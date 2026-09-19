@@ -90,3 +90,52 @@ class TestOneSessionPerRun:
         assert src.index("_ensure_authenticated") < src.index(
             "_navigate_with_human_behavior"
         )
+
+
+class TestALoggedInPageIsNotAChallenge:
+    """`_detect_captcha_or_challenge` returns True for the word "recaptcha"
+    anywhere in the page source, and a logged-in article page carries it in
+    its comment form. On 2026-09-19 the first credentialed re-fetch of
+    ptleader.com spent ten minutes on one URL in the anonymous bypass ladder
+    -- modal closing, driver resets, press-and-hold -- against a page whose
+    article text had already been parsed, with a domain backoff of up to
+    ninety minutes queued behind it for the other sixteen."""
+
+    def _extractor(self, monkeypatch, answer):
+        obj = ContentExtractor.__new__(ContentExtractor)
+        monkeypatch.setattr(
+            ContentExtractor, "_get_domain_auth_config", lambda self, host: answer
+        )
+        return obj
+
+    def test_the_check_is_off_for_a_login_gated_host(self, monkeypatch):
+        assert (
+            self._extractor(
+                monkeypatch, {"mechanism": "simplecirc"}
+            )._challenge_check_applies("www.ptleader.com")
+            is False
+        )
+
+    def test_and_on_for_everyone_else(self, monkeypatch):
+        assert (
+            self._extractor(monkeypatch, None)._challenge_check_applies(
+                "www.kitsapsun.com"
+            )
+            is True
+        )
+
+    def test_every_detection_in_navigation_is_behind_the_check(self):
+        source = inspect.getsource(ContentExtractor._navigate_with_human_behavior)
+        detections = source.count("self._detect_captcha_or_challenge(")
+        guarded = source.count("self._challenge_check_applies(")
+        assert detections == 2, "the two detection sites this guards"
+        assert (
+            guarded == detections
+        ), "a detection site without the guard reintroduces the ladder"
+
+    def test_the_backoff_ladder_is_behind_the_check_too(self):
+        source = inspect.getsource(ContentExtractor.extract_content)
+        assert "if not self._challenge_check_applies(domain):" in source
+        assert source.index(
+            "if not self._challenge_check_applies(domain):"
+        ) < source.index("self._handle_captcha_backoff(domain)")
