@@ -243,7 +243,7 @@ class TestExtractionCriticalSQL:
                 url="https://test.example.com/article-1",
                 candidate_link_id=candidate_id,
                 title="Test Article",
-                content="Test content",
+                raw="Test content",
                 status="extracted",
                 extracted_at=datetime.now(timezone.utc),
             )
@@ -370,7 +370,7 @@ class TestLabelingCriticalSQL:
                 url="https://test.example.com/to-label",
                 candidate_link_id=candidate_id,
                 title="Article for Labeling",
-                content="Content to analyze",
+                raw="Content to analyze",
                 status="cleaned",
                 extracted_at=datetime.now(timezone.utc),
             )
@@ -415,7 +415,7 @@ class TestLabelingCriticalSQL:
                     url=f"https://test.example.com/cleaned-{i}",
                     candidate_link_id=candidate_id,
                     title=f"Article {i}",
-                    content="Content",
+                    raw="Content",
                     status="cleaned",
                     extracted_at=datetime.now(timezone.utc),
                 )

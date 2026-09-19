@@ -109,7 +109,7 @@ def _create_wire_test_article(
             url=url,
             title="Unit Test Article",
             status=article_status,
-            content="Sample content",
+            raw="Sample content",
             extracted_at=extracted_at,
             wire_check_status=wire_status,
         )

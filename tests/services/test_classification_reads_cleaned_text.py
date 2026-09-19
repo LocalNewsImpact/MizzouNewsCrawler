@@ -6,7 +6,7 @@ Title is combined with the body rather than used as a last resort: a headline
 is a dense statement of what a story is about, which is the judgement the CIN
 classifier makes.
 
-The body is the CLEANED column. Reading `content` first meant classifying
+The body is the CLEANED column. Reading `raw` first meant classifying
 whatever the page carried — navigation menus, paywall prompts, cookie notices.
 For the 3% of stored articles that are mostly nav chrome, the label came from a
 list of section names rather than from any reporting. That order was harmless
@@ -26,8 +26,8 @@ HEAD = "Commission approves measure"
 
 
 class _Article:
-    def __init__(self, content=None, text=None, title=None):
-        self.content = content
+    def __init__(self, raw=None, text=None, title=None):
+        self.raw = raw
         self.text = text
         self.title = title
 
@@ -58,21 +58,21 @@ class TestTitleAndBodyTogether:
 
 class TestBodyPrefersCleaned:
     def test_cleaned_body_wins_over_raw_capture(self):
-        out = _service()._prepare_text(_Article(content=NAV, text=BODY, title=HEAD))
+        out = _service()._prepare_text(_Article(raw=NAV, text=BODY, title=HEAD))
         assert BODY in out
         assert "Classifieds" not in out
 
     def test_raw_is_used_when_there_is_no_cleaned_body(self):
         """Rows extracted before the raw/cleaned split have only `content`."""
-        out = _service()._prepare_text(_Article(content=BODY, title=HEAD))
+        out = _service()._prepare_text(_Article(raw=BODY, title=HEAD))
         assert BODY in out
 
     def test_blank_cleaned_body_falls_back_to_raw(self):
-        out = _service()._prepare_text(_Article(content=BODY, text="  \n "))
+        out = _service()._prepare_text(_Article(raw=BODY, text="  \n "))
         assert BODY in out
 
     def test_only_one_body_is_used_never_both(self):
-        out = _service()._prepare_text(_Article(content=NAV, text=BODY))
+        out = _service()._prepare_text(_Article(raw=NAV, text=BODY))
         assert out == BODY
 
     def test_nothing_to_classify_returns_none(self):
@@ -82,5 +82,5 @@ class TestBodyPrefersCleaned:
         """Pinned so a later tidy-up cannot silently reorder it."""
         assert ArticleClassificationService._BODY_FIELD_PREFERENCE == (
             "text",
-            "content",
+            "raw",
         )

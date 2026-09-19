@@ -46,7 +46,7 @@ class DummyClassifier:
 def _make_article(**overrides):
     defaults = {
         "id": "article-1",
-        "content": "Important civic update",
+        "raw": "Important civic update",
         "text": None,
         "title": "",
         "url": "https://example.com/story",
@@ -73,7 +73,7 @@ def test_prepare_text_combines_title_with_the_cleaned_body():
     """
     service = _make_service()
     article = _make_article(
-        content="\n\n",
+        raw="\n\n",
         text="  candidate text  ",
         title="Headline",
     )
@@ -81,7 +81,7 @@ def test_prepare_text_combines_title_with_the_cleaned_body():
         "Headline\n\ncandidate text"
     )
 
-    empty_article = _make_article(content="", text="   ", title="  ")
+    empty_article = _make_article(raw="", text="   ", title="  ")
     assert service._prepare_text(empty_article) is None  # type: ignore[arg-type]
 
 
@@ -104,7 +104,7 @@ def test_apply_classification_dry_run_collects_proposed_labels(monkeypatch):
     articles = [
         _make_article(
             id=321,
-            content="Body content",
+            raw="Body content",
             url="https://example.com/a",
         )
     ]
@@ -173,7 +173,7 @@ def test_apply_classification_dry_run_collects_proposed_labels(monkeypatch):
 
 def test_apply_classification_persists_predictions(monkeypatch):
     service = _make_service()
-    articles = [_make_article(id=999, content="Body", url="https://example.com/real")]
+    articles = [_make_article(id=999, raw="Body", url="https://example.com/real")]
     call_count = 0
 
     def fake_select(*_args, **_kwargs):
@@ -238,7 +238,7 @@ def test_apply_classification_records_error_when_missing_id(monkeypatch):
     articles = [
         _make_article(
             id=None,
-            content="Has text",
+            raw="Has text",
             url="https://example.com/missing",
         )
     ]
@@ -275,7 +275,7 @@ def test_apply_classification_records_error_when_missing_id(monkeypatch):
 
 def test_apply_classification_skips_articles_with_no_text(monkeypatch):
     service = _make_service()
-    article = _make_article(content="", text="  ", title=" ")
+    article = _make_article(raw="", text="  ", title=" ")
     call_count = 0
 
     def fake_select(*_args, **_kwargs):
@@ -307,8 +307,8 @@ def test_apply_classification_skips_articles_with_no_text(monkeypatch):
 def test_apply_classification_handles_classifier_exception(monkeypatch):
     service = _make_service()
     articles = [
-        _make_article(id="1", content="First", url="https://example.com/1"),
-        _make_article(id="2", content="Second", url="https://example.com/2"),
+        _make_article(id="1", raw="First", url="https://example.com/1"),
+        _make_article(id="2", raw="Second", url="https://example.com/2"),
     ]
     call_count = 0
 
@@ -335,7 +335,7 @@ def test_apply_classification_handles_classifier_exception(monkeypatch):
 
 def test_apply_classification_skips_empty_predictions(monkeypatch):
     service = _make_service()
-    articles = [_make_article(id="1", content="Text")]
+    articles = [_make_article(id="1", raw="Text")]
     call_count = 0
 
     def fake_select(*_args, **_kwargs):

@@ -868,7 +868,7 @@ class TestDataPipelineConsistency:
                 SELECT COUNT(*)
                 FROM articles
                 WHERE status IN ('cleaned', 'labeled')
-                AND (content IS NULL OR LENGTH(TRIM(content)) < 50)
+                AND (raw IS NULL OR LENGTH(TRIM(raw)) < 50)
                 AND extracted_at >= NOW() - INTERVAL '24 hours'
             """)).scalar()
 
@@ -1048,7 +1048,7 @@ class TestDataPipelineConsistency:
                 FROM articles
                 WHERE status IN ('labeled', 'wire', 'opinion',
                                 'obituary', 'weather')
-                AND (content IS NULL OR LENGTH(TRIM(content)) < 100)
+                AND (raw IS NULL OR LENGTH(TRIM(raw)) < 100)
                 AND extracted_at >= NOW() - INTERVAL '24 hours'
             """)).scalar()
 
@@ -1190,7 +1190,7 @@ class TestContentCleaningPipeline:
             result = session.execute(text("""
                 SELECT
                     COUNT(*) as cleaned_articles,
-                    AVG(LENGTH(COALESCE(content, ''))) as avg_original_length,
+                    AVG(LENGTH(COALESCE(raw, ''))) as avg_original_length,
                     AVG(LENGTH(COALESCE(text, ''))) as avg_cleaned_length,
                     MIN(CASE
                         WHEN LENGTH(COALESCE(text, '')) > 0

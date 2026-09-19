@@ -70,7 +70,7 @@ def test_article(cloud_sql_session, test_candidate_link):
         candidate_link_id=test_candidate_link.id,
         url=test_candidate_link.url,
         title="Test Wire Service Article",
-        content="This is a test article from Associated Press.",
+        raw="This is a test article from Associated Press.",
     )
     cloud_sql_session.add(article)
     cloud_sql_session.commit()
@@ -115,7 +115,7 @@ def test_content_type_telemetry_with_string_confidence(cloud_sql_session, test_a
     metrics.finalize(
         {
             "title": test_article.title,
-            "content": test_article.content,
+            "content": test_article.raw,
         }
     )
 
@@ -186,7 +186,7 @@ def test_content_type_telemetry_handles_numeric_confidence_column(
     }
 
     metrics.set_content_type_detection(detection_payload)
-    metrics.finalize({"title": test_article.title, "content": test_article.content})
+    metrics.finalize({"title": test_article.title, "content": test_article.raw})
 
     # This should NOT raise an error, even if confidence column is numeric
     # The defensive code should handle it gracefully

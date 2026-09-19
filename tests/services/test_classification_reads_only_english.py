@@ -44,8 +44,8 @@ ES_2 = (
 
 
 class _Article:
-    def __init__(self, content=None, text=None, title=None, status="cleaned"):
-        self.content = content
+    def __init__(self, raw=None, text=None, title=None, status="cleaned"):
+        self.raw = raw
         self.text = text
         self.title = title
         self.status = status
@@ -138,15 +138,15 @@ class TestASpanishBodyIsRefusedAndFiled:
 
 
 class TestTheBodyFieldIsTheCleanedOne:
-    def test_text_is_preferred_over_content(self):
-        """Unchanged by the language filter: `text` is the cleaned column."""
+    def test_text_is_preferred_over_raw(self):
+        """Unchanged by the language filter: `text` is the cleaned column, `raw` the capture."""
         nav = "Skip to main content Home Categories Classifieds Columns"
-        out = _service()._prepare_text(_Article(content=nav, text=EN))
+        out = _service()._prepare_text(_Article(raw=nav, text=EN))
         assert EN in out
         assert nav not in out
 
-    def test_content_is_the_fallback(self):
-        assert EN in _service()._prepare_text(_Article(content=EN, text="  \n "))
+    def test_raw_is_the_fallback(self):
+        assert EN in _service()._prepare_text(_Article(raw=EN, text="  \n "))
 
     def test_an_empty_article_still_yields_nothing(self):
         assert _service()._prepare_text(_Article("", "  ", " ")) is None

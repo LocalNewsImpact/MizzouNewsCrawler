@@ -496,14 +496,14 @@ def _capture_raw_html(extractor: Any) -> tuple[str | bytes | None, str | None]:
 
 ARTICLE_INSERT_SQL = text(
     "INSERT INTO articles (id, candidate_link_id, dataset_id, url, title, author, "
-    "publish_date, content, text, status, metadata, wire, wire_check_status, "
+    "publish_date, raw, text, status, metadata, wire, wire_check_status, "
     "wire_check_attempted_at, wire_check_error, wire_check_metadata, extracted_at, "
     "created_at, text_hash, raw_gcs_path) VALUES (:id, :candidate_link_id, "
     # The article's dataset is its link's, read by primary key at insert
     # so no caller has to carry it and none can carry a different one.
     "(SELECT cl.dataset_id FROM candidate_links cl WHERE cl.id = :candidate_link_id), "
     ":url, :title, "
-    ":author, :publish_date, :content, :text, :status, :metadata, :wire, "
+    ":author, :publish_date, :raw, :text, :status, :metadata, :wire, "
     ":wire_check_status, :wire_check_attempted_at, :wire_check_error, :wire_check_metadata, "
     ":extracted_at, :created_at, :text_hash, :raw_gcs_path) "
     # Avoid specifying a conflict target here (ON CONFLICT (url) ...) if the
@@ -550,7 +550,7 @@ ARTICLE_UPDATE_SQL = text(
 #: entities, places and geoids stay attached and are re-answered afterwards by
 #: the classify and enrich stages rather than discarded here.
 ARTICLE_REFETCH_SQL = text(
-    "UPDATE articles SET content = :content, text = :text, "
+    "UPDATE articles SET raw = :raw, text = :text, "
     # CLEARED, NOT KEPT. A fresh extraction never writes this column -- it is
     # NULL on 164,202 of the corpus's articles -- so an imported body is the
     # only thing that carries `manual-import-v1`, and that is exactly what
@@ -1489,16 +1489,16 @@ def handle_extract_url_command(args) -> int:
                     "title": content.get("title"),
                     "author": cleaned_author,
                     "publish_date": content.get("publish_date"),
-                    # content holds the RAW capture, text the cleaned body.
+                    # raw holds the capture, text the cleaned body.
                     # These used to receive the same cleaned string, which threw
                     # the raw copy away: `content` was byte-identical to `text`
                     # for 96,169 of 96,170 stored articles. With no before/after
                     # pair, nothing could measure what cleaning removed — or
                     # notice that it had stopped removing anything.
                     # The rest of the pipeline already assumes this split:
-                    # cleaning reads a.content as its input, entity extraction
+                    # cleaning reads a.raw as its input, entity extraction
                     # reads a.text as the cleaned result.
-                    "content": content_text,
+                    "raw": content_text,
                     "text": cleaned_text,
                     "status": article_status,
                     "metadata": json.dumps(metadata_value),
@@ -2446,7 +2446,7 @@ def _process_batch(
                     #
                     # `content` = raw capture, `text` = cleaned body. That is the
                     # pair every consumer already assumes: content_cleaner reads
-                    # a.content as its input, entity extraction reads a.text as
+                    # a.raw as its input, entity extraction reads a.text as
                     # the cleaned result.
                     #
                     # Fall back to the raw text if cleaning returned nothing, so a
@@ -2595,7 +2595,7 @@ def _process_batch(
                             ARTICLE_REFETCH_SQL,
                             {
                                 "id": existing_id,
-                                "content": content_text,
+                                "raw": content_text,
                                 "text": cleaned_text,
                                 "text_hash": text_hash,
                                 "title": content.get("title"),
@@ -2624,7 +2624,7 @@ def _process_batch(
                                 "title": content.get("title"),
                                 "author": cleaned_author,
                                 "publish_date": content.get("publish_date"),
-                                "content": content_text,
+                                "raw": content_text,
                                 # cleaned; raw stays in content
                                 "text": cleaned_text,
                                 "status": article_status,
@@ -3136,9 +3136,7 @@ def _run_post_extraction_cleaning(domains_to_articles, db=None):
                 try:
                     row = safe_session_execute(
                         session,
-                        text(
-                            "SELECT title, content, status FROM articles WHERE id = :id"
-                        ),
+                        text("SELECT title, raw, status FROM articles WHERE id = :id"),
                         {"id": article_id},
                     ).fetchone()
 
@@ -3373,7 +3371,7 @@ def _run_article_entity_extraction(article_ids: Iterable[str], db=None) -> None:
                 source_id = None
                 dataset_id = None
 
-            raw_text = article.text or article.content
+            raw_text = article.text or article.raw
             text_value = raw_text if isinstance(raw_text, str) else None
             gazetteer_rows = get_gazetteer_rows(
                 session,

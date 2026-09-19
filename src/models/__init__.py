@@ -149,8 +149,13 @@ class Article(Base):
     title = Column(Text)
     author: Mapped[str | None] = mapped_column(String)
     publish_date: Mapped[datetime | None] = mapped_column(DateTime)
-    content = Column(Text)
-    # Keep older 'text' fields for compatibility
+    # `raw` is the capture as the page served it: the input to cleaning,
+    # kept so what cleaning removed can be measured and a decode stays
+    # auditable. No analysis stage reads it.
+    raw = Column(Text)
+    # `text` is the cleaned body -- the one field every downstream stage
+    # reads: CIN, entity extraction, enrichment, the export. `text_length`
+    # measures this column.
     text = Column(Text)
     text_hash = Column(String, index=True)  # SHA256 of normalized text
     text_excerpt = Column(String(500))  # First 500 chars for preview

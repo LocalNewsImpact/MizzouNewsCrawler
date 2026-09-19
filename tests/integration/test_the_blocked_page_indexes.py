@@ -58,7 +58,7 @@ MIGRATION = (
 
 #: What the Blocked page asks, verbatim. The index has to serve this
 #: exact predicate or it serves nothing.
-ROT47_QUERY = "SELECT count(*) FROM articles WHERE content LIKE '%k^Am%'"
+ROT47_QUERY = "SELECT count(*) FROM articles WHERE raw LIKE '%k^Am%'"
 
 INDEXES = (
     "ix_articles_rot47_ciphertext",
@@ -79,6 +79,12 @@ class _RecordingOp:
         self.statements = []
 
     def execute(self, sql):
+        # u6v7w8x9y0z1 predates b1c2d3e4f5a7, which renamed `content` to
+        # `raw`. PostgreSQL rewrote the live index's predicate by attribute
+        # number, so the migration's text still says `content` and replaying
+        # it verbatim would name a column that no longer exists. This is the
+        # rename, applied to the statement as sent.
+        sql = sql.replace("WHERE content LIKE", "WHERE raw LIKE")
         self.statements.append(sql)
         self._conn.execute(text(sql))
 
@@ -123,10 +129,7 @@ def migrated():
     engine = create_engine(POSTGRES_TEST_URL)
     with engine.connect() as conn:
         conn.execute(
-            text(
-                "CREATE TABLE IF NOT EXISTS articles "
-                "(id uuid PRIMARY KEY, content text)"
-            )
+            text("CREATE TABLE IF NOT EXISTS articles (id uuid PRIMARY KEY, raw text)")
         )
         conn.execute(
             text(

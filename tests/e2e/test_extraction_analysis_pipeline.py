@@ -306,7 +306,7 @@ def test_extraction_pipeline_through_analysis(
         article = verify_session.query(Article).one()
         assert article.status == "local"
         assert article.author == "Jane Tester"
-        assert article.content.startswith("Columbia City Hall will host the forum")
+        assert article.raw.startswith("Columbia City Hall will host the forum")
         assert article.wire is None
 
         candidate_row = verify_session.get(CandidateLink, "candidate-1")

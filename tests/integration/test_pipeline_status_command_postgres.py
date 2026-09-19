@@ -104,7 +104,7 @@ def pipeline_test_data(cloud_sql_session, test_sources):
             url=candidate.url,
             candidate_link_id=candidate.id,
             title=f"Test Article {i}",
-            content=f"Test content for article {i}",
+            raw=f"Test content for article {i}",
             text=f"Test text for article {i}",
             status="extracted",
             extracted_at=datetime.now(timezone.utc) - timedelta(minutes=15),
@@ -346,7 +346,7 @@ class TestPipelineEntityExtractionStatusPostgres:
         query = text("""
             SELECT COUNT(*)
             FROM articles a
-            WHERE a.content IS NOT NULL
+            WHERE a.raw IS NOT NULL
             AND a.text IS NOT NULL
             AND a.status NOT IN ('wire', 'opinion', 'obituary', 'error')
             AND NOT EXISTS (

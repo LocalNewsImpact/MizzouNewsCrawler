@@ -74,7 +74,7 @@ def withheld_kinds() -> list[str]:
 
 _CANDIDATE_SQL = text(
     """
-    SELECT a.id, a.title, a.content, a.metadata, d.slug AS dataset_slug, s.city AS publication_city,
+    SELECT a.id, a.title, a.raw, a.metadata, d.slug AS dataset_slug, s.city AS publication_city,
            coalesce(nullif(s.metadata::json->>'state',''), d.metadata::json->>'default_state') AS publication_state
     FROM articles a
     JOIN candidate_links cl ON cl.id = a.candidate_link_id
@@ -84,10 +84,10 @@ _CANDIDATE_SQL = text(
     WHERE d.slug = :dataset
       AND a.status = 'labeled'
       AND a.wire_check_status IN ('complete', 'local')
-      -- An empty body is not a verdict: the gate reads `content`, and an
+      -- An empty body is not a verdict: the gate reads `raw`, and an
       -- article with none comes back `not_news` about nothing. Not a
       -- candidate. See the same guard, by name, in `select_by_ids`.
-      AND coalesce(a.content, '') <> ''
+      AND coalesce(a.raw, '') <> ''
       AND a.enrichment_attempts < :max_attempts
       AND (CAST(:since AS date) IS NULL OR a.created_at >= CAST(:since AS date))"""
     + WITHHELD_BY_A_REVIEWER
@@ -123,7 +123,7 @@ _CANDIDATE_SQL = text(
 # reprocess reaches back past it.
 _REPROCESS_SQL = text(
     """
-    SELECT a.id, a.title, a.content, a.metadata, d.slug AS dataset_slug, s.city AS publication_city,
+    SELECT a.id, a.title, a.raw, a.metadata, d.slug AS dataset_slug, s.city AS publication_city,
            coalesce(nullif(s.metadata::json->>'state',''), d.metadata::json->>'default_state') AS publication_state
     FROM articles a
     JOIN candidate_links cl ON cl.id = a.candidate_link_id
@@ -133,10 +133,10 @@ _REPROCESS_SQL = text(
     WHERE d.slug = :dataset
       AND a.status = 'labeled'
       AND a.wire_check_status IN ('complete', 'local')
-      -- An empty body is not a verdict: the gate reads `content`, and an
+      -- An empty body is not a verdict: the gate reads `raw`, and an
       -- article with none comes back `not_news` about nothing. Not a
       -- candidate. See the same guard, by name, in `select_by_ids`.
-      AND coalesce(a.content, '') <> ''
+      AND coalesce(a.raw, '') <> ''
       AND a.enrichment_attempts < :max_attempts"""
     + WITHHELD_BY_A_REVIEWER
     + """
@@ -176,7 +176,7 @@ def _rows_to_articles(rows) -> list[ArticleInput]:
         ArticleInput(
             id=r.id,
             title=r.title or "",
-            content=r.content or "",
+            content=r.raw or "",
             dataset_slug=r.dataset_slug,
             publication_city=r.publication_city,
             publication_state=getattr(r, "publication_state", None),
@@ -249,7 +249,7 @@ def select_by_ids(session: Session, ids: list[str], max_attempts: int) -> ListRe
     rejected: dict[str, str] = {}
     found = session.execute(
         text("""
-            SELECT a.id, a.title, a.content, a.metadata, a.status, a.wire_check_status,
+            SELECT a.id, a.title, a.raw, a.metadata, a.status, a.wire_check_status,
                    a.enrichment_attempts,
                    d.slug AS dataset_slug, s.city AS publication_city,
            coalesce(nullif(s.metadata::json->>'state',''), d.metadata::json->>'default_state') AS publication_state,
@@ -278,10 +278,10 @@ def select_by_ids(session: Session, ids: list[str], max_attempts: int) -> ListRe
             rejected[article_id] = f"attempts exhausted ({row.enrichment_attempts})"
         elif row.dataset_slug is None:
             rejected[article_id] = "no dataset"
-        elif not (row.content or "").strip():
+        elif not (row.raw or "").strip():
             # AN EMPTY BODY IS NOT A VERDICT.
             #
-            # The gate reads `a.content`, deliberately -- the paywall
+            # The gate reads `a.raw`, deliberately -- the paywall
             # thresholds were measured against that column, and reading a
             # different one would silently re-measure all of them. But an
             # article whose `content` is empty is not "not news"; there is
@@ -296,7 +296,7 @@ def select_by_ids(session: Session, ids: list[str], max_attempts: int) -> ListRe
             #
             # Rejected by name here, where the reason is visible and costs
             # nothing, instead of being paid for and misread.
-            rejected[article_id] = "no content to enrich (is the body in `text`?)"
+            rejected[article_id] = "no raw capture to enrich (is the body in `text`?)"
         elif row.reviewed_kind in withheld_kinds():
             # The backfill path takes an explicit id list, so this is the
             # one place a person can hand enrichment an article directly.
@@ -310,7 +310,7 @@ def select_by_ids(session: Session, ids: list[str], max_attempts: int) -> ListRe
                 ArticleInput(
                     row.id,
                     row.title or "",
-                    row.content or "",
+                    row.raw or "",
                     row.dataset_slug,
                     row.publication_city,
                     getattr(row, "publication_state", None),
@@ -631,7 +631,7 @@ _POINT_COLUMNS = (
 )
 
 _CANDIDATES = """
-    SELECT a.id, COALESCE(a.content, a.text, ''), a.title, s.city
+    SELECT a.id, COALESCE(a.raw, a.text, ''), a.title, s.city
       FROM article_enrichment e
       JOIN articles a ON a.id = e.article_id
       LEFT JOIN candidate_links cl ON cl.id = a.candidate_link_id
@@ -647,7 +647,7 @@ _DROP = text(
 
 _POINT_SUPPORT_ROWS = text("""
     SELECT e.article_id, e.point_place,
-           COALESCE(a.content, a.text, ''), a.title, s.city
+           COALESCE(a.raw, a.text, ''), a.title, s.city
       FROM article_enrichment e
       JOIN articles a ON a.id = e.article_id
       LEFT JOIN candidate_links cl ON cl.id = a.candidate_link_id

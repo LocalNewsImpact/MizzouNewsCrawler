@@ -29,7 +29,7 @@ def test_the_repair_does_not_touch_status():
     written = str(repair.REPAIR_SQL)
     assert "status" not in written, "the repair rewrites a verdict"
     assert "wire" not in written
-    for column in ("content", "text", "text_hash", "text_excerpt"):
+    for column in ("raw", "text", "text_hash", "text_excerpt"):
         assert column in written
 
 
@@ -38,7 +38,7 @@ def test_it_selects_on_the_body_not_the_status():
     135, out_of_scope 65 and so on -- so selecting by status would find
     some of them and no reliable subset."""
     found = str(repair.FIND_SQL)
-    assert "content LIKE" in found
+    assert "raw LIKE" in found
     assert "status" not in found
 
 

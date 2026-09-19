@@ -53,11 +53,11 @@ class StrictBoundaryContentCleaner:
         cursor = conn.cursor()
 
         query = """
-        SELECT id, url, content, text_hash
+        SELECT id, url, raw, text_hash
         FROM articles
         WHERE url LIKE ?
-        AND content IS NOT NULL
-        AND content != ''
+        AND raw IS NOT NULL
+        AND raw != ''
         ORDER BY id DESC
         """
 

@@ -202,14 +202,14 @@ class TestWritePathDecodesBeforeCleaning:
         src = inspect.getsource(extraction._process_batch)
         assert "cleaned_text = stripped_content or decoded_text or content_text" in src
 
-    def test_batch_still_stores_the_raw_capture_in_content(self):
-        """`content` keeps the verbatim capture so the decode stays auditable."""
+    def test_batch_still_stores_the_raw_capture_in_raw(self):
+        """`raw` keeps the verbatim capture so the decode stays auditable."""
         src = inspect.getsource(extraction._process_batch)
-        assert '"content": content_text' in src
+        assert '"raw": content_text' in src
         assert '"text": cleaned_text' in src
 
     def test_recleaning_path_decodes_what_it_reads_back(self):
-        """Re-cleaning reads `content` from the database, so it inherits every
+        """Re-cleaning reads `raw` from the database, so it inherits every
         row written before this fix."""
         src = inspect.getsource(extraction._run_post_extraction_cleaning)
         assert "decoded_content = _decode_capture(original_content)" in src

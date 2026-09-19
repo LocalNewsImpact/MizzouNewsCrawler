@@ -188,7 +188,7 @@ def analyze_domains(
     if domain:
         cursor.execute(
             """
-            SELECT url, id, content, LENGTH(content) as content_length
+            SELECT url, id, raw, LENGTH(raw) as content_length
             FROM articles
             WHERE url LIKE ?
             ORDER BY url
@@ -197,7 +197,7 @@ def analyze_domains(
         )
     else:
         cursor.execute("""
-            SELECT url, id, content, LENGTH(content) as content_length
+            SELECT url, id, raw, LENGTH(raw) as content_length
             FROM articles
             ORDER BY url
             """)
@@ -737,8 +737,8 @@ def list_domains_command(min_articles: int):
                 END as domain,
                 COUNT(*) as article_count
             FROM articles
-            WHERE content IS NOT NULL
-              AND content != ''
+            WHERE raw IS NOT NULL
+              AND raw != ''
             GROUP BY domain
             HAVING article_count >= ?
             ORDER BY article_count DESC

@@ -75,7 +75,7 @@ def test_run_backfill_dry_run_skips_processing(
         candidate_link_id=candidate.id,
         status="extracted",
         extracted_at=datetime.utcnow(),
-        content="Body text",
+        raw="Body text",
         text="Body text",
         text_hash="hash-dry",
     )
@@ -135,7 +135,7 @@ def test_run_backfill_processes_missing_entities(
         candidate_link_id=candidate1.id,
         status="extracted",
         extracted_at=datetime.utcnow(),
-        content="Alpha",
+        raw="Alpha",
         text="Alpha",
         text_hash="hash-alpha",
     )
@@ -144,7 +144,7 @@ def test_run_backfill_processes_missing_entities(
         candidate_link_id=candidate2.id,
         status="extracted",
         extracted_at=datetime.utcnow(),
-        content="Beta",
+        raw="Beta",
         text="Beta",
         text_hash="hash-beta",
     )

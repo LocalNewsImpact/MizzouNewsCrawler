@@ -133,7 +133,7 @@ def test_cloud_sql_articles_table_schema(cloud_sql_session):
         "url",
         "candidate_link_id",
         "publish_date",
-        "content",
+        "raw",
         "status",
     }
 

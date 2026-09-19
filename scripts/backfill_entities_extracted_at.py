@@ -62,14 +62,14 @@ CREATE_INDEX_SQL = text("""
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_articles_pending_entities
 ON articles (candidate_link_id)
 WHERE entities_extracted_at IS NULL
-  AND content IS NOT NULL
+  AND raw IS NOT NULL
   AND text IS NOT NULL
   AND status NOT IN ('error', 'paywall', 'wire')
 """)
 
 PENDING_SQL = """
 SELECT COUNT(*) FROM articles a
-WHERE a.content IS NOT NULL AND a.text IS NOT NULL
+WHERE a.raw IS NOT NULL AND a.text IS NOT NULL
   AND a.status NOT IN ('error', 'paywall', 'wire')
   AND NOT EXISTS (SELECT 1 FROM article_entities ae WHERE ae.article_id = a.id)
 """
