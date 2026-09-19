@@ -464,6 +464,34 @@ class BylineCleaner:
         r"image.*:.*$",
     ]
 
+    #: A `\uXXXX` escape whose backslash the publisher lost, e.g. ptleader.com's
+    #: JSON-LD `"name": "By Mallory Krumlu00a0"` -- the page's visible byline is
+    #: correct ("By Mallory Kruml&nbsp;"), the structured data is not, and
+    #: structured data is what the extractor prefers. Four articles stored
+    #: `Mallory Krumlu00A` on 2026-09-19 before this.
+    #:
+    #: DECODED, not deleted: `u0027` is an apostrophe, so "Anu0027Quan" is
+    #: "An'Quan" and deleting the escape would silently rename somebody. At
+    #: least one digit is required, because four hex letters can occur inside a
+    #: real name and a name never carries a digit here.
+    _LOST_ESCAPE = re.compile(
+        r"(?<=[A-Za-z])u(?=[0-9a-fA-F]{4})(?=[0-9a-fA-F]*\d)([0-9a-fA-F]{4})"
+    )
+
+    @classmethod
+    def _decode_lost_escapes(cls, text: str) -> str:
+        """Turn a backslash-less `uXXXX` back into the character it names."""
+        if not text:
+            return text
+
+        def _one(match: re.Match) -> str:
+            try:
+                return chr(int(match.group(1), 16))
+            except (ValueError, OverflowError):
+                return ""
+
+        return cls._LOST_ESCAPE.sub(_one, text)
+
     # Author separators (order matters - more specific first)
     AUTHOR_SEPARATORS = [
         " and ",
@@ -624,6 +652,7 @@ class BylineCleaner:
             self._current_source_name = source_canonical_name or source_name
 
             # Dash-joined bylines, before anything else reads them.
+            byline = self._decode_lost_escapes(byline)
             byline = self.normalise_dash_separators(byline)
 
             if not byline or not byline.strip():
