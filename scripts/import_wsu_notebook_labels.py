@@ -131,7 +131,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import re
 import sys
@@ -308,7 +307,17 @@ def parse_date(value: Any) -> datetime | None:
 
 
 def text_hash(body: str) -> str:
-    return hashlib.sha256(body.encode("utf-8")).hexdigest()[:32]
+    """The corpus's own content hash, at its own length.
+
+    This used to truncate to 32 characters. `calculate_content_hash` returns the
+    full 64-character sha256 and every crawler-written row carries that, so a
+    truncated hash cannot equal any of them: 451 of these 474 articles could
+    never be found as a duplicate of a fetched body, which is part of why a
+    search page stored under two URLs went unnoticed.
+    """
+    from src.models.database import calculate_content_hash
+
+    return calculate_content_hash(body)
 
 
 def human_check(row: dict[str, Any]) -> dict[str, str] | None:
