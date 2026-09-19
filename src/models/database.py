@@ -15,6 +15,7 @@ from urllib.parse import urlparse
 
 import pandas as pd
 from sqlalchemy import (
+    JSON,
     MetaData,
     Table,
     create_engine,
@@ -1625,6 +1626,13 @@ def bulk_insert_candidate_links(
     # Use a raw DB-API connection for pandas.to_sql to avoid passing a
     # proxied Connection object into SQLAlchemy's inspection routines
     # (pandas may obtain a Connection internally which would be proxied).
+    # `meta` is a json column. pandas binds a str parameter as VARCHAR and
+    # PostgreSQL refuses the assignment -- "column meta is of type json but
+    # expression is of type character varying" -- which surfaced only as "in
+    # failed transaction block" at commit, three layers up. Naming the type
+    # makes pg8000 send it as json. Every path that builds a link row sets
+    # `meta`, so this is the common case, not an edge.
+    dtype = {"meta": JSON()} if "meta" in df.columns else None
     rows_inserted = 0
     try:
         raw_conn = engine.raw_connection()
@@ -1635,6 +1643,7 @@ def bulk_insert_candidate_links(
                 if_exists=if_exists,
                 index=False,
                 method="multi",
+                dtype=dtype,
             )
             # pandas may not auto-commit when given a raw DB-API connection,
             # so attempt to commit explicitly.
@@ -1655,6 +1664,7 @@ def bulk_insert_candidate_links(
             if_exists=if_exists,
             index=False,
             method="multi",
+            dtype=dtype,
         )
     rows_inserted = int(rows_inserted or 0)
 
