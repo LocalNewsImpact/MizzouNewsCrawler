@@ -1759,18 +1759,6 @@ def _process_batch(
         processed = 0
         skipped_domains = set()
 
-        # A rewound link gets a bounded number of tries -- the same bound as
-        # housekeeping -- and the ones that just ran out are given up on and
-        # dropped before anything is fetched. See refetch.spend_attempt.
-        refetch_links = [str(r[0]) for r in rows if r[3] == REFETCH]
-        if refetch_links:
-            from src.pipeline.refetch import spend_attempt
-
-            gave_up = spend_attempt(session, refetch_links)
-            if gave_up:
-                logger.info("refetch: gave up on %d link(s)", len(gave_up))
-                rows = [r for r in rows if str(r[0]) not in gave_up]
-
         for row in rows:
             # Send heartbeat to work queue if enough time has passed
             if (
@@ -1789,6 +1777,25 @@ def _process_batch(
             # its rows two ways, and a column added to one and not the
             # other fails here loudly rather than silently going None.
             url_id, url, source, status, canonical_name, link_meta = row
+
+            # A rewound link pays for THIS try, here, because this is where it
+            # gets one. Charged per fetch rather than per batch: a batch
+            # selects more links than it reaches, and charging the selection
+            # retired ten ptleader links on 2026-09-19 that were never
+            # fetched. A link at the bound is given up on and skipped.
+            if status == REFETCH:
+                from src.pipeline.refetch import spend_attempt
+
+                if spend_attempt(session, [str(url_id)]):
+                    logger.info("refetch: gave up on %s after the last try", url)
+                    try:
+                        session.commit()
+                    except Exception:
+                        logger.exception(
+                            "refetch: could not record giving up on %s", url
+                        )
+                        session.rollback()
+                    continue
 
             # Extract domain for failure tracking
             from urllib.parse import urlparse

@@ -399,11 +399,24 @@ class TestExtractionGivesUpOnTheRightPaths:
 
         return Path("src/cli/commands/extraction.py").read_text()
 
-    def test_tries_are_spent_on_the_batch_after_it_is_selected(self):
+    def test_a_try_is_charged_per_fetch_not_per_batch(self):
+        """Charging the selection cost the 2026-09-19 ptleader run ten links:
+        batch 1 selected 17 and reached 4, batch 2 selected 13 and reached 3,
+        and the ten never reached were charged for turns they never got."""
         source = self._source()
-        assert source.index("spend_attempt(session, refetch_links)") < source.index(
-            "for row in rows:"
+        assert "spend_attempt(session, [str(url_id)])" in source
+        assert "spend_attempt(session, refetch_links)" not in source
+        assert source.index("for row in rows:") < source.index(
+            "spend_attempt(session, [str(url_id)])"
         )
+
+    def test_giving_up_on_a_link_is_committed_before_moving_on(self):
+        """`spend_attempt` does not commit -- the batch holds SKIP LOCKED rows --
+        so the give-up needs its own commit or the next rollback loses it. Pass 3
+        logged "gave up on 10 link(s)" and persisted none of them."""
+        source = self._source()
+        after = source[source.index("spend_attempt(session, [str(url_id)])") :]
+        assert "session.commit()" in after[: after.index("continue")]
 
     def test_both_404_paths_give_up_with_the_reason(self):
         assert (

@@ -245,7 +245,13 @@ def clear(session: Session, article_ids: list[str], *, dry_run: bool = False) ->
 
 
 def spend_attempt(session: Session, link_ids: list[str]) -> set[str]:
-    """Spend one try on each rewound link in a batch; give up on the exhausted.
+    """Spend one try on links the batch is ABOUT TO FETCH; give up on the spent.
+
+    Charged per FETCH, not per batch. Charging every selected link cost the
+    2026-09-19 ptleader run ten links: batch 1 selected 17 and reached 4,
+    batch 2 selected 13 and reached 3, and the ten never reached were charged
+    twice for turns they never got. The next run charged a third and logged
+    "gave up on 10 link(s)" without fetching one of them.
 
     Bounded on the ROW, as `rework.count_attempt` bounds housekeeping: the run
     that gives up is never the run that tried before it, so three runs of
@@ -253,13 +259,10 @@ def spend_attempt(session: Session, link_ids: list[str]) -> set[str]:
     `MAX_ATTEMPTS` and the outcome the same word, so "why did this stop" has one
     answer across stages.
 
-    Called AFTER the batch is selected and only for the links in it, because a
-    try must be a try: spending on every rewound link before selection would
-    exhaust links no batch ever reached.
-
     NO COMMIT HERE. The batch holds its rows under FOR UPDATE ... SKIP LOCKED,
-    and a commit would release them to another worker mid-batch. The batch
-    commits per article, which is where this lands.
+    and a commit would release them to another worker mid-batch. The caller
+    commits per article, which is where this lands -- and a charge that is
+    rolled back is a try the row did not pay for, which is the right answer.
     """
     if not link_ids:
         return set()

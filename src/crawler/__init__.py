@@ -6118,6 +6118,15 @@ class ContentExtractor:
                     logger.error("Driver reset attempt failed: %s", reset_exc)
                     return False
 
+            # A host we are signed in to is judged by whether the story
+            # arrived, not by counting the word "subscribe" in the furniture.
+            # No modal closing either: the modal is not what withholds the text
+            # from a subscriber, and each attempt cost ~80 seconds per article.
+            if not self._challenge_check_applies(domain):
+                if self._logged_in_page_withheld_the_story(driver, url):
+                    self._last_capture_rejection = "session_got_no_story"
+                return True
+
             # Try to close subscription modals/popups
             # Prevents false positives from subscription walls
             modal_closed = self._try_close_modals(driver, url)
@@ -6262,11 +6271,49 @@ class ContentExtractor:
             logger.debug(f"Error closing modals on {url}: {e}")
             return False
 
+    def _logged_in_page_withheld_the_story(self, driver, url: str) -> bool:
+        """For a host we hold a session for: did the page give us the story?
+
+        Asked instead of the keyword scan, which measures the wrong thing. The
+        scan counts marketing phrases anywhere in the page source and fires at
+        two; a logged-in Port Townsend Leader page carries "subscribe",
+        "subscription", "subscriber" and "enter your email" in its footer and
+        newsletter box, so on 2026-09-19 every article of a working SimpleCirc
+        session logged "Subscription wall detected (4 indicators found)" and
+        then extracted the full story anyway -- at the cost of two ~80-second
+        stalls per article.
+
+        What matters when we are signed in is whether the body is writing.
+        `looks_like_article` answers exactly that and is the same judgement the
+        capture gate applies. True here means the session is not getting us the
+        text -- a lapsed or refused login, which is worth naming rather than
+        filing as "paywalled".
+        """
+        try:
+            with self._phase("logged_in_body_check"):
+                html = driver.page_source
+            body = self._extract_content(BeautifulSoup(html, "html.parser"))
+        except Exception as exc:  # noqa: BLE001 - a driver fault is not a verdict
+            logger.warning("Could not read the page to judge the session: %s", exc)
+            return False
+        if looks_like_article(body or ""):
+            return False
+        logger.warning(
+            "AUTHENTICATED SESSION GOT NO STORY on %s: %d chars, not writing. "
+            "The login may have lapsed or been refused.",
+            url,
+            len(body or ""),
+        )
+        return True
+
     def _detect_subscription_wall(self, driver) -> bool:
         """Detect if page contains a subscription/paywall modal.
 
         Returns True if subscription wall detected (NOT a bot challenge).
         These should be tracked separately as they may block for days/months.
+
+        ANONYMOUS HOSTS ONLY. A host we hold a session for is judged by
+        `_logged_in_page_withheld_the_story`; the callers pick.
         """
         try:
             with self._phase("subwall_page_source"):
