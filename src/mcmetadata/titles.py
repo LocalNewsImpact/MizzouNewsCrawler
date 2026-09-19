@@ -70,44 +70,7 @@ def from_html(
         title = fallback_title
 
     if (title is not None) and len(title) > 0:
-        # clean off any prefix/suffix
-        normalized_title = _normalize_text_for_comparison(title)
-        title_parts = separator_pattern.split(normalized_title)
-        # title_parts = normalized_title.split(SEPARATOR_PLACEHOLDER)
-        if (
-            len(title_parts) > 2
-        ):  # there are multiple parts, could be prefix, suffice, content, or some combo
-            # we see media-name suffixes a lot more than prefixes, so err on the side of removing suffix and keeping prefix
-            if len(title_parts[0]) < SHORT_TITLE_THRESHOLD:
-                title = normalized_title[0 : -len(title_parts[-1]) - 2]
-            else:
-                # but it could be multiple suffixes, so check by length
-                last_part_index = len(title_parts) - 1  # start with the last one
-                while len(title_parts[last_part_index]) < SHORT_TITLE_THRESHOLD:
-                    last_part_index -= 1
-                if (
-                    last_part_index == len(title_parts) - 1
-                ):  # err on the side of keeping just the first part
-                    last_part_index = 0
-                end_str_index = sum(
-                    [
-                        len(title_parts[i]) + 3
-                        for i in range(last_part_index + 1, len(title_parts))
-                    ]
-                )
-                title = normalized_title[0:-end_str_index]
-        elif (
-            len(title_parts) > 1
-        ):  # there is a single prefix or suffix we might want to remove
-            if len(title_parts[0]) < SHORT_TITLE_THRESHOLD:  # this is probably a prefix
-                if (
-                    len(title_parts[1]) < SHORT_TITLE_THRESHOLD
-                ):  # if both short, then probable a suffixed title
-                    title = normalized_title[: -len(title_parts[1]) - 2 :]
-                else:  # second part is long, so consider it a prefixed title
-                    title = normalized_title[len(title_parts[0]) + 2 :]
-            else:  # probably one or more suffixes
-                title = title_parts[0]
+        title = strip_publication(title)
 
     # if a single h1 on page, and it is subset of found title, go with that (to eliminate post-fixed titles in meta tags)
     match = h1_tag_pattern.search(html_text)
@@ -152,3 +115,59 @@ def _normalize_text_for_comparison(title_part: str) -> str:
     new_title = whitespace_pattern.sub(" ", new_title)  # cleanup remaining whitespace
     new_title = new_title[:MAX_TITLE_LENGTH]
     return new_title.strip()
+
+
+def strip_publication(title: str) -> str:
+    """Drop the publication name a `<title>` or JSON-LD headline carries.
+
+    `<title>` on a news page is conventionally headline + separator +
+    publication, and the publication is already on the row. This was inline in
+    `from_html`, which meant only the content-extraction path used it -- and
+    that path is the FALLBACK. `extract()` prefers the structured-data title
+    (JSON-LD `headline`, or `og:title`), so on any site whose JSON-LD carries
+    the masthead the suffix reached the database untouched: 196 of 220 Port
+    Townsend Leader articles extracted on 2026-09-19, every one of them
+    "<headline> - Port Townsend & Jefferson County Leader".
+
+    Which side is the publication is decided by length, not by position: a
+    part shorter than `SHORT_TITLE_THRESHOLD` is taken for a masthead and a
+    longer one for the story. A title with no separator is returned with only
+    its whitespace and entities normalised.
+    """
+    normalized_title = _normalize_text_for_comparison(title)
+    title_parts = separator_pattern.split(normalized_title)
+    # Every return below is stripped: the slices are computed against a
+    # separator of " - " but offset by 2, so a prefix removal leaves the
+    # leading space behind. `from_html` ended with its own `.strip()` and hid
+    # that for as long as it was the only caller.
+    if (
+        len(title_parts) > 2
+    ):  # there are multiple parts, could be prefix, suffice, content, or some combo
+        # we see media-name suffixes a lot more than prefixes, so err on the side of removing suffix and keeping prefix
+        if len(title_parts[0]) < SHORT_TITLE_THRESHOLD:
+            return normalized_title[0 : -len(title_parts[-1]) - 2].strip()
+        # but it could be multiple suffixes, so check by length
+        last_part_index = len(title_parts) - 1  # start with the last one
+        while len(title_parts[last_part_index]) < SHORT_TITLE_THRESHOLD:
+            last_part_index -= 1
+        if (
+            last_part_index == len(title_parts) - 1
+        ):  # err on the side of keeping just the first part
+            last_part_index = 0
+        end_str_index = sum(
+            [
+                len(title_parts[i]) + 3
+                for i in range(last_part_index + 1, len(title_parts))
+            ]
+        )
+        return normalized_title[0:-end_str_index].strip()
+    if len(title_parts) > 1:  # a single prefix or suffix we might want to remove
+        if len(title_parts[0]) < SHORT_TITLE_THRESHOLD:  # this is probably a prefix
+            if (
+                len(title_parts[1]) < SHORT_TITLE_THRESHOLD
+            ):  # if both short, then probable a suffixed title
+                return normalized_title[: -len(title_parts[1]) - 2 :].strip()
+            # second part is long, so consider it a prefixed title
+            return normalized_title[len(title_parts[0]) + 2 :].strip()
+        return title_parts[0].strip()  # probably one or more suffixes
+    return normalized_title.strip()
