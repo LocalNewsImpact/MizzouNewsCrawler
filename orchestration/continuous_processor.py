@@ -154,16 +154,34 @@ class WorkQueue:
                 )
                 counts["analysis_pending"] = result.scalar() or 0
 
-            # Count articles without entity extraction
-            # (labeled articles are ready for entity extraction)
+            # Count articles without entity extraction, the way the WORKER
+            # selects them -- `src/cli/commands/entity_extraction.py`.
+            #
+            # This counted `NOT EXISTS (SELECT 1 FROM article_entities ...)`,
+            # the form that file records as replaced: the anti-join considers
+            # the whole corpus to find the few articles still pending, so it
+            # grows more expensive the more work is already done. On a
+            # db-g1-small it became the second most expensive statement in the
+            # database -- 22,529 calls, 139,569 seconds total -- running every
+            # 60 seconds against 165k articles and 3.35M entity rows, and
+            # `idx_articles_pending_entities` cannot serve it because that
+            # index is on `entities_extracted_at IS NULL`.
+            #
+            # It also gated on `a.raw IS NOT NULL`, the raw capture, which the
+            # worker explicitly does not: the wall and furniture branches blank
+            # that column before insert, so rows with a perfectly good cleaned
+            # body were counted as done while the worker still owed them.
+            #
+            # A count that disagrees with the selector is not a count of
+            # anything. Same predicate now, and it reads the partial index.
             if ENABLE_ENTITY_EXTRACTION:
                 result = db.session.execute(
                     text(
                         "SELECT COUNT(*) FROM articles a "
-                        "WHERE a.status = 'labeled' "
-                        "AND NOT EXISTS ("
-                        "  SELECT 1 FROM article_entities ae WHERE ae.article_id = a.id"
-                        ") AND a.raw IS NOT NULL"
+                        "WHERE a.entities_extracted_at IS NULL "
+                        "AND a.text IS NOT NULL "
+                        "AND a.status NOT IN "
+                        "('error', 'paywall', 'wire', 'not_article')"
                     )
                 )
                 counts["entity_extraction_pending"] = result.scalar() or 0
