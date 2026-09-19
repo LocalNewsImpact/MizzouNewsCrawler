@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
@@ -9,11 +10,23 @@ from datetime import datetime
 from typing import Protocol
 
 from sqlalchemy import select
+from sqlalchemy import text as sa_text
 from sqlalchemy.orm import Session
 
 from src.ml.article_classifier import Prediction
 from src.models import Article, ArticleLabel, CandidateLink
 from src.models.database import save_article_classification
+from src.utils import language
+
+#: Files a Spanish-language record terminally. `jsonb_set` with `create_missing`
+#: adds the key without reading the row first, so a concurrent writer's other
+#: metadata survives.
+_MARK_NON_ENGLISH_SQL = sa_text(
+    "UPDATE articles SET status = :status, "
+    "metadata = jsonb_set(coalesce(metadata::jsonb, '{}'::jsonb), "
+    "CAST(:key AS text[]), CAST(:note AS jsonb), true)::json "
+    "WHERE id = :id"
+)
 
 logger = logging.getLogger(__name__)
 
@@ -172,6 +185,14 @@ class ArticleClassificationService:
     # is.
     _BODY_FIELD_PREFERENCE = ("text", "content")
 
+    def _body_field(self, article: Article) -> str | None:
+        """The body this stage would classify, before any language filtering."""
+        for field_name in self._BODY_FIELD_PREFERENCE:
+            value = getattr(article, field_name, None)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return None
+
     def _prepare_text(self, article: Article) -> str | None:
         """Headline plus cleaned body — the two together, not the first of them.
 
@@ -179,6 +200,13 @@ class ArticleClassificationService:
         exactly the judgement the CIN classifier makes, so it is prepended to
         the body rather than used only as a last resort. Either part may be
         missing; whatever is present is classified.
+
+        ENGLISH ONLY. The body passes through `language.analysis_text`, so a
+        bilingual article is classified on its English paragraphs rather than
+        on both languages at once -- `redlatinastl.com` runs every story twice
+        on one page, and those bodies measure 46-57% Spanish by paragraph. A
+        Spanish-language body returns None and the caller files the record as
+        non-English instead of classifying it.
         """
         parts: list[str] = []
 
@@ -186,13 +214,55 @@ class ArticleClassificationService:
         if isinstance(title, str) and title.strip():
             parts.append(title.strip())
 
-        for field_name in self._BODY_FIELD_PREFERENCE:
-            value = getattr(article, field_name, None)
-            if isinstance(value, str) and value.strip():
-                parts.append(value.strip())
-                break
+        body = language.analysis_text(self._body_field(article))
+        if isinstance(body, str) and body.strip():
+            parts.append(body.strip())
 
         return "\n\n".join(parts) if parts else None
+
+    def _mark_non_english(
+        self, article_id: str, found: language.LanguageProfile
+    ) -> None:
+        """File a Spanish-language record so it stops being offered for work.
+
+        Without this the article keeps its eligible status, is re-selected on
+        every run and skipped again forever: `attempted_article_ids` only
+        suppresses a repeat inside ONE run.
+
+        The status is TERMINAL -- see `language.NON_ENGLISH_STATUS`. Nothing
+        here rewinds or retries it, because a second fetch returns the same
+        Spanish page. The verdict goes to `metadata.language` as well, so the
+        Spanish classifier this is waiting on can find its corpus by query.
+
+        Written through the session rather than by assigning to the model, as
+        `save_article_classification` does, and with `jsonb_set` so a sibling
+        metadata key is not clobbered by a read-modify-write.
+        """
+        note = json.dumps(
+            {
+                "primary": language.SPANISH,
+                "verdict": found.verdict,
+                "spanish_share": round(found.spanish_share, 4),
+                "english_chars": found.english_chars,
+                "spanish_chars": found.spanish_chars,
+                "detector": "function_word_rate_by_paragraph",
+            }
+        )
+        self.session.execute(
+            _MARK_NON_ENGLISH_SQL,
+            {
+                "id": article_id,
+                "status": language.NON_ENGLISH_STATUS,
+                "key": "{" + language.LANGUAGE_METADATA_KEY + "}",
+                "note": note,
+            },
+        )
+        self.logger.info(
+            "Article %s is Spanish (%.0f%% of measured text); filed as %s",
+            article_id,
+            found.spanish_share * 100,
+            language.NON_ENGLISH_STATUS,
+        )
 
     def apply_classification(
         self,
@@ -319,6 +389,11 @@ class ArticleClassificationService:
 
                 text = self._prepare_text(article)
                 if not text:
+                    # Only recomputed on the skip path, which is the minority.
+                    found = language.profile(self._body_field(article))
+                    article_id_value = getattr(article, "id", None)
+                    if found.verdict == "spanish" and article_id_value:
+                        self._mark_non_english(str(article_id_value), found)
                     stats.skipped += 1
                     self.logger.debug(
                         "Skipping article %s due to empty content",
