@@ -44,27 +44,52 @@ class TestTheStatusSettlesItFirst:
         assert _judge(count=0, status=404).keep is False
 
 
-class TestHowManyOtherUrlsHoldIt:
+class TestEverySameHostRepeat:
     def test_a_body_seen_nowhere_else_is_kept(self):
         assert _judge(count=0).keep is True
 
-    def test_a_single_repeat_is_left_alone(self):
-        """An outlet does republish a story at a second URL, and those are real
-        articles -- lafayettemonews has a 2,676-character one at two."""
-        assert _judge(count=1).keep is True
-
-    def test_two_other_urls_is_still_allowed(self):
-        assert _judge(count=OTHER_URL_LIMIT).keep is True
-
-    def test_three_makes_it_a_fixture_of_the_site(self):
-        """By then it is a wall, a search page or a calendar notice. The corpus
-        holds one "Attention subscribers" notice under 613 URLs of one host."""
-        verdict = _judge(count=OTHER_URL_LIMIT + 1)
+    def test_a_single_repeat_is_a_duplicate(self):
+        """An earlier version left one repeat alone, on the theory that a
+        republished story is two real articles. lafayettemonews showed it is
+        not: the same title and the same 2,676-character body at
+        /commissioners-meet-with-special-road-districts/ and the same slug with
+        WordPress's `-2` suffix, both `enriched`, so the story appeared twice in
+        everything downstream."""
+        verdict = _judge(count=1)
         assert verdict.keep is False
-        assert "urls_of_this_host" in (verdict.reason or "")
+        assert verdict.duplicate is True
 
-    def test_the_reason_says_how_many(self):
-        assert "40" in (_judge(count=40).reason or "")
+    def test_frequent_furniture_is_the_same_verdict(self):
+        """Furniture and a double-post are one problem at two frequencies."""
+        verdict = _judge(count=613)
+        assert verdict.keep is False
+        assert verdict.duplicate is True
+
+    def test_the_reason_says_how_many_hold_it(self):
+        assert "613" in (_judge(count=613).reason or "")
+
+    def test_the_first_row_to_store_a_body_keeps_it(self):
+        """Which is what makes this a duplicate rule and not a rule that
+        refuses the story outright: one copy survives."""
+        assert OTHER_URL_LIMIT == 0
+        assert _judge(count=0).keep is True
+
+
+class TestADuplicateIsNotAnError:
+    def test_an_error_status_is_not_marked_duplicate(self):
+        """`duplicate` names the story that survived; a 404 had no story."""
+        verdict = _judge(status=404)
+        assert verdict.keep is False
+        assert verdict.duplicate is False
+
+    def test_the_caller_picks_the_status_from_that_flag(self):
+        from pathlib import Path
+
+        body = Path("src/cli/commands/extraction.py").read_text()
+        block = body.split("if not body_verdict.keep:")[1][:1200]
+        assert "body_verdict.duplicate" in block
+        assert "DUPLICATE" in block
+        assert '"not_article"' in block
 
 
 class TestTheQueryItCountsWith:
@@ -89,5 +114,5 @@ class TestTheQueryItCountsWith:
 
 class TestTheBoundariesAreNamedNotBuried:
     def test_they_are_importable_constants(self):
-        assert OTHER_URL_LIMIT == 2
+        assert OTHER_URL_LIMIT == 0
         assert ERROR_STATUS == 400

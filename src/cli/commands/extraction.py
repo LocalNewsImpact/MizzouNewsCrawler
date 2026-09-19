@@ -2499,7 +2499,15 @@ def _process_batch(
                                 url,
                                 body_verdict.reason,
                             )
-                            article_status = "not_article"
+                            # `duplicate` when the body is another URL's -- it
+                            # names the story that survived. `not_article` when
+                            # the page never had one.
+                            if body_verdict.duplicate:
+                                from src.cli.commands.duplicates import DUPLICATE
+
+                                article_status = DUPLICATE
+                            else:
+                                article_status = "not_article"
                             # Emptied for the same reason the paywall branch
                             # empties it: a refused capture must never be
                             # readable as a body.

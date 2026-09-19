@@ -11,16 +11,22 @@ calendar notice or some other recurring furniture -- the corpus holds one
 "Attention subscribers" notice under 613 West Plains Daily Quill URLs and one
 restaurant-inspection explainer under 40 Examiner URLs.
 
-WHY NOT REFUSE EVERY REPEAT
----------------------------
-An outlet does sometimes publish the same story at two URLs, and those are real
-articles: excelsiorspringsstandard has a 1,062-character story at four, and
-lafayettemonews a 2,676-character one at two. Refusing a body because it appears
-twice would discard them.
+EVERY SAME-HOST REPEAT, NOT JUST THE FREQUENT ONES
+--------------------------------------------------
+An earlier version of this left a single repeat alone, on the theory that an
+outlet republishing a story at a second URL produces two real articles. It does
+not produce two articles worth counting. lafayettemonews has
 
-So the threshold is how MANY other URLs already hold it. Furniture accumulates --
-by the time a page has been stored under three URLs of one host it is a fixture
-of the site, not a story someone republished. Two is left alone.
+    /2026/03/18/commissioners-meet-with-special-road-districts/
+    /2026/03/18/commissioners-meet-with-special-road-districts-2/
+
+with the same title and the same 2,676-character body -- WordPress's `-2`
+collision suffix on a story published twice. Both were `enriched`, so that story
+appeared twice in everything downstream.
+
+Furniture and a double-post are the same problem at different frequencies, and
+neither is wanted. So the first body stored under a host keeps it and any later
+URL carrying the identical body is a duplicate.
 
 A cross-host repeat is never a duplicate here: syndication is the whole point of
 this corpus, and 6,123 hash groups span more than one host.
@@ -30,9 +36,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-#: How many OTHER URLs of the same host must already hold this body before it is
-#: read as furniture. Two copies can be a republished story; three is a fixture.
-OTHER_URL_LIMIT = 2
+#: How many OTHER URLs of the same host may already hold this body. Zero: the
+#: first row to store a body keeps it, and any later URL with the identical body
+#: on that host is a duplicate whether it is furniture or a double-post.
+OTHER_URL_LIMIT = 0
 
 #: Statuses at or above this mean the server did not give us the article, so
 #: whatever it rendered is not a body whatever it looks like.
@@ -45,6 +52,10 @@ class BodyVerdict:
 
     keep: bool
     reason: str | None = None
+    #: True when the body is another URL's rather than absent or refused, which
+    #: is a different verdict: `duplicate` names the story that survived, while
+    #: `not_article` says this page never had one.
+    duplicate: bool = False
 
 
 def judge_body(
@@ -67,7 +78,8 @@ def judge_body(
     if same_host_url_count > OTHER_URL_LIMIT:
         return BodyVerdict(
             keep=False,
-            reason=f"body_already_on_{same_host_url_count}_urls_of_this_host",
+            reason=f"body_already_on_{same_host_url_count}_url_of_this_host",
+            duplicate=True,
         )
     return BodyVerdict(keep=True)
 
