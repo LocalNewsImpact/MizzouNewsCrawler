@@ -17,6 +17,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     create_engine,
+    func,
     text,
 )
 from sqlalchemy.orm import (
@@ -173,6 +174,17 @@ class Article(Base):
     wire_check_attempted_at: Mapped[datetime | None] = mapped_column(DateTime)
     wire_check_error: Mapped[str | None] = mapped_column(String)
     wire_check_metadata: Mapped[dict | None] = mapped_column(JSON)
+    #: When anything on this row last changed, stamped by a BEFORE INSERT OR
+    #: UPDATE
+    #: trigger rather than by any caller -- the six stage timestamps each cover
+    #: one stage, and a status change, a headline repair or a retraction moves
+    #: none of them. Never written from Python; the database owns it.
+    #: `func.now()` and not `text("CURRENT_TIMESTAMP")`: inside this class
+    #: body the name `text` is the model's own cleaned-body column, so the
+    #: sqlalchemy helper of that name is shadowed and calling it raises.
+    last_modified: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.now()
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=datetime.utcnow
     )
