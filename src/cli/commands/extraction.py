@@ -585,7 +585,7 @@ ARTICLE_FOR_LINK_SQL = text(
 #: every dataset. Held here so there is one spelling, and asserted at use.
 #: Imported rather than spelled again: the rewind writes this status and the
 #: selectors read it, and two spellings of it would be two behaviours.
-from src.pipeline.refetch import REFETCH  # noqa: E402
+from src.pipeline.refetch import REFETCH, TEXT_UNAVAILABLE  # noqa: E402
 
 LINK_STATUS_CLAUSE = f"WHERE cl.status IN ('article', '{REFETCH}')"
 
@@ -1759,6 +1759,18 @@ def _process_batch(
         processed = 0
         skipped_domains = set()
 
+        # A rewound link gets a bounded number of tries -- the same bound as
+        # housekeeping -- and the ones that just ran out are given up on and
+        # dropped before anything is fetched. See refetch.spend_attempt.
+        refetch_links = [str(r[0]) for r in rows if r[3] == REFETCH]
+        if refetch_links:
+            from src.pipeline.refetch import spend_attempt
+
+            gave_up = spend_attempt(session, refetch_links)
+            if gave_up:
+                logger.info("refetch: gave up on %d link(s)", len(gave_up))
+                rows = [r for r in rows if str(r[0]) not in gave_up]
+
         for row in rows:
             # Send heartbeat to work queue if enough time has passed
             if (
@@ -2580,6 +2592,13 @@ def _process_batch(
                     # that keeps the ordinary path exactly as it was -- no
                     # extra query per extraction, and no new way for it to
                     # behave differently.
+                    if status == REFETCH and article_status == "not_article":
+                        # A rewound record IS the publication's story; a capture
+                        # that found furniture instead says the text is not to
+                        # be had, not that the page never was one. `paywall`
+                        # and `duplicate` stay: each says something more.
+                        article_status = TEXT_UNAVAILABLE
+
                     existing_id = None
                     if status == REFETCH:
                         existing = safe_session_execute(
@@ -2829,6 +2848,12 @@ def _process_batch(
                 except Exception:
                     logger.exception("Failed to mark URL as 404: %s", url)
                     session.rollback()
+                if status == REFETCH:
+                    # The page is gone; the record of the story is not.
+                    from src.pipeline.refetch import give_up
+
+                    give_up(session, [str(url_id)], outcome="404")
+                    session.commit()
 
                 metrics.error_message = str(e)
                 metrics.error_type = "not_found"
@@ -2980,6 +3005,11 @@ def _process_batch(
                             url,
                         )
                         session.rollback()
+                    if status == REFETCH:
+                        from src.pipeline.refetch import give_up
+
+                        give_up(session, [str(url_id)], outcome="404")
+                        session.commit()
 
                 # Check if this was a 403 response and track it
                 elif status_code == 403 and host:

@@ -51,6 +51,14 @@ from sqlalchemy.orm import Session
 #: discovery never writes it, so a link at `refetch` was put there on purpose.
 REFETCH = "refetch"
 
+#: The article status when the text could not be had: the page 404s, the
+#: fetch keeps failing, or what came back is a wall or furniture. The record
+#: STANDS -- URL, headline, byline, date say the publication ran the story --
+#: and no analysis stage selects the status, so nothing is classified or
+#: enriched from a body that is not there. Distinct from `not_article`, which
+#: says the page never was a story, and from `paywall`, which says why.
+TEXT_UNAVAILABLE = "text_unavailable"
+
 _ARTICLES_TO_MARK = text("""
     SELECT a.id, a.candidate_link_id, cl.status AS link_status, a.url
       FROM articles a
@@ -60,9 +68,9 @@ _ARTICLES_TO_MARK = text("""
 
 _MARK_LINK = text("UPDATE candidate_links SET status = :refetch WHERE id = :link_id")
 
-#: The previous link status is recorded because it is the only way back. A
-#: fetch that fails leaves the link at `refetch`, and without this there is
-#: nothing to say what it was before somebody asked for the re-fetch.
+#: The previous link status is recorded because it is the only way back: it
+#: is what `give_up` restores when the fetch is not going to succeed, so the
+#: link stops claiming it owes work.
 _MARK_ARTICLE = text("""
     UPDATE articles
        SET metadata = jsonb_set(
@@ -92,6 +100,43 @@ _MARKED = text("""
              OR d.slug = CAST(:dataset AS varchar)
            )
      ORDER BY a.url
+""")
+
+#: One try per batch that selects the link. `RETURNING` reads the value AFTER
+#: the update, so the caller sees the count this try made.
+_SPEND_ATTEMPT = text("""
+    UPDATE articles a
+       SET metadata = jsonb_set(
+             coalesce(a.metadata::jsonb, '{}'::jsonb),
+             '{refetch,attempts}',
+             to_jsonb(coalesce((a.metadata::jsonb -> 'refetch' ->> 'attempts')::int, 0) + 1),
+             true)::json
+      FROM candidate_links cl
+     WHERE cl.id = a.candidate_link_id
+       AND cl.status = :refetch
+       AND cl.id = ANY(:link_ids)
+ RETURNING cl.id, (a.metadata::jsonb -> 'refetch' ->> 'attempts')::int
+""")
+
+_GIVE_UP_ARTICLE = text("""
+    UPDATE articles a
+       SET status = :status,
+           metadata = jsonb_set(
+             coalesce(a.metadata::jsonb, '{}'::jsonb),
+             '{refetch,outcome}', to_jsonb(CAST(:outcome AS text)), true)::json
+     WHERE a.candidate_link_id = ANY(:link_ids)
+""")
+
+#: Only a link still at `refetch` is put back. A 404 has already moved the
+#: link on, and that answer is the better one.
+_RESTORE_LINK_BY_LINK = text("""
+    UPDATE candidate_links cl
+       SET status = coalesce(
+             a.metadata->'refetch'->>'previous_link_status', 'extracted')
+      FROM articles a
+     WHERE a.candidate_link_id = cl.id
+       AND cl.id = ANY(:link_ids)
+       AND cl.status = :refetch
 """)
 
 _RESTORE_LINK = text("""
@@ -196,4 +241,58 @@ def clear(session: Session, article_ids: list[str], *, dry_run: bool = False) ->
         _RESTORE_LINK, {"ids": list(article_ids), "refetch": REFETCH}
     )
     session.commit()
+    return getattr(result, "rowcount", 0)
+
+
+def spend_attempt(session: Session, link_ids: list[str]) -> set[str]:
+    """Spend one try on each rewound link in a batch; give up on the exhausted.
+
+    Bounded on the ROW, as `rework.count_attempt` bounds housekeeping: the run
+    that gives up is never the run that tried before it, so three runs of
+    infinite patience look exactly like one. The bound is the same
+    `MAX_ATTEMPTS` and the outcome the same word, so "why did this stop" has one
+    answer across stages.
+
+    Called AFTER the batch is selected and only for the links in it, because a
+    try must be a try: spending on every rewound link before selection would
+    exhaust links no batch ever reached.
+
+    NO COMMIT HERE. The batch holds its rows under FOR UPDATE ... SKIP LOCKED,
+    and a commit would release them to another worker mid-batch. The batch
+    commits per article, which is where this lands.
+    """
+    if not link_ids:
+        return set()
+    from src.pipeline.rework import ABANDONED, MAX_ATTEMPTS
+
+    result = session.execute(
+        _SPEND_ATTEMPT, {"refetch": REFETCH, "link_ids": list(link_ids)}
+    )
+    rows = result.fetchall() if result is not None else []
+    exhausted = [
+        str(link_id) for link_id, attempts in rows if (attempts or 0) >= MAX_ATTEMPTS
+    ]
+    if exhausted:
+        give_up(session, exhausted, outcome=ABANDONED)
+    return set(exhausted)
+
+
+def give_up(session: Session, link_ids: list[str], *, outcome: str) -> int:
+    """The text is not going to be had: keep the record, stop the asking.
+
+    The article goes to `TEXT_UNAVAILABLE` with the reason under
+    `metadata.refetch.outcome`; the link gets back the status it had before
+    the rewind if it is still waiting at `refetch`. Title, byline, date and
+    the body already stored are left as they are -- what the record says the
+    publication ran is exactly what must survive a fetch that failed.
+    """
+    if not link_ids:
+        return 0
+    result = session.execute(
+        _GIVE_UP_ARTICLE,
+        {"status": TEXT_UNAVAILABLE, "outcome": outcome, "link_ids": list(link_ids)},
+    )
+    session.execute(
+        _RESTORE_LINK_BY_LINK, {"refetch": REFETCH, "link_ids": list(link_ids)}
+    )
     return getattr(result, "rowcount", 0)

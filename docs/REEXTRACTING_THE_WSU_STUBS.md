@@ -113,3 +113,23 @@ overall, so nothing in A, B or F runs until that is lifted. And a login config
 cannot be validated by fake-driver tests: publishers commonly present two login
 forms and the obvious one is wrong, so B's `auth_config` has to be checked
 against the live site before its seven articles can be counted on.
+
+## When the fetch fails, the record stays and the asking stops
+
+A rewound link used to owe work forever: a fetch that kept failing was
+retried every run, because only `pipeline_rework` rows had an attempt bound
+and a rewind made by `refetch.mark` has no such row. Since 2026-09-19:
+
+- Each batch that selects a `refetch` link spends one try on it
+  (`metadata.refetch.attempts`), bounded by the same `MAX_ATTEMPTS` housekeeping
+  uses. The third failure gives up.
+- Giving up (`refetch.give_up`) sets the article to **`text_unavailable`**,
+  records `metadata.refetch.outcome` (`404` or `failed_max_attempts`), and puts
+  the link back to the status it had before the rewind — unless a 404 already
+  moved it, which is the better answer.
+- `text_unavailable` is selected by no stage. The record — URL, headline,
+  byline, date — stands as evidence the publication ran the story; nothing is
+  classified or enriched from a body that is not there.
+- A rewound record whose capture comes back as furniture lands at
+  `text_unavailable`, not `not_article`: the page is the story, the text just
+  was not had. `paywall` and `duplicate` keep their more specific names.
