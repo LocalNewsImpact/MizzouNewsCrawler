@@ -43,6 +43,7 @@ from src.utils.bot_sensitivity_manager import BotSensitivityManager
 from src.utils.comprehensive_telemetry import ExtractionMetrics
 
 from .browser_errors import interstitial_error
+from .browser_status import read_navigation_status
 from .fetch_plan import plan_fetch
 from .fingerprint_profile import (
     FingerprintProfile,
@@ -4725,6 +4726,32 @@ class ContentExtractor:
             success = self._navigate_with_human_behavior(driver, url)
             if not success:
                 return {}
+
+            # WHAT STATUS DID THAT GET? `driver.get()` does not say, and a 404
+            # renders like any other page -- so every one of 30 Port Townsend
+            # Leader links carried http_status NULL while one of them was a
+            # fallback page stored as an article.
+            #
+            # Read once per navigation: get_log() CONSUMES the buffer, so a
+            # second call returns only what arrived afterwards.
+            nav_status, nav_final_url = read_navigation_status(driver)
+            self._last_fetch_http_status = nav_status
+            self._last_navigation_final_url = nav_final_url
+            if nav_status is not None:
+                if nav_status >= 400:
+                    logger.warning(
+                        "Selenium navigation to %s answered HTTP %s%s",
+                        url,
+                        nav_status,
+                        f" (final {nav_final_url})" if nav_final_url else "",
+                    )
+                elif nav_final_url and nav_final_url.rstrip("/") != url.rstrip("/"):
+                    logger.info(
+                        "Selenium followed %s to %s (HTTP %s)",
+                        url,
+                        nav_final_url,
+                        nav_status,
+                    )
 
             # Extract content after ensuring page is loaded
             # Stop the page load BEFORE reading page_source. Reading it while
