@@ -339,3 +339,78 @@ class TestAReworkRunStopsWaiting:
         assert guard in source
         # and the streak resets when a batch does produce work
         assert "if articles_processed > 0:\n                empty_polls = 0" in source
+
+
+class TestAFailedRefetchGivesUp:
+    """A rewound link must not owe work forever. Housekeeping bounds its rows
+    with `rework.count_attempt`; a rewind that is not in `pipeline_rework`
+    -- the 226 shared-body rows never were -- had no bound at all, and a fetch
+    that kept failing was retried every run."""
+
+    def test_the_status_it_gives_up_to_is_selected_by_no_stage(self):
+        assert refetch.TEXT_UNAVAILABLE == "text_unavailable"
+        for selected in (
+            ("cleaned", "local"),
+            ("labeled",),
+            ("enriched", "enrichment_skipped"),
+        ):
+            assert refetch.TEXT_UNAVAILABLE not in selected
+
+    def test_a_try_below_the_bound_gives_up_on_nothing(self):
+        session = _Session(answers=[[("l1", 1), ("l2", 2)]])
+        assert refetch.spend_attempt(session, ["l1", "l2"]) == set()
+        assert len(session.statements) == 1
+        assert "'{refetch,attempts}'" in session.statements[0]
+        assert session.commits == 0, "a commit would release SKIP LOCKED rows mid-batch"
+
+    def test_the_bound_is_the_one_housekeeping_uses(self):
+        from src.pipeline.rework import ABANDONED, MAX_ATTEMPTS
+
+        session = _Session(answers=[[("l1", MAX_ATTEMPTS), ("l2", 1)]])
+        assert refetch.spend_attempt(session, ["l1", "l2"]) == {"l1"}
+        gave_up = [
+            s for s in session.statements if "UPDATE articles" in s and "outcome" in s
+        ]
+        assert len(gave_up) == 1
+        assert session.params[1]["status"] == refetch.TEXT_UNAVAILABLE
+        assert session.params[1]["outcome"] == ABANDONED
+        assert session.params[1]["link_ids"] == ["l1"]
+
+    def test_giving_up_keeps_the_record_and_puts_the_link_back(self):
+        session = _Session()
+        refetch.give_up(session, ["l1"], outcome="404")
+        article, link = session.statements
+        assert "SET status = :status" in article and "'{refetch,outcome}'" in article
+        for column in ("title", "author", "publish_date", "text"):
+            assert f"{column} =" not in article, "the record is what survives"
+        assert "UPDATE candidate_links" in link
+        assert "previous_link_status" in link and "cl.status = :refetch" in link
+
+    def test_nothing_in_touches_nothing(self):
+        session = _Session()
+        assert refetch.spend_attempt(session, []) == set()
+        assert refetch.give_up(session, [], outcome="404") == 0
+        assert session.statements == []
+
+
+class TestExtractionGivesUpOnTheRightPaths:
+    def _source(self) -> str:
+        from pathlib import Path
+
+        return Path("src/cli/commands/extraction.py").read_text()
+
+    def test_tries_are_spent_on_the_batch_after_it_is_selected(self):
+        source = self._source()
+        assert source.index("spend_attempt(session, refetch_links)") < source.index(
+            "for row in rows:"
+        )
+
+    def test_both_404_paths_give_up_with_the_reason(self):
+        assert (
+            self._source().count('give_up(session, [str(url_id)], outcome="404")') == 2
+        )
+
+    def test_furniture_on_a_rewound_record_is_text_unavailable_not_not_article(self):
+        source = self._source()
+        assert 'if status == REFETCH and article_status == "not_article":' in source
+        assert "article_status = TEXT_UNAVAILABLE" in source
