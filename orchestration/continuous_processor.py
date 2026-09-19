@@ -137,7 +137,7 @@ class WorkQueue:
                 result = db.session.execute(
                     text(
                         "SELECT COUNT(*) FROM articles "
-                        "WHERE status = 'extracted' AND content IS NOT NULL"
+                        "WHERE status = 'extracted' AND raw IS NOT NULL"
                     )
                 )
                 counts["cleaning_pending"] = result.scalar() or 0
@@ -163,7 +163,7 @@ class WorkQueue:
                         "WHERE a.status = 'labeled' "
                         "AND NOT EXISTS ("
                         "  SELECT 1 FROM article_entities ae WHERE ae.article_id = a.id"
-                        ") AND a.content IS NOT NULL"
+                        ") AND a.raw IS NOT NULL"
                     )
                 )
                 counts["entity_extraction_pending"] = result.scalar() or 0
