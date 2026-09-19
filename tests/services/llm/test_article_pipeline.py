@@ -23,7 +23,7 @@ def _make_article(**overrides: Any) -> Any:
         "title": "Local council approves budget",
         "author": "Jamie Writer",
         "publish_date": datetime(2024, 1, 1, 12, 0),
-        "content": "Vital update for the community.",
+        "raw": "Vital update for the community.",
         "text": "",
         "url": "https://example.com/story",
         "meta": {},
@@ -128,7 +128,7 @@ def test_render_prompt_formats_defaults_and_truncation() -> None:
         title=None,
         author=None,
         publish_date=datetime(2024, 6, 1, 9, 30),
-        content=long_content,
+        raw=long_content,
         url="https://example.com/long",
     )
 
@@ -148,7 +148,7 @@ def test_render_prompt_falls_back_to_text_and_unknown_date() -> None:
     orchestrator_typed = _DummyOrchestrator([])  # type: ignore[assignment]
     pipeline = ArticleLLMPipeline(session_typed, orchestrator_typed)
     article = _make_article(
-        content="",
+        raw="",
         text=" Replacement body ",
         publish_date="2024-01-02",
     )

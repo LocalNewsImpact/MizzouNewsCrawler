@@ -331,7 +331,7 @@ def _check_entity_extraction_status(session, hours, detailed):
             SELECT COUNT(*)
             FROM articles a
             WHERE a.status IN ('extracted', 'classified')
-            AND a.content IS NOT NULL
+            AND a.raw IS NOT NULL
             AND NOT EXISTS (
                 SELECT 1 FROM article_entities ae
                 WHERE ae.article_id = a.id

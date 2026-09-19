@@ -9,8 +9,8 @@ dataset and every unit test green.
 
 Two things were true at once that no test could see:
 
-- The repository feeds `a.content`. Every measurement that day was made
-  on `COALESCE(a.text, a.content)`, which differs on ~4.5% of articles.
+- The repository feeds `a.raw`. Every measurement that day was made
+  on `COALESCE(a.text, a.raw)`, which differs on ~4.5% of articles.
 - A stated wall was subject to a length test that the capture could
   inflate: the teaser repeated, the headline again, "| Log in".
 
@@ -75,7 +75,7 @@ def article(body):
 
 
 class TestTheGateScoresTheColumnProductionReads:
-    def test_the_repository_feeds_content_not_text(self):
+    def test_the_repository_feeds_raw_not_text(self):
         """`_rows_to_articles` is the only mapping from a row to what the
         gate sees. If it ever switched columns, every threshold measured
         against production would be measured against the wrong thing --
@@ -84,7 +84,7 @@ class TestTheGateScoresTheColumnProductionReads:
         row = SimpleNamespace(
             id="a1",
             title="t",
-            content=WALLED_WITH_REPEATED_TEASER,
+            raw=WALLED_WITH_REPEATED_TEASER,
             text=REAL_STORY,  # the OTHER column: a real story
             dataset_slug="ds",
             publication_city="Columbia",
@@ -95,7 +95,7 @@ class TestTheGateScoresTheColumnProductionReads:
 
     def test_a_row_reaches_the_orchestrator_through_the_real_mapping(self):
         """The row as production holds it, through the real mapping and the
-        real orchestrator. A decisive wall in `content` is refused with the
+        real orchestrator. A decisive wall in `raw` is refused with the
         model never asked; a wall only in `text` is invisible, because
         `text` is not what the gate reads."""
         from src.enrichment import orchestrator
@@ -107,7 +107,7 @@ class TestTheGateScoresTheColumnProductionReads:
             row = SimpleNamespace(
                 id="a1",
                 title="t",
-                content=content,
+                raw=content,
                 text=text,
                 dataset_slug="ds",
                 publication_city="Columbia",

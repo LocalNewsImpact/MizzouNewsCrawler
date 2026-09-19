@@ -1094,7 +1094,7 @@ class TestFurnitureShapeGate:
         # leaving rows that could not afterwards be re-examined to see why they
         # were rejected, or re-filed when a wall went unrecognised.
         assert row["text"] == ""
-        assert row["content"] == self.COUNTRY_DROPDOWN
+        assert row["raw"] == self.COUNTRY_DROPDOWN
         # ...and the metadata captured alongside it is preserved.
         assert row["title"] == "Headline Outside The Furniture"
 
@@ -1110,7 +1110,7 @@ class TestFurnitureShapeGate:
         # Same rule: cleaned body dropped, canonical wall text retained so the
         # row itself still evidences WHY it was filed paywall.
         assert row["text"] == ""
-        assert row["content"] != ""
+        assert row["raw"] != ""
         assert row["title"] == "Headline Outside The Furniture"
 
     def test_nav_wrapped_wall_without_pattern_is_now_recognised_as_paywall(
@@ -1145,7 +1145,7 @@ class TestFurnitureShapeGate:
         assert row["status"] not in ("paywall", "not_article")
         # Body preserved.
         assert row["text"] == self.REAL_PROSE
-        assert row["content"] == self.REAL_PROSE
+        assert row["raw"] == self.REAL_PROSE
 
 
 @pytest.mark.postgres

@@ -51,7 +51,7 @@ def _insert_through_the_command(session, article_id, link_id):
             "title": "t",
             "author": None,
             "publish_date": None,
-            "content": "body",
+            "raw": "body",
             "text": "body",
             "status": "extracted",
             "metadata": "{}",

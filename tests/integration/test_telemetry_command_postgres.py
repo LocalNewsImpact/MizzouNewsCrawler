@@ -89,7 +89,7 @@ def telemetry_test_data(cloud_sql_session, telemetry_test_sources):
             url=candidate.url,
             candidate_link_id=candidate.id,
             title=f"Test Telemetry Article {i}",
-            content=f"Test content for telemetry article {i}",
+            raw=f"Test content for telemetry article {i}",
             text=f"Test text for telemetry article {i}",
             author=f"Test Author {i}",
             status="extracted",
@@ -289,11 +289,11 @@ class TestTelemetryFieldExtractionPostgres:
                 COUNT(*) as total_articles,
                 COUNT(title) as with_title,
                 COUNT(author) as with_author,
-                COUNT(content) as with_content,
+                COUNT(raw) as with_content,
                 COUNT(text) as with_text,
                 CAST(COUNT(title) AS FLOAT) / NULLIF(COUNT(*), 0) as title_rate,
                 CAST(COUNT(author) AS FLOAT) / NULLIF(COUNT(*), 0) as author_rate,
-                CAST(COUNT(content) AS FLOAT) / NULLIF(COUNT(*), 0) as content_rate
+                CAST(COUNT(raw) AS FLOAT) / NULLIF(COUNT(*), 0) as content_rate
             FROM articles
             WHERE extracted_at >= :cutoff_time
         """)
@@ -322,7 +322,7 @@ class TestTelemetryFieldExtractionPostgres:
                 COUNT(a.id) as total_articles,
                 COUNT(a.title) as with_title,
                 COUNT(a.author) as with_author,
-                COUNT(a.content) as with_content
+                COUNT(a.raw) as with_content
             FROM sources s
             JOIN candidate_links cl ON s.id = cl.source_host_id
             JOIN articles a ON cl.id = a.candidate_link_id
@@ -546,7 +546,7 @@ class TestTelemetryPostgresFeatures:
                 COUNT(*) as total,
                 COUNT(CASE WHEN title IS NOT NULL THEN 1 END) as with_title,
                 COUNT(CASE WHEN author IS NOT NULL THEN 1 END) as with_author,
-                COUNT(CASE WHEN content IS NOT NULL THEN 1 END) as with_content
+                COUNT(CASE WHEN raw IS NOT NULL THEN 1 END) as with_content
             FROM articles
             WHERE candidate_link_id IN :candidate_ids
         """)

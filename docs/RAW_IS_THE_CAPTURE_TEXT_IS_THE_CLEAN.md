@@ -80,46 +80,101 @@ API response, a fallback chain rather than a column read.
 27 files carry a reference. The mechanical part is a rename; the judgement is
 in two places, called out below as open decisions.
 
-## Deployment order matters
+## What was decided, and measured
 
-Three deployments are live — `mizzou-api`, `mizzou-processor`, `work-queue` —
-and each breaks the moment the column is renamed, until it runs code that knows
-the new name. The crawler, enrichment and pipeline CronJobs are **suspended**,
-which makes this the right window: nothing is mid-extraction.
+**`text_length` now measures the cleaned body.** The generated expression
+becomes `length(coalesce(text, raw, text_excerpt, ''))`, with `raw` as the
+fallback for rows extracted before the columns diverged. A generated column
+cannot be altered, so the migration drops and re-adds it (one table rewrite,
+~1.4 GB, under the migration's 30-minute statement timeout). Measured against
+production before the change, 165,609 rows:
 
-The migration and the image must land together:
+| | rows |
+| --- | --- |
+| value changes | 5,473 |
+| shrinks (cleaning had removed chrome) | 835 |
+| grows (`text` longer than the capture) | 4,638 |
+| becomes 0 (`text` = '' with a capture present) | 527 |
+| becomes non-zero | 0 |
+| crosses 400 downward / upward | 501 / 77 |
+| crosses 200 downward / upward | 524 / 132 |
 
-1. Merge the code change. Its readers accept both names during the transition.
-2. Build and roll out the images.
-3. Apply the migration.
-4. Restart the three deployments.
+The 527 that become 0 are 289 `not_article`, 177 `paywall`, 29 `paused`, 23
+`opinion`, 4 `obituary`, 2 `enriched`, 1 `weather`, 1 `enrichment_skipped`:
+rows whose body is the wall or the furniture, where "cleaning ran and left
+nothing" is the right answer. `''` counts as a measured zero because
+`coalesce()` skips NULL, not the empty string.
 
-A reader that accepts both names for one release is what removes the ordering
-risk. `getattr(article, "raw", None) or getattr(article, "content", None)` on
-the ORM side, and `COALESCE(raw, content)` is *not* available in SQL because the
-old column ceases to exist — so the SQL readers must be switched in the same
-release as the migration, and that is the constraint that makes step 1 a
-compatibility release rather than a pure rename.
+**Enrichment is renamed, not re-pointed.** It reads `a.raw` — the same
+column, under its real name — because its paywall thresholds were measured
+against that column and moving it to `text` re-measures them. That is its own
+change. `tests/enrichment/test_an_empty_body_is_not_a_verdict.py` pins the
+choice by name so nobody re-measures it by accident.
 
-## Open decisions
+**The cleaning pass stops writing the capture.** `cleaning.py`'s
+`ARTICLE_UPDATE_SQL` wrote cleaned prose back into `content`, which is how the
+two columns converged on 159,709 rows. It now writes `text` only. The ROT47
+repair keeps its rewrite of `raw`: decoding ciphertext is a property of the
+capture, and it says so by name.
 
-**1. Does `text_length` change what it measures?** After the rename its
-expression reads `length(COALESCE(raw, text, text_excerpt, ''))` — a column
-named `text_length` measuring `raw`. Correcting it to prefer `text` is the same
-semantic fix as the rename, but it recomputes the value for 165,609 rows and
-every threshold, gate and audit built on it, including the enrichment length
-gate. Renaming without touching it leaves the name visibly lying; changing it
-is a data change that needs its own verification.
+**`ArticleInput.content` stays.** The enrichment input dataclass keeps its
+field name; it is filled from `r.raw` in `_rows_to_articles` and is internal
+to the enrichment package.
 
-**2. Does enrichment switch to `text` in this PR?** It should — one cleaned
-field, every downstream consumer. But `repository.py` chose `content`
-deliberately:
+**The datadesk console edits and displays `raw`, and that is an open
+decision.** Its model comment said `content` "is the current field and the one
+review edits will target", and its inline editor called it a cleaned-text
+column. So a reviewer correcting "Stored text" has been writing the raw
+capture — the column CIN never reads. The rename makes that visible
+(`/review/articles/<id>/edit/raw/`) without changing it; moving the editor
+and the detail view to `text` is a behaviour change for its own PR.
 
-> The gate reads `a.content`, deliberately -- the paywall thresholds were
-> measured against that column, and reading a different one would silently
-> re-measure all of them.
+## What moves outside the crawler
 
-The cleaned body is shorter and has the wall text stripped, so pointing the gate
-at `text` re-calibrates it. That needs the thresholds re-measured against
-`text`, not just the column swapped, or the gate starts passing and failing
-records for reasons nobody chose.
+- **BigQuery.** The `articles` transfer is `SELECT * FROM articles ...` with
+  `WRITE_TRUNCATE`, daily at 07:00 UTC. The first run after the migration
+  renames the column in `mizzou_analytics.articles` and shifts `text_length`.
+  The Sheets export functions read `a.text` and are unaffected. Ad-hoc
+  queries naming `content` (24 jobs in the last 90 days, last 2026-07-22)
+  will need `raw`.
+- **datadesk.** Separate PR on that repo. It must merge AFTER this migration
+  has run, because merging is its deploy and the model would 500 on every
+  article query until the column exists. The live column-level grants follow
+  the rename by attribute number and need no re-apply;
+  `create_crawler_write_role.sql` is updated so a fresh bootstrap matches.
+  Two visible, intended consequences: the Blocked page's "No body at all"
+  count (`text_length = 0`) rises by the 527 above, and the queue's
+  `text_length__gte=2000` doubt score now measures the cleaned body.
+- **`bk_articles_20260919`**, the snapshot taken for the shared-body
+  retraction, keeps its `content` column. It is a snapshot, not a live table.
+
+## Deployment
+
+There is no compatibility release: the SQL readers name `raw` and nothing
+else, because a renamed column cannot be read under two names in SQL. The
+schema and the code cut over together, and the deploy pipeline decides the
+order:
+
+- `run-migrations` in `build-and-deploy-services.yml` runs as soon as the
+  migrator image builds, deliberately not waiting for the service builds.
+- Each service image deploys itself (`kubectl set image`) as the last step of
+  its own Cloud Build, at the end of the base → ml-base → processor → api →
+  crawler chain.
+
+So the schema moves first, and a pod still running old code fails on
+`column "content" does not exist` until its rollout lands — minutes. Every
+crawler, enrichment and pipeline CronJob is suspended, so `mizzou-processor`
+and `work-queue` are idle; `mizzou-api`'s article-body endpoints
+(`backend/app/main.py`, `telemetry/operations.py`) answer 500 for that window
+and nothing writes.
+
+1. Merge. `run-migrations` applies `b1c2d3e4f5a7`; the rollouts follow.
+2. Verify: `SELECT raw FROM articles LIMIT 1`, `text_length` spot checks
+   against the table above, `ix_articles_rot47_ciphertext` predicate reads
+   `raw`.
+3. Merge the datadesk PR.
+4. The 07:00 UTC BigQuery transfer picks up the new column.
+
+Rollback is `alembic downgrade z6f7a8b9c0d1`, which restores the name and the
+old expression; `tests/alembic/test_raw_is_the_capture_postgres.py` proves the
+round trip on a table with rows in it.

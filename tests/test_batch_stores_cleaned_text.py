@@ -8,7 +8,7 @@ articles, 12.1% still carried boilerplate, and the smoke suite's "content
 reduction" metric could only ever read 0%.
 
 These tests pin the contract the rest of the pipeline already assumes:
-content_cleaner reads `a.content` as its input, entity extraction reads `a.text`
+content_cleaner reads `a.raw` as its input, entity extraction reads `a.text`
 as the cleaned result.
 """
 
@@ -31,7 +31,7 @@ class TestBatchPathKeepsBothSides:
     def test_content_is_bound_to_the_raw_capture(self):
         src = _batch_source()
         assert (
-            '"content": content_text' in src
+            '"raw": content_text' in src
         ), "the batch INSERT must keep the raw capture in `content`"
 
     def test_the_two_columns_are_no_longer_the_same_binding(self):

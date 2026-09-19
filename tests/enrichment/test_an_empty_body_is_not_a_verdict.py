@@ -1,6 +1,6 @@
 """An article with no body is not "not news". It is unenrichable.
 
-The gate reads `a.content`, deliberately: the paywall thresholds were
+The gate reads `a.raw`, deliberately: the paywall thresholds were
 measured against that column, and reading a different one would silently
 re-measure every one of them. But an article whose `content` is empty was
 being sent to the model anyway, which answered `not_news` -- about nothing
@@ -39,7 +39,7 @@ def _row(content, article_id="a1"):
     return SimpleNamespace(
         id=article_id,
         title="Doolittle man killed in motorcycle crash",
-        content=content,
+        raw=content,
         metadata=None,
         status="labeled",
         wire_check_status="complete",
@@ -66,7 +66,7 @@ class TestAnEmptyBodyIsRejectedNotJudged:
         report = _select([_row(empty)], ["a1"])
         assert report.candidates == []
         assert "a1" in report.rejected
-        assert "content" in report.rejected["a1"].lower()
+        assert "raw" in report.rejected["a1"].lower()
 
     def test_it_never_reaches_the_model(self):
         """THE COST. Every one of these was a paid call that returned a
@@ -103,12 +103,12 @@ class TestTheSelectionQueriesAgree:
 
     @pytest.mark.parametrize("sql", ["_CANDIDATE_SQL", "_REPROCESS_SQL"])
     def test_the_batch_queries_exclude_an_empty_body(self, sql):
-        assert "coalesce(a.content, '') <> ''" in str(getattr(repository, sql))
+        assert "coalesce(a.raw, '') <> ''" in str(getattr(repository, sql))
 
-    def test_the_queries_still_read_content_and_not_text(self):
+    def test_the_queries_still_read_raw_and_not_text(self):
         """If this ever changes, every paywall threshold measured against
-        `content` has quietly been re-measured against a different column."""
+        `raw` has quietly been re-measured against a different column."""
         for sql in ("_CANDIDATE_SQL", "_REPROCESS_SQL"):
             body = str(getattr(repository, sql))
-            assert "a.content" in body
+            assert "a.raw" in body
             assert "coalesce(a.text" not in body.lower()

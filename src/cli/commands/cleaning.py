@@ -19,10 +19,12 @@ from src.utils.content_cleaner_balanced import BalancedBoundaryContentCleaner
 
 logger = logging.getLogger(__name__)
 
+# `raw` is deliberately absent: it is the capture, and writing cleaned prose
+# back into it is how the two columns converged -- byte-identical on 159,709
+# of 165,609 rows -- leaving nothing to measure cleaning against.
 ARTICLE_UPDATE_SQL = text("""
     UPDATE articles
-    SET content = :content,
-        text = :text,
+    SET text = :text,
         text_hash = :text_hash,
         text_excerpt = :excerpt,
         status = :status
@@ -82,12 +84,12 @@ def handle_cleaning_command(args) -> int:
                 [f":status{i}" for i in range(len(statuses))]
             )
             query = text(f"""
-                SELECT a.id, a.content, a.status, cl.url
+                SELECT a.id, a.raw, a.status, cl.url
                 FROM articles a
                 JOIN candidate_links cl ON a.candidate_link_id = cl.id
                 WHERE a.status IN ({status_placeholders})
-                AND a.content IS NOT NULL
-                AND a.content != ''
+                AND a.raw IS NOT NULL
+                AND a.raw != ''
                 LIMIT :limit
             """)
 
@@ -175,7 +177,6 @@ def handle_cleaning_command(args) -> int:
                                 session,
                                 ARTICLE_UPDATE_SQL,
                                 {
-                                    "content": cleaned_content,
                                     "text": cleaned_content,
                                     "text_hash": new_hash,
                                     "excerpt": excerpt,

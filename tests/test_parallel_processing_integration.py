@@ -150,7 +150,7 @@ def test_parallel_entity_extraction_with_skip_locked(cloud_sql_session):
                 url=f"http://test.com/parallel-{timestamp}-{i}",
                 title=f"Article {i}",
                 text="Test content for entity extraction",
-                content="Test content for entity extraction",
+                raw="Test content for entity extraction",
                 status="cleaned",
             )
             setup_session.add(article)

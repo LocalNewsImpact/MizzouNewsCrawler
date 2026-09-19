@@ -97,7 +97,7 @@ def _candidate(session, suffix, kind=None):
     session.execute(
         sa.text(
             "INSERT INTO articles (id, candidate_link_id, url, status, "
-            "wire_check_status, title, content, text, created_at, extracted_at, "
+            "wire_check_status, title, raw, text, created_at, extracted_at, "
             "enrichment_attempts) VALUES (:aid, :lid, :url, 'labeled', 'local', "
             "'A story', 'Body with words.', 'Body with words.', now(), now(), 0)"
         ),

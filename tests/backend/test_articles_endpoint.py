@@ -357,7 +357,7 @@ def test_articles_with_special_characters(
         url="https://example.com/special",
         candidate_link_id=sample_candidate_links[0].id,
         publish_date=datetime.now(),
-        content="Content with émojis 🎉 and spëcial çharacters",
+        raw="Content with émojis 🎉 and spëcial çharacters",
         author="O'Brien",
     )
     cloud_sql_session.add(article)

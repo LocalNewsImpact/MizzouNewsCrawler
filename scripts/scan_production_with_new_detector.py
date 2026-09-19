@@ -147,12 +147,12 @@ def main():
     with db.get_session() as session:
         limit_clause = f"LIMIT {args.limit}" if args.limit else ""
         columns = (
-            "a.id, a.url, a.title, a.content, a.author, a.status"
+            "a.id, a.url, a.title, a.raw, a.author, a.status"
         )
         query = text(
             f"SELECT {columns} FROM articles a "
-            "WHERE a.status = :status AND a.content IS NOT NULL "
-            "AND a.content != '' ORDER BY a.publish_date DESC "
+            "WHERE a.status = :status AND a.raw IS NOT NULL "
+            "AND a.raw != '' ORDER BY a.publish_date DESC "
             f"{limit_clause}"
         )
         result = session.execute(query, {"status": args.status})

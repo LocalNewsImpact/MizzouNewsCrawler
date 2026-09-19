@@ -650,7 +650,7 @@ def list_articles(limit: int = 20, offset: int = 0, reviewer: str | None = None)
                         if article.publish_date
                         else None
                     ),
-                    "content": article.content or article.text,
+                    "content": article.raw or article.text,
                     "hostname": (
                         article.candidate_link.source_host_id
                         if article.candidate_link
@@ -774,7 +774,7 @@ def get_article(idx: str):
                 "date": (
                     article.publish_date.isoformat() if article.publish_date else None
                 ),
-                "content": article.content or article.text,
+                "content": article.raw or article.text,
                 "hostname": (
                     article.candidate_link.source_host_id
                     if article.candidate_link

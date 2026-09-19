@@ -400,11 +400,11 @@ class BalancedBoundaryContentCleaner:
             session = db.session
 
         query = """
-        SELECT id, url, content, text_hash
+        SELECT id, url, raw, text_hash
         FROM articles
         WHERE url LIKE :domain
-        AND content IS NOT NULL
-        AND content != ''
+        AND raw IS NOT NULL
+        AND raw != ''
         ORDER BY id DESC
         """
         params: dict[str, Any] = {"domain": f"%{domain}%"}

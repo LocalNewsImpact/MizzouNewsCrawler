@@ -183,7 +183,7 @@ class ArticleClassificationService:
     # the moment they diverged. `content` stays as the fallback for rows
     # extracted before the split, where the raw capture is the only body there
     # is.
-    _BODY_FIELD_PREFERENCE = ("text", "content")
+    _BODY_FIELD_PREFERENCE = ("text", "raw")
 
     def _body_field(self, article: Article) -> str | None:
         """The body this stage would classify, before any language filtering."""

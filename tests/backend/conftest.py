@@ -178,7 +178,7 @@ def sample_articles(
             url=f"https://example.com/article-{i}",
             candidate_link_id=link.id,
             publish_date=base_date - timedelta(days=i),
-            content=(
+            raw=(
                 f"This is test article content for article {i}. "
                 f"It contains relevant local news information."
             ),
@@ -274,7 +274,7 @@ def sample_candidates(cloud_sql_session, sample_snapshots) -> list[Candidate]:
         candidate = Candidate(
             id=f"candidate-{i:03d}",
             snapshot_id=sample_snapshots[i % len(sample_snapshots)].id,
-            selector=f"article > div.content > p:nth-child({i+1})",
+            selector=f"article > div.content > p:nth-child({i + 1})",
             field="content",
             score=0.85 - (i * 0.05),
             words=150 + (i * 10),
@@ -316,7 +316,7 @@ def large_article_dataset(
             url=f"https://example.com/large-{i}",
             candidate_link_id=link.id,
             publish_date=base_date - timedelta(days=i // 10),  # Group by date
-            content=f"Content for large dataset article {i}",
+            raw=f"Content for large dataset article {i}",
             wire=wire_data,
             status="extracted",
         )

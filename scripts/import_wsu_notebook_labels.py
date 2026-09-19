@@ -34,12 +34,12 @@ Two sheets from ``murrow_stories_labeled with random sample human check``:
 
 ``news``
     The fuller raw body, written to BOTH ``articles.text`` and
-    ``articles.content``. The two columns are documented as cleaned body and
+    ``articles.raw``. The two columns are documented as cleaned body and
     raw capture, but in this corpus they are the same string: 3,000 of 3,000
     sampled labeled articles have them byte-identical, and `content` holds
     plain text rather than markup. Writing only ``text`` silently excludes the
     article from enrichment, whose candidate query requires
-    ``coalesce(a.content, '') <> ''`` -- the 474 rows from the first pass were
+    ``coalesce(a.raw, '') <> ''`` -- the 474 rows from the first pass were
     the only text-without-content articles in a corpus of 85,365.
 
     Median 3,474 chars against inputtext's 3,206,
@@ -449,9 +449,9 @@ def build_records(rows: list[dict[str, Any]], hosts: dict[str, dict[str, Any]]):
             "author": author(row),
             "publish_date": published,
             "text": body,
-            # Both, deliberately. Enrichment selects on `content`; the
+            # Both, deliberately. Enrichment selects on `raw`; the
             # classifier prefers `text`. See the module docstring.
-            "content": body,
+            "raw": body,
             "text_hash": text_hash(body),
             "status": "labeled",
             "wire_check_status": WIRE_CHECK_STATUS,
@@ -516,14 +516,14 @@ RETURNING id
 # database derives from text, and naming it in the column list is an error.
 INSERT_ARTICLE = text("""
 INSERT INTO articles
-    (id, candidate_link_id, url, title, author, publish_date, text, content,
+    (id, candidate_link_id, url, title, author, publish_date, text, raw,
      text_hash, status, wire_check_status, wire_check_metadata,
      primary_label, alternate_label,
      label_version, label_model_version, labels_updated_at,
      extraction_version, extracted_at, dataset_id, metadata, created_at)
 VALUES
     (:id, :candidate_link_id, :url, :title, :author, :publish_date, :text,
-     :content, :text_hash, :status, :wire_check_status,
+     :raw, :text_hash, :status, :wire_check_status,
      CAST(:wire_check_metadata AS json), :primary_label, :alternate_label,
      :label_version, :label_model_version, NOW(),
      :extraction_version, NOW(), :dataset_id, CAST(:metadata AS json), NOW())

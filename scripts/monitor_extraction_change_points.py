@@ -166,7 +166,7 @@ def main() -> int:
         print("\n-- entity backlog (should drain and stay near zero) --")
         pending = conn.execute(text("""
                 SELECT COUNT(*) FROM articles a
-                WHERE a.content IS NOT NULL AND a.text IS NOT NULL
+                WHERE a.raw IS NOT NULL AND a.text IS NOT NULL
                   AND a.status NOT IN ('error','paywall','wire')
                   AND NOT EXISTS (
                       SELECT 1 FROM article_entities ae WHERE ae.article_id = a.id

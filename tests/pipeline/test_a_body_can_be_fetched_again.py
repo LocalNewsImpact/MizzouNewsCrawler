@@ -217,13 +217,13 @@ class TestExtractionActuallySeesThem:
         refetch_sql = source.split("ARTICLE_REFETCH_SQL = text(")[1].split('")')[0]
         assert "extraction_version = NULL" in refetch_sql
 
-    def test_the_replacement_is_the_only_statement_that_writes_content(self):
-        """`ARTICLE_UPDATE_SQL` omits `content` to make the canonical capture
+    def test_the_replacement_is_the_only_statement_that_writes_raw(self):
+        """`ARTICLE_UPDATE_SQL` omits `raw` to make the canonical capture
         immutable by construction. Keeping the replacement separate is what
         preserves that everywhere except the path a person asked for by name."""
         source = self._extraction_source()
         update = source.split("ARTICLE_UPDATE_SQL = text(")[1].split(")")[0]
-        assert "content" not in update
+        assert "raw" not in update
 
 
 class TestTheFiltersCannotSilentlyVanish:

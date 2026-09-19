@@ -60,7 +60,7 @@ def _build_article_query(
         query = query.filter(Article.extracted_at >= since)
 
     # Require text or content to exist to avoid wasting extractor cycles
-    query = query.filter(or_(Article.text.isnot(None), Article.content.isnot(None)))
+    query = query.filter(or_(Article.text.isnot(None), Article.raw.isnot(None)))
 
     current_entities = (
         session.query(ArticleEntity.id)

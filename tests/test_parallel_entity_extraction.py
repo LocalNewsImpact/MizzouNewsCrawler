@@ -33,7 +33,7 @@ def test_skip_locked_syntax_is_valid_postgres(cloud_sql_session):
         SELECT a.id
         FROM articles a
         JOIN candidate_links cl ON a.candidate_link_id = cl.id
-        WHERE a.content IS NOT NULL
+        WHERE a.raw IS NOT NULL
         AND a.text IS NOT NULL
         AND a.status != 'error'
         ORDER BY cl.source_id, cl.dataset_id

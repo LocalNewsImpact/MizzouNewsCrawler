@@ -48,7 +48,7 @@ _CANDIDATES = text("""
     SELECT p.article_id,
            COALESCE(NULLIF(p.city, ''), p.county) AS place,
            p.full_name, p.geoid, p.geoid_level, p.lat, p.lon,
-           a.title, COALESCE(a.content, a.text, '') AS content,
+           a.title, COALESCE(a.raw, a.text, '') AS content,
            s.city AS publication_city
       FROM article_places p
       JOIN article_enrichment e ON e.article_id = p.article_id

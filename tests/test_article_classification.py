@@ -32,7 +32,7 @@ def _create_article(session, **kwargs):
         "candidate_link_id": candidate_link.id,
         "url": unique_url,
         "status": kwargs.get("status", "cleaned"),
-        "content": kwargs.get("content", "Local news story"),
+        "raw": kwargs.get("raw", "Local news story"),
         "text": kwargs.get("text", "Local news story"),
         "title": kwargs.get("title", "Sample Article"),
         "created_at": datetime.utcnow(),
@@ -94,7 +94,7 @@ def test_article_classification_service_applies_model(cloud_sql_session):
             ]
 
     article_with_text = _create_article(cloud_sql_session, id="article-a")
-    _create_article(cloud_sql_session, id="article-b", content="", text="", title="")
+    _create_article(cloud_sql_session, id="article-b", raw="", text="", title="")
 
     service = ArticleClassificationService(cloud_sql_session)
     classifier = StubClassifier()
@@ -142,20 +142,20 @@ def test_classification_skips_opinion_and_obituary_statuses(cloud_sql_session):
         cloud_sql_session,
         id="cleaned-article",
         status="cleaned",
-        content="Content",
+        raw="Content",
     )
     # Should be skipped due to status
     _create_article(
         cloud_sql_session,
         id="opinion-article",
         status="opinion",
-        content="Opinion piece",
+        raw="Opinion piece",
     )
     _create_article(
         cloud_sql_session,
         id="obituary-article",
         status="obituary",
-        content="Obituary piece",
+        raw="Obituary piece",
     )
 
     service = ArticleClassificationService(cloud_sql_session)

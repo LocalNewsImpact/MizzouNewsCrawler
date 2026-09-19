@@ -23,9 +23,9 @@ def main():
         # Get articles with content but no text_hash
         result = conn.execute(
             text("""
-            SELECT id, content, text
+            SELECT id, raw, text
             FROM articles
-            WHERE (content IS NOT NULL AND content != '')
+            WHERE (raw IS NOT NULL AND raw != '')
             AND (text_hash IS NULL OR text_hash = '')
         """)
         )

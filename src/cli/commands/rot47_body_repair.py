@@ -37,9 +37,9 @@ logger = logging.getLogger(__name__)
 CIPHERTEXT_MARKER = "k^Am"
 
 FIND_SQL = text("""
-    SELECT a.id, a.content, a.text
+    SELECT a.id, a.raw, a.text
       FROM articles a
-     WHERE a.content LIKE '%k^Am%'
+     WHERE a.raw LIKE '%k^Am%'
        AND (CAST(:since AS date) IS NULL OR a.publish_date >= CAST(:since AS date))
        AND (CAST(:until AS date) IS NULL OR a.publish_date < CAST(:until AS date))
      ORDER BY a.publish_date DESC NULLS LAST
@@ -50,7 +50,7 @@ FIND_SQL = text("""
 #: says, not what anybody concluded from it.
 REPAIR_SQL = text("""
     UPDATE articles
-       SET content = :content,
+       SET raw = :raw,
            text = :text,
            text_hash = :text_hash,
            text_excerpt = :excerpt
@@ -130,7 +130,7 @@ def handle_rot47_body_repair_command(args) -> int:
                     REPAIR_SQL,
                     {
                         "id": article_id,
-                        "content": decoded,
+                        "raw": decoded,
                         "text": final_text,
                         "text_hash": calculate_content_hash(final_text),
                         "excerpt": final_text[:500],

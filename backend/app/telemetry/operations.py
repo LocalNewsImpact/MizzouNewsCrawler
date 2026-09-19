@@ -93,7 +93,7 @@ def get_queue_status() -> dict[str, Any]:
                     "SELECT COUNT(*) FROM articles a "
                     "WHERE NOT EXISTS ("
                     "  SELECT 1 FROM article_entities ae WHERE ae.article_id = a.id"
-                    ") AND a.content IS NOT NULL AND a.status != 'error'"
+                    ") AND a.raw IS NOT NULL AND a.status != 'error'"
                 )
             ).scalar()
             or 0
