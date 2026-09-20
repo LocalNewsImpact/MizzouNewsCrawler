@@ -127,6 +127,45 @@ jobs:
       integration: true
       postgres-db: mizzou_test
 
+  # A docs-only PR cannot merge without these.
+  #
+  # The ruleset requires `checks / lint`, `checks / typecheck`, `checks / test`
+  # and `checks / integration`. Those four contexts are produced by the jobs
+  # INSIDE the reusable workflow above, so when the `checks` job is skipped for a
+  # docs-only change the contexts are never created at all -- not skipped, not
+  # passed, absent. GitHub then reports "Expected -- waiting for status to be
+  # reported" against each one, and waits forever: nothing is coming, and the
+  # only way to merge is an admin bypass.
+  #
+  # So the docs-only path reports the same four contexts itself. A job's status
+  # context is its NAME, and a name may contain a slash, which is what lets these
+  # stand in for the reusable workflow's jobs. Exactly one of the two sets runs --
+  # these are gated on the negation of the `checks` condition -- so a code change
+  # still gets the real suite and can never be satisfied by a stub.
+  #
+  # Discovered on #641, a documentation-only PR that went BLOCKED with every check
+  # that could run passing.
+  docs-only-checks:
+    name: ${{ matrix.context }}
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: >-
+      needs.changes.outputs.code != 'true'
+      && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    strategy:
+      matrix:
+        context:
+          - checks / lint
+          - checks / typecheck
+          - checks / test
+          - checks / integration
+    steps:
+      - name: Nothing the suite covers changed
+        run: |
+          echo "This PR changes only documentation, as decided by"
+          echo "scripts/ci/docs-only.sh -- the same script the pre-push hook asks."
+          echo "Reporting ${{ matrix.context }} so the required check is satisfied."
+
   conforms:
     uses: LocalNewsImpact/lnic-contracts/.github/workflows/conforms.yml@ci-v1
     with:
