@@ -75,6 +75,137 @@ SUBMIT_CANDIDATES = (
 )
 
 
+#: Find a login form by its SHAPE rather than by guessing attribute names.
+#:
+#: The candidate lists above key on `type`, `name`, `id` and `autocomplete`, and
+#: component-framework markup often sets none of them. Connext is the case on
+#: record: its inputs are `input.connext-login-a-cep-login__input` with no id, no
+#: name and no autocomplete -- class only -- so not one of EMAIL_CANDIDATES can
+#: match, and yakimaherald needed every selector configured by hand. A longer list
+#: does not reach a class-only input; a different question does.
+#:
+#: The question browsers ask: `input[type="password"]` is near-universal, because
+#: a password manager has to find it too and the browser's own autofill depends on
+#: it. So anchor there and work outwards structurally:
+#:
+#:   1. every VISIBLE password input is a candidate anchor
+#:   2. its scope is the enclosing form (or the nearest container holding inputs,
+#:      for modals built out of divs)
+#:   3. the username is the nearest visible text-like input BEFORE it in that
+#:      scope -- which is why a header search box cannot be picked: different form,
+#:      and never between a label and its password
+#:   4. the submit control comes from the scope by role, not by name
+#:
+#: Scopes holding exactly one password input are preferred, because two means a
+#: registration or change-password form rather than a login.
+#:
+#: This does not replace configured selectors. Those still win, so a host that has
+#: been witnessed keeps behaving exactly as it did.
+LOGIN_FIELD_DISCOVERY_JS = r"""
+const TEXTISH = new Set(["text", "email", "tel", "", null, undefined]);
+const SEARCHY = /search|query|^q$|keyword/i;
+const SUBMITTY = /log ?in|sign ?in|continue|next|submit|enter/i;
+
+function visible(el) {
+  if (!el || el.disabled || el.readOnly) return false;
+  if (el.type === "hidden") return false;
+  if (!el.getClientRects().length && el.offsetParent === null) return false;
+  const s = window.getComputedStyle(el);
+  return s.visibility !== "hidden" && s.display !== "none" && s.opacity !== "0";
+}
+
+function scopeOf(el) {
+  const form = el.closest("form");
+  if (form) return form;
+  // Modals are often divs. Walk up until a container holds another input.
+  let node = el.parentElement;
+  while (node && node !== document.body) {
+    if (node.querySelectorAll("input").length > 1) return node;
+    node = node.parentElement;
+  }
+  return document.body;
+}
+
+function textish(el) {
+  if (el.tagName !== "INPUT") return false;
+  const t = (el.getAttribute("type") || "").toLowerCase();
+  if (!TEXTISH.has(t)) return false;
+  const hay = [el.name, el.id, el.placeholder, el.getAttribute("aria-label")]
+    .filter(Boolean).join(" ");
+  return !SEARCHY.test(hay);
+}
+
+function submitIn(scope) {
+  const explicit = [...scope.querySelectorAll(
+    'button[type="submit"], input[type="submit"]')].filter(visible);
+  if (explicit.length) return explicit[explicit.length - 1];
+  const buttons = [...scope.querySelectorAll(
+    'button, [role="button"], input[type="button"]')].filter(visible);
+  const named = buttons.filter(b => SUBMITTY.test(
+    (b.innerText || b.value || b.getAttribute("aria-label") || "")));
+  if (named.length) return named[named.length - 1];
+  return buttons.length ? buttons[buttons.length - 1] : null;
+}
+
+const anchors = [...document.querySelectorAll('input[type="password"]')]
+  .filter(visible);
+
+let best = null;
+for (const pw of anchors) {
+  const scope = scopeOf(pw);
+  const passwords = [...scope.querySelectorAll('input[type="password"]')]
+    .filter(visible);
+  const all = [...scope.querySelectorAll("input")].filter(visible);
+  const before = all.slice(0, all.indexOf(pw)).filter(textish);
+  const candidate = {
+    password: pw,
+    email: before.length ? before[before.length - 1] : null,
+    submit: submitIn(scope),
+    // One password field means a login. Two means registration or a change.
+    score: (passwords.length === 1 ? 4 : 0)
+         + (before.length ? 2 : 0)
+         + (submitIn(scope) ? 1 : 0),
+  };
+  if (!best || candidate.score > best.score) best = candidate;
+}
+
+if (best) {
+  return {email: best.email, password: best.password, submit: best.submit,
+          why: "anchored on a visible password input"};
+}
+
+// Identifier-first: the password is on a later screen, so there is nothing to
+// anchor on yet. Accept a lone text-like input in a scope that can submit.
+const lone = [...document.querySelectorAll("input")].filter(visible).filter(textish);
+for (const el of lone) {
+  const scope = scopeOf(el);
+  if ([...scope.querySelectorAll('input[type="password"]')].length) continue;
+  const submit = submitIn(scope);
+  if (!submit) continue;
+  return {email: el, password: null, submit: submit,
+          why: "identifier-first: no password field on this screen"};
+}
+return null;
+"""
+
+
+def discover_login_fields(driver) -> dict:
+    """Locate the login fields by shape. Returns {} when nothing looks like one.
+
+    Never raises: discovery is an improvement on a guess, so a page that defeats
+    it must fall back rather than fail the login.
+    """
+    try:
+        found = driver.execute_script(LOGIN_FIELD_DISCOVERY_JS)
+    except Exception as exc:  # pragma: no cover - driver/JS variety
+        logger.debug("login field discovery failed: %s", exc)
+        return {}
+    if not isinstance(found, dict) or not found.get("email"):
+        return {}
+    logger.info("Login form found by shape (%s)", found.get("why"))
+    return found
+
+
 # Credential fields a publisher secret may carry. Most publishers authenticate
 # with username + password; SimpleCirc publishers authenticate with the
 # subscriber's email + billing ZIP (or account number + ZIP) and have no
@@ -253,15 +384,32 @@ def _fill_and_submit(driver, cfg: dict, username: str, password: str) -> bool:
     # The timeout is config-overridable (tests use a tiny value so a login
     # page with no fields fails fast instead of polling for 20s).
     email_el = None
+    discovered: dict = {}
     field_timeout = float(cfg.get("field_timeout", 20))
     deadline = time.time() + field_timeout
     while True:
+        # Configured selectors first, always. A host that has been witnessed with
+        # explicit selectors must keep behaving exactly as it did -- discovery is
+        # for the hosts nobody has configured, not a second opinion on the ones
+        # that work.
         email_el, _ = _find_first(driver, [email_sel, *EMAIL_CANDIDATES])
-        if email_el or time.time() >= deadline:
+        if email_el:
+            break
+        # Then by shape. This is what reaches a class-only input, which no
+        # attribute guess can.
+        discovered = discover_login_fields(driver)
+        if discovered.get("email"):
+            email_el = discovered["email"]
+            break
+        if time.time() >= deadline:
             break
         time.sleep(1)
     if not email_el:
-        logger.warning("Authenticated login: username/email field not found")
+        logger.warning(
+            "Authenticated login: username/email field not found "
+            "(no configured selector matched, and no password-anchored form "
+            "was visible to work outwards from)"
+        )
         return False
 
     email_el.clear()
@@ -270,7 +418,11 @@ def _fill_and_submit(driver, cfg: dict, username: str, password: str) -> bool:
     # Password may be on the same screen or a second (identifier-first) step.
     pass_el, _ = _find_first(driver, [pass_sel, *PASSWORD_CANDIDATES])
     if not pass_el:
+        pass_el = discovered.get("password")
+    if not pass_el:
         cont_el, _ = _find_first(driver, [submit_sel, *SUBMIT_CANDIDATES])
+        if not cont_el:
+            cont_el = discovered.get("submit")
         if cont_el:
             cont_el.click()
         else:
@@ -279,6 +431,13 @@ def _fill_and_submit(driver, cfg: dict, username: str, password: str) -> bool:
         while time.time() < pdeadline:
             pass_el, _ = _find_first(driver, [pass_sel, *PASSWORD_CANDIDATES])
             if pass_el:
+                break
+            # The second screen is a new DOM, so discovery runs again rather than
+            # reusing the handles found before the identifier was submitted.
+            again = discover_login_fields(driver)
+            if again.get("password"):
+                pass_el = again["password"]
+                discovered = again
                 break
             time.sleep(1)
     if not pass_el:
@@ -289,6 +448,10 @@ def _fill_and_submit(driver, cfg: dict, username: str, password: str) -> bool:
     pass_el.send_keys(password)
 
     submit_el, _ = _find_first(driver, [submit_sel, *SUBMIT_CANDIDATES])
+    if not submit_el:
+        # By shape: the scope's submit control, found by role and by what its
+        # label says, not by a name we guessed.
+        submit_el = discovered.get("submit")
     if submit_el:
         try:
             submit_el.click()

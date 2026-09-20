@@ -41,4 +41,4 @@ chown -R appuser:appuser /workspace
 # test_selenium_only_feature.py mocks the browser away, and the job
 # passed because one unmocked, assertionless test fell through to a
 # real browser for 177 seconds.
-su appuser -c 'export SELENIUM_EXECUTION_MODE=headful && /usr/local/bin/run-with-xvfb.sh pytest -m enable_selenium tests/test_headful_chrome_runs_in_this_image.py tests/test_selenium_only_feature.py -vv'
+su appuser -c 'export SELENIUM_EXECUTION_MODE=headful && /usr/local/bin/run-with-xvfb.sh pytest -m enable_selenium tests/test_headful_chrome_runs_in_this_image.py tests/test_selenium_only_feature.py tests/crawler/test_a_login_form_is_found_by_shape.py -vv'
