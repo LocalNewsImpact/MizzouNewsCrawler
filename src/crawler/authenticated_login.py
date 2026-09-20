@@ -412,10 +412,19 @@ def _login_form(driver, cfg: dict, username: str, password: str) -> bool:
             success_text_seen = success_text.lower() in driver.page_source.lower()
         except Exception:
             success_text_seen = False
-    # A session-establishing form login typically navigates away from the login
-    # page and/or exposes an account marker. For homepage modal logins, URL may
-    # stay unchanged, so treat disappearance of the visible login trigger as a
-    # success marker as well.
+    # An affirmative answer wins outright, in both directions: a configured
+    # cookie that is present means logged in, and one that is absent means not
+    # -- the weaker proxies must not overrule it, because they are what reported
+    # success on a session that was serving walls.
+    confirmed = _session_cookie_present(driver, cfg)
+    if confirmed is not None:
+        return confirmed
+
+    # No cookie configured. A session-establishing form login typically
+    # navigates away from the login page and/or exposes an account marker. For
+    # homepage modal logins the URL may stay unchanged, so treat disappearance
+    # of the visible login trigger as a success marker as well. All three are
+    # guesses; `success_cookie` is how a host stops guessing.
     return left_login_page or success_text_seen or trigger_disappeared
 
 
@@ -499,6 +508,44 @@ def _login_newzware(driver, cfg: dict, username: str, password: str) -> bool:
 SIMPLECIRC_EMAIL_SELECTOR = 'form[action*="admin-post.php"] input[name="email"]'
 SIMPLECIRC_ZIP_SELECTOR = 'form[action*="admin-post.php"] input[name="zip"]'
 SIMPLECIRC_SUBMIT_SELECTOR = 'form[action*="admin-post.php"] button[type="submit"]'
+
+
+def _session_cookie_present(driver, cfg: dict) -> bool | None:
+    """Whether the cookie a logged-in session carries is in the jar.
+
+    THE ONLY AFFIRMATIVE CONFIRMATION AVAILABLE. Every other check is a proxy
+    for the answer: whether the URL changed, whether a word appears in the page
+    source, whether a login button went away. On a homepage modal login none of
+    them is reliable, and on 2026-09-20 `www.yakimaherald.com` reported "did not
+    confirm" on a login whose session was working -- then, later in the same run,
+    reported the same thing on a login that was NOT working and served a wall,
+    which the furniture rule filed as `not_article`. Two opposite states,
+    indistinguishable in the log.
+
+    A cookie is the session. Configure the name per host in
+    `sources.auth_config.success_cookie` -- it is a DB column, so a wrong guess
+    is a row edit rather than a deploy.
+
+    Returns None when no cookie is configured, so the caller can fall back to
+    the weaker checks rather than treating "not configured" as "not logged in".
+    """
+    name = (cfg.get("success_cookie") or "").strip()
+    if not name:
+        return None
+    try:
+        cookies = {c.get("name", "") for c in (driver.get_cookies() or [])}
+    except Exception as exc:
+        logger.warning("could not read cookies to confirm the session: %s", exc)
+        return False
+    if name in cookies:
+        logger.info("session confirmed: cookie %r is set", name)
+        return True
+    logger.warning(
+        "session NOT confirmed: cookie %r is absent (jar holds %d cookies)",
+        name,
+        len(cookies),
+    )
+    return False
 
 
 def _login_simplecirc(driver, cfg: dict, creds: dict) -> bool:
