@@ -93,9 +93,10 @@ _USAGE_ACC: ContextVar[list | None] = ContextVar("enrichment_usage_acc", default
 _CALLBACK_REGISTERED = False
 
 #: Which dataset the calls being made right now are for. Read by the wrapper
-#: below and sent as LiteLLM's `user`, which OpenRouter records as
+#: below and put in the request body as `user`, which OpenRouter records as
 #: `external_user` on the generation -- the only field that survives the trip
-#: and can say what the money was spent on.
+#: and can say what the money was spent on. It goes in `extra_body`, because a
+#: `user` KEYWORD never reaches the wire; see `_label_calls_with_the_dataset`.
 _DATASET: ContextVar[str | None] = ContextVar("enrichment_dataset", default=None)
 _WRAPPED = False
 
@@ -249,22 +250,24 @@ def _on_a_unit_scale(response):
 
 
 def _label_calls_with_the_dataset() -> None:
-    """Send `user` on every completion, once per process.
+    """Put the dataset on every completion's request body, once per process.
 
-    The steps this module runs directly can pass `user` themselves. The
-    node steps cannot: they call through agate_runtime into agate_nodes,
-    which makes its own requests and has no idea a dataset exists. Those
-    are the larger share of the bill, so labelling only what we call
-    directly would attribute a fraction and leave the rest looking like
-    overhead.
+    The node steps call through agate_runtime into agate_nodes, which makes
+    its own requests and has no idea a dataset exists. Those are the larger
+    share of the bill -- 193,081 OpenRouter calls in 30 days for ~17,000
+    enriched articles -- so labelling only what this module calls directly
+    would attribute a fraction and leave the rest looking like overhead.
 
-    So the label goes on at the one place every call passes through --
-    litellm itself. This module already reaches into litellm to collect
-    usage; this is the same reach for the same reason, and the wrapper is
-    a pass-through in every respect but the one keyword.
+    So the label goes on at the one place every call passes through: litellm
+    itself. This module already reaches into litellm to collect usage; this is
+    the same reach for the same reason, and the wrapper is a pass-through in
+    every respect but the request body.
 
-    `user` is not overwritten where a caller set it, so the direct calls
-    keep saying what they already say.
+    It has to be the BODY. `backfield_ai.completion` resolves
+    `litellm.completion` at call time, so this wrapper does intercept the node
+    calls -- but a `user` keyword is dropped by litellm's openrouter transform
+    before the request is built, so labelling them that way changed nothing
+    anybody could see. See the wrapper for the measurement.
     """
     global _WRAPPED
     if _WRAPPED:
@@ -280,9 +283,32 @@ def _label_calls_with_the_dataset() -> None:
 
     @wraps(inner)
     def labelled(*args: Any, **kwargs: Any) -> Any:
-        dataset = _DATASET.get()
-        if dataset and not kwargs.get("user"):
-            kwargs["user"] = dataset
+        # The label rides in `extra_body`, not in the `user` kwarg.
+        #
+        # `user` is a standard OpenAI parameter but it is NOT in litellm's
+        # supported set for the openrouter provider -- 31 params for
+        # `openrouter/deepseek/deepseek-v3.2-20251201` and `user` is not among
+        # them -- so its transform drops the argument and nothing on the wire
+        # carries it. Measured against litellm 1.97.0 by pointing `api_base` at
+        # a local listener and reading the body it received:
+        #
+        #     user="WSU-Washington-State"              -> body: model, messages
+        #     extra_body={"user": "WSU-..."}           -> body: ... user
+        #
+        # In production that showed up as a field that is always empty:
+        # `external_user` was set on 2 of 193,081 OpenRouter traces in 30 days,
+        # and both of those were 13-token test calls made by hand. Every
+        # enrichment call said only that the money was spent, so the cost page
+        # showed a per-dataset figure for the recorded side and nothing at all
+        # for the billed one.
+        #
+        # A caller's own `user` is relocated rather than honoured where it sits,
+        # because sitting there it does nothing.
+        dataset = kwargs.pop("user", None) or _DATASET.get()
+        if dataset:
+            extra = dict(kwargs.get("extra_body") or {})
+            extra.setdefault("user", dataset)
+            kwargs["extra_body"] = extra
         if ENRICHMENT_PROVIDERS:
             # Routing goes in extra_body: litellm passes it through to
             # OpenRouter untouched. Verified against the trace export --
@@ -509,14 +535,6 @@ def run_content_gate(
             max_tokens=60,
             timeout=DEFAULT_TIMEOUT_S,
             response_format={"type": "json_object"},
-            # Which dataset paid for this call. LiteLLM forwards `user`
-            # to OpenRouter, which records it as `external_user` on the
-            # generation, so the billed cost can be split the way the
-            # recorded cost already is. Without it every trace we have
-            # collected says only that the money was spent -- the cost
-            # page shows a per-dataset figure for the recorded side and
-            # nothing at all for the billed one.
-            user=article.dataset_slug,
         )
         raw = response.choices[0].message.content or ""
         # Some providers wrap JSON in a code fence despite response_format.
@@ -579,7 +597,6 @@ def run_focus(article: ArticleInput, model: str) -> StepResult:
             timeout=DEFAULT_TIMEOUT_S,
             temperature=0,
             response_format={"type": "json_object"},
-            user=article.dataset_slug,
         )
         raw = response.choices[0].message.content or ""
         raw = re.sub(r"^```(json)?|```$", "", raw.strip(), flags=re.M).strip()
