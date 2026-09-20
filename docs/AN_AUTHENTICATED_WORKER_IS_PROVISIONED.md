@@ -125,20 +125,43 @@ accounts and no publisher here has been asked whether it tolerates that. **This
 is the one question still open**, and it is why the count is 1 rather than a
 number chosen for throughput. A second worker buys wall-clock and nothing else.
 
-## Still open
+## Nothing schedules this worker, and that is the design
 
-1. **Per-host login concurrency is unknown.** See above. Until it is known per
-   host, one authenticated worker per dataset is the safe provisioning.
-2. **Credentialed rework goes through housekeeping, which is `mixed`.**
-   `news-housekeeping` runs `extract --rework` and sets no pool, so a
-   credentialed link that a review decision rewound could be fetched by a
-   worker that recycles every three fetches. Setting it to `anonymous` would be
-   worse: the authenticated worker does not run `--rework`, so that work would
-   be claimable by nobody. Today this cannot fire — all seven credentialed
-   sources are `paused`, and the queue offers only `active` ones — but it is a
-   hole waiting for the day one of them is left active.
-3. **No schedule fires the authenticated worker**, deliberately: every
-   paywalled host's first run is watched live, one publisher at a time.
+There is no CronWorkflow and there should not be. A paywalled host's first run
+is watched live, one publisher at a time, because the login is the part that
+fails and it fails differently per publisher — `cascadiadaily.com` counts
+attempts and locks the account out. A schedule would run the one thing that must
+not run unattended. It is submitted by hand, per host, per the procedure below.
+
+## Genuinely open
+
+**Per-host login concurrency.** Not missing code — an unanswered question about
+the publishers. Do they tolerate two simultaneous sessions on one subscriber
+account? The WSU credentials are single accounts and none of these publishers
+has been asked. Until that is known per host, one authenticated worker is the
+safe provisioning, and the count is 1 for that reason rather than for
+throughput. This blocks nothing: one worker is what a monitored one-host-at-a-
+time run wants anyway.
+
+**Credentialed rework, if one ever appears.** `news-housekeeping` runs
+`extract --rework` through its OWN `extraction-step` in
+`housekeeping-workflow.yaml` — a separate definition from the pipeline's, so it
+did not gain `worker-pool` and resolves to `mixed`. A credentialed link in the
+rework queue could therefore be fetched by a worker that recycles every three
+fetches, unwatched.
+
+Three conditions have to hold at once for that: an open rework row on a
+credentialed source, that source `active`, and the cron firing (3/9/12/15/18/21
+UTC). Measured 2026-09-20: `pipeline_rework` has **0 open rows of 773**, and
+**none** on a credentialed source. The second condition is true by design during
+a monitored run, so the only missing ingredient is the rework row — which a
+review decision creates.
+
+Setting housekeeping to `anonymous` would be worse, not better: the
+authenticated worker does not run `--rework`, so credentialed rework would
+become claimable by nobody at all. The fix is an authenticated rework pass in
+housekeeping, and the trigger to build it is the first review decision that
+rewinds a paywalled article. Until then this is recorded, not repaired.
 
 ## Running a paywalled host
 
