@@ -187,6 +187,10 @@ class TestVerificationCommandPostgres:
         args.status = True
         args.continuous = False
         args.idle_grace_seconds = 0
+        # Set explicitly: `args` is a Mock, so an unset attribute answers with
+        # another Mock rather than raising, and the handler would forward that
+        # as the dataset. None is what "every dataset" looks like.
+        args.dataset = None
 
         # Patch logging to avoid side effects
         with patch("src.cli.commands.verification.logging.basicConfig"):
@@ -194,8 +198,13 @@ class TestVerificationCommandPostgres:
 
         # Should exit successfully
         assert exit_code == 0
-        # Service should have been called with correct parameters
-        mock_service_class.assert_called_once_with(batch_size=100, sleep_interval=30)
+        # Service should have been called with correct parameters, the dataset
+        # among them: verification is scoped, and an unscoped run verifies
+        # another corpus's backlog (373 Mizzou links against 0 WSU, measured
+        # 2026-09-19).
+        mock_service_class.assert_called_once_with(
+            batch_size=100, sleep_interval=30, dataset_id=None
+        )
         mock_service.get_status_summary.assert_called_once()
 
 
