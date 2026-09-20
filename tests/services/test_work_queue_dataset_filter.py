@@ -96,9 +96,15 @@ class TestItemSelectionQuery:
         """A domain can hold links from several datasets, so filtering the
         domain list alone would still hand back out-of-dataset links."""
         session = MagicMock()
-        coordinator._get_available_domains = lambda s, d=None, rework=False: [
-            {"source": "example.com", "canonical_name": "Example", "article_count": 5}
-        ]
+        coordinator._get_available_domains = (
+            lambda s, d=None, rework=False, requires_login=None: [
+                {
+                    "source": "example.com",
+                    "canonical_name": "Example",
+                    "article_count": 5,
+                }
+            ]
+        )
         session.execute.return_value = iter([])
 
         coordinator._request_work_with_session(
@@ -115,9 +121,15 @@ class TestItemSelectionQuery:
 
     def test_item_sql_filters_on_dataset_id(self, coordinator):
         session = MagicMock()
-        coordinator._get_available_domains = lambda s, d=None, rework=False: [
-            {"source": "example.com", "canonical_name": "Example", "article_count": 5}
-        ]
+        coordinator._get_available_domains = (
+            lambda s, d=None, rework=False, requires_login=None: [
+                {
+                    "source": "example.com",
+                    "canonical_name": "Example",
+                    "article_count": 5,
+                }
+            ]
+        )
         session.execute.return_value = iter([])
 
         coordinator._request_work_with_session(
@@ -142,6 +154,7 @@ class TestScopePropagation:
             max_per_domain,
             dataset=None,
             rework=False,
+            requires_login=None,
         ):
             seen["dataset"] = dataset
             return "sentinel"
@@ -163,6 +176,7 @@ class TestScopePropagation:
             max_per_domain,
             dataset=None,
             rework=False,
+            requires_login=None,
         ):
             seen["dataset"] = dataset
             return "sentinel"

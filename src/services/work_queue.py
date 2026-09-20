@@ -98,6 +98,25 @@ class WorkRequest(BaseModel):
             "Omit to draw from every dataset, which is the historical behaviour."
         ),
     )
+    requires_login: Optional[bool] = Field(
+        None,
+        description=(
+            "Serve only credentialed hosts (True) or only anonymous ones "
+            "(False). Omit to mix, which is the historical behaviour.\n\n"
+            "A credentialed host wants a worker of its own, because the "
+            "Selenium driver is shared and its authenticated sessions are "
+            "dropped every time it is recycled. A worker that fetches both "
+            "kinds must either recycle on the ordinary schedule -- paying a "
+            "fresh login on each credentialed host's next turn -- or hold the "
+            "driver longer and deny the anonymous hosts the rotation that "
+            "limit exists to give them. Segregating them lets each kind keep "
+            "the setting it needs while both still rotate BETWEEN domains of "
+            "their own kind, which is what the cooldowns are for.\n\n"
+            "See docs/AN_AUTHENTICATED_WORKER_IS_PROVISIONED.md: this field is "
+            "only half the answer, because a credentialed domain offered to "
+            "whichever worker asks first is not segregated at all."
+        ),
+    )
 
 
 class WorkItem(BaseModel):
@@ -200,7 +219,11 @@ class WorkQueueCoordinator:
             del self.worker_domains[worker_id]
 
     def _get_available_domains(
-        self, session, dataset: Optional[str] = None, rework: bool = False
+        self,
+        session,
+        dataset: Optional[str] = None,
+        rework: bool = False,
+        requires_login: Optional[bool] = None,
     ) -> list[dict[str, Any]]:
         """Query database for domains with available candidate links.
 
@@ -247,6 +270,12 @@ class WorkQueueCoordinator:
         if dataset is not None:
             sql += "            AND cl.dataset_id = :dataset\n"
             params["dataset"] = dataset
+        if requires_login is not None:
+            # Appended rather than parameterised as
+            # `(:requires_login IS NULL OR ...)`, for the reason the dataset
+            # filter above is: Postgres could not plan the untyped form.
+            sql += "            AND s.requires_login = :requires_login\n"
+            params["requires_login"] = requires_login
         if rework:
             # Offered domains have to be rework domains too. Filtering only
             # the claim query would hand a worker a domain whose links are
@@ -346,6 +375,7 @@ class WorkQueueCoordinator:
         max_articles_per_domain: int,
         dataset: Optional[str] = None,
         rework: bool = False,
+        requires_login: Optional[bool] = None,
     ) -> WorkResponse:
         """Handle work request from a worker.
 
@@ -354,6 +384,9 @@ class WorkQueueCoordinator:
             batch_size: Number of articles requested
             max_articles_per_domain: Max articles per domain in batch
             dataset: Restrict work to one dataset id; None draws from all.
+            requires_login: Serve only credentialed hosts (True) or only
+                anonymous ones (False). None mixes them, which is what every
+                caller got before authenticated workers existed.
 
         Returns:
             WorkResponse with items and worker_domains
@@ -370,6 +403,7 @@ class WorkQueueCoordinator:
                     max_articles_per_domain,
                     dataset,
                     rework,
+                    requires_login,
                 )
             else:
                 with self.db.get_session() as session:
@@ -380,6 +414,7 @@ class WorkQueueCoordinator:
                         max_articles_per_domain,
                         dataset,
                         rework,
+                        requires_login,
                     )
 
     def _request_work_with_session(
@@ -390,10 +425,13 @@ class WorkQueueCoordinator:
         max_articles_per_domain: int,
         dataset: Optional[str] = None,
         rework: bool = False,
+        requires_login: Optional[bool] = None,
     ) -> WorkResponse:
         """Internal method to handle work request with a given session."""
         # Get available domains from database
-        available_domains = self._get_available_domains(session, dataset, rework)
+        available_domains = self._get_available_domains(
+            session, dataset, rework, requires_login
+        )
 
         if not available_domains:
             logger.warning("No domains with available work")
@@ -666,6 +704,7 @@ async def request_work(request: WorkRequest) -> WorkResponse:
                 request.max_articles_per_domain,
                 request.dataset,
                 request.rework,
+                request.requires_login,
             ),
         )
     except Exception as e:
