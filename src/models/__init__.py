@@ -17,6 +17,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     create_engine,
+    false,
     func,
     text,
 )
@@ -79,6 +80,16 @@ class CandidateLink(Base):
     discovered_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     crawl_depth = Column(Integer, default=0)
     discovered_by = Column(String)  # Job/process that found this URL
+    #: True when a person handed this URL over rather than the crawler
+    #: finding it -- an upload of a chosen set. Selection is the filter and it
+    #: already ran, so URL verification and the MediaCloud wire check are
+    #: bypassed; `wire_check_status` is asserted `local` with the authority
+    #: recorded. Backfilled from `discovered_by`, where a `discovery.` prefix
+    #: means the crawler found it. Per RECORD, because one dataset holds both
+    #: kinds.
+    is_curated: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=false()
+    )
 
     # Fetch status tracking
     status = Column(String, nullable=False, default="new", index=True)
