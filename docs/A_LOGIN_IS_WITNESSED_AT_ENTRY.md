@@ -91,6 +91,24 @@ fetch — `authenticated_session: true|false` in `articles.metadata` — is what
 lets "was this article fetched as a subscriber" be answered from data rather
 than argued from body length.
 
+**Where it belongs, learned the hard way.** That key was first written into the
+Selenium result's own `metadata` dict, and on the cascade path it never reached
+a row. Selenium is a capture mechanism: its render is re-parsed by mcmetadata,
+which fills the `metadata` slot, so the later Selenium merge is told to copy
+only what is still missing — `metadata` is not — and
+`_merge_extraction_results` replaces the whole dict rather than merging keys
+anyway. The better parser threw away the fetch's own record of itself.
+
+Measured on the first authenticated `yakimaherald.com` run (2026-09-20): the
+log says `Authenticated session established for yakimaherald.com` and all three
+stored rows carry `extraction_method=mcmetadata` with `authenticated_session`
+absent. The same replacement is why `candidate_links.http_status` was NULL on
+the queue path, which reads `metadata_value["http_status"]`.
+
+How the page was obtained is not a field a parser can win or lose, so both are
+stamped after the cascade beside `extraction_method` — the fact about the whole
+extraction that was already recorded in exactly that place.
+
 ### Drift: when the recipe stops resolving
 
 A site redesigns and the stored selectors match nothing. The engine tries the

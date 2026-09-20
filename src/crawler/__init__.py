@@ -3663,6 +3663,40 @@ class ContentExtractor:
         result_copy = result.copy()
         result_copy["metadata"]["extraction_methods"] = result["extraction_methods"]
         result_copy["metadata"]["extraction_method"] = primary_method
+
+        # How the page was OBTAINED is not a field any parser can win or lose.
+        #
+        # Both of these were written into the Selenium result's own `metadata`
+        # dict, and on the cascade path they never survived: the Selenium
+        # capture is re-parsed by mcmetadata first, which fills the `metadata`
+        # slot, so the later Selenium merge runs with `fields_to_copy=
+        # still_missing` -- `metadata` is no longer missing -- and
+        # `_merge_extraction_results` assigns `target[field] = source_value`,
+        # replacing the whole dict rather than merging its keys. The better
+        # parser therefore threw away the fetch's own record of itself.
+        #
+        # Measured on the first authenticated yakimaherald run (2026-09-20,
+        # workflow cjts9): the log says "Authenticated session established for
+        # yakimaherald.com" and all three stored rows carry
+        # extraction_method=mcmetadata with authenticated_session, http_status
+        # and selenium_reason absent. That is the same root cause as the
+        # candidate_links.http_status NULLs on the queue path, which reads
+        # metadata_value["http_status"].
+        #
+        # Stamped here, beside extraction_method, because this is the point
+        # where the cascade is over and facts about the whole extraction are
+        # recorded regardless of which parser won which field.
+        result_copy["metadata"]["authenticated_session"] = self._session_state(url)
+        # Filled rather than overwritten: a parser that recovered a status from
+        # its own failure (newspaper4k raises "Status code 403") knows
+        # something `_last_fetch_http_status` does not.
+        # getattr: `extract_content(url, html=...)` parses HTML somebody else
+        # fetched, so the attribute the fetch sets may not exist at all.
+        if result_copy["metadata"].get("http_status") is None:
+            result_copy["metadata"]["http_status"] = getattr(
+                self, "_last_fetch_http_status", None
+            )
+
         del result_copy["extraction_methods"]
 
         # Prevent hints from leaking across articles
