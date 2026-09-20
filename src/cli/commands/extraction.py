@@ -85,6 +85,10 @@ WIRE_CHECK_STATUS_COMPLETE = "complete"
 #: answer, so the row says which happened.
 WIRE_CHECK_STATUS_LOCAL = "local"
 
+#: Stamped on the telemetry row so a later reader knows which shape it
+#: is looking at, the way the ContentTypeDetector stamps its own.
+WIRE_DETECTION_PAYLOAD_VERSION = "wire-routes-2026-09-20"
+
 #: Recorded on a curated row so the claim is auditable. Without it a bypass is
 #: indistinguishable from a check that ran and returned a verdict.
 CURATED_WIRE_METADATA = {
@@ -415,6 +419,43 @@ def _send_heartbeat(worker_id: str):
         logger.debug("Heartbeat sent to queue")
     except requests.RequestException as e:
         logger.debug("Failed to send heartbeat: %s", e)
+
+
+def _wire_detection_payload(
+    *, rule: str, services: list[str], evidence: Any = None, raw_source: Any = None
+) -> dict[str, Any]:
+    """A wire call in the shape `content_type_detection_telemetry` stores.
+
+    Three routes can mark an article `wire`: the structured-metadata hints, the
+    byline cleaner, and the ContentTypeDetector's tiers. Only the third built a
+    payload, so only the third reached the telemetry table -- the other two
+    wrote `articles.metadata.wire_detection` and nothing else.
+
+    That table carries `evidence`, `reason`, `version` and `dataset_id` per
+    decision, and it is what made a corpus-wide question answerable in one
+    query: the `pbs.org` pattern matching inside `cascadepbs.org` was found
+    across 5,258 rows that way. The same question about a canonical-based call
+    meant reading JSON out of article rows one at a time, and the key those rows
+    were filed under named the wrong rule.
+
+    `reason` is the RULE that decided, not a fixed string, because "which rule
+    marked this and on what evidence" is the question the table exists to
+    answer.
+    """
+    return {
+        "status": "wire",
+        "confidence": "high",
+        "confidence_score": 1.0,
+        "reason": rule,
+        "evidence": {
+            "wire_services": services,
+            "detected_by": rule,
+            "raw_source_name": raw_source,
+            "detail": evidence,
+        },
+        "version": WIRE_DETECTION_PAYLOAD_VERSION,
+        "detected_at": datetime.utcnow().isoformat(),
+    }
 
 
 def _curated_link_ids(session, link_ids) -> set[str]:
@@ -2104,6 +2145,17 @@ def _process_batch(
                                 "detected_at": datetime.utcnow().isoformat(),
                             }
 
+                            # Record it where the tier-based calls are recorded,
+                            # so "which rule marked this, on what evidence" is
+                            # one query rather than JSON read row by row.
+                            detection_payload = _wire_detection_payload(
+                                rule=detection_key,
+                                services=hint_services,
+                                evidence=wire_hints.get("evidence"),
+                                raw_source=wire_hints.get("raw_source_name"),
+                            )
+                            metadata_value["content_type_detection"] = detection_payload
+
                             # Even for wire content, extract any author info so
                             # we don't lose byline data from the extraction
                             extracted_authors: list[str] = []
@@ -2183,6 +2235,14 @@ def _process_batch(
                             article_status = "wire"
                             wire_service_info = json.dumps(byline_wire_services)
                             byline_result = byline_cleaned
+                            # Same reason as the structured route above: this
+                            # call reached no telemetry table at all.
+                            detection_payload = _wire_detection_payload(
+                                rule="byline_wire_service",
+                                services=byline_wire_services,
+                                raw_source=raw_author,
+                            )
+                            metadata_value["content_type_detection"] = detection_payload
                             logger.info(
                                 "Wire service via byline '%s': authors=%s, wire=%s (skipping content detection)",
                                 raw_author,
