@@ -50,6 +50,60 @@ consequence rather than a judgement call. Note the asymmetry: skipped
 *preconditions* are free (that is what independent-upstream means), skipped
 *postconditions* must be asserted (that is what native-downstream costs).
 
+## The pipeline is derived from what is absent
+
+Supplied data is **authoritative until proven otherwise**. Missing data is what
+the pipeline is for: it must be applied, tested and verified before the record
+can stand at the next status.
+
+Which is why a static staged pipeline only works when you start with sources.
+That is the one entry point where nothing is supplied, so the set of work happens
+to be every stage in order, and a fixed sequence describes it exactly. For every
+other entry point the sequence is wrong — not slower or partly redundant, wrong,
+because it would re-derive values the caller already gave us and then have to
+decide which version wins.
+
+So the work is computed, not looked up:
+
+```text
+work(record) = gates for its ABSENT fields
+             + gates downstream of the status it enters at
+```
+
+The linear pipeline is the degenerate case of that expression, where the record
+is a bare URL on a known host and nothing is absent-minus-everything. It should
+be *produced* by the same function, not implemented separately and then
+approximated by the other paths. When it is implemented separately it becomes the
+privileged path — which is the state we are in, and the reason the review hold
+reaches only the one caller that happens to compose it.
+
+### Two strengths of "authoritative", and they are not the same
+
+| what was decided | strength | may a gate overturn it? |
+| --- | --- | --- |
+| inclusion — these URLs belong in the study | final | no. A verdict can only remove records the study was defined to contain. |
+| field values — this is the byline, this is the body | presumed | yes, on evidence. Not on a heuristic's preference. |
+
+Curation is an act of authority over *membership* and nothing downstream may
+revisit it. A supplied byline is a statement of fact that we accept without
+checking, and a stage that does run may still contradict it — a canonical URL on
+another publisher's domain is evidence about a story's origin whatever the byline
+column said. "Until proven otherwise" is the whole clause: presumption, plus a bar
+for overturning it, plus a record of who overturned it.
+
+### Therefore: which fields were supplied is itself data
+
+If a gate may overturn a supplied value on evidence, every later stage has to be
+able to ask whether a value was ours or theirs. That cannot be inferred from the
+value, so it is recorded: the set of fields the caller supplied, on the record, at
+admission.
+
+Without it the questions that matter have no answer. Did the byline come from the
+sheet or from our parser? May the masthead strip touch a headline somebody typed?
+When a supplied date and an extracted date disagree, which one is the anomaly?
+Each of those is a branch a downstream stage would otherwise guess at — and
+guessing is what native-downstream is supposed to make unnecessary.
+
 ## There is no other way in
 
 Every ingestion is structured against a named entry point. Not a script, not a
@@ -288,9 +342,10 @@ register them without any of the source endpoint's own checks.
 **Rule two: within a stage it runs, a gate is skipped when the caller SUPPLIED
 the value that gate would have produced.**
 
-This is what makes the matrix small. A gate exists to produce or validate a
-field; if the field arrives in the payload, the gate has nothing to produce and
-the caller has asserted the postcondition. So:
+This is the governing principle above, applied per field rather than per stage —
+the work is what is absent. A gate exists to produce or validate a field; if the
+field arrives in the payload it is authoritative until proven otherwise, so the
+gate has nothing to produce. So:
 
 - a URL list with no byline column gets the full extraction and parse, byline
   cleaning included, because the byline is coming out of HTML and arrives as a
