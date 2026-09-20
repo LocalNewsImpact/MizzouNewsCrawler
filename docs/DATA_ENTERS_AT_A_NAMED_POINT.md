@@ -91,18 +91,73 @@ another publisher's domain is evidence about a story's origin whatever the bylin
 column said. "Until proven otherwise" is the whole clause: presumption, plus a bar
 for overturning it, plus a record of who overturned it.
 
-### Therefore: which fields were supplied is itself data
+### Every field has an authoritative producer, and the record already says which
 
-If a gate may overturn a supplied value on evidence, every later stage has to be
-able to ask whether a value was ours or theirs. That cannot be inferred from the
-value, so it is recorded: the set of fields the caller supplied, on the record, at
-admission.
+Each field names the module that is authoritative for it. A producer is skipped
+when its field is already present and authoritative; it runs when the field is
+absent. That is the whole scheduling rule, expressed per field rather than per
+stage.
 
-Without it the questions that matter have no answer. Did the byline come from the
-sheet or from our parser? May the masthead strip touch a headline somebody typed?
-When a supplied date and an extracted date disagree, which one is the anomaly?
-Each of those is a branch a downstream stage would otherwise guess at — and
-guessing is what native-downstream is supposed to make unnecessary.
+Two halves, and only one of them is missing:
+
+| | |
+| --- | --- |
+| **declared** | field → which module is authoritative for it. A registry, in code. Does not exist. |
+| **observed** | field → which module actually produced it. `articles.metadata.extraction_methods`. Exists, on 165,775 rows. |
+
+The observed map is already exactly this shape:
+
+```json
+{"title": "mcmetadata", "author": "structured_meta_tags",
+ "content": "mcmetadata", "publish_date": "mcmetadata"}
+```
+
+So a supplied field is not a new structure to invent. It is another producer in a
+map that is already written per row and already distinguishes `mcmetadata` from
+`structured_meta_tags` — `"author": "supplied"`, or the caller's own provenance.
+The declared registry is then the statement of intent that the observed map can be
+checked against.
+
+**And the rows that most need it are the rows that lack it.** Measured 2026-09-20:
+
+| rows | articles | carry `extraction_methods` |
+| --- | --- | --- |
+| crawled | 163,093 | 163,093 — all of them |
+| curated | 3,748 | 2,682 |
+
+Neither importer writes the map. The 2,682 curated rows that have it are curated
+*URLs* that went through crawl/extract normally and got it from the cascade; the
+**1,066** without it are the supplied-record imports. Those are precisely the rows
+where a field's origin is a real question, and they are the only rows that cannot
+answer it. Without it the questions that matter have none: did this byline come
+from the sheet or our parser, may the masthead strip touch a headline somebody
+typed, and when a supplied date disagrees with an extracted one, which is the
+anomaly.
+
+### Skipping a producer is not always possible, and the fallback already exists
+
+A producer usually makes several fields at once — extraction yields headline,
+body, byline and date together. So it can only be skipped outright when **all** of
+its outputs were supplied. A sheet that gives a byline but no body still needs
+extraction to run, and extraction will produce a byline of its own.
+
+The rule is therefore two-part, and the second part is load-bearing:
+
+- skip the producer when every field it owns is supplied
+- otherwise run it, with supplied fields protected from overwrite
+
+The protection mechanism is already built and already used inside the extraction
+cascade: `_merge_extraction_results(..., fields_to_copy=…, allow_overwrite=False)`
+is how a later strategy fills gaps without discarding what a better parser found.
+That is the same problem one level down — several producers, one field, and a rule
+about who may win. The pattern is proven; it needs lifting from inside one stage to
+between stages.
+
+It is also where the cost of getting it wrong is already on record. #638 exists
+because that merge replaces a whole dict rather than merging keys, so the fetch's
+own facts were discarded by a parser that had no opinion about them. A
+field-ownership rule applied at the pipeline level has exactly that failure mode
+available to it, one scale up.
 
 ## There is no other way in
 
