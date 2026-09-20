@@ -56,6 +56,43 @@ class ClassificationStats:
     proposed_labels: list[dict[str, object]] = field(default_factory=list)
 
 
+#: Statuses a classification run must never take, whatever it is asked for.
+#:
+#: There were two of these and they disagreed. This module excluded
+#: `opinion/opinions/obituary/obits/wire`; `cli/commands/analysis.py` named
+#: those plus `paywall` and `not_article` but applied its copy only inside the
+#: label-change REPORT, so the selection never saw the extra two. Neither list
+#: knew about the terminal statuses added later. `--statuses all` therefore
+#: re-labelled 32 WSU articles that had been deliberately set aside.
+#:
+#: Two of these are terminal by decision rather than by content:
+#:   `non_english`  -- Spanish-language articles wait for a Spanish
+#:                     classifier; an English model's verdict on them is
+#:                     noise, and the status is the record that we know.
+#:   `text_unavailable` -- the body is unusable and the row exists to record
+#:                     that the publication ran the story. There is nothing
+#:                     to classify.
+#:
+#: This is a prohibition, not a default. Naming one of these in `--statuses`
+#: does not override it: the run filters it out, logs "No eligible statuses
+#: after excluding ...", and classifies nothing. That is deliberate -- there is
+#: no use for an English model's verdict on a Spanish article or on a row with
+#: no body, and a reviewer's `not_article` is a decision, not a gap.
+NEVER_CLASSIFIED: frozenset[str] = frozenset(
+    {
+        "opinion",
+        "opinions",
+        "obituary",
+        "obits",
+        "wire",
+        "paywall",
+        "not_article",
+        "non_english",
+        "text_unavailable",
+    }
+)
+
+
 class ArticleClassificationService:
     """Apply text classification models to articles in the database."""
 
@@ -302,13 +339,7 @@ class ArticleClassificationService:
         This ensures no duplicate work across parallel workers.
         """
 
-        excluded_statuses = {
-            "opinion",
-            "opinions",
-            "obituary",
-            "obits",
-            "wire",
-        }
+        excluded_statuses = set(NEVER_CLASSIFIED)
         if statuses is None:
             effective_statuses: list[str] | None = None
         else:

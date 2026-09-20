@@ -1634,9 +1634,19 @@ class TestMLPipeline:
             if label_versions:
                 logger.info(f"Classification model versions: {len(label_versions)}")
                 for version, stats in label_versions.items():
+                    # A curated label version has no model confidence, and
+                    # should not: `wsu-notebook-2026-02` is the researcher's
+                    # own judgement, imported with 458 labels and 0
+                    # confidences, so AVG() is NULL. Formatting that with
+                    # `:.2f` raised `TypeError: unsupported format string
+                    # passed to NoneType.__format__` -- failing this test, and
+                    # the Production Smoke Tests run on every merge, from a
+                    # LOGGING line. The assertions above had already passed.
+                    confidence = stats["avg_confidence"]
+                    shown = f"{confidence:.2f}" if confidence is not None else "none"
                     logger.info(
                         f"  {version}: {stats['labels']} labels, "
-                        f"avg confidence {stats['avg_confidence']:.2f}"
+                        f"avg confidence {shown}"
                     )
 
     def test_entity_confidence_and_validation(self, production_db):

@@ -12,19 +12,18 @@ from sqlalchemy import select
 from src.ml.article_classifier import ArticleClassifier
 from src.models import Article, ArticleLabel, CandidateLink
 from src.models.database import DatabaseManager, safe_session_execute
-from src.services.classification_service import ArticleClassificationService
+from src.services.classification_service import (
+    NEVER_CLASSIFIED,
+    ArticleClassificationService,
+)
 
 logger = logging.getLogger(__name__)
 
-EXCLUDED_STATUSES = {
-    "opinion",
-    "opinions",
-    "obituary",
-    "obits",
-    "wire",
-    "paywall",
-    "not_article",
-}
+#: The one exclusion list, defined in the service beside the selection it
+#: guards. This module used to keep a second copy that named `paywall` and
+#: `not_article` in addition -- and applied it only inside the label-change
+#: REPORT, so the selection never saw those two.
+EXCLUDED_STATUSES = NEVER_CLASSIFIED
 
 
 def _resolve_statuses(

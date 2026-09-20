@@ -474,9 +474,49 @@ class BylineCleaner:
     #: "An'Quan" and deleting the escape would silently rename somebody. At
     #: least one digit is required, because four hex letters can occur inside a
     #: real name and a name never carries a digit here.
+    #: A single token ending in a common TLD -- what is left of a contact
+    #: address once the "@" is gone. Anchored at both ends against a token
+    #: with no whitespace, so it can never match inside a real name.
+    _DOMAIN_TAIL = re.compile(
+        r"^\S+\.(?:com|net|org|co|us|edu|gov|info|news|media)$",
+        re.IGNORECASE,
+    )
+
     _LOST_ESCAPE = re.compile(
         r"(?<=[A-Za-z])u(?=[0-9a-fA-F]{4})(?=[0-9a-fA-F]*\d)([0-9a-fA-F]{4})"
     )
+
+    @classmethod
+    def _drop_contact_tokens(cls, text: str) -> str:
+        """Drop a comma-separated token that is a contact address, not a name.
+
+        ptleader.com serves `"name": "MKRUMLPTLEADER.COM"` in its JSON-LD --
+        `mkruml@ptleader.com` with the "@" eaten by the CMS and the whole
+        thing upper-cased. The email rule downstream needs an "@", so the
+        token survived; worse, a later step strips the `.COM` and leaves
+        `MKRUMLPTLEADER`, which reads as a surname. Six articles stored that
+        as an author.
+
+        This runs FIRST, while the TLD is still there to recognise. Dropping
+        the whole token is the point: removing only the suffix is what
+        manufactured the fake name.
+
+        Narrow on purpose. The token must have no internal whitespace and
+        must END in a TLD, so "Jr.", "J.R." and "Mary St. Clair" are
+        untouched -- a name never ends in ".com".
+        """
+        if not text or "." not in text:
+            return text
+        kept = [
+            token
+            for token in text.split(",")
+            if not cls._DOMAIN_TAIL.match(token.strip())
+        ]
+        # A byline that is ONLY a contact address returns empty, which the
+        # empty-input path above records as noise. Returning the original
+        # instead put the bug back for that case: the `.COM` was stripped
+        # downstream and `MKRUMLPTLEADER` became an author.
+        return ",".join(kept)
 
     @classmethod
     def _decode_lost_escapes(cls, text: str) -> str:
@@ -653,6 +693,7 @@ class BylineCleaner:
 
             # Dash-joined bylines, before anything else reads them.
             byline = self._decode_lost_escapes(byline)
+            byline = self._drop_contact_tokens(byline)
             byline = self.normalise_dash_separators(byline)
 
             if not byline or not byline.strip():
