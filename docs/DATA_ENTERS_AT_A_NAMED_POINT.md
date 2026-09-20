@@ -265,6 +265,109 @@ Ambiguity goes to review rather than to a rejection or a shrug. A body that is
 short but plausibly a brief is exactly the case a person should see, and the
 review queue already models dispositions as status rewinds.
 
+## Which gates each entry point runs
+
+Authoritative. Two rules produce it, and the second is the one that matters.
+
+**Rule one: an entry point skips the STAGES it is upstream-independent of.**
+Everything else runs.
+
+| entry point | requires | skips | runs |
+| --- | --- | --- | --- |
+| sources | — | nothing | all gates |
+| a WARC | sources admitted first | discovery, crawling | all other gates |
+| a URL list | sources admitted first | discovery | crawl/extract, then classify and enrich |
+| a spreadsheet | sources admitted first | discovery, crawl/extract | classify and enrich |
+
+**Sources are always admitted first.** The other three tie records to sources, so
+a row whose host has no source is rejected and reported — the caller admits the
+publishers through the source endpoint, then re-submits. An endpoint for URLs
+does not quietly register publishers as a side effect, because that would
+register them without any of the source endpoint's own checks.
+
+**Rule two: within a stage it runs, a gate is skipped when the caller SUPPLIED
+the value that gate would have produced.**
+
+This is what makes the matrix small. A gate exists to produce or validate a
+field; if the field arrives in the payload, the gate has nothing to produce and
+the caller has asserted the postcondition. So:
+
+- a URL list with no byline column gets the full extraction and parse, byline
+  cleaning included, because the byline is coming out of HTML and arrives as a
+  raw credit line
+- the same URL list **with** a byline column skips byline cleaning, because the
+  byline was given rather than parsed
+- a spreadsheet skips crawl/extract entirely for exactly this reason, generalised
+  across several fields at once: headline, body and date are all supplied
+
+What a supplied value costs: it is accepted as already satisfying the gate's
+postcondition, so its **shape** is checked on admission even though the gate does
+not run. A supplied byline must be parsed names, not `QUESTEN INGHRAM Yakima
+Herald-Republic`. Accepting a raw credit line under a column called `byline`
+would put differently-shaped data in the same field, and every downstream
+consumer would need a branch — which is precisely what native-downstream forbids.
+
+### The one gate that has to be split first
+
+`BylineCleaner.clean_byline()` does two jobs in a single call: it normalises a
+raw credit line into names, and it decides `is_wire_content`, which the caller
+then reads as a wire signal. The rules above need those separable — a curated URL
+list may need its byline normalised while the wire inference has no standing over
+it, since selection was the filter.
+
+So byline handling is two gates, not one:
+
+| gate | produces | skipped when |
+| --- | --- | --- |
+| byline normalisation | names, from a credit line | a byline was supplied |
+| byline wire inference | `is_wire_content` | the records are curated |
+
+That they are currently one function is not a detail — it is the concrete example
+of why the gates have to be callable alone before any of this can be wired.
+
+## A rewind is an entry point
+
+When a review decision rewinds an article, it demands whichever gates are
+downstream of the status it was rewound to. That is the same sentence as the one
+governing ingestion, and it should be the same code.
+
+So the gate catalogue is **indexed by status**, and there is one question with
+three callers:
+
+| caller | asks |
+| --- | --- |
+| an entry point | which gates are downstream of the status I am admitting at |
+| a review rewind | which gates are downstream of the status I am rewinding to |
+| the golden path | all of them, in order |
+
+The golden path is then not privileged. It is the case where the answer happens
+to be "everything", which is why it must not be the only place the gates are
+composed.
+
+Two things this constrains:
+
+**A rewind must not re-run what is upstream of it.** Rewinding to `cleaned` must
+not re-fetch: the bytes are not in question, the judgement about them is. This is
+the same prohibition the WARC path has, for the same reason — and the same trap,
+because extraction normally goes through the work queue and a worker fetches.
+`refetch` is the deliberate exception: it rewinds the *link* precisely because the
+capture IS what is in question, and it is a different operation from a review
+rewind even though both are status changes.
+
+**A gate must respect an answer it has already been given.** Otherwise the row
+returns to review on the same defect forever: a reviewer says the byline is
+correct, the row rewinds, byline cleaning holds it again, and the queue never
+drains. `review_hold.apply_hold` already models this — it takes the first defect
+*a person has not already answered* as the claim, and a row with two wrong fields
+is one question, the second asked once the first is decided. That behaviour is
+the reason a gate's contract has to say what it writes on failure, not just what
+it checks: the note is what a later run reads to know the question was settled.
+
+Which makes the `apply_hold` finding worse than an oversight. The gate that holds
+a row and the gate that respects the answer are the same function, so the golden
+path neither holds rows nor would honour a disposition if something else held
+them.
+
 ## The gates are the reusable unit, and they must be callable alone
 
 The principle above only works if the checks are things you can *call*. If a
@@ -372,12 +475,6 @@ Not an exit code and not a bare 200:
 - **Who may assert a bypass.** `is_curated` records that selection happened, not
   who selected. A full-record ingest asserts far more and needs an identity on
   the record, not just on the request.
-- **A URL or row whose host has no source.** Every non-source entry point ties
-  records to sources, so this is the common failure in practice. Rejecting the
-  row loses data the caller meant to give us; creating the source silently means
-  an endpoint for URLs quietly registers publishers, with none of the source
-  entry point's own checks. Most likely: reject, and report the missing hosts so
-  the caller can admit them through the source endpoint first.
 - **Whether `cleaned` is the right entry status for a full record**, or whether
   it wants a status of its own so that "we were given this" is never confused
   with "we cleaned this".
