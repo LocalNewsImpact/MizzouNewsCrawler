@@ -19,18 +19,36 @@ articles.status          extracted -> cleaned -> labeled -> enriched
 record admitted at any point has to be able to reach it without a later stage
 discovering that its precondition was never true.
 
-## The principle: admission checks are the postconditions of the skipped stages
+## Native downstream, independent upstream
 
-This is the part that makes the work tractable. The checks an entry point owes
-are not invented per endpoint and not a matter of taste — they are exactly the
-guarantees the stages it bypasses would have produced. Enter at `cleaned` and
-you are asserting, on behalf of extraction and cleaning, that the body is prose
-rather than furniture, the masthead is off the headline, the byline is parsed
-rather than raw, and the wire question is settled.
+That is the whole requirement, and both halves are load-bearing.
+
+**Native downstream.** A record admitted at any point must look, to every later
+stage, exactly like one that walked the whole path. No stage should have to ask
+how a record arrived, and none should carry a branch for it. If enrichment,
+export, review or a visualisation has to special-case ingested rows, the entry
+point did not finish its job.
+
+**Independent upstream.** An entry point owes nothing to the stages before it and
+must not be made to pretend it ran them. An ingested URL was selected by a
+person, so `storysniffer` — a discovery-stage guess at whether a URL looks like
+an article — has no standing over it, and neither does the MediaCloud wire
+check. Running them anyway does not add safety; it can only remove records the
+study was defined to contain.
+
+**What connects the two: an entry point's admission checks are the
+postconditions of the stages it skips.** That is what makes "native" checkable
+rather than aspirational. Enter at `cleaned` and you are asserting, on behalf of
+extraction and cleaning, that the body is prose rather than furniture, the
+masthead is off the headline, the byline is parsed rather than raw, and the wire
+question is settled — because those are the guarantees the next stage is entitled
+to assume.
 
 Derive the list, do not compose it. When a stage gains a postcondition, every
 entry point downstream of it gains an admission check, and that is a mechanical
-consequence rather than a judgement call.
+consequence rather than a judgement call. Note the asymmetry: skipped
+*preconditions* are free (that is what independent-upstream means), skipped
+*postconditions* must be asserted (that is what native-downstream costs).
 
 ## There is no other way in
 
@@ -62,18 +80,31 @@ What this forbids, concretely:
 - admitting a record at a status whose preconditions were not checked, on the
   grounds that the caller says they are fine
 
-Measured 2026-09-20, every writer of those two tables is outside the services
-layer — four of them, none inside `src/services/`:
+Measured 2026-09-20. Every writer of those two tables is outside the services
+layer, and **each entry point below already exists as its own independent
+implementation**:
 
-| writer | what it is |
-| --- | --- |
-| `src/cli/commands/extraction.py` | the golden path |
-| `src/cli/commands/extraction_backup.py` | a 452-line stale copy of it |
-| `scripts/import_manual_articles.py` | the full-record entry point, ad hoc |
-| `scripts/import_wsu_notebook_labels.py` | a dataset-specific importer |
+| writer | what it is | entry point |
+| --- | --- | --- |
+| `src/cli/commands/extraction.py` | the golden path | crawled |
+| `src/cli/commands/extraction_backup.py` | a 452-line stale copy of it | — |
+| `scripts/import_warc_minnesota.py` | ORM inserts from a WARC | a WARC |
+| `scripts/import_manual_articles.py` | raw SQL from a TSV | a sheet |
+| `scripts/import_wsu_notebook_labels.py` | a dataset-specific importer | — |
+
+None is in `src/services/`. Three are one-off scripts named after the dataset or
+the file they were written for, which is the tell: the name records the occasion,
+not the contract. `warcio` is already a declared processor dependency for
+"historical data ingestion", so the WARC path is not hypothetical — it is
+production capability living in a script called `import_warc_minnesota.py`.
 
 The backup copy is the rule's own argument: a second implementation of the write
 path that no longer matches the first and that nothing tests.
+
+An earlier version of this table listed four writers, from grepping `INSERT
+INTO`. That missed the WARC importer, which writes through the ORM
+(`session.add`). Worth recording, because it is the same lesson at a smaller
+scale: a convention enforced by one spelling of one pattern is not enforced.
 
 The prohibition is testable and should be tested: no `INSERT INTO
 candidate_links` or `INSERT INTO articles` outside `src/services/`, asserted the
@@ -102,7 +133,7 @@ something:
 So an entry point states what it skipped, asserts the value the skipped stage
 would have written, and reports what it actually did.
 
-## The three entry points
+## The four entry points
 
 Required fields are the context; checks are derived as above; dispatch is what
 happens next and is part of the contract, not an afterthought.
@@ -113,9 +144,24 @@ happens next and is part of the contract, not an afterthought.
 | --- | --- |
 | enters at | before discovery |
 | requires | host, publication name, dataset |
+| optional | state, county, paywall fields, login URL and credentials, alternate domains |
 | skips | nothing |
 | checks | host resolves; not already present under a www/bare variant; not on the never-crawl list |
 | dispatch | discovery |
+
+The required set is deliberately small, because a source with a host and a name
+can be crawled and everything else can arrive later. The optional fields are not
+decoration, though — several change behaviour the moment they are present, so an
+endpoint that accepts them silently changes what the pipeline does:
+
+- `requires_login` plus credentials moves the host into the authenticated worker
+  pool and out of the anonymous one. A host that needs a login and has no
+  credentials is claimable by neither, so it is fetched by nobody — a hole the
+  entry point should name rather than create.
+- `alternate_domains` is the dataset owner's declaration, never inferred, and it
+  decides whether a cross-domain canonical URL reads as wire.
+- `has_paywall` and `subscription_cost` are descriptive; `requires_login` is the
+  one that means "seven automated logins".
 
 The never-crawl list is a real constraint, not hygiene: `lynnwoodtoday.com` left
 publisher control and serves gambling spam, and `mltnews.com` does not resolve.
@@ -139,12 +185,49 @@ bypass is recorded per record — `candidate_links.is_curated`, backfilled from
 2,112 ingested (measured 2026-09-20). A dataset-level flag would be wrong in
 both directions.
 
+### A WARC file
+
+| | |
+| --- | --- |
+| enters at | HTML already captured, nothing parsed |
+| requires | the WARC, dataset, and a declaration of how its URLs were chosen |
+| skips | discovery and **the fetch** |
+| checks | response records only; `text/html`; original status 200; URL maps to a source in the dataset; capture time is not read as a publish date |
+| dispatch | parse-only extraction — **never the work queue** |
+
+A WARC is the fetch already done by somebody else, which is the architecture's
+own "fetch once, parse many" with the fetch outside our process. The seam exists:
+`extract_content(url, html=...)` runs the whole cascade — mcmetadata,
+newspaper4k, BeautifulSoup — against supplied HTML and performs no fetch of its
+own. So a WARC record is parsed by the same code that parses a live capture,
+which is what makes its output native rather than a parallel path.
+
+Three things make it distinct from the other entry points:
+
+- **It must not be re-fetched.** Extraction otherwise goes through the work
+  queue, and a worker fetches. A WARC record's body is the evidence; going back
+  to the live site would silently replace a 2019 capture with today's page, or a
+  410. Parse-only dispatch is not an optimisation, it is the point.
+- **It carries its own `http_status` and headers**, authoritatively, from the
+  capture. That is better provenance than a live fetch gets, and it is exactly
+  the field the browser path only just began recording correctly.
+- **`WARC-Date` is the capture time, not the publish date.** Conflating them
+  would date every article in an archive to the day it was archived, and the
+  study period is defined on publish date.
+
+**How its URLs were chosen is a declaration, not an inference.** A WARC built by
+capturing a hand-picked list is curated — selection was the filter, so
+`storysniffer` and the wire check have no standing. A WARC from a broad crawl is
+not, and its non-article URLs have never been filtered by anything. The same
+distinction the corpus already draws per record with `is_curated`, drawn again
+here, because the file itself cannot tell us which it is.
+
 ### A full record
 
 | | |
 | --- | --- |
 | enters at | `articles.status = 'cleaned'` (candidate link at `extracted`) |
-| requires | URL, dataset, headline, body, publish date, byline, provenance |
+| requires | host, URL, dataset, headline, body, publish date, byline, provenance |
 | skips | discovery, verification, the wire check, the fetch, extraction, cleaning |
 | dispatch | enrichment — or the review queue when a check is ambiguous rather than failing |
 
@@ -193,6 +276,7 @@ Three dispatch targets, chosen by what the data needs next:
 | target | when | how |
 | --- | --- | --- |
 | the work queue | the records need fetching | they are claimable the moment they are `article`; a worker asks |
+| parse-only extraction | the bytes are already in hand (a WARC) | `extract_content(url, html=...)`, no fetch, no queue |
 | an Argo workflow | the records need a stage run now | submit `news-pipeline-template`, always with `--dataset` |
 | the review queue | a check was ambiguous | a hold, expressed as a status rewind |
 
@@ -244,6 +328,12 @@ Not an exit code and not a bare 200:
 - **Who may assert a bypass.** `is_curated` records that selection happened, not
   who selected. A full-record ingest asserts far more and needs an identity on
   the record, not just on the request.
+- **A URL or row whose host has no source.** Every non-source entry point ties
+  records to sources, so this is the common failure in practice. Rejecting the
+  row loses data the caller meant to give us; creating the source silently means
+  an endpoint for URLs quietly registers publishers, with none of the source
+  entry point's own checks. Most likely: reject, and report the missing hosts so
+  the caller can admit them through the source endpoint first.
 - **Whether `cleaned` is the right entry status for a full record**, or whether
   it wants a status of its own so that "we were given this" is never confused
   with "we cleaned this".
