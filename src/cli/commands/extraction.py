@@ -390,6 +390,49 @@ def _send_heartbeat(worker_id: str):
         logger.debug("Failed to send heartbeat: %s", e)
 
 
+def _hosts_behind_bot_protection(session) -> set[str]:
+    """Hosts `sources.bot_protection_type` says are protected, `www.`-agnostic.
+
+    A vendor that answers a bot with a full-looking `200` is invisible to the
+    crawler's detector, which keys on a status code or a challenge page. On
+    2026-09-20 Cloudflare served `myedmondsnews.com` articles as a 76 KB shell
+    with zero content, HTTP 200, 174 times over three hours -- every one of the
+    six extraction methods tried, Selenium included. The crawler could only
+    call it "No title extracted", which is the generic failure: two of those
+    before the domain is skipped, and the skip lasts one batch.
+
+    Knowing the host is protected turns that into a refusal on the first
+    response, which is how a 403 and a proxy challenge are already treated.
+    Read once per run rather than per URL: it is one short query and the answer
+    does not change inside a batch.
+    """
+    hosts: set[str] = set()
+    try:
+        rows = session.execute(
+            text(
+                "SELECT host FROM sources "
+                "WHERE bot_protection_type IS NOT NULL AND host IS NOT NULL"
+            )
+        ).fetchall()
+        # Reading the rows is inside the try on purpose. It was outside, and a
+        # session whose execute() returns something other than 1-tuples raised
+        # `ValueError: too many values to unpack` straight past the guard and
+        # failed the whole extraction -- which is the opposite of failing open.
+        for row in rows:
+            host = row[0]
+            if not host:
+                continue
+            h = str(host).lower()
+            hosts.add(h)
+            hosts.add(h[4:] if h.startswith("www.") else f"www.{h}")
+    except Exception:
+        # Never let this stop an extraction run: without it the old
+        # accumulate-two-failures behaviour still applies.
+        logger.exception("Could not read which hosts are behind bot protection")
+        return set()
+    return hosts
+
+
 def _report_domain_failure(worker_id: str, domain: str):
     """Report domain failure (rate limit/bot protection) to queue service.
 
@@ -1587,6 +1630,13 @@ def _process_batch(
     # it: the work-queue path skips that branch entirely and read it at
     # the end of the batch, which is an UnboundLocalError.
     rework_ids = None
+
+    # Hosts a vendor is known to guard -- see `_hosts_behind_bot_protection`
+    # for why a 200 needs this to be legible. None means "not read yet": it is
+    # read the first time a URL actually fails, not up front. A run where
+    # nothing fails never asks, and the row query keeps the session's call
+    # sequence it had before this existed.
+    protected_hosts: set[str] | None = None
 
     # Track domain failures and articles processed per domain in this batch
     domain_failures = {}  # domain -> consecutive_failures
@@ -2825,6 +2875,35 @@ def _process_batch(
                     http_status = content.get("http_status") if content else None
                     is_rate_limit = "Rate limited" in error_msg or "429" in error_msg
                     is_bot_protection = http_status == 403
+
+                    # A guarded host that answers 2xx and hands over no story
+                    # has refused, whatever the status line says. Cloudflare
+                    # does exactly this: a full-looking shell, HTTP 200, no
+                    # article. Without this it reads as an ordinary miss, so
+                    # the domain survives two of them per batch and is asked
+                    # again in the next one -- 174 times in three hours on
+                    # 2026-09-20, which can only deepen the host's scoring of
+                    # our egress. Limited to hosts `bot_protection_type`
+                    # names, so an ordinary non-article page on an unguarded
+                    # site still costs that site nothing.
+                    if protected_hosts is None:
+                        protected_hosts = _hosts_behind_bot_protection(session)
+                    host_is_guarded = domain.lower() in protected_hosts
+                    withheld_by_guard = (
+                        host_is_guarded
+                        and http_status is not None
+                        and 200 <= int(http_status) < 300
+                    )
+                    if withheld_by_guard:
+                        logger.warning(
+                            "%s answered %s with no story and is behind bot "
+                            "protection; treating as a refusal and skipping "
+                            "the rest of the batch",
+                            domain,
+                            http_status,
+                        )
+                        skipped_domains.add(domain)
+                        domain_failures[domain] = max_failures_per_domain
 
                     if is_rate_limit or is_bot_protection:
                         logger.warning(
