@@ -147,9 +147,12 @@ class URLVerificationService:
             batch_size: Number of URLs to process in each batch
             sleep_interval: Seconds to wait between batches when no work
             telemetry_tracker: Optional telemetry tracker for recording metrics
-            dataset_id: UUID of the dataset this run verifies. The job row
-                records it; individual decisions take theirs from the
-                candidate link, which is authoritative per row.
+            dataset_id: The dataset this run verifies. It SCOPES the
+                selection -- `get_unverified_urls` returns only this
+                dataset's links -- and is recorded on the job row.
+                Individual decisions still take theirs from the candidate
+                link, which is authoritative per row. None verifies every
+                dataset, which is the historical behaviour.
         """
         self.dataset_id = dataset_id
         self.batch_size = batch_size
@@ -246,7 +249,15 @@ class URLVerificationService:
     def get_unverified_urls(self, limit: int | None = None) -> list[dict]:
         """Get candidate links that need verification.
 
-        Only returns URLs from active sources (excludes paused and retired sources).
+        Only returns URLs from active sources (excludes paused and retired
+        sources), and only from `self.dataset_id` when one was given.
+
+        The dataset filter used to be missing here: the service accepted a
+        `dataset_id`, recorded it on the job row, and then verified every
+        dataset's backlog anyway. So a run launched for one corpus spent its
+        compute on another's, and the pod carried no dataset label because the
+        step had no dataset to label with. `candidate_links.dataset_id` is
+        recorded at insert (crawler #540), so the scope was always available.
         """
         query = """
             SELECT cl.id, cl.url, cl.source_name, cl.source_city,
@@ -255,14 +266,18 @@ class URLVerificationService:
             LEFT JOIN sources s ON cl.source_id = s.id
             WHERE cl.status = 'discovered'
             AND (s.status IS NULL OR s.status = 'active')
-            ORDER BY cl.created_at ASC
         """
+        params: dict[str, object] = {}
+        if self.dataset_id:
+            query += "            AND cl.dataset_id = :dataset_id\n"
+            params["dataset_id"] = self.dataset_id
+        query += "            ORDER BY cl.created_at ASC\n"
 
         if limit:
             query += f" LIMIT {limit}"
 
         with self.db.engine.connect() as conn:
-            result = safe_execute(conn, query)
+            result = safe_execute(conn, query, params)
             return [dict(row._mapping) for row in result.fetchall()]
 
     def _prepare_http_session(self) -> None:

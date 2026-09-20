@@ -66,6 +66,17 @@ def add_verification_parser(subparsers) -> argparse.ArgumentParser:
         ),
     )
 
+    verify_parser.add_argument(
+        "--dataset",
+        help=(
+            "Verify only this dataset's candidate links "
+            "(candidate_links.dataset_id). Omit to verify every dataset, "
+            "which is the historical behaviour. Pass it: an unscoped run "
+            "spends compute on another corpus's backlog, and the pod carries "
+            "no dataset for cost accounting to attribute."
+        ),
+    )
+
     verify_parser.set_defaults(func=handle_verification_command)
     return verify_parser
 
@@ -80,7 +91,9 @@ def handle_verification_command(args) -> int:
 
     try:
         service = URLVerificationService(
-            batch_size=args.batch_size, sleep_interval=args.sleep_interval
+            batch_size=args.batch_size,
+            sleep_interval=args.sleep_interval,
+            dataset_id=getattr(args, "dataset", None) or None,
         )
 
         if args.status:

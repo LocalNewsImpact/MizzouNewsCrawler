@@ -97,6 +97,8 @@ spec:
         depends: "wait-for-candidates"
         arguments:
           parameters:
+          - name: dataset
+            value: "{{inputs.parameters.dataset}}"
           - name: batch-size
             value: "{{inputs.parameters.verify-batch-size}}"
           - name: max-batches
@@ -258,6 +260,7 @@ spec:
   - name: verification-step
     inputs:
       parameters:
+      - name: dataset
       - name: batch-size
       - name: max-batches
       - name: idle-grace-seconds
@@ -266,16 +269,7 @@ spec:
       - name: log-level
     metadata:
       labels:
-        # NO `dataset` HERE, and it is not an oversight. `verification-step`
-        # takes no dataset parameter, the DAG passes it none, and
-        # `verify-urls` has no `--dataset` flag -- the command cannot be
-        # scoped to one corpus at all. Labelling the pod would mean
-        # referencing an input that does not exist, which fails at submit.
-        #
-        # So verification compute is unattributable by dataset, and will stay
-        # so until `verify-urls` learns `--dataset` and the DAG passes it.
-        # Recorded by tests/test_compute_is_charged_to_a_dataset.py rather
-        # than left to be rediscovered.
+        dataset: "{{=sprig.lower(inputs.parameters.dataset)}}"
         stage: verification
         workflow-name: "{{workflow.name}}"
         workflow-uid: "{{workflow.uid}}"
@@ -294,6 +288,8 @@ spec:
         - -m
         - src.cli.cli_modular
         - verify-urls
+        - --dataset
+        - "{{inputs.parameters.dataset}}"
         - --batch-size
         - "{{inputs.parameters.batch-size}}"
         - --idle-grace-seconds
