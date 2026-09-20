@@ -394,13 +394,21 @@ def _enable_performance_log(options) -> bool:
         logger.warning("Could not request the performance log: %s", exc)
         return False
     try:
+        # Only the two switches. `traceCategories` is NOT set: Chrome rejects an
+        # empty string for it and the whole capability block then fails to parse,
+        # which takes the driver down rather than just the logging --
+        #
+        #   cannot parse capability: goog:chromeOptions
+        #   from invalid argument: cannot parse perfLoggingPrefs
+        #   from invalid argument: cannot parse traceCategories
+        #   from invalid argument: cannot be empty
+        #
+        # Caught by the Selenium Headful Regression job on 2026-09-20, which is
+        # the only CI job that builds a real driver; `make check` deselects
+        # those tests, so the pre-push hook cannot see this class of mistake.
         options.add_experimental_option(
             "perfLoggingPrefs",
-            {
-                "enableNetwork": True,
-                "enablePage": False,
-                "traceCategories": "",
-            },
+            {"enableNetwork": True, "enablePage": False},
         )
     except Exception as exc:  # pragma: no cover - not fatal
         # The capability above is what matters; this only trims the volume.

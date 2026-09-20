@@ -81,6 +81,28 @@ class TestTheHelper:
         assert prefs["enableNetwork"] is True
         assert prefs["enablePage"] is False
 
+    def test_no_preference_is_sent_as_an_empty_string(self):
+        """An empty value takes the whole driver down, not just the logging.
+
+        `traceCategories: ""` made Chrome reject the entire capability block:
+
+            cannot parse capability: goog:chromeOptions
+            from invalid argument: cannot parse perfLoggingPrefs
+            from invalid argument: cannot parse traceCategories
+            from invalid argument: cannot be empty
+
+        Caught by the Selenium Headful Regression job on 2026-09-20 -- the only
+        CI job that builds a real driver. `make check`, which the pre-push hook
+        runs, deselects those tests, so nothing local could see it. A unit test
+        cannot validate the options dict the way Chrome does, but it can refuse
+        the shape that was already proven fatal.
+        """
+        opts = _Options()
+        _enable_performance_log(opts)
+        for key, value in opts.experimental["perfLoggingPrefs"].items():
+            assert value != "", f"{key} would fail to parse"
+        assert "traceCategories" not in opts.experimental["perfLoggingPrefs"]
+
     def test_it_reports_failure_rather_than_pretending(self):
         """The bug was a silent no-op, so the helper must not have one."""
         opts = _Options(capability_raises=True)
