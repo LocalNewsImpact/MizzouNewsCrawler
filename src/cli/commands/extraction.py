@@ -57,6 +57,7 @@ from src.utils.comprehensive_telemetry import (
 from src.utils.content_cleaner_balanced import BalancedBoundaryContentCleaner
 from src.utils.content_type_detector import ContentTypeDetector
 from src.utils.raw_html_archive import archive_html
+from src.utils.worker_pool import requires_login_filter, worker_pool
 
 # Domains known to return 403 for paywalled content (not bot blocking)
 # These should be marked as 403/failed but NOT trigger a domain-wide pause
@@ -283,6 +284,7 @@ def _get_work_from_queue(
     max_articles_per_domain: int = 3,
     dataset: str | None = None,
     rework: bool = False,
+    requires_login: bool | None = None,
 ):
     """Request work from centralized queue service with retry logic.
 
@@ -294,6 +296,13 @@ def _get_work_from_queue(
             candidate links from EVERY dataset, so `extract --dataset X` would
             silently process other datasets' backlogs -- the direct-DB path
             applies the filter, the queue path did not.
+        requires_login: Which pool to draw from -- True for credentialed hosts
+            only, False for hosts needing no login, None to mix. Comes from
+            `EXTRACTION_WORKER_POOL`; see src/utils/worker_pool.py. False is an
+            assertion, not an absent filter: without it a credentialed domain
+            is offered to whichever worker asks first, so an ordinary worker
+            signs in to a paywalled publisher on a driver it recycles every
+            ten fetches.
 
     Returns:
         List of work items (dicts with id, url, source, canonical_name)
@@ -326,6 +335,13 @@ def _get_work_from_queue(
                     # same, which is the point -- the same queue, the same
                     # parallel workers, a narrower input.
                     "rework": rework,
+                    # Omitted rather than sent as null when the worker mixes,
+                    # so a queue that predates the field behaves as it did.
+                    **(
+                        {}
+                        if requires_login is None
+                        else {"requires_login": requires_login}
+                    ),
                 },
                 timeout=timeout,
             )
@@ -1814,6 +1830,7 @@ def _process_batch(
                 max_articles_per_domain=max_articles_per_domain,
                 dataset=getattr(args, "dataset", None),
                 rework=getattr(args, "rework", False) is True,
+                requires_login=requires_login_filter(worker_pool()),
             )
 
             if not work_items:

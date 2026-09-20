@@ -101,6 +101,11 @@ apply_crawler() {
     # the build) -- a submit against a missing templateRef reports as a
     # workflow error rather than as "nothing is deployed".
     apply_file k8s/argo/dataset-extraction-workflow.yaml
+    # The one worker that signs in to publishers. Every other extraction path
+    # now asks for `requires_login=false`, so credentialed domains are offered
+    # to nothing until this template runs -- which makes applying it part of
+    # deploying, not an optional extra. Same templateRef ordering as above.
+    apply_file k8s/argo/authenticated-extraction-workflow.yaml
 }
 
 apply_all() {

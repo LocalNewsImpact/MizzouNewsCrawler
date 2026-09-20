@@ -74,6 +74,12 @@ spec:
         value: "21600"
       - name: log-level
         value: "INFO"
+      - name: worker-pool
+        # Anonymous, because this template's tuning is the open-host profile
+        # and its default worker count is 3. A credentialed host needs the
+        # slower profile, one worker, and a person watching -- that is
+        # `authenticated-extraction`, not a parameter flip here.
+        value: "anonymous"
   templates:
     - name: extract-dataset
       inputs:
@@ -88,6 +94,7 @@ spec:
           - name: captcha-backoff-base
           - name: captcha-backoff-max
           - name: log-level
+          - name: worker-pool
       steps:
         - - name: extract
             # One task per worker, all of them on the queue, which is what
@@ -117,3 +124,5 @@ spec:
                   value: "{{inputs.parameters.captcha-backoff-max}}"
                 - name: log-level
                   value: "{{inputs.parameters.log-level}}"
+                - name: worker-pool
+                  value: "{{inputs.parameters.worker-pool}}"

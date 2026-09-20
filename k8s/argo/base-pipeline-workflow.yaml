@@ -123,6 +123,19 @@ spec:
         # Extraction will check for eligible articles and wait if none available
         arguments:
           parameters:
+          # The ordinary pipeline handles hosts that need no login, and says so
+          # rather than leaving it to chance. Without this a credentialed
+          # domain is offered to whichever worker asks first, so one of these
+          # workers signs in to a paywalled publisher on a driver it recycles
+          # every three fetches -- and does it unwatched, which is the one
+          # thing a paywalled host's first run must never be.
+          #
+          # The cost of the assertion is that credentialed work needs a worker
+          # that asks for it; `/stats` reports `credentialed_claimable` and
+          # `pool_last_request_age` so that gap is visible rather than a
+          # backlog that quietly never moves.
+          - name: worker-pool
+            value: "anonymous"
           - name: dataset
             value: "{{inputs.parameters.dataset}}"
           - name: limit
@@ -376,6 +389,15 @@ spec:
       - name: captcha-backoff-base
       - name: captcha-backoff-max
       - name: log-level
+      # Which hosts this worker draws from the queue: anonymous, authenticated
+      # or mixed. See src/utils/worker_pool.py.
+      #
+      # The default is `mixed` -- the historical behaviour -- because a caller
+      # that says nothing must not silently create the starvation case: an
+      # anonymous-only fleet leaves credentialed domains claimable by nobody.
+      # Every caller in this repo passes a value explicitly.
+      - name: worker-pool
+        value: "mixed"
     metadata:
       labels:
         dataset: "{{=sprig.lower(inputs.parameters.dataset)}}"
@@ -493,6 +515,19 @@ spec:
       # CRITICAL: Lowered from 10 to 3 to avoid PerimeterX detection of persistent browser sessions
       - name: SELENIUM_DRIVER_REUSE_LIMIT
         value: "3"
+      # Recycling the driver drops every login it holds, and the queue serves a
+      # host in bursts of three, so at a limit of 3 an authenticated worker
+      # signs in again on each host's next turn. Rotation is the reason for the
+      # low limit and a session makes it moot -- the login identifies us on
+      # every request whatever the driver does. Still bounded, because
+      # recycling also reaps Chrome renderer processes.
+      #
+      # This applies ONLY when EXTRACTION_WORKER_POOL=authenticated, which is
+      # why the two must be set from one place.
+      - name: SELENIUM_DRIVER_REUSE_LIMIT_AUTHENTICATED
+        value: "50"
+      - name: EXTRACTION_WORKER_POOL
+        value: "{{inputs.parameters.worker-pool}}"
       - name: SELENIUM_EXECUTION_MODE
         value: "headful"
       # Bypass proxy for internal services

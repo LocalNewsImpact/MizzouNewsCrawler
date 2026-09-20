@@ -304,6 +304,9 @@ def test_stats_endpoint_accuracy(coordinator):
     mock_session.execute.side_effect = [
         MagicMock(scalar=lambda: 200),  # total_available
         MagicMock(scalar=lambda: 20),  # domains_available
+        # Credentialed work, reported separately since the pools were
+        # segregated: host, source status, whether credentials exist, owed.
+        MagicMock(fetchall=lambda: [("ptleader.com", "paused", True, 142)]),
     ]
     coordinator.db.get_session.return_value.__enter__.return_value = mock_session
 
@@ -317,6 +320,11 @@ def test_stats_endpoint_accuracy(coordinator):
     assert "worker-1" in stats.worker_assignments
     assert "worker-2" in stats.worker_assignments
     assert len(stats.domain_cooldowns) == 2
+    # A credentialed host that is paused is owed work no pool can claim, and
+    # says so rather than being absent from the report.
+    assert stats.credentialed_available == 142
+    assert stats.credentialed_claimable == 0
+    assert "paused" in stats.credentialed_unclaimable["ptleader.com"]
 
 
 def test_worker_heartbeat_updates_timestamp(coordinator):

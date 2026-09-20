@@ -653,6 +653,9 @@ class ContentExtractor:
     _shared_driver_creation_count = 0
     _shared_driver_reuse_count = 0
     _shared_driver_reuse_limit = None  # Will be initialized from env var
+    #: The limit that applies once the driver holds an authenticated
+    #: session. Higher on purpose -- see `_driver_reuse_limit`.
+    _shared_driver_reuse_limit_authenticated = None
     # Domains for which the shared driver already holds an authenticated session.
     # Reset whenever the shared driver is recreated (see close_persistent_driver).
     _authenticated_domains: set = set()
@@ -740,6 +743,10 @@ class ContentExtractor:
         if ContentExtractor._shared_driver_reuse_limit is None:
             ContentExtractor._shared_driver_reuse_limit = int(
                 os.environ.get("SELENIUM_DRIVER_REUSE_LIMIT", "10")
+            )
+        if ContentExtractor._shared_driver_reuse_limit_authenticated is None:
+            ContentExtractor._shared_driver_reuse_limit_authenticated = int(
+                os.environ.get("SELENIUM_DRIVER_REUSE_LIMIT_AUTHENTICATED", "50")
             )
 
         # Note: This instance does NOT have its own _persistent_driver anymore.
@@ -2444,14 +2451,18 @@ class ContentExtractor:
         )
 
         # Check if driver needs recreation due to reuse limit
+        reuse_limit = ContentExtractor._driver_reuse_limit()
         if (
             ContentExtractor._shared_persistent_driver is not None
-            and ContentExtractor._shared_driver_reuse_count
-            >= ContentExtractor._shared_driver_reuse_limit
+            and ContentExtractor._shared_driver_reuse_count >= reuse_limit
         ):
             logger.info(
-                f"Driver reached reuse limit ({ContentExtractor._shared_driver_reuse_limit}), "
-                f"recreating to clean up renderer processes"
+                "Driver reached reuse limit (%s, authenticated=%s), "
+                "recreating to clean up renderer processes; "
+                "%d authenticated session(s) will be dropped",
+                reuse_limit,
+                bool(ContentExtractor._authenticated_domains),
+                len(ContentExtractor._authenticated_domains),
             )
             self.close_persistent_driver()
 
@@ -2521,6 +2532,41 @@ class ContentExtractor:
                 # login-failure cache.
                 ContentExtractor._authenticated_domains = set()
                 ContentExtractor._auth_failed_domains = set()
+
+    #: Set when this process serves the authenticated pool -- it draws only
+    #: credentialed domains from the queue, so the driver's sessions are the
+    #: point of it and recycling only costs logins.
+    #:
+    #: A property of the POOL rather than "is any domain logged in", which was
+    #: the first attempt: `_authenticated_domains` accumulates for the life of
+    #: the process, so the first login raised the limit for every anonymous
+    #: domain in the same batch too -- taking rotation away from hosts that
+    #: never asked, which is the one thing the limit exists to give them.
+    #:
+    #: The same `EXTRACTION_WORKER_POOL` setting decides which pool the worker
+    #: asks the queue for, because the two cannot disagree. See
+    #: src/utils/worker_pool.py and
+    #: docs/AN_AUTHENTICATED_WORKER_IS_PROVISIONED.md.
+    _authenticated_worker = None
+
+    @classmethod
+    def _driver_reuse_limit(cls) -> int:
+        """How many uses this driver gets before it is recreated.
+
+        The limit has two jobs and only one survives a login. Rotating the
+        driver makes a crawler look less like one machine working steadily
+        through a site -- pointless on a host we are signed in to, since the
+        session identifies us on every request regardless. Recycling ALSO reaps
+        Chrome renderer processes, which is why the authenticated answer is a
+        higher bound and not no bound.
+        """
+        if cls._authenticated_worker is None:
+            from src.utils.worker_pool import holds_logins, worker_pool
+
+            cls._authenticated_worker = holds_logins(worker_pool())
+        if cls._authenticated_worker:
+            return cls._shared_driver_reuse_limit_authenticated or 50
+        return cls._shared_driver_reuse_limit or 10
 
     def _maybe_import_selenium_cookies(self, driver, domain: str) -> bool:
         """If a cookie file is present, import cookies into the Selenium session.

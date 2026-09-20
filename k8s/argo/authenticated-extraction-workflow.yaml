@@ -1,0 +1,136 @@
+# The one worker that signs in to publishers.
+#
+# Every other extraction path asks the queue for `requires_login=false`, so a
+# credentialed domain is offered to nothing until this template runs. That is
+# deliberate: a login on a shared driver that recycles every three fetches
+# means signing in again on each host's next turn, and the publishers here
+# count logins -- cascadiadaily.com locks the account out.
+#
+# What makes this worker different, all of it from one setting:
+#
+#   EXTRACTION_WORKER_POOL=authenticated
+#     * asks the queue for credentialed hosts ONLY (WorkRequest.requires_login)
+#     * keeps the driver for SELENIUM_DRIVER_REUSE_LIMIT_AUTHENTICATED fetches
+#       instead of SELENIUM_DRIVER_REUSE_LIMIT
+#
+# ONE worker, and that is not a starting guess. Two workers on the same host
+# mean two concurrent sessions for one subscriber account; the WSU credentials
+# are single accounts and no publisher here has been asked whether it tolerates
+# that. The queue also rations by domain -- beyond one worker per domain they
+# wait -- so a second worker buys wall-clock and nothing else. It stays at 1
+# until per-host concurrency is known.
+#
+# The request profile is the slow one (90/180/420), not the open-host profile
+# `dataset-extraction` uses. A subscriber session is identified on every
+# request, so the usual argument that rotation hides us does not apply here.
+#
+# HOW A FIRST RUN IS DONE. One host at a time, watched live. The queue offers
+# whatever is `active`, so the host under test is the only credentialed source
+# that may be un-paused:
+#
+#     # 1. confirm nothing else credentialed is active
+#     SELECT host_norm, status FROM sources WHERE requires_login;
+#
+#     # 2. un-pause exactly one
+#     UPDATE sources SET status = 'active' WHERE host_norm = 'ptleader.com';
+#
+#     # 3. run it, watching
+#     argo submit -n production --from workflowtemplate/authenticated-extraction \
+#       -p dataset=WSU-Washington-State --watch
+#
+#     # 4. pause it again before the next host
+#     UPDATE sources SET status = 'paused' WHERE host_norm = 'ptleader.com';
+#
+# Before step 3, check that the work is actually claimable -- a host with
+# `requires_login` but no `auth_type`/`auth_secret_name` is served to NO pool,
+# and `/stats` is where that shows:
+#
+#     kubectl exec -n production deploy/work-queue -- \
+#       curl -s localhost:8080/stats | python -m json.tool
+#
+# `credentialed_claimable` is what this worker can be served;
+# `credentialed_unclaimable` names each host that cannot be, and why.
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: authenticated-extraction
+  namespace: production
+  labels:
+    type: extraction
+spec:
+  entrypoint: extract-credentialed
+  # Declared here rather than left to the submitter: Argo defaults a
+  # `--from workflowtemplate` submit to the `default` service account, which
+  # carries no Workload Identity annotation, and the step dies on
+  # `403 boss::NOT_AUTHORIZED: cloudsql.instances.get`.
+  serviceAccountName: argo-workflow
+  arguments:
+    parameters:
+      - name: dataset
+        # No default. Extraction must never run unscoped -- the queue draws
+        # from every dataset when given none, so an omitted dataset pulls
+        # another corpus's backlog and bills the compute to the wrong dataset
+        # or to none.
+      - name: limit
+        value: "20"
+      - name: batches
+        # A ceiling, not a target: `extract` stops when the queue has nothing
+        # left for this pool.
+        value: "200"
+      # The paywalled profile from k8s/mizzou-extraction-job.yaml. Slower than
+      # the open-host profile by design.
+      - name: inter-request-min
+        value: "90.0"
+      - name: inter-request-max
+        value: "180.0"
+      - name: batch-sleep
+        value: "420.0"
+      - name: captcha-backoff-base
+        value: "7200"
+      - name: captcha-backoff-max
+        value: "21600"
+      - name: log-level
+        # DEBUG, because a first run on a paywalled host is watched: the login
+        # step's own logging is what says whether the session took.
+        value: "DEBUG"
+  templates:
+    - name: extract-credentialed
+      inputs:
+        parameters:
+          - name: dataset
+          - name: limit
+          - name: batches
+          - name: inter-request-min
+          - name: inter-request-max
+          - name: batch-sleep
+          - name: captcha-backoff-base
+          - name: captcha-backoff-max
+          - name: log-level
+      steps:
+        # No withSequence. One worker -- see the header.
+        - - name: extract
+            templateRef:
+              name: news-pipeline-template
+              template: extraction-step
+            arguments:
+              parameters:
+                - name: worker-pool
+                  value: "authenticated"
+                - name: dataset
+                  value: "{{inputs.parameters.dataset}}"
+                - name: limit
+                  value: "{{inputs.parameters.limit}}"
+                - name: batches
+                  value: "{{inputs.parameters.batches}}"
+                - name: inter-request-min
+                  value: "{{inputs.parameters.inter-request-min}}"
+                - name: inter-request-max
+                  value: "{{inputs.parameters.inter-request-max}}"
+                - name: batch-sleep
+                  value: "{{inputs.parameters.batch-sleep}}"
+                - name: captcha-backoff-base
+                  value: "{{inputs.parameters.captcha-backoff-base}}"
+                - name: captcha-backoff-max
+                  value: "{{inputs.parameters.captcha-backoff-max}}"
+                - name: log-level
+                  value: "{{inputs.parameters.log-level}}"

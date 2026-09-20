@@ -32,11 +32,22 @@ QUERY_OWNER = WorkQueueCoordinator._get_available_domains
 @pytest.mark.postgres
 @pytest.mark.integration
 @pytest.mark.parametrize("dataset", [None, "some-dataset-id"])
-def test_the_domains_query_plans_on_postgres(cloud_sql_session, dataset):
-    """Both branches of the filter, because the failure was in planning
-    and happened whichever value was passed."""
+@pytest.mark.parametrize("requires_login", [None, True, False])
+def test_the_domains_query_plans_on_postgres(
+    cloud_sql_session, dataset, requires_login
+):
+    """Every branch of every filter, because the failure was in planning
+    and happened whichever value was passed.
+
+    `requires_login` is here for the same reason `dataset` is: it is a
+    parameter appended to the same statement, and the credentialed branch adds
+    two more clauses (`auth_type`/`auth_secret_name`) that only a real Postgres
+    will plan. A MagicMock session records SQL and sends it nowhere.
+    """
     coordinator = WorkQueueCoordinator.__new__(WorkQueueCoordinator)
-    domains = QUERY_OWNER(coordinator, cloud_sql_session, dataset)
+    domains = QUERY_OWNER(
+        coordinator, cloud_sql_session, dataset, False, requires_login
+    )
     assert isinstance(domains, list)
 
 
@@ -121,6 +132,11 @@ def test_the_work_item_query_plans_on_postgres(cloud_sql_session, dataset):
     failure was in planning, so it happened whichever value was passed."""
     coordinator = WorkQueueCoordinator.__new__(WorkQueueCoordinator)
     coordinator.worker_domains = {}
+    # `__new__` skips __init__ on purpose -- this test wants the SQL planned and
+    # nothing else -- so any state the request path writes has to be named here.
+    # `/stats` reads this to tell "nobody asked for the authenticated pool" from
+    # "somebody asked and there was nothing".
+    coordinator.pool_requests = {}
 
     response = coordinator._request_work_with_session(
         cloud_sql_session,
