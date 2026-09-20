@@ -265,6 +265,50 @@ Ambiguity goes to review rather than to a rejection or a shrug. A body that is
 short but plausibly a brief is exactly the case a person should see, and the
 review queue already models dispositions as status rewinds.
 
+## The gates are the reusable unit, and they must be callable alone
+
+The principle above only works if the checks are things you can *call*. If a
+gate exists only as a stretch of code inside a stage's loop, every entry point
+that owes it has to reimplement it — which is precisely what the import scripts
+did, each inventing its own validation for the same invariants.
+
+So each stage declares its gates, and each gate is a named predicate with a
+documented contract: what it checks, what it presumes was already true, what it
+writes when it fails, and which entry points owe it. A gate takes data and
+returns a verdict. It does not know whether it was called by the crawler, by a
+WARC unpacker, by an ingestion endpoint or by a test.
+
+**Modular is not the same as wired, and we have the proof.** `src/pipeline/
+review_hold.py` is already exactly this: `field_defects()` and `apply_hold()`,
+pure functions, no pipeline knowledge, easy to test. And `apply_hold` has ONE
+call site — inside `handle_extract_url_command`, the path used to run a single URL
+by hand. `_process_batch`, the path that extracted the entire corpus, never calls
+it. Measured 2026-09-20: production holds **6** rows at `in_review` against
+~260,000 candidate links.
+
+Nothing was broken. The module is fine, its tests pass, and the golden path runs
+green. The gate was simply never composed into the path that matters, and no test
+could notice because no declaration says which gates that path owes.
+
+Hence the enforceable half: a stage declares its gate list, and a test asserts
+the stage's implementation actually runs every gate it declares. That is what
+would have caught the review hold, and it is what keeps the entry points honest
+as gates are added.
+
+**Why this is the testing strategy, not an aside.** The filtering here is
+genuinely complicated — wire detection has three separate defects on record,
+content-type detection distinguishes e-editions from articles, the byline
+cleaner, the masthead strip, the paywall and ROT47 body checks, storysniffer, the
+length gate, the language check, duplicate curation. Testing four entry points
+against all of that combinatorially is not feasible. Testing each gate once in
+isolation, then asserting composition per stage and per entry point, is. The
+alternative is what the corpus already shows: the same invariant validated
+differently in five places, and the sixth place that forgot.
+
+Each gate therefore needs its own documentation — not a docstring describing the
+code, but a statement of what it presumes and what it guarantees, because that is
+the text an entry point reads to work out what it owes.
+
 ## Dispatch is part of the contract
 
 An entry point that admits records and then waits for a cron is the current
