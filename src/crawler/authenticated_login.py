@@ -370,7 +370,30 @@ def _login_form(driver, cfg: dict, username: str, password: str) -> bool:
     # Some publishers (e.g., Connext) render login fields in a modal that opens
     # only after clicking a login trigger on the homepage.
     if trigger_sel:
-        trigger, _ = _find_first(driver, [trigger_sel])
+        # POLL FOR IT. Looked up once, immediately after `driver.get()`, this
+        # found nothing on www.yakimaherald.com: Connext renders the control
+        # with JS and it is not in the DOM yet. The modal was therefore never
+        # opened, and `_fill_and_submit` then polled twenty seconds for a field
+        # that could not exist -- two warnings, both true, neither naming the
+        # cause:
+        #
+        #   16:43:01  form login: login trigger selector '...' not found
+        #   16:43:41  Authenticated login: username/email field not found
+        #
+        # Measured in Playwright against the same page: at 3 seconds both
+        # controls read as not displayed; at 5-6 seconds they are displayed and
+        # the login completes, with Connext's /api/user answering 200.
+        #
+        # The asymmetry was the defect -- the field that the modal contains got
+        # a 20-second poll, the trigger that OPENS the modal got none. Same
+        # budget for both.
+        trigger = None
+        trigger_deadline = time.time() + float(cfg.get("field_timeout", 20))
+        while True:
+            trigger, _ = _find_first(driver, [trigger_sel])
+            if trigger or time.time() >= trigger_deadline:
+                break
+            time.sleep(1)
         if trigger:
             try:
                 trigger.click()
@@ -383,7 +406,11 @@ def _login_form(driver, cfg: dict, username: str, password: str) -> bool:
                         trigger_sel,
                         exc,
                     )
-            time.sleep(1)
+            # The modal it opens is rendered by JS too. One second was optimistic
+            # -- Playwright needed about six against this host -- and being wrong
+            # here is indistinguishable from a wrong selector, because what fails
+            # is the field lookup afterwards.
+            time.sleep(float(cfg.get("modal_delay", 5)))
         else:
             logger.warning(
                 "form login: login trigger selector '%s' not found",
