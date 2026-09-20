@@ -23,6 +23,9 @@ the limit for every anonymous domain in the same batch too -- taking rotation
 away from hosts that never asked, which is precisely what the limit exists to
 give them. An authenticated worker draws only credentialed domains from the
 queue (`WorkRequest.requires_login`), so raising its limit affects nothing else.
+One setting -- `EXTRACTION_WORKER_POOL` -- decides both, because a worker
+that asks for credentialed hosts and recycles every three fetches is the
+churn this exists to stop.
 """
 
 from __future__ import annotations
@@ -108,30 +111,32 @@ class TestTheModeIsReadFromTheEnvironment:
     def test_it_is_off_unless_a_run_sets_it(self, monkeypatch):
         """Provisioning is not built yet, so the default must be the old
         behaviour -- see docs/AN_AUTHENTICATED_WORKER_IS_PROVISIONED.md."""
-        monkeypatch.delenv("EXTRACTION_AUTHENTICATED_WORKER", raising=False)
+        monkeypatch.delenv("EXTRACTION_WORKER_POOL", raising=False)
         _limits(authenticated_worker=None)
         assert ContentExtractor._driver_reuse_limit() == 10
         assert ContentExtractor._authenticated_worker is False
 
-    @pytest.mark.parametrize("value", ["1", "true", "TRUE", "yes"])
-    def test_the_truthy_spellings_turn_it_on(self, monkeypatch, value):
-        monkeypatch.setenv("EXTRACTION_AUTHENTICATED_WORKER", value)
+    @pytest.mark.parametrize(
+        "value", ["authenticated", "AUTHENTICATED", " authenticated "]
+    )
+    def test_the_authenticated_pool_turns_it_on(self, monkeypatch, value):
+        monkeypatch.setenv("EXTRACTION_WORKER_POOL", value)
         _limits(authenticated_worker=None)
         assert ContentExtractor._driver_reuse_limit() == 50
 
-    @pytest.mark.parametrize("value", ["", "0", "false", "no"])
-    def test_anything_else_leaves_it_off(self, monkeypatch, value):
-        monkeypatch.setenv("EXTRACTION_AUTHENTICATED_WORKER", value)
+    @pytest.mark.parametrize("value", ["", "anonymous", "mixed", "nonsense"])
+    def test_every_other_pool_leaves_it_off(self, monkeypatch, value):
+        monkeypatch.setenv("EXTRACTION_WORKER_POOL", value)
         _limits(authenticated_worker=None)
         assert ContentExtractor._driver_reuse_limit() == 10
 
     def test_it_is_read_once_and_cached(self, monkeypatch):
         """Read per fetch, an env change mid-run would move the limit under a
         driver that already holds sessions."""
-        monkeypatch.setenv("EXTRACTION_AUTHENTICATED_WORKER", "true")
+        monkeypatch.setenv("EXTRACTION_WORKER_POOL", "authenticated")
         _limits(authenticated_worker=None)
         assert ContentExtractor._driver_reuse_limit() == 50
-        monkeypatch.setenv("EXTRACTION_AUTHENTICATED_WORKER", "false")
+        monkeypatch.setenv("EXTRACTION_WORKER_POOL", "anonymous")
         assert ContentExtractor._driver_reuse_limit() == 50
 
 

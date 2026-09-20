@@ -2533,19 +2533,20 @@ class ContentExtractor:
                 ContentExtractor._authenticated_domains = set()
                 ContentExtractor._auth_failed_domains = set()
 
-    #: Set when this process is the authenticated worker -- it draws only
+    #: Set when this process serves the authenticated pool -- it draws only
     #: credentialed domains from the queue, so the driver's sessions are the
     #: point of it and recycling only costs logins.
     #:
-    #: An explicit mode rather than "is any domain logged in", which was the
-    #: first attempt: `_authenticated_domains` accumulates for the life of the
-    #: process, so the first login raised the limit for every anonymous domain
-    #: in the same batch too -- taking rotation away from hosts that never
-    #: asked, which is the one thing the limit exists to give them.
+    #: A property of the POOL rather than "is any domain logged in", which was
+    #: the first attempt: `_authenticated_domains` accumulates for the life of
+    #: the process, so the first login raised the limit for every anonymous
+    #: domain in the same batch too -- taking rotation away from hosts that
+    #: never asked, which is the one thing the limit exists to give them.
     #:
-    #: See docs/AN_AUTHENTICATED_WORKER_IS_PROVISIONED.md; the provisioning
-    #: that makes a worker authenticated is not built yet, so this is off
-    #: unless a run sets it.
+    #: The same `EXTRACTION_WORKER_POOL` setting decides which pool the worker
+    #: asks the queue for, because the two cannot disagree. See
+    #: src/utils/worker_pool.py and
+    #: docs/AN_AUTHENTICATED_WORKER_IS_PROVISIONED.md.
     _authenticated_worker = None
 
     @classmethod
@@ -2560,9 +2561,9 @@ class ContentExtractor:
         higher bound and not no bound.
         """
         if cls._authenticated_worker is None:
-            cls._authenticated_worker = os.environ.get(
-                "EXTRACTION_AUTHENTICATED_WORKER", ""
-            ).lower() in ("1", "true", "yes")
+            from src.utils.worker_pool import holds_logins, worker_pool
+
+            cls._authenticated_worker = holds_logins(worker_pool())
         if cls._authenticated_worker:
             return cls._shared_driver_reuse_limit_authenticated or 50
         return cls._shared_driver_reuse_limit or 10
