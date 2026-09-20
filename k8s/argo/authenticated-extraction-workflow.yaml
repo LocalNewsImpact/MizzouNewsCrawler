@@ -90,9 +90,22 @@ spec:
       - name: captcha-backoff-max
         value: "21600"
       - name: log-level
-        # DEBUG, because a first run on a paywalled host is watched: the login
-        # step's own logging is what says whether the session took.
-        value: "DEBUG"
+        # INFO. DEBUG was wrong and it cost a credential: selenium's
+        # remote_connection logger records every browser command, and a login's
+        # `send_keys` carries the password as its payload -- so the first
+        # authenticated run wrote a subscriber password into the pod log, and
+        # pod logs ship to Cloud Logging. Measured 2026-09-20.
+        #
+        # DEBUG was not buying anything either. What a watched login needs is
+        # already INFO, from the crawler itself:
+        #
+        #     🔐 tdn.com - subscriber login: authenticated browser only
+        #     Authenticated session established for tdn.com
+        #
+        # `setup_logging` now holds the two wire loggers at INFO whatever level
+        # is asked for, so this value is the second line of defence rather than
+        # the only one.
+        value: "INFO"
   templates:
     - name: extract-credentialed
       inputs:

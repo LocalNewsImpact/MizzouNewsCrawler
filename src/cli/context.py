@@ -32,6 +32,57 @@ def setup_logging(
             logging.FileHandler(log_file),
         ],
     )
+    _keep_credentials_out_of_the_log()
+
+
+#: Loggers that must not follow a requested DEBUG level, and why.
+#:
+#: `selenium.webdriver.remote.remote_connection` logs every command sent to the
+#: browser, and `send_keys` carries its text as the payload. So a subscriber
+#: login at DEBUG writes the password into the log as cleartext:
+#:
+#:     POST .../element/.../value {'text': 'Newspaper1',
+#:                                'value': ['N','e','w','s','p','a','p','e','r','1']}
+#:
+#: Measured 2026-09-20 on the first authenticated WSU run, whose template asked
+#: for DEBUG so a watched login would say whether the session took. It did not
+#: need DEBUG for that -- the crawler's own INFO lines say it:
+#:
+#:     🔐 tdn.com - subscriber login: authenticated browser only
+#:     Authenticated session established for tdn.com
+#:
+#: Pod logs ship to Cloud Logging, so the exposure is not confined to the pod,
+#: and the account is shared across a publisher group's titles.
+#:
+#: This is containment, not noise reduction. `src/utils/logging_config.py`
+#: quiets the same library, but the CLI calls THIS function, so that one never
+#: applied to an extraction run.
+_NEVER_BELOW_INFO = (
+    "selenium.webdriver.remote.remote_connection",
+    # urllib3 at DEBUG prints request lines, which for a login POST names the
+    # form endpoint. Not a credential, but it belongs to the same request.
+    "urllib3.connectionpool",
+)
+
+
+def _keep_credentials_out_of_the_log() -> None:
+    """Hold the wire loggers at INFO whatever level was asked for.
+
+    Not "clamp unless the operator insists": there is no level at which a
+    password in a log is what the operator wanted. A run that needs the browser
+    protocol can raise these two by name, deliberately, on a host with no
+    credentials.
+    """
+    for name in _NEVER_BELOW_INFO:
+        logger = logging.getLogger(name)
+        # The logger's OWN level, not its effective one. Reading the effective
+        # level asks "would a DEBUG record pass right now", and the answer
+        # depends on the root: while the root sits at WARNING the child looks
+        # safe, so nothing is set, and the child -- still NOTSET -- goes on to
+        # inherit whatever the root becomes next. That is the leak, arriving one
+        # step later. A NOTSET level is 0, so the comparison covers it.
+        if logger.level < logging.INFO:
+            logger.setLevel(logging.INFO)
 
 
 def trigger_gazetteer_population_background(

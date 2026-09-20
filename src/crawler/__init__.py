@@ -1866,16 +1866,49 @@ class ContentExtractor:
 
             db = DatabaseManager()
             with db.get_session() as session:
+                # A host can have MORE THAN ONE source row, and this used to
+                # take whichever one Postgres handed back first.
+                #
+                # Measured on ptleader 2026-09-20. Two rows existed:
+                #
+                #   ptleader.com      requires_login=true   simplecirc  active
+                #   www.ptleader.com  requires_login=false  (no auth)   orphan
+                #
+                # Both matched, `fetchone()` took the orphan, and the answer was
+                # "no login needed". So `fetch_plan` never set `credentialed`,
+                # the anonymous escapes stayed enabled, and a publisher we hold a
+                # subscription to was fetched through the proxies: nine articles
+                # of 282-530 characters, six of them filed as `paywall`. Nothing
+                # errored -- the run reported success and stored the wall.
+                #
+                # Ordering is the fix, not the match. A row that says a login is
+                # required wins, because that claim cannot be satisfied by any
+                # other row: being wrong in that direction costs an unnecessary
+                # login, and being wrong in the other costs the subscription.
+                #
+                # Matched `www.`-agnostically in BOTH directions, because this
+                # host serves both spellings and the queue hands over whichever
+                # the link carries. #626 made the bot-protection lookup
+                # www-agnostic on 2026-09-19; this is the same class of defect in
+                # the auth lookup, which that change did not touch.
+                bare_host = host[4:] if host.lower().startswith("www.") else host
                 row = session.execute(
                     text("""
                         SELECT requires_login, auth_type, auth_secret_name,
                                auth_config
                         FROM sources
-                        WHERE host = :host
-                           OR host = :www_host
-                           OR host_norm = :host
+                        WHERE host IN (:host, :www_host, :bare_host)
+                           OR host_norm IN (:host, :www_host, :bare_host)
+                        ORDER BY requires_login DESC,
+                                 (host = :host) DESC,
+                                 auth_secret_name IS NOT NULL DESC
+                        LIMIT 1
                         """),
-                    {"host": host, "www_host": f"www.{host}"},
+                    {
+                        "host": host,
+                        "www_host": f"www.{bare_host}",
+                        "bare_host": bare_host,
+                    },
                 ).fetchone()
 
             if row and row[0]:

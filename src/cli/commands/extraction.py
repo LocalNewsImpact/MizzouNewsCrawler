@@ -2291,6 +2291,14 @@ def _process_batch(
                             metadata=metadata_value,
                             content=content.get("content"),
                             raw_html=content.get("html"),
+                            # Which paper this is. The author-bio rule asks
+                            # whether a bio names a DIFFERENT publication, and
+                            # that is a comparison against this one name -- the
+                            # URL cannot answer it, because a domain may
+                            # abbreviate its own masthead (tdn.com is The Daily
+                            # News). 133 articles were filed wire on their own
+                            # publishers' bylines before this was passed.
+                            publication_name=publisher,
                         )
                         if detection_result:
                             article_status = detection_result.status

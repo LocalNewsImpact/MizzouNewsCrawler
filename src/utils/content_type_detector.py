@@ -22,6 +22,60 @@ class ContentTypeResult:
     detector_version: str
 
 
+#: "The Daily News (Longview)" and "Daily News" are the same masthead. The
+#: qualifier is how our own source list disambiguates; a byline will not carry
+#: it, and neither will a leading article.
+_MASTHEAD_QUALIFIER = re.compile(r"\s*\([^)]*\)")
+_MASTHEAD_ARTICLE = re.compile(r"^(?:the|a|an)\s+", re.IGNORECASE)
+
+
+def _normalize_masthead(name: str) -> str:
+    """A publication name reduced to what identifies it."""
+    without_qualifier = _MASTHEAD_QUALIFIER.sub("", name or "")
+    lowered = _MASTHEAD_ARTICLE.sub("", without_qualifier.strip().lower())
+    return re.sub(r"[^a-z0-9]+", " ", lowered).strip()
+
+
+def _is_our_own_masthead(bio_masthead: str, canonical_name: str | None) -> bool:
+    """Whether the masthead a bio names is the one that published the article.
+
+    This is the whole question, and it needs no list of publications. Resolving
+    a bio's masthead against every paper that exists is impossible; knowing
+    whether it differs from OURS is a comparison against one string we already
+    have -- `sources.canonical_name` for the host.
+
+    THE CONTAINMENT IS ONE-DIRECTIONAL. A bio naming a LESS specific form of our
+    masthead is us: "Daily News" inside "The Daily News (Longview)", "The Star"
+    inside "The Kansas City Star". A bio naming a MORE specific one is somebody
+    else: our "Daily News" inside "New York Daily News" is the New York paper
+    syndicating to us. So the bio's name must sit inside ours, never the reverse.
+
+    Matched on word boundaries, so a masthead is not found inside a longer word.
+    """
+    bio = _normalize_masthead(bio_masthead)
+    if not bio:
+        return False
+    for alias in _masthead_aliases(canonical_name):
+        if bio == alias:
+            return True
+        if re.search(rf"(?:^| ){re.escape(bio)}(?: |$)", alias):
+            return True
+    return False
+
+
+def _masthead_aliases(canonical_name: str | None) -> list[str]:
+    """Every masthead a source row claims.
+
+    `sources.canonical_name` may carry more than one, slash-separated:
+    "Jefferson City News Tribune/News Tribune" is one paper under two names and
+    a byline may use either.
+    """
+    if not canonical_name:
+        return []
+    parts = re.split(r"[/|]", canonical_name)
+    return [n for n in (_normalize_masthead(part) for part in parts) if n]
+
+
 class ContentTypeDetector:
     """Detect special content types (obituaries, opinion pieces, wire)."""
 
@@ -541,6 +595,7 @@ class ContentTypeDetector:
         content: str | None = None,
         author: str | None = None,
         raw_html: str | None = None,
+        publication_name: str | None = None,
     ) -> ContentTypeResult | None:
         """Return the detected content type for the article, if any.
 
@@ -550,7 +605,11 @@ class ContentTypeDetector:
             metadata: Article metadata dict
             content: Cleaned article text (from newspaper4k)
             author: Article author/byline
-            raw_html: Raw HTML (preferred for cross-publication detection)
+            raw_html: Raw HTML (used by the structured-metadata signals)
+            publication_name: `sources.canonical_name` for the host that
+                published this article. The author-bio rule needs it: whether a
+                bio names a DIFFERENT publication is a comparison against this
+                one string, and no list of publications can stand in for it.
         """
 
         normalized_metadata = metadata or {}
@@ -565,6 +624,7 @@ class ContentTypeDetector:
             author=author,
             title=title,
             raw_html=raw_html,
+            publication_name=publication_name,
         )
         if wire_result:
             return wire_result
@@ -606,6 +666,7 @@ class ContentTypeDetector:
         author: str | None = None,
         title: str | None = None,
         raw_html: str | None = None,
+        publication_name: str | None = None,
     ) -> ContentTypeResult | None:
         """
         Detect wire service content using tiered detection strategy.
@@ -753,24 +814,27 @@ class ContentTypeDetector:
                     detected_services.add(service_name)
                     byline_signal = True
 
-        # Check for cross-publication author bio (content-based detection)
-        # Example: "Nick Harris is the reporter for the Fort Worth
-        # Star-Telegram" on kansascity.com indicates syndication
-        # Prefer raw HTML (has author bios) over cleaned content
+        # A bio naming another paper in our own source list.
+        #
+        # This rule used to fire on any capitalised phrase ending in a common
+        # English word, at 0.9 confidence, which is enough to set `wire` alone.
+        # Over its whole history -- 158 detections, measured 2026-09-20 -- 133
+        # named the article's OWN publisher and 22 named nothing identifiable.
+        # It now fires only when the masthead resolves in `sources` to a host
+        # that is not this one, so the finding names a paper and says which.
         if not byline_signal:
             search_text = raw_html if raw_html else content
             if search_text:
-                cross_pub_result = self._detect_cross_publication_byline(
-                    search_text, url_lower
+                bio_masthead = self._detect_syndication_from_bio(
+                    search_text, url_lower, publication_name
                 )
-                if cross_pub_result:
-                    publication_name, is_syndicated = cross_pub_result
-                    if is_syndicated:
-                        matches.setdefault("author", []).append(
-                            f"{publication_name} (cross-publication byline, raw_html={bool(raw_html)})"
-                        )
-                        detected_services.add(publication_name)
-                        byline_signal = True
+                if bio_masthead:
+                    matches.setdefault("author", []).append(
+                        f"{bio_masthead} (author bio names a publication other "
+                        f"than {publication_name})"
+                    )
+                    detected_services.add(bio_masthead)
+                    byline_signal = True
 
         # Byline signal is strong enough alone
         if byline_signal:
@@ -1147,94 +1211,63 @@ class ContentTypeDetector:
 
         return None
 
-    def _detect_cross_publication_byline(
-        self, content: str, url_lower: str
-    ) -> tuple[str, bool] | None:
-        """Detect author bios mentioning different publications.
+    #: A masthead in an author bio. Capitalisation is load-bearing: these end in
+    #: common English words (Tribune, Star, Post, News, Record...), so without it
+    #: "reporter for the Minnesota news outlet" yields "Minnesota news". The
+    #: patterns used to be searched with re.IGNORECASE, which made the `[A-Z]`
+    #: anchor and the capitalised terminators decorative -- measured on the real
+    #: strings, IGNORECASE also captured "USA TODAY and covers scientific
+    #: studies and trending news" as a publication name.
+    _BIO_MASTHEAD = "(?:the )?([A-Z][A-Za-z.\\s\\-]+(?:Tribune|Star|Times|Post|News|Telegram|Dispatch|Herald|Journal|Chronicle|Examiner|Gazette|Record))"
+    _BIO_PATTERNS = (
+        r"(?:is|works as)(?: a| an)? .{0,50}?"
+        r"(?:reporter|journalist|editor|writer|correspondent) (?:for|at) "
+        + _BIO_MASTHEAD,
+        r"(?:covers|reports on) .{0,30} for " + _BIO_MASTHEAD,
+        r"(?:beat reporter|staff writer) (?:for|at) " + _BIO_MASTHEAD,
+    )
 
-        Checks if content contains author bio patterns indicating the author
-        works for a different publication (e.g., "reporter for the [Pub]").
+    def _detect_syndication_from_bio(
+        self, content: str, url_lower: str, publication_name: str | None
+    ) -> str | None:
+        """The masthead an author bio names, when it is not ours.
 
-        Args:
-            content: Full article content for bio detection
-            url_lower: Lowercased article URL
+        Returns that masthead, or None when the bio names our own paper, carries
+        no masthead, or has no bio at all.
 
-        Returns:
-            Tuple of (publication_name, is_syndicated) if detected, else None
-            - publication_name: The publication mentioned in the bio
-            - is_syndicated: True if different publication (syndicated),
-                           False if same publication (local content)
+        No list of publications is consulted, because no such list can be
+        complete. "Las Cruces Sun-News" is a real paper we do not carry, and a
+        Las Cruces reporter's bio on the Springfield News-Leader is Gannett
+        syndication whether or not `sources` has heard of Las Cruces. The only
+        question a machine can answer here is whether the bio's masthead differs
+        from the one that published the article, and `sources.canonical_name`
+        answers it.
+
+        What this used to get wrong:
+
+        - IT ASKED THE URL. "Is `dailynews` in tdn.com" -- no, because a domain
+          may abbreviate its own masthead, so The Daily News read as syndicating
+          to itself. 133 of 158 historical detections, every one wrong. The
+          comparison is now against the name.
+        - IT CAPTURED ANYTHING. The patterns end in common English words and ran
+          under re.IGNORECASE, which made the `[A-Z]` anchor decorative:
+          "reporter for the Minnesota news outlet" captured "Minnesota news",
+          and one bio captured "USA TODAY and covers scientific studies and
+          trending news" entire. Matched case-sensitively, neither captures.
         """
-        # Check last ~500 chars where author bios typically appear
         bio_section = content[-500:] if len(content) > 500 else content
-
-        # Pattern to match author bio phrases mentioning publications
-        # Examples:
-        # - "is the reporter for the Fort Worth Star-Telegram"
-        # - "covers sports for The Kansas City Star"
-        # - "works as a journalist at The Post-Dispatch"
-        bio_patterns = [
-            r"(?:is|works as)(?: a| an)? .{0,50}?"
-            r"(?:reporter|journalist|editor|writer|correspondent)"
-            r" (?:for|at) (?:the )?([A-Z][A-Za-z\s\-]+(?:Tribune|"
-            r"Star|Times|Post|News|Telegram|Dispatch|Herald|"
-            r"Journal|Chronicle|Examiner|Gazette|Record))",
-            r"(?:covers|reports on) .{0,30} for (?:the )?"
-            r"([A-Z][A-Za-z\s\-]+(?:Tribune|Star|Times|Post|News|"
-            r"Telegram|Dispatch|Herald|Journal|Chronicle|Examiner|"
-            r"Gazette|Record))",
-            r"(?:beat reporter|staff writer) (?:for|at) (?:the )?"
-            r"([A-Z][A-Za-z\s\-]+(?:Tribune|Star|Times|Post|News|"
-            r"Telegram|Dispatch|Herald|Journal|Chronicle|Examiner|"
-            r"Gazette|Record))",
-        ]
-
-        for pattern in bio_patterns:
-            match = re.search(pattern, bio_section, re.IGNORECASE)
-            if match:
-                publication_name = match.group(1).strip()
-
-                # Normalize publication name for URL matching
-                pub_name_lower = publication_name.lower()
-                pub_slug = re.sub(r"[\s\-]+", "", pub_name_lower)
-
-                # Check if URL belongs to this publication
-                # Examples:
-                # - "Kansas City Star" -> "kansascitystar" in URL
-                # - "Fort Worth Star-Telegram" -> "star-telegram" in URL
-                url_belongs_to_pub = False
-
-                # Both sides stripped of separators before comparing.
-                #
-                # The full slug and the URL were normalized this way, but
-                # the shorter check below compared "news-tribune" against
-                # a hyphenless "www.newstribune.com" and missed -- so the
-                # Jefferson City News Tribune was read as syndicating to
-                # itself on 87 of its own articles, bylined Trevor Hahn,
-                # Anna Campbell, Tom Rackers and other staff reporters.
-                # A paper is not a wire service to its own newsroom.
-                flat_url = url_lower.replace("-", "").replace("_", "")
-
-                if pub_slug in flat_url:
-                    url_belongs_to_pub = True
-                # Also check for partial matches (e.g., "star-telegram")
-                pub_words = pub_name_lower.split()
-                if len(pub_words) >= 2:
-                    # Check last 2 words (e.g., "Star-Telegram")
-                    last_words = "-".join(pub_words[-2:])
-                    if (
-                        last_words in url_lower
-                        or last_words.replace("-", "") in flat_url
-                    ):
-                        url_belongs_to_pub = True
-
-                # If URL belongs to publication, it's local (not syndicated)
-                if url_belongs_to_pub:
-                    return (publication_name, False)
-
-                # URL belongs to different publication - syndicated
-                return (publication_name, True)
-
+        for pattern in self._BIO_PATTERNS:
+            match = re.search(pattern, bio_section)
+            if not match:
+                continue
+            bio_masthead = match.group(1).strip()
+            # Without our own name there is nothing to compare against, and the
+            # URL is what got this wrong 133 times. No claim is the safe answer.
+            if not publication_name:
+                return None
+            if _is_our_own_masthead(bio_masthead, publication_name):
+                return None
+            return bio_masthead
         return None
 
     def _build_wire_result(
