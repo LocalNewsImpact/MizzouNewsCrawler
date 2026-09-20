@@ -232,8 +232,17 @@ def test_max_articles_per_domain_enforced(coordinator):
 
     # Second call for candidate_links - SQL LIMIT enforces max 3
     # (In real database, LIMIT :limit would restrict to 3 results)
+    # Five columns, matching the item query: id, url, source, canonical_name
+    # and cl.status. The status is what tells the worker whether the link owes
+    # a first fetch or a refetch, and a four-wide row raised IndexError.
     articles_data = [
-        (f"id-{i}", f"https://domain1.com/article-{i}", "domain1.com", "Domain 1")
+        (
+            f"id-{i}",
+            f"https://domain1.com/article-{i}",
+            "domain1.com",
+            "Domain 1",
+            "article",
+        )
         for i in range(3)  # Only 3 articles due to SQL LIMIT
     ]
 
@@ -254,7 +263,7 @@ def test_worker_last_seen_updated(coordinator):
     mock_session = MagicMock()
     domains_data = [("domain1.com", "Domain 1", 10)]
     articles_data = [
-        ("id-1", "https://domain1.com/article-1", "domain1.com", "Domain 1")
+        ("id-1", "https://domain1.com/article-1", "domain1.com", "Domain 1", "article")
     ]
     mock_session.execute.side_effect = [iter(domains_data), iter(articles_data)]
     coordinator.db.get_session.return_value.__enter__.return_value = mock_session
@@ -411,7 +420,13 @@ def test_single_domain_per_request_enforced(coordinator):
     # Articles from only 1 domain (SQL WHERE cl.source = ANY(:domains) with 1 domain)
     # Coordinator assigns 1 domain, so SQL only returns articles from that domain
     articles_data = [
-        (f"id-0-{j}", f"https://domain0.com/article-{j}", "domain0.com", "Domain 0")
+        (
+            f"id-0-{j}",
+            f"https://domain0.com/article-{j}",
+            "domain0.com",
+            "Domain 0",
+            "article",
+        )
         for j in range(3)  # Max 3 articles
     ]
 
@@ -435,7 +450,13 @@ def test_three_article_limit_respected(coordinator):
 
     # SQL LIMIT enforces max 3 articles (even though 100 available)
     articles_data = [
-        (f"id-{i}", f"https://domain1.com/article-{i}", "domain1.com", "Domain 1")
+        (
+            f"id-{i}",
+            f"https://domain1.com/article-{i}",
+            "domain1.com",
+            "Domain 1",
+            "article",
+        )
         for i in range(3)  # SQL LIMIT :limit returns only 3
     ]
 

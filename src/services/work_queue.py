@@ -149,6 +149,17 @@ class WorkItem(BaseModel):
     url: str
     source: str
     canonical_name: Optional[str] = None
+    #: `candidate_links.status` -- `article` for a first fetch, `refetch` for a
+    #: rewind. The worker MUST know which: a rewind's article already exists, so
+    #: the body is written with `ARTICLE_REFETCH_SQL`, while the ordinary insert
+    #: ends `ON CONFLICT DO NOTHING` and would discard it. The worker used to
+    #: hardcode "article" for every queue item, so a rewind served through the
+    #: queue would have been fetched -- spending a request on a paywalled
+    #: publisher we hold a subscription to -- and silently thrown away.
+    #:
+    #: Defaults to `article` so a worker talking to an older queue behaves as it
+    #: did rather than crashing on a missing field.
+    status: str = "article"
 
 
 class WorkResponse(BaseModel):
@@ -543,7 +554,7 @@ class WorkQueueCoordinator:
         dataset_clause = " AND cl.dataset_id = :dataset" if dataset else ""
         rework_clause = REWORK_ONLY if rework else ""
         query = text(f"""
-            SELECT cl.id, cl.url, cl.source, s.canonical_name
+            SELECT cl.id, cl.url, cl.source, s.canonical_name, cl.status
             FROM candidate_links cl
             LEFT JOIN sources s ON cl.source_id = s.id
             LEFT JOIN articles a ON cl.id = a.candidate_link_id
@@ -578,6 +589,7 @@ class WorkQueueCoordinator:
                 url=row[1],
                 source=row[2],
                 canonical_name=row[3] if row[3] else row[2],
+                status=row[4],
             )
             for row in result
         ]

@@ -1843,7 +1843,14 @@ def _process_batch(
                     item["id"],
                     item["url"],
                     item["source"],
-                    "article",
+                    # What the link owes, from the queue. Hardcoding "article"
+                    # here meant a `refetch` item took the ordinary insert path,
+                    # and `ARTICLE_INSERT_SQL` ends `ON CONFLICT DO NOTHING` --
+                    # so the page was fetched, the request was spent on a
+                    # paywalled publisher, and the new body was discarded. It
+                    # looked like it worked. Defaults to `article` for an older
+                    # queue that does not send the field.
+                    item.get("status") or "article",
                     item.get("canonical_name"),
                     # The work queue does not carry it; a link reviewed
                     # in the console is read through the direct path.
