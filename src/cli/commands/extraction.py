@@ -2063,14 +2063,38 @@ def _process_batch(
                                 "wire_detection", {}
                             )
 
-                            # Determine detection source
+                            # File the record under the rule that made it.
+                            #
+                            # The last branch used to be
+                            # `detection_key = "hearst_source_name"`, an
+                            # unconditional else. `hearst_source_name` is a real
+                            # rule -- it reads Hearst CMS's `window.HRST` object
+                            # for a source name -- and it was being used as the
+                            # name for everything that was not Gannett or
+                            # `structured_metadata`. So a canonical finding was
+                            # written as a Hearst CMS finding.
+                            #
+                            # It mislabelled every row: ~25,000 articles carry
+                            # `wire_detection.hearst_source_name` and NOT ONE of
+                            # them has `hearst_source_name` in its `detected_by`.
+                            # The real rules were `canonical_cross_domain`
+                            # (14,316), `jsonld_author` (3,438), `meta_author`
+                            # (2,563) and `og_distributor_category` (1,473).
+                            # Investigating six WSU misattributions meant
+                            # reading the wrong rule's name off every one.
+                            #
+                            # `detected_by` held the truth all along, so use it.
+                            # An empty list is named as such rather than
+                            # borrowing a rule's name.
                             detected_by_list = wire_hints.get("detected_by", [])
                             if "gannett_jsonld" in detected_by_list:
                                 detection_key = "gannett_jsonld"
                             elif "structured_metadata" in detected_by_list:
                                 detection_key = "structured_metadata"
+                            elif detected_by_list:
+                                detection_key = str(detected_by_list[0])
                             else:
-                                detection_key = "hearst_source_name"
+                                detection_key = "unattributed"
 
                             detection_details[detection_key] = {
                                 "raw_source_name": wire_hints.get("raw_source_name"),
