@@ -737,6 +737,7 @@ class WorkQueueCoordinator:
                            s.status,
                            s.auth_type IS NOT NULL
                              AND s.auth_secret_name IS NOT NULL AS has_credentials,
+                           s.auth_last_failed_at IS NOT NULL AS needs_revalidation,
                            COUNT(*) AS owed
                     FROM candidate_links cl
                     JOIN sources s ON cl.source_id = s.id
@@ -748,7 +749,8 @@ class WorkQueueCoordinator:
                         SELECT 1 FROM articles a
                         WHERE a.candidate_link_id = cl.id
                     ))
-                    GROUP BY s.host_norm, s.status, has_credentials
+                    GROUP BY s.host_norm, s.status, has_credentials,
+                             needs_revalidation
                 """
                 )
             ).fetchall()
@@ -756,10 +758,21 @@ class WorkQueueCoordinator:
             credentialed_available = 0
             credentialed_claimable = 0
             credentialed_unclaimable: dict[str, str] = {}
-            for host, source_status, has_credentials, owed in credentialed_rows:
+            for row in credentialed_rows:
+                host, source_status, has_credentials, needs_revalidation, owed = row
                 owed = int(owed or 0)
                 credentialed_available += owed
-                if not has_credentials:
+                if needs_revalidation:
+                    # A run refused this host because its login did not
+                    # confirm. Its links are not claimable until a person
+                    # re-validates (`validate-login --record`), and saying so
+                    # here is the difference between a known gap and
+                    # yakimaherald's two silent months.
+                    credentialed_unclaimable[str(host)] = (
+                        f"{owed} owed; login failed on a recent run -- "
+                        "needs re-validation"
+                    )
+                elif not has_credentials:
                     credentialed_unclaimable[str(host)] = (
                         f"{owed} owed; no auth_type/auth_secret_name -- "
                         "in neither pool"

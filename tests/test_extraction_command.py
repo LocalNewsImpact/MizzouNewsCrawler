@@ -254,7 +254,14 @@ def test_opinion_detection_sets_status():
             call
             for call in execute_calls
             if call.args
-            and call.args[0] is extraction_module.CANDIDATE_STATUS_UPDATE_SQL
+            # The write after a successful insert has its own statement now,
+            # so that it can record http_status without forcing the bind on the
+            # five failure-path callers of the shared one.
+            and call.args[0]
+            in (
+                extraction_module.CANDIDATE_EXTRACTED_SQL,
+                extraction_module.CANDIDATE_STATUS_UPDATE_SQL,
+            )
         )
         candidate_params = candidate_call.args[1]
         assert candidate_params["status"] == "opinion"
@@ -302,6 +309,7 @@ def test_extraction_failure_no_content_no_database_changes():
             in {
                 extraction_module.ARTICLE_INSERT_SQL,
                 extraction_module.CANDIDATE_STATUS_UPDATE_SQL,
+                extraction_module.CANDIDATE_EXTRACTED_SQL,
             }
         ]
         assert executed_sql == []
@@ -488,6 +496,7 @@ def test_content_extraction_exception_handling():
             in {
                 extraction_module.ARTICLE_INSERT_SQL,
                 extraction_module.CANDIDATE_STATUS_UPDATE_SQL,
+                extraction_module.CANDIDATE_EXTRACTED_SQL,
             }
         ]
         assert write_calls == []

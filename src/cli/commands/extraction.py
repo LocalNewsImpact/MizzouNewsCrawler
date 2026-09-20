@@ -673,6 +673,18 @@ CANDIDATE_STATUS_UPDATE_SQL = text(
     "UPDATE candidate_links SET status = :status WHERE id = :id"
 )
 
+#: The write after a successful INSERT, and only that one. It also records the
+#: HTTP status the fetch got -- `candidate_links.http_status` existed, the
+#: extractor recovered a code for every browser navigation, and NOTHING wrote
+#: it: every credentialed fetch on 2026-09-20 carried NULL, the walls included.
+#: A separate statement rather than a bind added to the shared one above,
+#: because five other callers use that in failure paths with no status to give,
+#: and a missing bind is a database error rather than a NULL.
+CANDIDATE_EXTRACTED_SQL = text(
+    "UPDATE candidate_links SET status = :status, http_status = :http_status "
+    "WHERE id = :id"
+)
+
 PAUSE_CANDIDATE_LINKS_SQL = text(
     "UPDATE candidate_links "
     "SET status = :status, error_message = :error "
@@ -2968,10 +2980,22 @@ def _process_batch(
                             },
                         )
                     else:
+                        # The status the fetch got, from the result when the
+                        # path put it there (newspaper4k always did, the browser
+                        # path does now) and from the extractor otherwise.
+                        fetched_status = (metadata_value or {}).get("http_status")
+                        if fetched_status is None:
+                            fetched_status = getattr(
+                                extractor, "_last_fetch_http_status", None
+                            )
                         safe_session_execute(
                             session,
-                            CANDIDATE_STATUS_UPDATE_SQL,
-                            {"status": article_status, "id": str(url_id)},
+                            CANDIDATE_EXTRACTED_SQL,
+                            {
+                                "status": article_status,
+                                "http_status": fetched_status,
+                                "id": str(url_id),
+                            },
                         )
 
                     # Explicit commit with logging to catch silent failures

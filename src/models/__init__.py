@@ -768,6 +768,19 @@ class Source(Base):
     # publishers whose login is automated; this is for the rest, which is
     # all of them but seven.
     login_url = Column(Text, nullable=True)
+    # How the login is reached, declared by the person who entered the
+    # credentials with the site open: 'page' (the form is on login_url),
+    # 'modal' (a control on login_url must be clicked first), 'sso' (login_url
+    # redirects to the vendor). See docs/A_LOGIN_IS_WITNESSED_AT_ENTRY.md.
+    login_path = Column(String(16), nullable=True)
+    # When a run last refused this host because its login did not confirm,
+    # and why. Set by the extractor, cleared by `validate-login --record`.
+    # This is what makes drift VISIBLE: www.yakimaherald.com was verified in
+    # July 2026, its markup changed, and nothing said so until 2026-09-20.
+    # /stats reports a credentialed host with this set as needing
+    # re-validation rather than as work that will be served.
+    auth_last_failed_at = Column(DateTime, nullable=True)
+    auth_failure_reason = Column(Text, nullable=True)
 
     # Relationships
     broadcaster_callsigns = relationship(

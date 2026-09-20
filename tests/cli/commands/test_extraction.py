@@ -231,6 +231,9 @@ class _FakeSession:
         if query is extraction.CANDIDATE_STATUS_UPDATE_SQL:
             self.update_calls.append(("candidate", params))
             return _FakeResult([])
+        if query is extraction.CANDIDATE_EXTRACTED_SQL:
+            self.update_calls.append(("candidate", params))
+            return _FakeResult([])
         if query is extraction.PAUSE_CANDIDATE_LINKS_SQL:
             self.update_calls.append(("pause", params))
             return _FakeResult([])

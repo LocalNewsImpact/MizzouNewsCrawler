@@ -68,6 +68,25 @@ def document_status(entries: list[dict]) -> tuple[int | None, str | None]:
     return status, final_url
 
 
+def network_responses(entries: list[dict]) -> list[tuple[int, str]]:
+    """Every (status, url) the browser received, in order.
+
+    `document_status` keeps only the navigation. A login is confirmed by a
+    different request -- the vendor's auth call, which is an XHR -- so the
+    entry-time validation reads all of them and shows which one answered. On
+    www.yakimaherald.com that is
+    `prod-amg-proxy-connext.azurewebsites.net/api/user -> 200`.
+    """
+    out: list[tuple[int, str]] = []
+    for params in _events(entries):
+        response = params.get("response") or {}
+        code = response.get("status")
+        url = response.get("url")
+        if isinstance(code, int) and url:
+            out.append((code, str(url)))
+    return out
+
+
 def read_navigation_status(driver) -> tuple[int | None, str | None]:
     """The status and final URL of the page currently loaded, best effort.
 
