@@ -15,6 +15,9 @@ def _default_args(**overrides) -> Namespace:
         status=False,
         continuous=False,
         idle_grace_seconds=0,
+        # Verification is scoped to one dataset; the handler forwards this to
+        # the service, which filters the selection on it.
+        dataset=None,
     )
     defaults.update(overrides)
     return Namespace(**defaults)
@@ -39,7 +42,13 @@ def test_handle_verification_status_mode(monkeypatch, capsys):
     instances: list[Any] = []
 
     class FakeService:
-        def __init__(self, *, batch_size: int, sleep_interval: int) -> None:
+        def __init__(
+            self,
+            *,
+            batch_size: int,
+            sleep_interval: int,
+            dataset_id: str | None = None,
+        ) -> None:
             self.init_args = (batch_size, sleep_interval)
             instances.append(self)
 
@@ -67,7 +76,13 @@ def test_handle_verification_runs_service(monkeypatch):
     run_calls: list[int | None] = []
 
     class FakeService:
-        def __init__(self, *, batch_size: int, sleep_interval: int) -> None:
+        def __init__(
+            self,
+            *,
+            batch_size: int,
+            sleep_interval: int,
+            dataset_id: str | None = None,
+        ) -> None:
             self.batch_size = batch_size
             self.sleep_interval = sleep_interval
 
@@ -90,7 +105,13 @@ def test_handle_verification_passes_idle_grace(monkeypatch):
     recorded: list[tuple[int | None, int]] = []
 
     class GracefulService:
-        def __init__(self, *, batch_size: int, sleep_interval: int) -> None:
+        def __init__(
+            self,
+            *,
+            batch_size: int,
+            sleep_interval: int,
+            dataset_id: str | None = None,
+        ) -> None:
             self.batch_size = batch_size
             self.sleep_interval = sleep_interval
 
@@ -202,7 +223,13 @@ def test_handle_verification_returns_error_when_run_loop_fails(monkeypatch):
     errors: list[str] = []
 
     class FailingService:
-        def __init__(self, *, batch_size: int, sleep_interval: int) -> None:
+        def __init__(
+            self,
+            *,
+            batch_size: int,
+            sleep_interval: int,
+            dataset_id: str | None = None,
+        ) -> None:
             self.batch_size = batch_size
             self.sleep_interval = sleep_interval
 
@@ -227,3 +254,57 @@ def test_handle_verification_returns_error_when_run_loop_fails(monkeypatch):
 
     assert exit_code == 1
     assert any("Verification service failed" in msg for msg in errors)
+
+
+def test_the_dataset_reaches_the_service(monkeypatch):
+    """An unscoped verification run verifies another corpus's backlog.
+
+    Measured on production 2026-09-19: unscoped, verification takes 374 links,
+    373 of them Mizzou and 0 WSU. The flag has to arrive at the constructor --
+    the service filters `get_unverified_urls` on it.
+    """
+    monkeypatch.setattr(verification.logging, "basicConfig", lambda **_: None)
+    seen: dict[str, Any] = {}
+
+    class Recording:
+        def __init__(
+            self,
+            *,
+            batch_size: int,
+            sleep_interval: int,
+            dataset_id: str | None = None,
+        ) -> None:
+            seen["dataset_id"] = dataset_id
+
+    monkeypatch.setattr(verification, "URLVerificationService", Recording)
+    monkeypatch.setattr(verification, "run_verification_service", lambda *a, **k: 0)
+
+    verification.handle_verification_command(
+        _default_args(dataset="WSU-Washington-State")
+    )
+    assert seen["dataset_id"] == "WSU-Washington-State"
+
+
+def test_an_absent_dataset_stays_none(monkeypatch):
+    """Omitting it verifies everything, which is the historical behaviour."""
+    monkeypatch.setattr(verification.logging, "basicConfig", lambda **_: None)
+    seen: dict[str, Any] = {}
+
+    class Recording:
+        def __init__(
+            self,
+            *,
+            batch_size: int,
+            sleep_interval: int,
+            dataset_id: str | None = None,
+        ) -> None:
+            seen["dataset_id"] = dataset_id
+
+    monkeypatch.setattr(verification, "URLVerificationService", Recording)
+    monkeypatch.setattr(verification, "run_verification_service", lambda *a, **k: 0)
+
+    # Both an omitted flag and an empty string mean "every dataset".
+    verification.handle_verification_command(_default_args())
+    assert seen["dataset_id"] is None
+    verification.handle_verification_command(_default_args(dataset=""))
+    assert seen["dataset_id"] is None
