@@ -187,6 +187,40 @@ own facts were discarded by a parser that had no opinion about them. A
 field-ownership rule applied at the pipeline level has exactly that failure mode
 available to it, one scale up.
 
+### The value that loses is the evidence, and it currently goes to the wrong place
+
+A sheet supplying a byline but no body makes this concrete. Extraction has to run
+for the body, and it will parse a byline too. The supplied one stays — it is
+authoritative, so nothing overwrites it — but the disagreement is exactly the kind
+of conflict the review queue exists for, and a reviewer cannot judge it without
+seeing **both** values.
+
+So a derived value that loses to a supplied one is not discarded. It is the
+evidence for the claim.
+
+The mechanism is already there and already captures both sides:
+
+```python
+metrics.record_alternative_extraction(method, field, source_value, current_value)
+```
+
+Two things stop it being usable for review:
+
+- **It goes to telemetry, not to the record.** A reviewer looking at the article
+  sees the byline that won and no sign that anything else was found. The
+  disagreement has to be on `articles.metadata` as a claim, keyed like any other
+  claim a person can answer.
+- **It is conditional.** The call is guarded by
+  `if metrics and hasattr(metrics, "record_alternative_extraction")`, so with no
+  metrics object the losing value is dropped silently. Acceptable for
+  observability; not acceptable for a claim, which must be recorded whether or not
+  telemetry is switched on.
+
+That second point is the same shape as every other defect in this batch: a
+capture that looks like it happens, does not, and says nothing when it does not.
+The performance log had exactly this structure — three readers, all swallowing
+failure, none reporting an empty result as different from a clean one.
+
 ## There is no other way in
 
 Every ingestion is structured against a named entry point. Not a script, not a
