@@ -62,6 +62,11 @@ WINDOWED_BUT_NOT_ABOUT_FRESHNESS = {
     "test_section_urls_are_extracted_and_stored",
     "test_section_urls_used_in_discovery",
     "test_article_urls_discovered_from_sections",
+    # Reads a 7-day window and asserts that NONE of the articles in it lack a
+    # dataset_id. With collection suspended the window is empty and "0 of 0
+    # carry no dataset" is both true and the right answer -- the test is about
+    # whether work was attributable, not about whether work happened.
+    "test_no_recent_article_was_written_without_a_dataset",
 }
 
 

@@ -91,6 +91,16 @@ apply_crawler() {
     # here for the same reason as the two above: a template that lives only in
     # the repository is a stage that cannot be run.
     apply_file k8s/argo/dataset-enrichment-workflow.yaml
+    # On-demand extraction for one named dataset, for the same reason. The
+    # pipeline template is a DAG that also runs discovery and verification,
+    # which is wrong for a curated corpus whose URLs a researcher chose by
+    # hand; the links waiting at `article` need only the extraction step.
+    #
+    # It calls `extraction-step` by templateRef, so it must be applied AFTER
+    # whatever applies base-pipeline-workflow.yaml (Cloud Build does, during
+    # the build) -- a submit against a missing templateRef reports as a
+    # workflow error rather than as "nothing is deployed".
+    apply_file k8s/argo/dataset-extraction-workflow.yaml
 }
 
 apply_all() {
