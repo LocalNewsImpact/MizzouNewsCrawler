@@ -1817,6 +1817,72 @@ class TestMLPipeline:
                 )
 
 
+@pytest.mark.e2e
+class TestComputeIsChargedToADataset:
+    """Nothing does work that cannot be charged to a dataset.
+
+    GKE cost allocation attributes node cost by pod label, and the pipeline's
+    compute steps now stamp `dataset` on the pod. That is the manifest half,
+    guarded by tests/test_compute_is_charged_to_a_dataset.py. This is the
+    production half: it looks at what the cluster actually did and fails if
+    work landed with no dataset on it.
+
+    An unscoped run is the failure mode. The work queue draws from every
+    dataset when it is given none, so one omitted `--dataset` pulls another
+    corpus's backlog -- and the rows it writes are the evidence.
+    """
+
+    #: Before this, `dataset_id` was not recorded on the article at insert
+    #: (crawler #540). 141 rows from 2026-02-01 to 2026-04-01 carry none and
+    #: never will; they are history, not a leak. Anything newer is a defect.
+    DATASET_ID_RECORDED_FROM = "2026-04-02"
+
+    def test_every_link_extraction_will_take_has_a_dataset(self, production_db):
+        """A link at `article` or `refetch` is work about to happen."""
+        with production_db.get_session() as session:
+            row = session.execute(text("""
+                SELECT count(*) FILTER (WHERE dataset_id IS NULL) AS orphaned,
+                       count(*) AS total
+                  FROM candidate_links
+                 WHERE status IN ('article', 'refetch')
+            """)).one()
+            orphaned, total = row
+            assert orphaned == 0, (
+                f"{orphaned} of {total} links queued for extraction carry no "
+                "dataset_id. Extracting them spends compute that cannot be "
+                "attributed to any corpus."
+            )
+
+    def test_no_recent_article_was_written_without_a_dataset(self, production_db):
+        """A row written with no dataset is the trace of an unscoped run."""
+        with production_db.get_session() as session:
+            row = session.execute(text("""
+                SELECT count(*) FILTER (WHERE dataset_id IS NULL) AS orphaned,
+                       count(*) AS total
+                  FROM articles
+                 WHERE created_at > now() - interval '7 days'
+            """)).one()
+            orphaned, total = row
+            assert orphaned == 0, (
+                f"{orphaned} of {total} articles created in the last 7 days "
+                "carry no dataset_id — something ran without --dataset."
+            )
+
+    def test_the_historical_gap_has_not_reopened(self, production_db):
+        """The old unattributed rows are a closed window, not a trend."""
+        with production_db.get_session() as session:
+            newest = session.execute(text("""
+                SELECT max(created_at) FROM articles WHERE dataset_id IS NULL
+            """)).scalar()
+            if newest is None:
+                return  # the backlog was cleaned up; nothing to bound
+            assert str(newest) < self.DATASET_ID_RECORDED_FROM, (
+                f"an article created {newest} has no dataset_id. Everything "
+                f"unattributed should predate {self.DATASET_ID_RECORDED_FROM}, "
+                "when the crawler began recording the dataset at insert."
+            )
+
+
 @pytest.mark.slow
 @pytest.mark.e2e
 class TestPerformance:

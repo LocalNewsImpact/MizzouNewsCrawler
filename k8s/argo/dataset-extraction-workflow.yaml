@@ -1,0 +1,119 @@
+# Extracting one dataset's already-queued links, and nothing else.
+#
+# `news-pipeline-template` is a DAG: discovery, verification and extraction.
+# For a CURATED dataset the first two are wrong. The WSU Washington State
+# corpus is 3,558 URLs a researcher selected by hand; selection IS the filter
+# and it has already run (docs/CURATED_DATASETS_NEED_A_BYPASS.md). Running
+# discovery against those publishers finds URLs nobody chose, and the links
+# waiting at `article` need only the third step.
+#
+# There was no entry point for that. The same gap produced
+# `dataset-enrichment-workflow.yaml`: WSU had 447 articles at `labeled`, a v3
+# profile, and nothing that would run them. This is that template for
+# extraction.
+#
+# It does NOT copy `extraction-step`. It calls it by reference, so the tuning,
+# the retry strategy, the 40-odd env entries and -- critically --
+# `USE_WORK_QUEUE=true` with `WORK_QUEUE_URL` all come from the one tested
+# definition. The work queue is the point: it hands a worker ONE domain and at
+# most three articles per request with a 60-second cooldown
+# (`src/services/work_queue.py`), which is what keeps a publisher from seeing a
+# hundred consecutive requests. A hand-written Job that loops `--source` to
+# exhaustion draws 429s and 403s; one did, on 2026-09-19.
+#
+# Submit it:
+#
+#     argo submit -n production --from workflowtemplate/dataset-extraction \
+#       -p dataset=WSU-Washington-State
+#
+# `serviceAccountName` is declared here rather than left to the submitter.
+# Argo defaults a `--from workflowtemplate` submit to the `default` service
+# account, which carries no `iam.gke.io/gcp-service-account` annotation and so
+# no Workload Identity, and the step dies on
+# `403 boss::NOT_AUTHORIZED: cloudsql.instances.get`.
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: dataset-extraction
+  namespace: production
+  labels:
+    type: extraction
+spec:
+  entrypoint: extract-dataset
+  serviceAccountName: argo-workflow
+  arguments:
+    parameters:
+      - name: dataset
+        # No default. Extraction must never run unscoped: the work queue draws
+        # from every dataset when it is given none, so an omitted dataset
+        # silently pulls another corpus's backlog -- and its compute lands
+        # under the wrong dataset in cost accounting, or under none.
+      - name: workers
+        # Matches what `calculate-extraction-workers` settles on for a
+        # few-hundred-link backlog. More workers do not go faster: the queue
+        # rations by domain, so beyond one worker per domain they wait.
+        value: "3"
+      - name: limit
+        value: "20"
+      - name: batches
+        # High enough to exhaust the backlog; `extract` stops when the queue
+        # has nothing left, so this is a ceiling and not a target.
+        value: "200"
+      - name: inter-request-min
+        # The open-host profile from k8s/mizzou-extraction-job.yaml. A
+        # paywalled host's FIRST run is watched live and uses the slower
+        # profile (90/180/420) instead.
+        value: "5.0"
+      - name: inter-request-max
+        value: "15.0"
+      - name: batch-sleep
+        value: "30.0"
+      - name: captcha-backoff-base
+        value: "7200"
+      - name: captcha-backoff-max
+        value: "21600"
+      - name: log-level
+        value: "INFO"
+  templates:
+    - name: extract-dataset
+      inputs:
+        parameters:
+          - name: dataset
+          - name: workers
+          - name: limit
+          - name: batches
+          - name: inter-request-min
+          - name: inter-request-max
+          - name: batch-sleep
+          - name: captcha-backoff-base
+          - name: captcha-backoff-max
+          - name: log-level
+      steps:
+        - - name: extract
+            # One task per worker, all of them on the queue, which is what
+            # distributes the domains between them.
+            withSequence:
+              count: "{{inputs.parameters.workers}}"
+            templateRef:
+              name: news-pipeline-template
+              template: extraction-step
+            arguments:
+              parameters:
+                - name: dataset
+                  value: "{{inputs.parameters.dataset}}"
+                - name: limit
+                  value: "{{inputs.parameters.limit}}"
+                - name: batches
+                  value: "{{inputs.parameters.batches}}"
+                - name: inter-request-min
+                  value: "{{inputs.parameters.inter-request-min}}"
+                - name: inter-request-max
+                  value: "{{inputs.parameters.inter-request-max}}"
+                - name: batch-sleep
+                  value: "{{inputs.parameters.batch-sleep}}"
+                - name: captcha-backoff-base
+                  value: "{{inputs.parameters.captcha-backoff-base}}"
+                - name: captcha-backoff-max
+                  value: "{{inputs.parameters.captcha-backoff-max}}"
+                - name: log-level
+                  value: "{{inputs.parameters.log-level}}"
