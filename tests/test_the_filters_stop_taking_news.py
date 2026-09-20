@@ -121,27 +121,25 @@ def test_an_opinion_section_still_is_one():
         assert segment in ContentTypeDetector._OPINION_URL_SEGMENTS
 
 
-# --- wire: a paper does not syndicate to itself -------------------------------
+# --- wire: a bio is not a syndication signal ----------------------------------
 
 
-def test_a_paper_is_not_a_wire_service_to_its_own_newsroom():
-    """ "Jefferson City News Tribune" slugs to news-tribune, and the host
-    is newstribune.com -- hyphenless. The comparison missed, and 87 of
-    the paper's own articles, bylined its own staff, were called
-    syndicated."""
-    bio = "Trevor Hahn is a reporter for the Jefferson City News Tribune"
-    detected = _detector()._detect_cross_publication_byline(
-        bio, "https://www.newstribune.com/news/2026/mar/01/story/"
-    )
-    assert detected == ("Jefferson City News Tribune", False)
+def test_the_url_guessing_rule_is_gone():
+    """These two tests used to assert the old rule working, and they passed
+    while it was wrong about 133 of its 158 detections.
 
+    The repair they pinned -- stripping separators so "Jefferson City News
+    Tribune" would match newstribune.com -- fixed one host's tail and left the
+    class alive: a domain may abbreviate its own masthead (tdn.com is The Daily
+    News), and the capture ran under re.IGNORECASE over terminators that are
+    common English words, so "Minnesota news" was read as a publication.
 
-def test_the_same_byline_elsewhere_is_syndication():
-    bio = "Trevor Hahn is a reporter for the Jefferson City News Tribune"
-    detected = _detector()._detect_cross_publication_byline(
-        bio, "https://www.columbiamissourian.com/news/story/"
-    )
-    assert detected == ("Jefferson City News Tribune", True)
+    A bio is now syndication evidence only when the masthead resolves, through
+    `sources.canonical_name`, to a host that is not this one. See
+    tests/utils/test_a_bio_names_a_source_we_carry.py.
+    """
+    assert not hasattr(ContentTypeDetector, "_detect_cross_publication_byline")
+    assert hasattr(ContentTypeDetector, "_detect_syndication_from_bio")
 
 
 # --- the surname repair -------------------------------------------------------
