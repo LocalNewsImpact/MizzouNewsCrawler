@@ -79,17 +79,45 @@ reaches only the one caller that happens to compose it.
 
 ### Two strengths of "authoritative", and they are not the same
 
-| what was decided | strength | may a gate overturn it? |
-| --- | --- | --- |
-| inclusion — these URLs belong in the study | final | no. A verdict can only remove records the study was defined to contain. |
-| field values — this is the byline, this is the body | presumed | yes, on evidence. Not on a heuristic's preference. |
+Curation is an act of authority over *membership*, and nothing downstream may
+revisit it: a verdict can only remove records the study was defined to contain.
+Field values are different, and they come in three tiers.
 
-Curation is an act of authority over *membership* and nothing downstream may
-revisit it. A supplied byline is a statement of fact that we accept without
-checking, and a stage that does run may still contradict it — a canonical URL on
-another publisher's domain is evidence about a story's origin whatever the byline
-column said. "Until proven otherwise" is the whole clause: presumption, plus a bar
-for overturning it, plus a record of who overturned it.
+**Authoritative means "do not re-derive". It does not mean "do not question".**
+That distinction is the whole of it:
+
+| tier | how it got there | a gate may re-derive it | a gate may surface a doubt |
+| --- | --- | --- | --- |
+| reviewed | a person decided it in the review queue | no | no — not on the same claim |
+| supplied | a person handed it to us on ingest | no | **yes** |
+| derived | a module produced it | yes | yes |
+
+So a human-supplied byline is authoritative: no gate re-parses it and no gate
+overwrites it. But if a stage that does run finds evidence against it — a canonical
+URL on another publisher's domain, a masthead embedded in a supplied headline, a
+date years off its neighbours — that conflict goes to the review queue. It is not
+silently corrected and it is not silently ignored.
+
+That is also the promotion path, and the only one: **supplied + a surfaced doubt +
+a human decision = reviewed.** A field becomes immune to a claim by having been
+judged on it, never by having been asserted confidently enough on the way in.
+
+Which is why the top tier has to be respected by the gate itself rather than by a
+caller remembering to check. `review_hold.apply_hold` already does this — it takes
+the first defect *a person has not already answered* as the claim — and without
+that, a reviewed row rewinds, gets held again on the claim just settled, and the
+queue never drains.
+
+Where each tier is recorded, and the tiers are not one field:
+
+| | |
+| --- | --- |
+| producer | `articles.metadata.extraction_methods[field]` — which module made it, or `supplied` |
+| disposition | `articles.metadata.review` — the claim a person answered, keyed by claim rather than by field |
+
+A field's tier is read from both, because a reviewed field still has a producer: a
+person can confirm what `mcmetadata` extracted, and that row is then `reviewed`
+for that claim while `extraction_methods` still, correctly, says `mcmetadata`.
 
 ### Every field has an authoritative producer, and the record already says which
 
