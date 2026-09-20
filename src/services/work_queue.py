@@ -68,6 +68,29 @@ app = FastAPI(title="Work Queue Service", version="1.0.0")
 #: and no article row). A stage selects on the join of the two: the status
 #: says which stage a record is ready for, and this says whether anybody
 #: asked for it.
+#: A link owes a fetch when it is queued for a first one, or rewound for
+#: another. `refetch` is the rewind `src.pipeline.refetch` writes when a stored
+#: body is a paywall teaser rather than the story: the article keeps its id, its
+#: CIN labels and its history while its body is replaced.
+#:
+#: The direct-DB extraction path has honoured `refetch` since it was built. The
+#: queue did not, in any of its five queries, so a rewound link was invisible to
+#: every worker and "re-extract through the queue" was impossible for any host.
+#: Putting the link in `pipeline_rework` does not help: `REWORK_ONLY` is ANDed
+#: onto this clause, so it narrows what is offered and cannot widen it.
+CLAIMABLE_STATUSES = "cl.status IN ('article', 'refetch')"
+
+#: An existing article disqualifies a link -- except a rewound one, where
+#: replacing that article's body is the whole point. `ARTICLE_INSERT_SQL` ends
+#: `ON CONFLICT DO NOTHING`, so serving a rewind without this would fetch the
+#: page, pay for the request and discard the body. It would look like it worked.
+NOT_ALREADY_FETCHED = (
+    "            AND (cl.status = 'refetch' OR NOT EXISTS (\n"
+    "                SELECT 1 FROM articles a\n"
+    "                WHERE a.candidate_link_id = cl.id\n"
+    "            ))"
+)
+
 REWORK_ONLY = (
     " AND EXISTS (SELECT 1 FROM pipeline_rework r "
     "             WHERE r.record_id = cl.id AND r.done_at IS NULL)"
@@ -282,19 +305,16 @@ class WorkQueueCoordinator:
         # placeholder and the repeated `:dataset` no longer matches its
         # bindings. Mentioning the parameter ONCE, and only when there is
         # a value for it, is correct on both.
-        sql = """
+        sql = f"""
             SELECT
                 cl.source,
                 s.canonical_name,
                 COUNT(*) as article_count
             FROM candidate_links cl
             JOIN sources s ON cl.source_id = s.id
-            WHERE cl.status = 'article'
+            WHERE {CLAIMABLE_STATUSES}
             AND s.status = 'active'
-            AND NOT EXISTS (
-                SELECT 1 FROM articles a
-                WHERE a.candidate_link_id = cl.id
-            )
+{NOT_ALREADY_FETCHED}
         """
         params: dict = {}
         if dataset is not None:
@@ -527,9 +547,9 @@ class WorkQueueCoordinator:
             FROM candidate_links cl
             LEFT JOIN sources s ON cl.source_id = s.id
             LEFT JOIN articles a ON cl.id = a.candidate_link_id
-            WHERE cl.status = 'article'
+            WHERE {CLAIMABLE_STATUSES}
             AND cl.source = ANY(:domains){dataset_clause}{rework_clause}
-            AND a.candidate_link_id IS NULL
+            AND (cl.status = 'refetch' OR a.candidate_link_id IS NULL)
             ORDER BY RANDOM()
             LIMIT :limit
             FOR UPDATE OF cl SKIP LOCKED
@@ -644,14 +664,18 @@ class WorkQueueCoordinator:
         with self.lock:
             session = self._get_session()
             # Get total available articles
-            available_query = text("""
+            available_query = text(
+                """
                 SELECT COUNT(*) FROM candidate_links cl
-                WHERE cl.status = 'article'
-                AND NOT EXISTS (
+                WHERE """
+                + CLAIMABLE_STATUSES
+                + """
+                AND (cl.status = 'refetch' OR NOT EXISTS (
                     SELECT 1 FROM articles a
                     WHERE a.candidate_link_id = cl.id
-                )
-            """)
+                ))
+            """
+            )
             total_available = session.execute(available_query).scalar()
 
             # Get paused articles (approximate - we don't have a paused status)
@@ -659,14 +683,18 @@ class WorkQueueCoordinator:
             total_paused = 0
 
             # Get unique domains
-            domain_query = text("""
+            domain_query = text(
+                """
                 SELECT COUNT(DISTINCT source) FROM candidate_links cl
-                WHERE cl.status = 'article'
-                AND NOT EXISTS (
+                WHERE """
+                + CLAIMABLE_STATUSES
+                + """
+                AND (cl.status = 'refetch' OR NOT EXISTS (
                     SELECT 1 FROM articles a
                     WHERE a.candidate_link_id = cl.id
-                )
-            """)
+                ))
+            """
+            )
             domains_available = session.execute(domain_query).scalar()
 
             # Calculate domains with active cooldowns
@@ -690,7 +718,9 @@ class WorkQueueCoordinator:
             # are per host and each has a different remedy: a paused source is
             # waiting on a monitored first run, a source with no
             # `auth_secret_name` is waiting on credentials that may not exist.
-            credentialed_rows = session.execute(text("""
+            credentialed_rows = session.execute(
+                text(
+                    """
                     SELECT s.host_norm,
                            s.status,
                            s.auth_type IS NOT NULL
@@ -698,14 +728,18 @@ class WorkQueueCoordinator:
                            COUNT(*) AS owed
                     FROM candidate_links cl
                     JOIN sources s ON cl.source_id = s.id
-                    WHERE cl.status = 'article'
+                    WHERE """
+                    + CLAIMABLE_STATUSES
+                    + """
                     AND s.requires_login
-                    AND NOT EXISTS (
+                    AND (cl.status = 'refetch' OR NOT EXISTS (
                         SELECT 1 FROM articles a
                         WHERE a.candidate_link_id = cl.id
-                    )
+                    ))
                     GROUP BY s.host_norm, s.status, has_credentials
-                """)).fetchall()
+                """
+                )
+            ).fetchall()
 
             credentialed_available = 0
             credentialed_claimable = 0
