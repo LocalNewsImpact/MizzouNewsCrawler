@@ -27,6 +27,11 @@ def litellm_stub(monkeypatch):
     stub.success_callback = []
     stub.completion = None  # tests assign per-case
     monkeypatch.setitem(sys.modules, "litellm", stub)
+    # `_WRAPPED` is a module global: once any test has installed the wrapper it
+    # stays installed, and the next test's fresh stub is never wrapped at all.
+    # Individual tests used to reset it, so whether a test saw a labelled call
+    # depended on what ran before it.
+    monkeypatch.setattr(adapter, "_WRAPPED", False)
     return stub
 
 
@@ -180,7 +185,11 @@ class TestContentGate:
         monkeypatch.setattr(adapter, "_load", lambda node: fake_node)
         monkeypatch.setattr(adapter, "_WRAPPED", False)
         adapter.run_scope(ARTICLE, MODEL)
-        assert seen["user"] == "Mizzou-Missouri-State"
+        # In the request BODY, not in a `user` keyword: litellm's openrouter
+        # transform drops the keyword before the request is built, which is why
+        # `external_user` was set on 2 of 193,081 traces while this test passed.
+        # See tests/enrichment/test_the_dataset_label_rides_in_the_body.py.
+        assert seen["extra_body"]["user"] == "Mizzou-Missouri-State"
 
     def test_a_label_does_not_outlive_the_step(self, litellm_stub, monkeypatch):
         """A dataset left set would attribute the next dataset's calls, and
@@ -193,11 +202,17 @@ class TestContentGate:
         assert adapter._DATASET.get() is None
 
     def test_the_call_says_which_dataset_paid_for_it(self, litellm_stub):
-        """LiteLLM forwards `user` to OpenRouter, which records it as
-        `external_user` on the generation. Without it a trace says only
-        that money was spent: every trace collected up to 2026-08-22 has
-        `external_user` null, so the cost page can split the recorded side
-        per dataset and not the billed one."""
+        """OpenRouter records the request body's `user` as `external_user` on
+        the generation. Without it a trace says only that money was spent, so
+        the cost page can split the recorded side per dataset and not the
+        billed one.
+
+        It is asserted in `extra_body` because that is the only place it
+        survives: litellm does not list `user` among the supported params for
+        the openrouter provider and its transform drops the keyword. This test
+        asserted the keyword and passed while `external_user` was null on
+        193,079 of 193,081 traces.
+        """
         response = self._fake_response('{"verdict": "news", "reason": "x"}')
         seen = {}
 
@@ -207,7 +222,8 @@ class TestContentGate:
 
         litellm_stub.completion = capture
         adapter.run_content_gate(ARTICLE, MODEL)
-        assert seen["user"] == "Mizzou-Missouri-State"
+        assert seen["extra_body"]["user"] == "Mizzou-Missouri-State"
+        assert "user" not in seen
 
     def test_valid_verdict_passes(self, litellm_stub):
         response = self._fake_response('{"verdict": "news", "reason": "story present"}')
