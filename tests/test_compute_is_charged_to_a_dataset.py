@@ -33,13 +33,14 @@ import yaml
 ARGO = Path("k8s/argo")
 BASE = ARGO / "base-pipeline-workflow.yaml"
 
-#: The templates that put a pod on a node, cost money, AND know their dataset.
+#: Every template that puts a pod on a node and therefore costs money.
 #:
-#: `verification-step` is deliberately absent: it takes no dataset parameter,
-#: the DAG passes it none, and `verify-urls` has no `--dataset` flag, so its
-#: compute cannot be attributed to a corpus at all. That gap has its own test
-#: below rather than being hidden by omission here.
-COMPUTE_STEPS = ("discovery-step", "extraction-step")
+#: `verification-step` was absent until 2026-09-19: it took no dataset, the DAG
+#: passed none, and `verify-urls` had no `--dataset` flag, so a run launched for
+#: one corpus verified every corpus and its compute belonged to nobody.
+#: `candidate_links.dataset_id` is recorded at insert, so the scope was always
+#: there to use.
+COMPUTE_STEPS = ("discovery-step", "verification-step", "extraction-step")
 
 
 def _templates(path: Path) -> dict[str, dict]:
@@ -155,27 +156,58 @@ class TestTheExtractionOnlyTemplate:
         assert step["templateRef"]["template"] == "extraction-step"
 
 
-def test_verification_cannot_be_charged_to_a_dataset_yet():
-    """A known gap, pinned so it is visible rather than merely missing.
+def test_verification_is_scoped_to_the_dataset_it_is_given():
+    """The step passes `--dataset` to the command, not just to the label.
 
-    `verify-urls` has no `--dataset` flag (`--batch-size`, `--continuous`,
-    `--idle-grace-seconds`, `--log-level`, `--max-batches`,
-    `--sleep-interval`, `--status`), the step declares no dataset parameter,
-    and the DAG passes none. So verification runs across every dataset and its
-    compute lands under no dataset.
-
-    When `verify-urls` learns `--dataset`: add the parameter to the step, pass
-    it from the DAG, add the pod label, move "verification-step" into
-    COMPUTE_STEPS, and delete this test.
+    A pod label alone would attribute the cost correctly and still verify the
+    wrong corpus. Both halves have to be there: the command scopes the work,
+    the label charges it.
     """
     base = _templates(BASE)
-    step = base["verification-step"]
-    names = [p["name"] for p in step.get("inputs", {}).get("parameters", [])]
-    assert "dataset" not in names, (
-        "verification-step now takes a dataset -- give it the pod label, add "
-        "it to COMPUTE_STEPS, and delete this test"
+    command = base["verification-step"]["container"]["command"]
+    assert "--dataset" in command, "verification must not run unscoped"
+    assert command[command.index("--dataset") + 1] == ("{{inputs.parameters.dataset}}")
+
+
+def test_the_dag_gives_every_compute_step_its_dataset():
+    """A declared parameter nobody passes is still an unscoped run."""
+    base = _templates(BASE)
+    dag = base["pipeline"]["dag"]["tasks"]
+    by_template = {t["template"]: t for t in dag}
+    for step in COMPUTE_STEPS:
+        task = by_template[step]
+        passed = [p["name"] for p in task.get("arguments", {}).get("parameters", [])]
+        assert "dataset" in passed, (
+            f"the DAG runs {step} without passing a dataset, so its label "
+            "renders empty and its work is unscoped"
+        )
+
+
+def test_the_verification_service_filters_on_the_dataset():
+    """The flag has to reach the query, not just the constructor.
+
+    The service accepted `dataset_id` for a long time and used it only for the
+    job row; `get_unverified_urls` selected every dataset's links regardless.
+    """
+    import inspect
+
+    from src.services.url_verification import URLVerificationService
+
+    source = inspect.getsource(URLVerificationService.get_unverified_urls)
+    code = "\n".join(
+        line for line in source.splitlines() if not line.strip().startswith("#")
     )
-    assert "dataset" not in step.get("metadata", {}).get("labels", {}), (
-        "a label referencing an input the template does not declare fails at "
-        "submit time"
-    )
+    assert "self.dataset_id" in code
+    assert "cl.dataset_id = :dataset_id" in code
+
+
+def test_the_verify_command_offers_the_flag():
+    import argparse
+
+    from src.cli.commands.verification import add_verification_parser
+
+    parser = argparse.ArgumentParser()
+    sub = parser.add_subparsers()
+    verify = add_verification_parser(sub)
+    flags = {option for action in verify._actions for option in action.option_strings}
+    assert "--dataset" in flags
