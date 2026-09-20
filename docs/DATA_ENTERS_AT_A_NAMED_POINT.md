@@ -630,6 +630,31 @@ So a fraction of below-threshold claims is surfaced anyway, permanently, as an
 audit sample. It is what keeps the confidence estimate alive and drift visible. The
 dial turns the sample rate down; it does not turn it off.
 
+**Every dataset, in every review queue, whenever that queue is running.** The
+sample is a property of the (queue × dataset) pair, not a global setting, because
+confidence does not transfer across datasets: publishers differ, state coverage
+differs, and a gate calibrated on Missouri has told us nothing about Vermont. This
+is an invariant worth asserting rather than intending — for every active
+(queue, dataset), the sample rate is above zero — and it is checkable, which is the
+only kind of rule this repository has managed to keep.
+
+**A rate alone cannot serve these datasets.** Measured 2026-09-20:
+
+| dataset | articles | a 1% sample is |
+| --- | --- | --- |
+| Mizzou-Missouri-State | 162,656 | 1,627 — far more than anyone will read |
+| WSU-Washington-State | 1,719 | 17 |
+| VT-Community-News | 1,223 | 12 |
+| Penn-State-Lehigh | 1,108 | 11 |
+
+Three orders of magnitude between the largest and the smallest. One percentage is
+simultaneously a flood and a rounding error. So the sample is expressed as **a
+floor count per period, with a rate as the cap**: enough items from a small dataset
+to say anything at all, and not thousands from a large one. The floor is what makes
+a new dataset measurable in its first weeks, when it has the least history and the
+gates are least calibrated for it — which is exactly when a silent gate failure
+would do the most damage and be the hardest to attribute.
+
 This is the same failure this repository keeps producing at every scale. A login
 that silently stopped working. A capability set too late, so three readers got
 nothing and none of them said so. A merge that discarded the fetch's own facts.
