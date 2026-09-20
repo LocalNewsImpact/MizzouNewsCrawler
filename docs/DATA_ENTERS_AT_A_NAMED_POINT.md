@@ -584,6 +584,69 @@ Each gate therefore needs its own documentation — not a docstring describing t
 code, but a statement of what it presumes and what it guarantees, because that is
 the text an entry point reads to work out what it owes.
 
+## The queue needs a volume control
+
+Nobody should read records every day to confirm they were already right. So the
+number of reviewable items is a dial — set by hand, or moved by measured
+confidence in the gate that raised them.
+
+**A claim is currently a name, and a dial needs a number.** `field_defects`
+returns `["byline_not_a_name", "text_not_decoded"]`: binary, no severity, no
+confidence. There is nothing to turn. A claim therefore carries two numbers, and
+they are different things:
+
+| | means | who moves it |
+| --- | --- | --- |
+| severity | how wrong this would be if the claim is right | the gate, per claim |
+| confidence | how often this gate's claims have been upheld | measured from review outcomes |
+
+**Two dials, because "too many items" has two different causes.**
+
+- A *threshold* per claim type answers "is this worth anyone's attention" — and it
+  is per claim type, never global. Byline defects and undecoded bodies have
+  different base rates and different costs; one number across both is wrong for
+  both.
+- A *budget* answers "how much attention is there this week". Operationally this is
+  the dial that gets set — fifty items, not a severity cutoff — so claims are
+  ranked and the top N surfaced. A threshold alone cannot honour a budget, and a
+  budget alone cannot stop a flood of trivia.
+
+**Confidence is learned per claim AND per context, not globally.** A byline gate
+can be reliable on one publisher's template and poor on another; byline
+completeness here is already known to be bimodal by publisher practice rather than
+uniform. A single global figure averages away exactly the publisher that needs
+review. Percent agreement between the gate and the reviewers is the measure — the
+same choice already made for CIN, deliberately, over kappa.
+
+### The sample is not optional
+
+If a claim type stops being surfaced once its confidence is high, confidence stops
+being measured, and the gate can degrade with nothing to notice. A site redesign
+or a vendor change is exactly the kind of event that turns a 98%-correct gate into
+a wrong one, and a queue that has been quiet for a month looks identical to a
+queue that is quiet because nothing is being checked.
+
+So a fraction of below-threshold claims is surfaced anyway, permanently, as an
+audit sample. It is what keeps the confidence estimate alive and drift visible. The
+dial turns the sample rate down; it does not turn it off.
+
+This is the same failure this repository keeps producing at every scale. A login
+that silently stopped working. A capability set too late, so three readers got
+nothing and none of them said so. A merge that discarded the fetch's own facts.
+Silence read as health. A review queue with the sample switched off is that
+pattern applied to the quality process itself.
+
+### Suppressed is not discarded
+
+A claim below the threshold is still written to the record, with its severity, its
+confidence and the reason it was not queued. Only the *queueing* is suppressed.
+
+Otherwise the corpus cannot answer the questions that matter later: how many rows
+carried this claim before we raised the bar, which rows would a lower threshold
+have caught, and what did the gate think about a row somebody is now disputing.
+Dropping the observation to keep the queue short makes the decision unauditable and
+unbackfillable, and a threshold that has to be right the first time is not a dial.
+
 ## Dispatch is part of the contract
 
 An entry point that admits records and then waits for a cron is the current
