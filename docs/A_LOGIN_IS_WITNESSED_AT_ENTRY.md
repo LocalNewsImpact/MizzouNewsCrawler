@@ -109,6 +109,48 @@ How the page was obtained is not a field a parser can win or lose, so both are
 stamped after the cascade beside `extraction_method` — the fact about the whole
 extraction that was already recorded in exactly that place.
 
+### The evidence is only as good as where it was measured
+
+A cookie diff is read with `driver.get_cookies()`, which returns **only what the
+current document's origin can read**. The first version took `before` on the
+login page and `after` wherever the login left the browser, so for any login
+that navigates away the two snapshots described different origins and their
+difference meant nothing.
+
+Measured 2026-09-20, one run per host:
+
+| host | path | ended on | cookies seen |
+| --- | --- | --- | --- |
+| yakimaherald | modal, on the article page | the publisher's origin | real session |
+| union-bulletin | modal, on the article page | the publisher's origin | real session |
+| tdn | form, url | wherever the POST went | none |
+| pendoreillerivervalley | etype, url | the login result page | none |
+| spokesman | auth0, redirect | `myaccount.spokesman.com` | that origin's only |
+
+spokesman is what settles it: `AWSALB@myaccount.spokesman.com` can only be read
+by a document on `myaccount.spokesman.com`, so that is where the browser was
+standing. The variable was the snapshot origin, not the site. Both snapshots —
+cookies and the login control — are now taken standing on the publisher's own
+origin, and the origin is stored with the record so an older witness can be told
+apart from one taken properly.
+
+**A load balancer's cookie is not a session.** `AWSALB`, `incap_ses_*`,
+`nlbi_*`, `visid_incap_*`, `__cf_bm`, `_abck` and their kind are set for every
+visitor, logged in or not. They are first-party, they are not analytics, and
+they appear during the login, so they look exactly like evidence in a diff. They
+are reported under `infrastructure_cookies` rather than counted — a person
+reading `AWSALB` knows it proves nothing, and a verifier that judges unattended
+has to know it too.
+
+**Cookie shape is a property of the platform, not of `auth_type`.**
+`auth_type` says how to *drive* the login — fill two fields, follow an OAuth
+redirect, hand off to Newzware. It says nothing about what the site sets
+afterward. yakimaherald and union-bulletin share a cookie signature because both
+run Connext (`igmAuth`, `nxt_*`, `ConneXtpS_*`), not because both are `form`;
+tdn is also `form` and shares none of it. So a proven recipe transfers the
+method to a new host on the same vendor, and transfers the proof only to a new
+host on the same *platform*.
+
 ### Drift: when the recipe stops resolving
 
 A site redesigns and the stored selectors match nothing. The engine tries the

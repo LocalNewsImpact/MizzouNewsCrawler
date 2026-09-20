@@ -50,6 +50,15 @@ NOISE = re.compile(
     re.I,
 )
 
+#: Set for every visitor by a load balancer, CDN or WAF, so never evidence of a
+#: session. Named from what the four 2026-09-20 witness runs actually returned.
+INFRA = re.compile(
+    r"^(AWSALB|AWSALBCORS|AWSELB|ELB|incap_ses|nlbi_|visid_incap|reese84|"
+    r"__cf_bm|__cfruid|cf_clearance|_abck|bm_sz|bm_sv|ak_bmsc|datadome|"
+    r"BIGipServer|TS[0-9a-f]{6,}|JSESSIONID_LB|x-ms-routing-name)",
+    re.I,
+)
+
 #: A response worth showing: the vendor's auth exchange, not the page's assets.
 AUTH_LIKE = re.compile(
     r"login|auth|session|account|user|token|connext|mg2|newzware|etype|simplecirc",
@@ -94,6 +103,29 @@ def first_party_cookies(cookies: list[dict], site: str) -> dict[str, str]:
     return out
 
 
+def partition_evidence(names: list[str]) -> tuple[list[str], list[str]]:
+    """Split cookie keys into (session evidence, infrastructure).
+
+    A load balancer's affinity cookie and a WAF's device cookie are set for
+    everyone who loads the page, logged in or not, so they are not evidence of
+    a session -- but they LOOK like evidence in a diff, because they are
+    first-party, non-analytics, and appear during the login.
+
+    `www.spokesman.com` is the case that named this: its only new cookies were
+    `AWSALB`, `AWSALBCORS` (an AWS load balancer) and `incap_ses_*`, `nlbi_*`,
+    `visid_incap_*` (Imperva Incapsula). A person reads that list and knows it
+    proves nothing. Nothing in the code knew, and a verifier that judges
+    unattended has to.
+
+    Returned rather than dropped: the infrastructure list says which vendor
+    fronts the site, which is worth seeing when a login misbehaves.
+    """
+    session, infra = [], []
+    for name in names:
+        (infra if INFRA.match(name) else session).append(name)
+    return sorted(session), sorted(infra)
+
+
 def auth_responses(responses: list[tuple[int, str]]) -> list[tuple[int, str]]:
     return [
         (code, url[:140])
@@ -135,6 +167,32 @@ def witness(extractor, host: str) -> dict:
     driver = extractor.get_persistent_driver()
     trigger = cfg.get("login_trigger_selector")
 
+    # BOTH cookie snapshots are taken standing on the publisher's own origin.
+    #
+    # `driver.get_cookies()` returns only what the CURRENT document's origin can
+    # read. Taking `before` on the login page and `after` wherever the login
+    # left the browser compares two different origins, so the diff means
+    # nothing for any login that navigates away -- which is every url and SSO
+    # path, i.e. all of them except a modal on the article page.
+    #
+    # Measured 2026-09-20, four hosts, one run each: yakimaherald and
+    # union-bulletin log in through a modal on the publisher's page, stay on
+    # that origin, and showed real session cookies. tdn (form, url) and
+    # pendoreillerivervalley (etype) ended elsewhere and showed NONE.
+    # www.spokesman.com (auth0) showed `AWSALB@myaccount.spokesman.com` -- a
+    # cookie only a document on `myaccount.spokesman.com` can read, which is
+    # the proof that the snapshot origin, not the site, was the variable.
+    origin = f"https://{host}/" if "." in host else f"https://{bare}/"
+    try:
+        driver.get(origin)
+    except Exception as exc:
+        return {"ok": False, "why": f"could not open {origin}: {exc}"}
+    cookies_before = first_party_cookies(_cookies(driver), bare)
+    # The login control is read on the origin BOTH times too, for the same
+    # reason: "the Log in link is gone" is only a signal if the two
+    # observations are of the same page.
+    trigger_before = _visible(driver, trigger)
+
     login_url = cfg.get("login_url")
     if login_url:
         try:
@@ -146,8 +204,6 @@ def witness(extractor, host: str) -> dict:
         driver.get_log("performance")  # drain what the page load produced
     except Exception:
         pass
-    cookies_before = first_party_cookies(_cookies(driver), bare)
-    trigger_before = _visible(driver, trigger)
 
     started = time.time()
     ok = perform_login(
@@ -156,28 +212,45 @@ def witness(extractor, host: str) -> dict:
     elapsed = round(time.time() - started, 1)
     time.sleep(3)
 
+    # Drained BEFORE navigating back: get_log() consumes the buffer, and the
+    # return trip's own requests would otherwise be all that is left of it.
     try:
         responses = network_responses(driver.get_log("performance"))
     except Exception:
         responses = []
+
+    # Back to the origin the `before` snapshot was taken on.
+    returned_to_origin = True
+    try:
+        driver.get(origin)
+    except Exception:
+        # Not fatal: report the evidence that was gathered and say the return
+        # trip failed, rather than throwing away a login that may have worked.
+        returned_to_origin = False
     cookies_after = first_party_cookies(_cookies(driver), bare)
+
+    added = [k for k in cookies_after if k not in cookies_before]
+    changed = [
+        k
+        for k in cookies_after
+        if k in cookies_before and cookies_after[k] != cookies_before[k]
+    ]
+    added_session, added_infra = partition_evidence(added)
+    changed_session, changed_infra = partition_evidence(changed)
 
     return {
         "ok": bool(ok),
         "host": host,
         "auth_type": auth.get("auth_type"),
         "seconds": elapsed,
+        "origin": origin,
+        "returned_to_origin": returned_to_origin,
         "trigger_visible_before": trigger_before,
         "trigger_visible_after": _visible(driver, trigger),
         "auth_responses": auth_responses(responses),
-        "first_party_cookies_added": sorted(
-            k for k in cookies_after if k not in cookies_before
-        ),
-        "first_party_cookies_changed": sorted(
-            k
-            for k in cookies_after
-            if k in cookies_before and cookies_after[k] != cookies_before[k]
-        ),
+        "first_party_cookies_added": added_session,
+        "first_party_cookies_changed": changed_session,
+        "infrastructure_cookies": sorted(set(added_infra) | set(changed_infra)),
     }
 
 
@@ -209,6 +282,11 @@ def record(session, host: str, evidence: dict, path: str | None) -> None:
         "trigger_visible_after": evidence.get("trigger_visible_after"),
         "first_party_cookies_added": evidence.get("first_party_cookies_added"),
         "first_party_cookies_changed": evidence.get("first_party_cookies_changed"),
+        "infrastructure_cookies": evidence.get("infrastructure_cookies"),
+        # Which origin the cookie diff was taken on, so a stored witness can be
+        # read later without assuming it was same-origin. The 2026-09-20 records
+        # predate the fix and carry neither key.
+        "origin": evidence.get("origin"),
         "seconds": evidence.get("seconds"),
     }
     session.execute(
@@ -258,8 +336,28 @@ def handle_validate_login_command(args: argparse.Namespace) -> int:
         f"  login control visible: {evidence['trigger_visible_before']} -> "
         f"{evidence['trigger_visible_after']}"
     )
-    print(f"  first-party cookies added:   {evidence['first_party_cookies_added']}")
-    print(f"  first-party cookies changed: {evidence['first_party_cookies_changed']}")
+    print(f"  session cookies added:   {evidence['first_party_cookies_added']}")
+    print(f"  session cookies changed: {evidence['first_party_cookies_changed']}")
+    if evidence.get("infrastructure_cookies"):
+        print(f"  infrastructure (NOT evidence): {evidence['infrastructure_cookies']}")
+    if not evidence.get("returned_to_origin", True):
+        print(
+            f"  WARNING: could not return to {evidence.get('origin')} -- the cookie "
+            "diff compares two origins and proves nothing"
+        )
+    if not (
+        evidence["first_party_cookies_added"]
+        or evidence["first_party_cookies_changed"]
+        or evidence["trigger_visible_after"] is False
+    ):
+        # The mechanism said yes and nothing observable changed on the
+        # publisher's own origin. That is the case a verifier must not pass:
+        # `etype` returns True having confirmed only that a form submitted.
+        print(
+            "  NOTE: the mechanism confirmed a session but nothing changed on "
+            f"{evidence.get('origin')} -- no session cookie, no control flip. "
+            "Do not record this as witnessed without a second signal."
+        )
 
     if args.record:
         with DatabaseManager().get_session() as session:
