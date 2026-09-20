@@ -188,8 +188,12 @@ def extract(
         article_title = overrides["article_title"]
         title_extraction_method = "override"
     elif struct_title:
-        # Use structured data title (from JSON-LD or meta tags)
-        article_title = struct_title
+        # Use structured data title (from JSON-LD or meta tags), minus the
+        # publication's own name. This branch WINS over `titles.from_html`
+        # below, and the strip used to live only inside that function -- so on
+        # a site whose JSON-LD `headline` carries the masthead, the suffix
+        # reached the database untouched.
+        article_title = titles.strip_publication(struct_title)
         title_extraction_method = f"structured_{struct_source or 'unknown'}"
     else:
         # Fall back to content-based extraction

@@ -16,6 +16,7 @@ Extracts:
 import json
 import logging
 import re
+from html import unescape
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -398,12 +399,15 @@ def _extract_from_meta_tags(html_text: str) -> dict[str, Any]:
     """Extract metadata from OpenGraph and standard meta tags."""
     result: dict[str, Any] = {}
 
-    # Title (og:title)
+    # Title (og:title). Unescaped: a meta attribute holds entities, and
+    # "Port Townsend &amp; Jefferson County Leader" is not what the page says
+    # its name is. `titles.from_html` unescapes its own matches; this path did
+    # not, so the entity travelled all the way to the stored headline.
     match = _META_OG_TITLE_RE.search(html_text)
     if not match:
         match = _META_OG_TITLE_ALT_RE.search(html_text)
     if match:
-        result["title"] = match.group(1).strip()
+        result["title"] = unescape(match.group(1)).strip()
 
     # Author (article:author or author)
     match = _META_AUTHOR_RE.search(html_text)
