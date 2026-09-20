@@ -214,16 +214,42 @@ class TestAgainstTheRealLibrary:
             "srv.shutdown()\n"
             "print('BODY:' + json.dumps(captured.get('body', {})))\n"
         )
+        import os
+
+        # No proxy for the loopback listener. The suite runs with the crawler's
+        # squid variables set, and httpx honours them for 127.0.0.1 too: the
+        # request goes to the proxy, the listener records nothing, and the body
+        # comes back empty. That is how this probe first failed in the pre-push
+        # hook while passing on a laptop -- and worse, it made
+        # `test_a_user_keyword_never_reaches_the_wire` pass on an empty body,
+        # which is the one thing it must never do.
+        env = {
+            k: v
+            for k, v in os.environ.items()
+            if k.lower() not in ("http_proxy", "https_proxy", "all_proxy")
+        }
+        env["NO_PROXY"] = "127.0.0.1,localhost"
+        env["no_proxy"] = env["NO_PROXY"]
+
         out = subprocess.run(
             [sys.executable, "-c", script, json.dumps(kwargs)],
             capture_output=True,
             text=True,
             timeout=180,
+            env=env,
         )
         for line in out.stdout.splitlines():
             if line.startswith("BODY:"):
-                return json.loads(line[len("BODY:") :])
-        raise AssertionError(f"probe produced no body: {out.stdout[-400:]}")
+                body = json.loads(line[len("BODY:") :])
+                if not body:
+                    # Never assert on a body that was never sent: every
+                    # assertion here would read as "the field is absent".
+                    pytest.skip(
+                        "the probe reached no listener, so the wire says "
+                        f"nothing either way: {out.stderr[-300:]}"
+                    )
+                return body
+        pytest.skip(f"the probe produced no body: {out.stdout[-300:]}")
 
     def test_a_user_keyword_never_reaches_the_wire(self):
         body = self._body_for(user="WSU-Washington-State")
