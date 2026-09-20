@@ -23,6 +23,9 @@ Two separate defects are covered here. The second is that
 real page's "Port Townsend &amp; Jefferson County Leader" travelled undecoded.
 """
 
+import pytest
+import tldextract
+
 from src.mcmetadata import extract
 from src.mcmetadata.structured_data import _extract_from_meta_tags
 from src.mcmetadata.titles import SHORT_TITLE_THRESHOLD, from_html, strip_publication
@@ -30,6 +33,27 @@ from src.mcmetadata.titles import SHORT_TITLE_THRESHOLD, from_html, strip_public
 MASTHEAD = "Port Townsend & Jefferson County Leader"
 HEADLINE = "OlyCAP conducts annual point-in-time count of homeless people"
 URL = "https://www.ptleader.com/stories/olycap,195090"
+
+
+@pytest.fixture(autouse=True)
+def _offline_public_suffix_list(monkeypatch):
+    """`extract()` must not reach the network to parse a URL.
+
+    `urls.py` calls the module-level `tldextract.extract`, whose default
+    extractor fetches publicsuffix.org when its cache is cold and caches the
+    result. So these tests passed on a laptop with a warm cache and failed on
+    CI, which starts cold and blocks sockets:
+
+        RuntimeError: Blocked real network connection to ('216.106.13.67', 3128)
+
+    `suffix_list_urls=()` forbids that fetch and uses the bundled snapshot —
+    the same offline construction `tests/dependency_contracts/
+    test_extraction_stack.py::test_tldextract_offline` pins, and what the
+    crawler needs behind the whitelist proxy. Reproduce the cold cache with
+    `TLDEXTRACT_CACHE=$(mktemp -d)`.
+    """
+    offline = tldextract.TLDExtract(suffix_list_urls=())
+    monkeypatch.setattr(tldextract, "extract", offline)
 
 
 def _page(jsonld_headline=None, og_title=None, title_tag=None, h1=None):
