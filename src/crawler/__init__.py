@@ -373,6 +373,41 @@ _GRAY_DATALAYER_RE = re.compile(
 )
 
 
+def _enable_performance_log(options) -> bool:
+    """Ask Chrome for CDP Network events. Must run BEFORE the driver is built.
+
+    Returns whether the request was actually recorded on `options`, so a caller
+    can say so rather than assume it. The old code set this capability AFTER
+    `uc.Chrome()` had already returned, which is a no-op: capabilities are read
+    once, at construction. Nothing raised and nothing logged, so three readers
+    of `driver.get_log("performance")` quietly got nothing for months --
+    `read_navigation_status`, `document_status` and `validate-login`'s
+    `auth_responses`.
+
+    `perfLoggingPrefs` is set alongside the logging preference because the
+    default enables page and timeline events we do not read; we want the network
+    domain, which is where a response status and a vendor's auth exchange live.
+    """
+    try:
+        options.set_capability("goog:loggingPrefs", {"performance": "ALL"})
+    except Exception as exc:  # pragma: no cover - options API varies by version
+        logger.warning("Could not request the performance log: %s", exc)
+        return False
+    try:
+        options.add_experimental_option(
+            "perfLoggingPrefs",
+            {
+                "enableNetwork": True,
+                "enablePage": False,
+                "traceCategories": "",
+            },
+        )
+    except Exception as exc:  # pragma: no cover - not fatal
+        # The capability above is what matters; this only trims the volume.
+        logger.debug("perfLoggingPrefs not applied: %s", exc)
+    return True
+
+
 def _mask_proxy_url(url: str | None) -> str:
     """Hide the password in a proxy URL before it reaches a log.
 
@@ -5681,6 +5716,23 @@ class ContentExtractor:
         # Configure undetected chrome options
         options = uc.ChromeOptions()
 
+        # CDP Network events, requested BEFORE the browser is built.
+        #
+        # A capability is read once, when the driver is constructed. This call
+        # used to sit 86 lines BELOW `uc.Chrome(**uc_kwargs)`, where it set a
+        # field on an options object nobody would read again -- a no-op that
+        # raised nothing and logged nothing, so the performance log was simply
+        # never enabled on the driver every production fetch uses.
+        #
+        # Three things read that log and all three silently got nothing:
+        # `read_navigation_status` (so `candidate_links.http_status` was NULL on
+        # every Selenium fetch -- the plumbing #638 fixed had a dry source),
+        # `document_status` (so a 404 or 403 behind a browser fetch could not be
+        # detected), and `validate-login`'s `auth_responses` (so a witnessed
+        # login recorded an empty response list, which is where a vendor's auth
+        # exchange would be visible).
+        _enable_performance_log(options)
+
         # Set page load strategy to 'eager' - don't wait for all resources
         # This stops waiting once DOM is interactive, not fully loaded
         # Prevents 147s timeouts waiting for slow ads/trackers
@@ -5798,6 +5850,10 @@ class ContentExtractor:
             # Fallback: rebuild options fresh and try without subprocess; also try headless
             try:
                 options_fb = uc.ChromeOptions()
+                # The fallback builds a fresh options object, so it needs the
+                # capability too -- otherwise a primary-construction failure
+                # silently costs us the log for the whole run.
+                _enable_performance_log(options_fb)
                 options_fb.page_load_strategy = "eager"
                 for arg in [
                     "--no-sandbox",
@@ -5874,11 +5930,8 @@ class ContentExtractor:
             driver.implicitly_wait(5)
             driver.command_executor._client_config.timeout = 90
 
-        # Enable collection of performance logs (CDP 'Network' events) for diagnostics
-        try:
-            options.set_capability("goog:loggingPrefs", {"performance": "ALL"})
-        except Exception:
-            pass
+        # (Performance logging is requested on `options` before construction,
+        # above. Setting it here did nothing -- the driver already existed.)
 
         # CRITICAL: Override User-Agent via CDP to hide headless indicator
         # The command-line arg doesn't always take effect, CDP is more reliable
