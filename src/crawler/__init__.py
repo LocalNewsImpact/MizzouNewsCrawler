@@ -1975,6 +1975,55 @@ class ContentExtractor:
         """
         return not self._requires_login(domain)
 
+    def _record_login_failure(self, host: str, reason: str) -> None:
+        """Say on the source that its login stopped working, and when.
+
+        A refusal that lives only in this process's log is invisible to the
+        next run and to anyone reading /stats. Written to
+        `sources.auth_last_failed_at` so the host is reported as needing
+        re-validation rather than as claimable work. Best effort: a failure to
+        record must not turn a refusal into an exception.
+        """
+        try:
+            from sqlalchemy import text
+
+            from src.models.database import DatabaseManager
+
+            with DatabaseManager().get_session() as session:
+                session.execute(
+                    text(
+                        "UPDATE sources SET auth_last_failed_at = NOW(), "
+                        "auth_failure_reason = :reason "
+                        "WHERE requires_login AND host_norm IN (:host, :www_host)"
+                    ),
+                    {"reason": reason[:500], "host": host, "www_host": f"www.{host}"},
+                )
+                session.commit()
+        except Exception as exc:
+            logger.warning("could not record the login failure for %s: %s", host, exc)
+
+    def _session_state(self, url_or_host: str) -> Optional[bool]:
+        """Whether this fetch ran as a subscriber, for the row to record.
+
+        True   -- a credentialed host, and this driver holds a confirmed session
+        False  -- a credentialed host, and it does not (post-#635 the fetch is
+                  refused, so this should not reach a written row -- if it does,
+                  that is the finding)
+        None   -- the host needs no login; the question does not apply
+
+        Recorded because it was unanswerable. "Are we logged in to Yakima?" had
+        no answer in the data on 2026-09-20: the only auth column in telemetry
+        was `proxy_authenticated`, which is the squid proxy, and body length
+        proved nothing on a metered site. One key per article closes that.
+        """
+        host = urlparse(url_or_host).netloc if "://" in url_or_host else url_or_host
+        host = host.lower().split("@")[-1].split(":")[0]
+        if host.startswith("www."):
+            host = host[4:]
+        if not self._requires_login(host):
+            return None
+        return host in ContentExtractor._authenticated_domains
+
     def _ensure_authenticated(self, driver, domain: str) -> bool:
         """Whether this driver may fetch the domain.
 
@@ -2067,6 +2116,9 @@ class ContentExtractor:
                 "so no article is fetched from this host on this driver.",
                 host,
                 attempts,
+            )
+            self._record_login_failure(
+                host, f"{attempts} login attempts did not confirm a session"
             )
             return False
         except Exception as e:
@@ -4988,6 +5040,16 @@ class ContentExtractor:
                     "stealth_method": stealth_method,
                     "page_source_length": len(html),
                     "driver_reused": ContentExtractor._shared_driver_reuse_count > 0,
+                    # Was this fetched as a subscriber. True/False for a
+                    # credentialed host, None where no login applies.
+                    "authenticated_session": self._session_state(url),
+                    # The status Chrome reported for the document navigation.
+                    # The newspaper4k path has always put this here; the browser
+                    # path recovered it (browser_status.py) and then kept it only
+                    # on the extractor, so candidate_links.http_status was NULL
+                    # for every Selenium fetch -- all 20 credentialed fetches in
+                    # the 2026-09-20 run, walls included.
+                    "http_status": self._last_fetch_http_status,
                 },
                 "extracted_at": datetime.utcnow().isoformat(),
             }

@@ -315,7 +315,8 @@ def test_stats_endpoint_accuracy(coordinator):
         MagicMock(scalar=lambda: 20),  # domains_available
         # Credentialed work, reported separately since the pools were
         # segregated: host, source status, whether credentials exist, owed.
-        MagicMock(fetchall=lambda: [("ptleader.com", "paused", True, 142)]),
+        # host, source status, has credentials, needs re-validation, owed
+        MagicMock(fetchall=lambda: [("ptleader.com", "paused", True, False, 142)]),
     ]
     coordinator.db.get_session.return_value.__enter__.return_value = mock_session
 

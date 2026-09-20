@@ -208,6 +208,14 @@ class TestTheQueueRecordsWhoAsked:
 
 class TestStatsNamesTheStarvation:
     def _stats(self, coordinator, rows):
+        """rows are (host, source status, has credentials, NEEDS RE-VALIDATION, owed).
+
+        The fourth column arrived with the entry-time validation: a host whose
+        login failed on a recent run is reported as needing re-validation, not
+        as claimable work. These rows were four wide, and the loop unpacking
+        five failed the pre-push hook -- in a file the targeted runs had not
+        included.
+        """
         session = MagicMock()
         coordinator._get_session = lambda: session
         # available count, domain count, then the credentialed rows
@@ -221,7 +229,7 @@ class TestStatsNamesTheStarvation:
     def test_claimable_work_is_counted_separately(self, coordinator):
         stats = self._stats(
             coordinator,
-            [("ptleader.com", "active", True, 142)],
+            [("ptleader.com", "active", True, False, 142)],
         )
         assert stats.credentialed_available == 142
         assert stats.credentialed_claimable == 142
@@ -230,7 +238,7 @@ class TestStatsNamesTheStarvation:
     def test_a_paused_source_is_named_with_its_reason(self, coordinator):
         stats = self._stats(
             coordinator,
-            [("tdn.com", "paused", True, 108)],
+            [("tdn.com", "paused", True, False, 108)],
         )
         assert stats.credentialed_available == 108
         assert stats.credentialed_claimable == 0
@@ -244,7 +252,7 @@ class TestStatsNamesTheStarvation:
         authenticated worker on the credentials check. Nothing fetches it."""
         stats = self._stats(
             coordinator,
-            [("chinookobserver.com", "active", False, 12)],
+            [("chinookobserver.com", "active", False, False, 12)],
         )
         assert stats.credentialed_claimable == 0
         reason = stats.credentialed_unclaimable["chinookobserver.com"]
@@ -254,9 +262,9 @@ class TestStatsNamesTheStarvation:
         stats = self._stats(
             coordinator,
             [
-                ("ptleader.com", "active", True, 142),
-                ("tdn.com", "paused", True, 108),
-                ("nocreds.example", "active", False, 5),
+                ("ptleader.com", "active", True, False, 142),
+                ("tdn.com", "paused", True, False, 108),
+                ("nocreds.example", "active", False, False, 5),
             ],
         )
         assert stats.credentialed_available == 255
@@ -280,13 +288,13 @@ class TestStatsNamesTheStarvation:
         """The starvation case, said out loud. A count that never moves is not
         a signal anyone reads."""
         with caplog.at_level("WARNING"):
-            self._stats(coordinator, [("ptleader.com", "active", True, 142)])
+            self._stats(coordinator, [("ptleader.com", "active", True, False, 142)])
         assert "authenticated pool" in caplog.text
 
     def test_it_is_silent_once_a_worker_has_asked(self, coordinator, caplog):
         coordinator.pool_requests["authenticated"] = 1.0
         with caplog.at_level("WARNING"):
-            self._stats(coordinator, [("ptleader.com", "active", True, 142)])
+            self._stats(coordinator, [("ptleader.com", "active", True, False, 142)])
         assert "authenticated pool" not in caplog.text
 
 
