@@ -80,6 +80,18 @@ ENABLE_MEDIACLOUD_WIRE_CHECK = os.getenv(
 
 WIRE_CHECK_STATUS_PENDING = "pending"
 WIRE_CHECK_STATUS_COMPLETE = "complete"
+#: The verdict a curated URL carries. Distinct from `complete`, which means the
+#: external check ran: bypassing a check is not the same as asserting its happy
+#: answer, so the row says which happened.
+WIRE_CHECK_STATUS_LOCAL = "local"
+
+#: Recorded on a curated row so the claim is auditable. Without it a bypass is
+#: indistinguishable from a check that ran and returned a verdict.
+CURATED_WIRE_METADATA = {
+    "authority": "ingested-url-set",
+    "mediacloud_lookup": False,
+    "bypass_reason": "directly ingested URL set",
+}
 WIRE_CHECK_INITIAL_PENDING_STATUSES = {"extracted"}
 WIRE_CHECK_QUEUE_STATUSES = {"cleaned", "local", "labeled"}
 
@@ -112,13 +124,28 @@ def _ensure_crawler_dependencies() -> None:
 logger = logging.getLogger(__name__)
 
 
-def _initial_wire_check_status(article_status: str) -> str:
+def _initial_wire_check_status(article_status: str, *, curated: bool = False) -> str:
     """Determine the wire_check_status value for newly inserted articles.
 
     IMPORTANT: Default to 'pending' for all articles except those that explicitly
     don't need checking (errors, paywalls). This ensures MediaCloud verification
     runs even if article_status is set incorrectly during extraction.
+
+    `curated` short-circuits that. A URL handed over as part of a chosen set has
+    already been judged, and the point of the upload is to collect and export
+    those specific URLs -- so the external check adds nothing and its verdict
+    can only take rows out of a study that was defined to contain them.
+
+    It matters that this returns `local` rather than leaving `pending`:
+    `wire_check_status` is `NOT NULL DEFAULT 'pending'`, and `pending` is the
+    one value that BLOCKS enrichment (the selector wants
+    `IN ('complete','local')`). So the default quietly stranded every ingested
+    article short of the export -- 154 WSU rows on 2026-09-20, plus 147 more
+    that had reached `error` on `api_error:422` from MediaCloud.
     """
+
+    if curated:
+        return WIRE_CHECK_STATUS_LOCAL
 
     if not ENABLE_MEDIACLOUD_WIRE_CHECK:
         return WIRE_CHECK_STATUS_COMPLETE
@@ -388,6 +415,33 @@ def _send_heartbeat(worker_id: str):
         logger.debug("Heartbeat sent to queue")
     except requests.RequestException as e:
         logger.debug("Failed to send heartbeat: %s", e)
+
+
+def _curated_link_ids(session, link_ids) -> set[str]:
+    """Which of these links were handed over rather than discovered.
+
+    One query for the batch instead of a column threaded through two row
+    builders and the work queue's HTTP payload -- the queue returns
+    `(id, url, source, canonical_name, meta)` and does not carry this.
+
+    Fails open to "none are curated", which is the behaviour before the flag
+    existed: a curated row then lands at `pending` and can be corrected, which
+    is better than a discovered row skipping a check it needs.
+    """
+    ids = [str(i) for i in link_ids if i]
+    if not ids:
+        return set()
+    try:
+        rows = session.execute(
+            text(
+                "SELECT id FROM candidate_links " "WHERE id = ANY(:ids) AND is_curated"
+            ),
+            {"ids": ids},
+        ).fetchall()
+        return {str(row[0]) for row in rows}
+    except Exception:
+        logger.exception("Could not read which links were curated")
+        return set()
 
 
 def _hosts_behind_bot_protection(session) -> set[str]:
@@ -1513,7 +1567,9 @@ def handle_extract_url_command(args) -> int:
             )
 
         # Insert article row
-        wire_check_status = _initial_wire_check_status(article_status)
+        wire_check_status = _initial_wire_check_status(
+            article_status, curated=bool(getattr(candidate, "is_curated", False))
+        )
 
         # Prefer canonical URL if available (preserves wire path indicators)
         article_url = _get_canonical_url(url, metadata_value)
@@ -1549,7 +1605,13 @@ def handle_extract_url_command(args) -> int:
                     "wire_check_status": wire_check_status,
                     "wire_check_attempted_at": None,
                     "wire_check_error": None,
-                    "wire_check_metadata": None,
+                    # A bypass that leaves no trace is indistinguishable from a
+                    # check that ran and came back clean.
+                    "wire_check_metadata": (
+                        json.dumps(CURATED_WIRE_METADATA)
+                        if wire_check_status == WIRE_CHECK_STATUS_LOCAL
+                        else None
+                    ),
                     "extracted_at": now.isoformat(),
                     "created_at": now.isoformat(),
                     "text_hash": text_hash,
@@ -1637,6 +1699,14 @@ def _process_batch(
     # nothing fails never asks, and the row query keeps the session's call
     # sequence it had before this existed.
     protected_hosts: set[str] | None = None
+
+    # Which of this batch's links were handed over rather than discovered --
+    # see `_curated_link_ids`. None means "not read yet": read at the first
+    # article that is about to be written, never beside the row query, because
+    # `tests/test_extraction_command.py` scripts a single
+    # `session.execute.side_effect` for that query and an extra execute there
+    # consumes the error it is injecting.
+    curated_ids: set[str] | None = None
 
     # Track domain failures and articles processed per domain in this batch
     domain_failures = {}  # domain -> consecutive_failures
@@ -2598,7 +2668,12 @@ def _process_batch(
                     except Exception:
                         dump_sql_flag = False
 
-                    wire_check_status = _initial_wire_check_status(article_status)
+                    if curated_ids is None:
+                        curated_ids = _curated_link_ids(session, [r[0] for r in rows])
+                    is_curated_link = str(url_id) in curated_ids
+                    wire_check_status = _initial_wire_check_status(
+                        article_status, curated=is_curated_link
+                    )
 
                     # Prefer canonical URL if available (preserves wire path indicators)
                     article_url = _get_canonical_url(url, content.get("metadata", {}))
@@ -2709,7 +2784,13 @@ def _process_batch(
                                 "wire_check_status": wire_check_status,
                                 "wire_check_attempted_at": None,
                                 "wire_check_error": None,
-                                "wire_check_metadata": None,
+                                # A bypass that leaves no trace is indistinguishable from a
+                                # check that ran and came back clean.
+                                "wire_check_metadata": (
+                                    json.dumps(CURATED_WIRE_METADATA)
+                                    if wire_check_status == WIRE_CHECK_STATUS_LOCAL
+                                    else None
+                                ),
                                 "extracted_at": now.isoformat(),
                                 "created_at": now.isoformat(),
                                 "text_hash": text_hash,

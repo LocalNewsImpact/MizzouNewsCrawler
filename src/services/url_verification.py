@@ -250,7 +250,9 @@ class URLVerificationService:
         """Get candidate links that need verification.
 
         Only returns URLs from active sources (excludes paused and retired
-        sources), and only from `self.dataset_id` when one was given.
+        sources), from `self.dataset_id` when one was given, and never a
+        curated URL -- one handed over as part of a chosen set, which selection
+        has already filtered.
 
         The dataset filter used to be missing here: the service accepted a
         `dataset_id`, recorded it on the job row, and then verified every
@@ -266,6 +268,10 @@ class URLVerificationService:
             LEFT JOIN sources s ON cl.source_id = s.id
             WHERE cl.status = 'discovered'
             AND (s.status IS NULL OR s.status = 'active')
+            -- A URL somebody handed over has already been judged: uploading a
+            -- chosen set IS the verification, and storysniffer's opinion of it
+            -- can only remove a record the study was defined to contain.
+            AND NOT cl.is_curated
         """
         params: dict[str, object] = {}
         if self.dataset_id:
