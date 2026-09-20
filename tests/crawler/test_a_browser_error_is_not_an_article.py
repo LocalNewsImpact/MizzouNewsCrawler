@@ -165,7 +165,10 @@ def _extractor_serving(page_source, current_url="https://thebannerpress.com/a"):
         patch.multiple(
             extractor,
             get_persistent_driver=lambda: driver,
-            _ensure_authenticated=lambda *a, **k: None,
+            # True: "this driver may fetch". The method used to return None
+            # and the caller ignored it; it now decides whether the fetch
+            # happens at all, so a stub returning None refuses every page.
+            _ensure_authenticated=lambda *a, **k: True,
             _navigate_with_human_behavior=lambda *a, **k: True,
             _record_raw_html=lambda html, source: archived.append((source, html)),
         ),

@@ -663,6 +663,16 @@ class ContentExtractor:
     # cached so a broken login isn't retried (each attempt polls ~20-35s) on
     # every subsequent article. Reset with the driver, like the set above.
     _auth_failed_domains: set = set()
+    #: host -> how many times a login has been tried on THIS driver. A login
+    #: that does not confirm is tried again; it is not a reason to fetch a
+    #: paywalled publisher anonymously and store what it serves.
+    #:
+    #: Bounded, because the thing on the other end is an account. Two attempts
+    #: catch a modal that did not open or a click that missed; a third would be
+    #: a credential the publisher is rejecting, and repeating that is how an
+    #: account gets locked out.
+    _auth_attempts: dict = {}
+    _MAX_AUTH_ATTEMPTS = 2
 
     def __init__(
         self,
@@ -1965,12 +1975,24 @@ class ContentExtractor:
         """
         return not self._requires_login(domain)
 
-    def _ensure_authenticated(self, driver, domain: str) -> None:
-        """Ensure the shared driver holds a session for a login-gated domain.
+    def _ensure_authenticated(self, driver, domain: str) -> bool:
+        """Whether this driver may fetch the domain.
 
-        No-op unless the domain's source record has requires_login set. Performs
-        the login at most once per driver lifetime per domain, and does not retry
-        a domain whose login already failed on this driver.
+        True when the domain needs no login, or holds a confirmed session.
+        False when a login was needed and could not be confirmed -- and then the
+        caller must NOT fetch.
+
+        THAT IS THE POINT OF THE RETURN VALUE. This used to log "continuing
+        unauthenticated" and fall through to the fetch, which on a paywalled
+        publisher means storing whatever the wall serves. On 2026-09-20 a Yakima
+        Herald school-board story came back as 7,458 characters of navigation
+        furniture, was correctly judged not-prose by the body gates, and was
+        filed `not_article` -- a real story lost, with every rule downstream
+        behaving properly. The fetch should not have happened.
+
+        A login that does not confirm is tried again, up to
+        `_MAX_AUTH_ATTEMPTS` per driver per host. The login URL comes from
+        `sources.auth_config.login_url`, which every credentialed source has.
         """
         # Normalize to a bare host (drop any userinfo/port and a leading "www.")
         # so a publisher matches whether the article URL uses www. or not and
@@ -1978,15 +2000,16 @@ class ContentExtractor:
         host = domain.lower().split("@")[-1].split(":")[0]
         if host.startswith("www."):
             host = host[4:]
-        if (
-            host in ContentExtractor._authenticated_domains
-            or host in ContentExtractor._auth_failed_domains
-        ):
-            return
+        if host in ContentExtractor._authenticated_domains:
+            return True
+        if host in ContentExtractor._auth_failed_domains:
+            # Attempts are spent. Refusing is the answer, not fetching anyway.
+            return False
 
         auth = self._get_domain_auth_config(host)
         if not auth:
-            return
+            # Needs no login; nothing to confirm and nothing to refuse.
+            return True
 
         secret_name = auth.get("auth_secret_name")
         try:
@@ -2002,35 +2025,56 @@ class ContentExtractor:
             if not credentials.get("username") and not credentials.get("account_id"):
                 ContentExtractor._auth_failed_domains.add(host)
                 logger.warning(
-                    "Skipping login for %s: credentials for secret '%s' "
-                    "could not be resolved",
+                    "Refusing %s: credentials for secret '%s' could not be "
+                    "resolved, and an anonymous fetch of a paywalled host "
+                    "stores the wall",
                     host,
                     secret_name,
                 )
-                return
+                return False
 
-            logger.info("Authenticating to %s before extraction", host)
-            ok = perform_login(
-                driver,
-                auth_type=auth.get("auth_type"),
-                auth_config=auth.get("auth_config"),
-                credentials=credentials,
-            )
-            if ok:
-                ContentExtractor._authenticated_domains.add(host)
-                logger.info("Authenticated session established for %s", host)
-            else:
-                ContentExtractor._auth_failed_domains.add(host)
-                logger.warning(
-                    "Login to %s did not confirm; continuing unauthenticated "
-                    "(won't retry on this driver)",
+            attempts = ContentExtractor._auth_attempts.get(host, 0)
+            while attempts < ContentExtractor._MAX_AUTH_ATTEMPTS:
+                attempts += 1
+                ContentExtractor._auth_attempts[host] = attempts
+                logger.info(
+                    "Authenticating to %s before extraction (attempt %d of %d)",
                     host,
+                    attempts,
+                    ContentExtractor._MAX_AUTH_ATTEMPTS,
                 )
+                ok = perform_login(
+                    driver,
+                    auth_type=auth.get("auth_type"),
+                    auth_config=auth.get("auth_config"),
+                    credentials=credentials,
+                )
+                if ok:
+                    ContentExtractor._authenticated_domains.add(host)
+                    logger.info("Authenticated session established for %s", host)
+                    return True
+                logger.warning(
+                    "Login to %s did not confirm on attempt %d of %d",
+                    host,
+                    attempts,
+                    ContentExtractor._MAX_AUTH_ATTEMPTS,
+                )
+
+            ContentExtractor._auth_failed_domains.add(host)
+            logger.error(
+                "REFUSING %s: %d login attempts did not confirm a session. "
+                "Fetching a paywalled publisher anonymously stores the wall, "
+                "so no article is fetched from this host on this driver.",
+                host,
+                attempts,
+            )
+            return False
         except Exception as e:
             ContentExtractor._auth_failed_domains.add(host)
             logger.error(
                 "Authentication attempt for %s failed: %s", host, e, exc_info=True
             )
+            return False
 
     def _convert_to_amp_url(self, url: str) -> List[str]:
         """Generate AMP URL variations for a given URL.
@@ -2565,6 +2609,11 @@ class ContentExtractor:
                 # login-failure cache.
                 ContentExtractor._authenticated_domains = set()
                 ContentExtractor._auth_failed_domains = set()
+                # A new driver is a new chance. The attempt budget is per
+                # driver: a modal that would not open on the last one is not a
+                # reason to refuse the host forever, and the budget is what
+                # stops a rejected credential being retried into a lockout.
+                ContentExtractor._auth_attempts = {}
 
     #: Set when this process serves the authenticated pool -- it draws only
     #: credentialed domains from the queue, so the driver's sessions are the
@@ -4818,9 +4867,20 @@ class ContentExtractor:
             # session on the driver (once per driver lifetime) before navigating
             # so the session cookies carry through to the article fetch.
             try:
-                self._ensure_authenticated(driver, urlparse(url).netloc)
+                may_fetch = self._ensure_authenticated(driver, urlparse(url).netloc)
             except Exception as auth_err:
                 logger.warning("Authentication hook error for %s: %s", url, auth_err)
+                # An error deciding is not permission to fetch a paywalled host.
+                may_fetch = not self._requires_login(urlparse(url).netloc)
+            if not may_fetch:
+                # No session, no fetch. The alternative is what happened to a
+                # Yakima Herald school-board story on 2026-09-20: fetched
+                # anonymously, served 7,458 characters of navigation furniture,
+                # and filed `not_article` by gates that were working correctly.
+                # Returning nothing leaves the link owing a fetch, which is the
+                # honest state -- a stored wall is not.
+                logger.warning("Not fetching %s: no confirmed subscriber session", url)
+                return {}
 
             # Navigate with human-like behavior
             success = self._navigate_with_human_behavior(driver, url)
