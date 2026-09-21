@@ -123,10 +123,16 @@ class TestBothSnapshotsAreTakenOnTheOrigin:
 
     def test_the_performance_log_is_drained_before_the_return_trip(self):
         """get_log consumes the buffer, so the return trip's own requests would
-        otherwise be all that survived of the auth exchange."""
+        otherwise be all that survived of the auth exchange.
+
+        Anchored on the `get_log` call itself rather than on one caller of it:
+        the log is now read once and handed to three readers (responses,
+        redirects, request fields), so naming any single reader would go stale
+        the next time one is added.
+        """
         body = self._body()
-        drain = body.rindex("network_responses(driver.get_log")
         login = body.index("ok = perform_login")
+        drain = body.index('driver.get_log("performance")', login)
         return_trip = body.index("driver.get(origin)", login)
         assert drain < return_trip
 

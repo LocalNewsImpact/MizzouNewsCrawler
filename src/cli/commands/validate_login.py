@@ -35,6 +35,7 @@ import json
 import logging
 import re
 import time
+import urllib.parse
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
@@ -53,9 +54,17 @@ NOISE = re.compile(
 #: Set for every visitor by a load balancer, CDN or WAF, so never evidence of a
 #: session. Named from what the four 2026-09-20 witness runs actually returned.
 INFRA = re.compile(
-    r"^(AWSALB|AWSALBCORS|AWSELB|ELB|incap_ses|nlbi_|visid_incap|reese84|"
-    r"__cf_bm|__cfruid|cf_clearance|_abck|bm_sz|bm_sv|ak_bmsc|datadome|"
-    r"BIGipServer|TS[0-9a-f]{6,}|JSESSIONID_LB|x-ms-routing-name)",
+    # Load balancers, CDNs and WAFs. Set for every visitor, logged in or not.
+    r"^(AWSALB|AWSALBCORS|AWSELB|ELB|aws-waf-token|incap_ses|nlbi_|visid_incap|"
+    r"reese84|__cf_bm|__cfruid|cf_clearance|_abck|bm_sz|bm_sv|ak_bmsc|datadome|"
+    r"BIGipServer|TS[0-9a-f]{6,}|JSESSIONID_LB|x-ms-routing-name"
+    # Advertising and identity-resolution vendors. Also set for everyone, also
+    # first-party, also not analytics -- so the NOISE list above misses them and
+    # they arrive looking exactly like evidence. www.spokesman.com reported seven
+    # "session cookies added" on 2026-09-20 and every one was from this family:
+    # _cc_id and panoramaId (Lotame), _pubcid (Prebid), connectId (LiveRamp).
+    r"|_cc_id|_pubcid|_pubcid_cst|connectId|panoramaId|panoramaIdType|"
+    r"brandcdn_uid|nvq_hid|_sharedID|_lr_env|pbjs|cto_bundle|IDE|_ttp)",
     re.I,
 )
 
@@ -126,12 +135,57 @@ def partition_evidence(names: list[str]) -> tuple[list[str], list[str]]:
     return sorted(session), sorted(infra)
 
 
-def auth_responses(responses: list[tuple[int, str]]) -> list[tuple[int, str]]:
-    return [
+def auth_responses(
+    responses: list[tuple[int, str]], site: str | None = None
+) -> list[tuple[int, str]]:
+    """The vendor's auth exchange, first-party only.
+
+    `AUTH_LIKE` matches substrings, and the web is full of third parties whose
+    URLs contain `auth`, `user`, `profile` or `token`. tdn.com's witness returned
+    fourteen such lines -- facebook, google-analytics, liadm, intentiq,
+    doubleclick, freestar-auth -- and not one was tdn's own login. Restricting to
+    the publisher's own registrable domain and its vendors' subdomains is what
+    makes the list readable, and readable is the point: this is where the eType
+    302 and the Auth0 `?code=` callback are seen.
+
+    `site` is optional so existing callers keep working; without it the old
+    behaviour is preserved rather than silently changed.
+    """
+    picked = [
         (code, url[:140])
         for code, url in responses
         if AUTH_LIKE.search(url) and not ASSET.search(url)
-    ][:20]
+    ]
+    if site:
+        label = _registrable(site)
+        picked = [(code, url) for code, url in picked if _first_party(url, label)]
+    return picked[:20]
+
+
+def _registrable(host: str) -> str:
+    """`yakimaherald.com` from `www.yakimaherald.com`. Good enough here: these are
+    all ordinary two-label domains, and a public-suffix lookup would add a network
+    fetch to a code path that must not make one."""
+    parts = [p for p in (host or "").lower().split(".") if p]
+    return ".".join(parts[-2:]) if len(parts) >= 2 else (host or "").lower()
+
+
+def _first_party(url: str, label: str) -> bool:
+    """Same registrable domain as the publisher, or a vendor subdomain of it.
+
+    `columbian.newzware.com` is NOT first-party by this test and yet it is the
+    login. So the vendor host is admitted when the publisher's own label appears
+    in it -- which is how a Newzware, Connext or Auth0 custom domain is usually
+    named.
+    """
+    try:
+        host = urllib.parse.urlparse(url).netloc.lower().split("@")[-1].split(":")[0]
+    except Exception:
+        return False
+    if not host or not label:
+        return False
+    stem = label.split(".")[0]
+    return host.endswith(label) or stem in host
 
 
 def _visible(driver, selector: str | None) -> bool | None:
@@ -153,7 +207,11 @@ def witness(extractor, host: str) -> dict:
         perform_login,
         resolve_auth_credentials,
     )
-    from src.crawler.browser_status import network_responses
+    from src.crawler.browser_status import (
+        network_redirects,
+        network_responses,
+        request_body_fields,
+    )
 
     bare = bare_host(host)
     auth = extractor._get_domain_auth_config(bare)
@@ -215,18 +273,37 @@ def witness(extractor, host: str) -> dict:
     # Drained BEFORE navigating back: get_log() consumes the buffer, and the
     # return trip's own requests would otherwise be all that is left of it.
     try:
-        responses = network_responses(driver.get_log("performance"))
+        performance = driver.get_log("performance")
     except Exception:
-        responses = []
+        performance = []
+    responses = network_responses(performance)
+    # Redirects are invisible to responseReceived, and the eType 302 is the only
+    # thing that proves that login worked.
+    redirects = network_redirects(performance)
+    # Allowlisted request fields only -- the realm, never the password.
+    body_fields = request_body_fields(performance)
 
-    # Back to the origin the `before` snapshot was taken on.
-    returned_to_origin = True
-    try:
-        driver.get(origin)
-    except Exception:
+    # Back to the origin the `before` snapshot was taken on, with retries.
+    #
+    # One timeout here voids the entire cookie diff, and tdn.com is the case:
+    # Cloudflare-fronted, the return navigation timed out, and the run reported
+    # zero session cookies -- which reads as "no session" rather than "not
+    # measured". Two more attempts cost seconds and save the observation.
+    returned_to_origin = False
+    for attempt in range(1, 4):
+        try:
+            driver.get(origin)
+            returned_to_origin = True
+            break
+        except Exception as exc:
+            logger.info(
+                "return to %s failed (attempt %s of 3): %s", origin, attempt, exc
+            )
+            time.sleep(2)
+    if not returned_to_origin:
         # Not fatal: report the evidence that was gathered and say the return
         # trip failed, rather than throwing away a login that may have worked.
-        returned_to_origin = False
+        logger.warning("could not return to %s; the cookie diff is void", origin)
     cookies_after = first_party_cookies(_cookies(driver), bare)
 
     added = [k for k in cookies_after if k not in cookies_before]
@@ -247,7 +324,13 @@ def witness(extractor, host: str) -> dict:
         "returned_to_origin": returned_to_origin,
         "trigger_visible_before": trigger_before,
         "trigger_visible_after": _visible(driver, trigger),
-        "auth_responses": auth_responses(responses),
+        "auth_responses": auth_responses(responses, bare),
+        "auth_redirects": auth_responses(redirects, bare),
+        "auth_request_fields": [
+            (url[:140], fields)
+            for url, fields in body_fields
+            if _first_party(url, _registrable(bare))
+        ][:10],
         "first_party_cookies_added": added_session,
         "first_party_cookies_changed": changed_session,
         "infrastructure_cookies": sorted(set(added_infra) | set(changed_infra)),
@@ -283,6 +366,11 @@ def record(session, host: str, evidence: dict, path: str | None) -> None:
         "first_party_cookies_added": evidence.get("first_party_cookies_added"),
         "first_party_cookies_changed": evidence.get("first_party_cookies_changed"),
         "infrastructure_cookies": evidence.get("infrastructure_cookies"),
+        "auth_redirects": evidence.get("auth_redirects"),
+        # Allowlisted request fields. The realm is stored because a later token
+        # grant needs it and it cannot be guessed per tenant; no credential is
+        # here, by construction of BODY_FIELDS_WORTH_READING.
+        "auth_request_fields": evidence.get("auth_request_fields"),
         # Which origin the cookie diff was taken on, so a stored witness can be
         # read later without assuming it was same-origin. The 2026-09-20 records
         # predate the fix and carry neither key.
@@ -332,6 +420,13 @@ def handle_validate_login_command(args: argparse.Namespace) -> int:
     print(f"LOGGED IN  {args.host}  ({evidence['auth_type']}, {evidence['seconds']}s)")
     for code, url in evidence["auth_responses"]:
         print(f"  {code}  {url}")
+    for code, url in evidence.get("auth_redirects") or []:
+        # A 3xx never appears in the response log; this is where the eType proof
+        # lives -- POST /account/etype-login answering 302.
+        print(f"  {code}  {url}   (redirect)")
+    for url, fields in evidence.get("auth_request_fields") or []:
+        shown = " ".join(f"{k}={v}" for k, v in sorted(fields.items()))
+        print(f"  sent  {shown}   -> {url}")
     print(
         f"  login control visible: {evidence['trigger_visible_before']} -> "
         f"{evidence['trigger_visible_after']}"
@@ -349,6 +444,13 @@ def handle_validate_login_command(args: argparse.Namespace) -> int:
         evidence["first_party_cookies_added"]
         or evidence["first_party_cookies_changed"]
         or evidence["trigger_visible_after"] is False
+        # A redirect or an auth exchange is evidence in its own right, and for
+        # eType it is the ONLY evidence: its session cookie exists before the
+        # login and the server upgrades it in place, so no cookie diff can ever
+        # show anything. Firing the note anyway would tell an operator not to
+        # record a login that was in fact proven.
+        or evidence.get("auth_redirects")
+        or evidence.get("auth_responses")
     ):
         # The mechanism said yes and nothing observable changed on the
         # publisher's own origin. That is the case a verifier must not pass:
