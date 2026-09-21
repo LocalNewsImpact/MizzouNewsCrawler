@@ -330,6 +330,8 @@ For detailed documentation on the new architecture, deployment strategy, and cre
 
 - [docs/ORCHESTRATION_ARCHITECTURE.md](docs/ORCHESTRATION_ARCHITECTURE.md) - Complete orchestration guide
 
+- [docs/PIPELINE_PROCESS_FLOW.svg](docs/PIPELINE_PROCESS_FLOW.svg) - Process flow across the crawler and datadesk: every stage, decision, terminal status, review queue and the rework carry-through (as of 2026-09-13)
+
 - [k8s/templates/README.md](k8s/templates/README.md) - Job templates documentation
 
 - [docs/MIGRATION_RUNBOOK.md](docs/MIGRATION_RUNBOOK.md) - Database migration procedures and troubleshooting
