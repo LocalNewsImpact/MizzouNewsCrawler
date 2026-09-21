@@ -2067,6 +2067,46 @@ class ContentExtractor:
             return None
         return host in ContentExtractor._authenticated_domains
 
+    def _confirm_session(self, driver, url_or_host: str) -> str:
+        """Is this host's session STILL held, right now, at this fetch.
+
+        Four answers, and the difference between the last two is the point:
+
+        * `not_applicable`  -- no login applies to this host
+        * `verified`        -- the cookies a witnessed login left are still here
+        * `lapsed`          -- they were recorded for this host and are now gone
+        * `unverifiable`    -- this host's proof was a redirect, so there is no
+                               cookie to check afterwards (etype, auth0)
+
+        `_session_state` answers a different and weaker question: did THIS DRIVER
+        complete a login for this host earlier in its life. That is a claim about
+        history, and a session can lapse mid-run -- on 2026-09-20 a yakimaherald
+        fetch logged "AUTHENTICATED SESSION GOT NO STORY ... The login may have
+        lapsed or been refused" while the driver still believed it was signed in.
+
+        The existing catch for that is `_logged_in_page_withheld_the_story`, which
+        reads the BODY. It is a good safety net and a bad confirmation: it cannot
+        tell a lapsed session from a genuinely short article, which is precisely
+        the inference this project ruled out on metered sites. Asking the cookies
+        is affirmative and costs nothing -- `get_cookies()` is scoped to the
+        current document and the driver is already on the publisher's page.
+        """
+        from src.crawler.authenticated_login import (
+            session_signature,
+            session_still_held,
+        )
+
+        host = self._bare_host(
+            urlparse(url_or_host).netloc if "://" in url_or_host else url_or_host
+        )
+        auth = self._get_domain_auth_config(host)
+        if not auth:
+            return "not_applicable"
+        held = session_still_held(driver, session_signature(auth.get("auth_config")))
+        if held is None:
+            return "unverifiable"
+        return "verified" if held else "lapsed"
+
     def _ensure_authenticated(self, driver, domain: str) -> bool:
         """Whether this driver may fetch the domain.
 
@@ -5120,6 +5160,14 @@ class ContentExtractor:
                     # Was this fetched as a subscriber. True/False for a
                     # credentialed host, None where no login applies.
                     "authenticated_session": self._session_state(url),
+                    # HOW that is known, because the two are not the same claim.
+                    # `authenticated_session` says this driver logged in for this
+                    # host at some point; this says whether the session is still
+                    # held AT THIS FETCH, confirmed against the cookie names a
+                    # witnessed login left. `unverifiable` is honest rather than
+                    # optimistic: etype and auth0 prove themselves with a redirect
+                    # and leave no cookie to re-check.
+                    "session_confirmed": self._confirm_session(driver, url),
                     # The status Chrome reported for the document navigation.
                     # The newspaper4k path has always put this here; the browser
                     # path recovered it (browser_status.py) and then kept it only
@@ -6419,6 +6467,41 @@ class ContentExtractor:
             # No modal closing either: the modal is not what withholds the text
             # from a subscriber, and each attempt cost ~80 seconds per article.
             if not self._challenge_check_applies(domain):
+                # AFFIRMATIVE FIRST, inference second.
+                #
+                # A lapsed session is asked about before the body is judged,
+                # because the body cannot answer it: `looks_like_article` cannot
+                # tell a dropped login from a genuinely short story, and a metered
+                # host serves real articles to nobody in particular. Asking the
+                # cookies the witnessed login left is a direct answer and costs
+                # nothing.
+                #
+                # One re-login, then refuse. Signing in again is the whole point
+                # -- a session that lapsed mid-run is the ordinary case, not a
+                # failure -- but a second lapse on the same fetch means something
+                # is wrong with the login rather than with the session, and
+                # retrying it would spend attempts at a publisher who is refusing
+                # us. `_ensure_authenticated` has its own bounded retry and
+                # records the failure on the source.
+                if self._confirm_session(driver, url) == "lapsed":
+                    logger.warning(
+                        "Session for %s is no longer held at fetch time; "
+                        "signing in again before judging the page",
+                        domain,
+                    )
+                    ContentExtractor._authenticated_domains.discard(
+                        self._bare_host(domain)
+                    )
+                    self._ensure_authenticated(driver, domain)
+                    if self._confirm_session(driver, url) == "lapsed":
+                        logger.warning(
+                            "Session for %s still not held after signing in "
+                            "again; refusing the fetch rather than storing "
+                            "whatever this page served",
+                            domain,
+                        )
+                        self._last_capture_rejection = "session_lapsed"
+                        return True
                 if self._logged_in_page_withheld_the_story(driver, url):
                     self._last_capture_rejection = "session_got_no_story"
                 return True
