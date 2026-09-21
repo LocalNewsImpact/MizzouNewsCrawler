@@ -878,13 +878,25 @@ def _analyze_dataset_domains(args, session):
     -- replacing that article's body is the whole point. See refetch.py.
     WHERE cl.status IN ('article', 'refetch')
     AND (s.status IS NULL OR s.status = 'active')
+    -- POOL-SCOPED. "Is there anywhere else to go" has to be asked about the
+    -- domains this worker can actually be handed. An authenticated worker draws
+    -- only credentialed hosts, so counting the dataset's anonymous domains would
+    -- tell it rotation is available when it is not, and it would hammer the one
+    -- credentialed host it can reach.
+    AND (
+        CAST(:requires_login AS boolean) IS NULL
+        OR coalesce(s.requires_login, false) = CAST(:requires_login AS boolean)
+    )
     AND (cl.status = 'refetch' OR NOT EXISTS (
         SELECT 1 FROM articles a
         WHERE a.candidate_link_id = cl.id
     ))
     """
 
-    params = {}
+    # The pool this worker serves, so "is there anywhere else to go" is
+    # asked about the domains it can actually be handed. None means no
+    # filter, which is what a `mixed` worker wants.
+    params = {"requires_login": requires_login_filter(worker_pool())}
 
     # Add dataset filter if specified (dataset is already resolved to UUID)
     if getattr(args, "dataset", None):
@@ -1415,11 +1427,35 @@ def handle_extraction_command(args) -> int:
             # 2. Same domain hit repeatedly (exhausted rotation), OR
             # 3. Only one domain in entire batch (single-domain dataset)
             max_same_domain = int(os.getenv("MAX_SAME_DOMAIN_CONSECUTIVE", "3"))
-            is_single_domain_dataset = unique_domains <= 1 and skipped_domains == 0
+            # ONE DOMAIN IN A BATCH IS ROTATION WORKING, NOT A SINGLE-DOMAIN
+            # DATASET.
+            #
+            # `is_single_domain_dataset` is measured once, before the loop, from
+            # the domains this worker could be handed. It used to be RECOMPUTED
+            # here from `unique_domains` -- the count within one batch -- which
+            # overwrote a correct value with a wrong one.
+            #
+            # The work queue hands each worker exactly one domain per request and
+            # at most three articles from it, then rotates. That is its entire
+            # design. So `unique_domains` is ALWAYS 1 under the queue, so the old
+            # condition was always true, so every batch of three articles was
+            # followed by the full `BATCH_SLEEP_SECONDS`. Measured on the
+            # seven-host WSU rotation, 2026-09-21: three articles, then
+            # "Single-domain dataset - waiting 420s", on a dataset with seven
+            # credentialed domains available -- about 24 articles an hour against
+            # a backlog of 846.
+            #
+            # The irony is the point: the long pause protects a single publisher
+            # from a sustained run, which is the condition rotation removes. It
+            # was throttling hardest exactly when it was least needed. The logic
+            # predates the queue, when a worker chose its own domains and one
+            # domain in a batch really did mean there was nowhere else to go.
+            #
+            # `same_domain_consecutive` is kept. That is a real signal: the queue
+            # handing back the same domain repeatedly means rotation IS exhausted,
+            # whatever the dataset holds.
             needs_long_pause = (
-                is_single_domain_dataset
-                or same_domain_consecutive >= max_same_domain
-                or unique_domains <= 1
+                is_single_domain_dataset or same_domain_consecutive >= max_same_domain
             )
 
             if needs_long_pause:
