@@ -72,6 +72,9 @@ def test_the_stages_run_in_pipeline_order(steps):
     """
     assert [s["name"] for s in steps] == [
         "reclaim-wire-checks",
+        # Records the URL rules' and storysniffer's view of ingested links. It
+        # writes no status, so it cannot disturb the order below.
+        "check-ingested",
         "anything-owed",
         # How many extraction workers the night needs, computed from the
         # rework backlog. The extract step fans out over them.

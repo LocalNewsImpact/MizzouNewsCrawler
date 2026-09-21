@@ -114,6 +114,11 @@ UNGATED_BY_DESIGN = {
     # have rework, which is almost none of them, and the four found in
     # production had been stuck between six and ten months.
     "reclaim-wire-checks",
+    # An ingested URL that nothing has checked owes nothing to rework either.
+    # It records a url_verifications row per link and never writes a status,
+    # so it cannot start a stage's work; and gated, a link ingested on a quiet
+    # night would go unchecked until a night that happened to have rework.
+    "check-ingested",
 }
 
 

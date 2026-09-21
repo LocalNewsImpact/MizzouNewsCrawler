@@ -98,6 +98,23 @@ spec:
     - - name: reclaim-wire-checks
         template: reclaim-wire-checks-step
 
+    # 0b. Check ingested URLs with the URL rules and storysniffer.
+    #
+    # An ingested URL skips verification so no rule or model removes a URL a
+    # person chose -- which also meant nothing looked at it (KHQ's /video_
+    # pages, ptleader's e-edition viewers). This records the checks' answer as
+    # a `url_verifications` row, `verdict_kind: ingested`, and a doubt goes to
+    # the discovery review queue. It never writes `candidate_links.status`: the
+    # link is still fetched. The external wire check is not part of it.
+    #
+    # Before the gate, like the step above: it owes nothing to rework. Only
+    # links without an `ingested` row are selected, so a quiet night costs one
+    # query. `continueOn` so a failure here cannot stop the carry-through.
+    - - name: check-ingested
+        template: check-ingested-step
+        continueOn:
+          failed: true
+
     # 1. Is anything owed? A run with nothing to carry stops here.
     - - name: anything-owed
         template: anything-owed-step
@@ -641,6 +658,28 @@ spec:
         limits:
           cpu: 500m
           memory: 512Mi
+
+  - name: check-ingested-step
+    metadata:
+      labels:
+        stage: maintenance
+        housekeeping: "true"
+    container:
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:${PROCESSOR_TAG}
+      imagePullPolicy: IfNotPresent
+      command:
+        - python
+        - -m
+        - src.cli.cli_modular
+        - check-ingested
+      env: *db_env
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits:
+          cpu: 500m
+          memory: 1Gi
 
   - name: anything-owed-step
     metadata:
