@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import logging
+import urllib.parse
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -33,9 +34,39 @@ DOCUMENT_TYPE = "Document"
 #: The CDP event carrying a status code.
 RESPONSE_EVENT = "Network.responseReceived"
 
+#: The CDP event carrying a request -- and, for a redirect, the response that
+#: caused it. Chrome does NOT emit `responseReceived` for a 3xx: the redirect's
+#: status arrives as `redirectResponse` inside the NEXT request event. So a
+#: reader of responses alone is blind to every redirect, which is how
+#: `POST /account/etype-login -> 302 -> /account/etype-auth` -- the one signal
+#: that proves an eType login worked -- was invisible while the login was
+#: reported as succeeding.
+REQUEST_EVENT = "Network.requestWillBeSent"
 
-def _events(entries: list[dict]) -> Any:
-    """Yield the decoded CDP messages from a performance log."""
+#: Form fields worth reading out of a request body, and the ONLY ones ever read.
+#:
+#: A login POST carries the subscriber's password. An allowlist is the whole
+#: safety property here: never the raw body, never a key not named below. On
+#: 2026-09-20 a log level of DEBUG printed a subscriber password into a pod log,
+#: and that was with nobody deliberately reading request bodies at all.
+#:
+#: `realm` is why this exists. Auth0's classic Universal Login posts it to
+#: `/usernamepassword/login`, and it is the parameter the password-realm token
+#: grant needs -- `Username-Password-Authentication` on the spokesman tenant, a
+#: default that cannot be assumed for any other publisher.
+BODY_FIELDS_WORTH_READING: tuple[str, ...] = (
+    "realm",
+    "connection",
+    "client_id",
+    "grant_type",
+    "scope",
+    "response_type",
+    "tenant",
+)
+
+
+def _events(entries: list[dict], method: str = RESPONSE_EVENT) -> Any:
+    """Yield the decoded CDP params for one event type from a performance log."""
     for entry in entries or []:
         raw = entry.get("message")
         if not raw:
@@ -44,7 +75,7 @@ def _events(entries: list[dict]) -> Any:
             message = json.loads(raw).get("message") or {}
         except (ValueError, TypeError):
             continue
-        if message.get("method") == RESPONSE_EVENT:
+        if message.get("method") == method:
             yield message.get("params") or {}
 
 
@@ -84,6 +115,61 @@ def network_responses(entries: list[dict]) -> list[tuple[int, str]]:
         url = response.get("url")
         if isinstance(code, int) and url:
             out.append((code, str(url)))
+    return out
+
+
+def network_redirects(entries: list[dict]) -> list[tuple[int, str]]:
+    """Every (status, url) of a REDIRECT, which responses alone never show.
+
+    Chrome reports a 3xx as `redirectResponse` inside the next
+    `requestWillBeSent`, not as a `responseReceived`. So this is the only way to
+    see the status that proves an eType login: `POST /account/etype-login` answers
+    302 with `location: /account/etype-auth`, and the browser follows it before
+    any response event names the 302.
+
+    The url is the one that was REDIRECTED (the redirectResponse's own url), not
+    the destination, because that is the request whose status is being reported.
+    """
+    out: list[tuple[int, str]] = []
+    for params in _events(entries, REQUEST_EVENT):
+        redirect = params.get("redirectResponse") or {}
+        code = redirect.get("status")
+        url = redirect.get("url")
+        if isinstance(code, int) and url:
+            out.append((code, str(url)))
+    return out
+
+
+def request_body_fields(entries: list[dict]) -> list[tuple[str, dict[str, str]]]:
+    """Allowlisted form fields per request url. NEVER a password, never a body.
+
+    Only the keys in `BODY_FIELDS_WORTH_READING` are read, and everything else in
+    the body -- `username`, `password`, tokens, anything a vendor invents -- is
+    discarded without being copied anywhere. That is deliberate and is the whole
+    safety property: a login POST carries the subscriber's password, so the
+    allowlist has to be the mechanism rather than a filter applied afterwards.
+
+    The realm is the reason this exists. It cannot be guessed per tenant, and it
+    is in the POST body rather than the URL, so harvesting it requires reading
+    requests -- see `BODY_FIELDS_WORTH_READING`.
+    """
+    out: list[tuple[str, dict[str, str]]] = []
+    for params in _events(entries, REQUEST_EVENT):
+        request = params.get("request") or {}
+        body = request.get("postData")
+        url = request.get("url")
+        if not body or not url or not isinstance(body, str):
+            continue
+        found: dict[str, str] = {}
+        for pair in body.replace("&amp;", "&").split("&"):
+            if "=" not in pair:
+                continue
+            key, _, value = pair.partition("=")
+            key = urllib.parse.unquote_plus(key.strip())
+            if key in BODY_FIELDS_WORTH_READING:
+                found[key] = urllib.parse.unquote_plus(value.strip())[:120]
+        if found:
+            out.append((str(url), found))
     return out
 
 
