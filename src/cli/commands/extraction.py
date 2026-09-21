@@ -57,7 +57,12 @@ from src.utils.comprehensive_telemetry import (
 from src.utils.content_cleaner_balanced import BalancedBoundaryContentCleaner
 from src.utils.content_type_detector import ContentTypeDetector
 from src.utils.raw_html_archive import archive_html
-from src.utils.worker_pool import requires_login_filter, worker_pool
+from src.utils.worker_pool import (
+    POOLS,
+    announce_pool,
+    requires_login_filter,
+    worker_pool,
+)
 
 # Domains known to return 403 for paywalled content (not bot blocking)
 # These should be marked as 403/failed but NOT trigger a domain-wide pause
@@ -1013,6 +1018,18 @@ def add_extraction_parser(subparsers):
         help="Number of batches (default: process all available)",
     )
     extract_parser.add_argument(
+        "--worker-pool",
+        choices=POOLS,
+        default=None,
+        help=(
+            "Which hosts this worker draws from: authenticated (credentialed "
+            "only, holds its login), anonymous (no-login only, rotates), or "
+            "mixed. Overrides EXTRACTION_WORKER_POOL. Say it here when the "
+            "manifest cannot set an env var -- housekeeping's extraction-step "
+            "defines the env anchor that its other steps alias."
+        ),
+    )
+    extract_parser.add_argument(
         "--source",
         type=str,
         help="Limit to a specific source",
@@ -1107,6 +1124,14 @@ def handle_extraction_command(args) -> int:
         raise RuntimeError("ContentExtractor dependency is unavailable")
 
     _set_proxy_env_safety_net()
+
+    # Before anything reads the pool. `worker_pool()` is consulted per work
+    # request and `ContentExtractor` reads the driver reuse limit from it, so an
+    # override applied later would leave the two halves disagreeing -- a worker
+    # asking the queue for credentialed hosts while recycling every three
+    # fetches is exactly the churn the segregation exists to stop.
+    pool = announce_pool(getattr(args, "worker_pool", None))
+    logger.info("Extraction worker pool: %s", pool)
 
     extractor_cls = ContentExtractor
     process_accepts_db = "db" in inspect.signature(_process_batch).parameters

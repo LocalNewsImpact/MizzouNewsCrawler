@@ -54,6 +54,32 @@ def worker_pool(environ: dict[str, str] | None = None) -> str:
     return value if value in POOLS else MIXED
 
 
+def announce_pool(value: str | None) -> str:
+    """Declare the pool for this process, overriding the environment.
+
+    The pool used to be ambient: an env var set by whichever manifest launched
+    the worker. That is fine for a template that owns its own env list, and it
+    does not work for `housekeeping-workflow.yaml`, where `extraction-step`
+    DEFINES the shared `&db_env` anchor that `classify-step` and `enrich-step`
+    alias. Adding an input-referencing var to that list hands the reference to
+    templates that cannot resolve it, and the file carries a comment saying so
+    because it already made the workflow unsubmittable once.
+
+    So a caller may say it outright. An explicit argument also reads better than
+    an environment variable three files away: the manifest that asks for
+    credentialed hosts is the manifest that says `authenticated`.
+
+    Returns the pool actually in force. An empty or unrecognised value leaves the
+    environment alone and is reported as whatever `worker_pool()` then says --
+    the same permissiveness as `worker_pool`, for the same reason: a batch job
+    that refuses to start reports "extraction is broken".
+    """
+    chosen = (value or "").strip().lower()
+    if chosen in POOLS:
+        os.environ[ENV_VAR] = chosen
+    return worker_pool()
+
+
 def requires_login_filter(pool: str) -> bool | None:
     """What this pool asks the queue for, as `WorkRequest.requires_login`.
 

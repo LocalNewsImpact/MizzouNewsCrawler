@@ -57,6 +57,11 @@ def test_the_stages_run_in_pipeline_order(steps):
     Classify before extract would label yesterday's work and leave
     today's, and the run would still report success.
 
+    BOTH extraction passes precede classify, for that same reason: a paywalled
+    article refetched by the credentialed pass must be labelled and enriched in
+    the same run, or a review decision takes a day to complete instead of a
+    night.
+
     MAINTENANCE RUNS AHEAD OF THE GUARD, and is listed here rather than
     excused. `reclaim-wire-checks` puts a wire check that never finished
     back in the queue; it owes nothing in `pipeline_rework` -- no review
@@ -72,6 +77,13 @@ def test_the_stages_run_in_pipeline_order(steps):
         # rework backlog. The extract step fans out over them.
         "rework-workers",
         "extract",
+        # The same rework for hosts that need a login, in a pass of its own.
+        # Two passes rather than one `mixed` pass because a worker cannot serve
+        # both kinds of host: an anonymous host needs its driver rotated, a
+        # credentialed one needs it held or every visit pays a fresh login.
+        # Sequential and not fanned out, because two authenticated workers on one
+        # host mean two concurrent sessions for one subscriber account.
+        "extract-credentialed",
         "classify",
         "enrich",
         # Applying a reviewer's geography is NOT here. It is the template's
