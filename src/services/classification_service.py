@@ -176,12 +176,24 @@ class ArticleClassificationService:
             )
             stmt = stmt.where(in_dataset)
 
+        # A LABEL DESCRIBES THE BODY IT WAS MADE FROM. One applied before the
+        # article's latest extraction was computed on a capture that no longer
+        # exists, so it does not count as existing.
+        #
+        # 2026-09-21: 17 WSU articles sat at `cleaned` with labels. Each was
+        # first captured as a paywall or navigation page, classified, then
+        # refetched by the authenticated rotation -- which put the status back to
+        # `cleaned` -- and skipped here because a label existed. Enrichment
+        # selects on `labeled`, so they could never be enriched, and the label
+        # they carried was for the wall. Re-run on the real bodies, 4 of the 17
+        # changed category.
         if not include_existing:
             label_exists = (
                 select(ArticleLabel.id)
                 .where(
                     ArticleLabel.article_id == Article.id,
                     ArticleLabel.label_version == label_version,
+                    ArticleLabel.applied_at >= Article.extracted_at,
                 )
                 .exists()
             )
