@@ -309,11 +309,49 @@ def story_text(body: str) -> str:
 
 
 def prose_density(text: str) -> float:
-    """Share of words that are function words — how much this reads as writing."""
+    """Share of words that are function words — how much this reads as writing.
+
+    Measured in the language the text is actually in, as the higher of the
+    English and Spanish rates. Function words are the most language-specific
+    thing in a body: `FUNCTION_WORDS` is an English list, so Spanish prose scores
+    near zero against it and reads as furniture no matter how well written it is.
+
+    Measured 2026-09-20: five Spanish-language stories from Spokane Public Radio
+    and Northwest Public Broadcasting — farmworker displacement, migrant labour
+    policy, long COVID — scored 0.04 to 0.05 against the 0.14 floor and were filed
+    `not_article`. This module's docstring claimed the opposite, that the shape
+    rules "leave unusual-but-real prose alone (Spanish articles score low on the
+    English-only prose density but read as sentences)" and flagged "0 of the
+    Spanish captures" in the 2026-07-26 run. That is no longer true, and the
+    claim was load-bearing: it is why nobody looked.
+
+    The English measure is deliberately left byte-identical. `language`'s English
+    list is longer but lacks `a`, `he` and `said`, all common in reporting, so
+    adopting it would move every English score and the 0.14 floor with it. Taking
+    the MAX of two independently measured rates adds a language without retuning
+    a threshold.
+    """
     words = re.findall(r"[a-zA-Z']+", text.lower())
-    if not words:
-        return 0.0
-    return sum(1 for w in words if w in FUNCTION_WORDS) / len(words)
+    english = (
+        sum(1 for w in words if w in FUNCTION_WORDS) / len(words) if words else 0.0
+    )
+    # Spanish is measured by `language`, which folds accents and matches unicode
+    # word characters -- `más` and `está` are function words that `[a-zA-Z']+`
+    # cannot see at all.
+    _, spanish, _ = _spanish_rate(text)
+    return max(english, spanish)
+
+
+def _spanish_rate(text: str) -> tuple[float, float, int]:
+    """`language.function_word_rates`, imported late.
+
+    Late because `boilerplate` is imported by the extraction hot path and
+    `language` is not needed for the English measure; the import is cheap and
+    cached after the first call.
+    """
+    from src.utils.language import function_word_rates
+
+    return function_word_rates(text)
 
 
 def capitalization_ratio(text: str) -> float:
