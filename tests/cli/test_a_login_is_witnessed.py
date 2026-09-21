@@ -90,10 +90,9 @@ class TestStatsReportsReValidation:
             coordinator, [("www.yakimaherald.com", "active", True, True, 235)]
         )
         assert stats.credentialed_claimable == 0
-        assert (
-            "needs re-validation"
-            in stats.credentialed_unclaimable["www.yakimaherald.com"]
-        )
+        reason = stats.credentialed_unclaimable["www.yakimaherald.com"]
+        assert "login failed on a recent run" in reason
+        assert "validate-login --record" in reason
 
     def test_a_host_with_no_failure_still_is(self, coordinator):
         stats = self._stats(coordinator, [("tdn.com", "active", True, False, 93)])
@@ -101,8 +100,12 @@ class TestStatsReportsReValidation:
         assert stats.credentialed_unclaimable == {}
 
     def test_the_query_reads_the_column(self):
+        """Through the clause the selector also reads, so the two cannot disagree."""
+        from src.services.work_queue import LOGIN_COOLING_DOWN
+
+        assert "s.auth_last_failed_at" in LOGIN_COOLING_DOWN
         source = inspect.getsource(WorkQueueCoordinator.get_stats)
-        assert "s.auth_last_failed_at IS NOT NULL AS needs_revalidation" in source
+        assert "LOGIN_COOLING_DOWN" in source
 
 
 class TestNetworkResponses:
