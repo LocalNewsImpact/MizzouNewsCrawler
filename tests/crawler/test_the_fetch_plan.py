@@ -272,3 +272,122 @@ class TestExtractContentHonoursThePlan:
         body = Path("src/crawler/__init__.py").read_text()
         amp = body.split("Check for preemptive AMP fetch")[1][:700]
         assert "skip_http_methods = False" in amp
+
+
+class TestSeleniumOnlyIsHonored:
+    """`sources.selenium_only` existed, was written by the auto-flagger, and was
+    read by nothing. A host marked `selenium` AND `cloudflare` therefore still got
+    cloudscraper first -- an HTTP knock the label said not to make.
+
+    My Edmonds News, 2026-09-21: both proxies refused every HTTP capture (403, a
+    2.6 KB challenge page) and the home proxy's failure count for it stood at 180.
+    """
+
+    def test_it_defaults_off_so_nothing_else_changes(self):
+        assert _plan(extraction_method="http").reason == "http first"
+
+    def test_it_ends_the_cloudscraper_escalation(self):
+        marked = _plan(
+            extraction_method="selenium",
+            protection_type="cloudflare",
+            cloudscraper_available=True,
+        )
+        assert marked.allow_cloudflare_escalation is True  # the trap, unflagged
+
+        flagged = _plan(
+            extraction_method="selenium",
+            protection_type="cloudflare",
+            cloudscraper_available=True,
+            selenium_only=True,
+        )
+        assert flagged.allow_cloudflare_escalation is False
+        assert flagged.skip_http_methods is True
+        assert flagged.browser_only is True
+
+    def test_it_refuses_the_anonymous_http_rungs(self):
+        plan = _plan(extraction_method="selenium", selenium_only=True)
+        assert plan.allow_tls_capture is False
+        assert plan.allow_amp is False
+
+    def test_amp_is_refused_even_when_the_source_says_it_supports_it(self):
+        plan = _plan(
+            extraction_method="selenium", selenium_only=True, amp_supported=True
+        )
+        assert plan.allow_amp is False
+
+    def test_it_makes_an_http_labelled_host_browser_only(self):
+        """The two `http` sources that carry the flag."""
+        plan = _plan(extraction_method="http", selenium_only=True)
+        assert plan.skip_http_methods is True
+        assert plan.reason.startswith("selenium only")
+
+    def test_an_unblock_host_keeps_its_proxied_http_fetch(self):
+        """Its whole method is a proxied HTTP capture. Both fox2now and fox4kc
+        carry the flag; refusing them the tls rung would remove the method."""
+        plan = _plan(extraction_method="unblock", selenium_only=True)
+        assert plan.allow_tls_capture is True
+        assert plan.reason != "selenium only: browser, no HTTP of any kind"
+
+    def test_credentialed_still_wins(self):
+        plan = _plan(credentialed=True, selenium_only=False)
+        assert plan.credentialed is True
+        assert plan.reason == "subscriber login: authenticated browser only"
+
+
+class TestTheLookup:
+    def _extractor(self):
+        from src.crawler import ContentExtractor
+
+        return ContentExtractor.__new__(ContentExtractor)
+
+    def _db(self, row):
+        from unittest.mock import MagicMock
+
+        db = MagicMock()
+        session = db.return_value.get_session.return_value.__enter__.return_value
+        session.execute.return_value.fetchone.return_value = row
+        return db
+
+    def test_a_flagged_source_is_true(self):
+        from unittest.mock import patch
+
+        with patch("src.models.database.DatabaseManager", self._db((True,))):
+            assert self._extractor()._get_domain_selenium_only("x.example") is True
+
+    @pytest.mark.parametrize("row", [(False,), (None,), None])
+    def test_unflagged_or_unknown_is_false(self, row):
+        from unittest.mock import patch
+
+        with patch("src.models.database.DatabaseManager", self._db(row)):
+            assert self._extractor()._get_domain_selenium_only("x.example") is False
+
+    def test_an_error_is_false_not_browser_only(self):
+        """An error deciding must not turn a working host into a browser-only
+        one."""
+        from unittest.mock import patch
+
+        with patch(
+            "src.models.database.DatabaseManager", side_effect=RuntimeError("db gone")
+        ):
+            assert self._extractor()._get_domain_selenium_only("x.example") is False
+
+    def test_it_is_cached_per_domain(self):
+        from unittest.mock import patch
+
+        db = self._db((True,))
+        e = self._extractor()
+        with patch("src.models.database.DatabaseManager", db):
+            e._get_domain_selenium_only("x.example")
+            e._get_domain_selenium_only("x.example")
+        assert db.call_count == 1
+
+
+def test_extract_content_passes_the_flag_to_the_plan():
+    import inspect
+
+    from src.crawler import ContentExtractor
+
+    body = inspect.getsource(ContentExtractor.extract_content)
+    call = body[body.index("plan = plan_fetch(") :]
+    call = call[: call.index(")\n        skip_http_methods")]
+    assert "selenium_only=self._get_domain_selenium_only(domain)" in call

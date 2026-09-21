@@ -2446,6 +2446,35 @@ class ContentExtractor:
             logger.debug(f"Failed to check AMP support for {domain}: {e}")
             return None
 
+    def _get_domain_selenium_only(self, domain: str) -> bool:
+        """Whether `sources.selenium_only` is set for the domain.
+
+        False when the source is unknown or the lookup fails: an error deciding
+        must not turn a working host into a browser-only one.
+        """
+        cache_key = f"selenium_only:{domain}"
+        cache = self.__dict__.setdefault("_selenium_only_cache", {})
+        if cache_key in cache:
+            return cache[cache_key]
+
+        try:
+            from sqlalchemy import text
+
+            from src.models.database import DatabaseManager
+
+            db = DatabaseManager()
+            with db.get_session() as session:
+                row = session.execute(
+                    text("SELECT selenium_only FROM sources WHERE host = :host"),
+                    {"host": domain},
+                ).fetchone()
+            result = bool(row and row[0])
+            cache[cache_key] = result
+            return result
+        except Exception as e:
+            logger.debug(f"Failed to check selenium_only for {domain}: {e}")
+            return False
+
     def _handle_captcha_backoff(self, domain: str) -> None:
         """Apply extended backoff for CAPTCHA/challenge detections."""
         now = time.time()
@@ -3194,6 +3223,7 @@ class ContentExtractor:
             protection_type=protection_type,
             cloudscraper_available=CLOUDSCRAPER_AVAILABLE,
             amp_supported=self._get_domain_amp_support(domain),
+            selenium_only=self._get_domain_selenium_only(domain),
         )
         skip_http_methods = plan.skip_http_methods
         cloudflare_escalation_enabled = plan.allow_cloudflare_escalation
