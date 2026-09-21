@@ -189,6 +189,113 @@ return null;
 """
 
 
+#: Find the control that OPENS a login modal by what it means, not by one name.
+#:
+#: A single configured selector was the whole search. On 2026-09-21 union-bulletin
+#: logged in at 15:17 UTC and then, on a new driver twenty minutes later, twice
+#: reported `login trigger selector 'a[data-mg2-action='login']' not found`. The
+#: login then fell through to shape discovery of the whole page, which took a lone
+#: email box with a button beside it -- a newsletter sign-up is exactly that --
+#: for an identifier-first form, and failed on the password. The trigger it was
+#: told to use might have been rendered late, rendered hidden (a collapsed header
+#: menu), or rendered under a different name; one selector could tell none of
+#: those apart and reported all three the same way.
+#:
+#: So ask the page several questions at once, in order of how much each is worth:
+#:
+#:   1. is a login form already open -- a visible password input? Nothing to click.
+#:   2. is this browser already signed in -- a visible "Log out"? Nothing to do.
+#:   3. the configured selector, visible
+#:   4. any clickable control whose ATTRIBUTES say login -- `data-mg2-action`,
+#:      href, id, class, aria-label, title -- visible
+#:   5. any clickable control whose short visible TEXT says log in / sign in
+#:   6. the configured selector, present but hidden -- clicked by script, which
+#:      reaches a delegated handler (Connext attaches to `[data-mg2-action]`)
+#:   7. a login-named control by attribute, present but hidden
+#:
+#: Hidden text matches are not accepted: text is the loosest signal, and a hidden
+#: "Sign in" is as likely a footer template as a header control.
+#:
+#: Every answer carries a census, so a failure names what the page did have.
+LOGIN_TRIGGER_DISCOVERY_JS = r"""
+const configured = arguments[0];
+const LOGINY = /(^|[^a-z])(log[ _-]?in|sign[ _-]?in)([^a-z]|$)/i;
+const NOT_LOGIN = /log[ _-]?out|sign[ _-]?out|sign[ _-]?up|register|\bsubscribe\b|forgot|reset/i;
+const LOGGED_IN = /^\s*(log[ _-]?out|sign[ _-]?out)\s*$/i;
+const CLICKABLE = 'a, button, [role="button"], input[type="button"], [data-mg2-action], [onclick]';
+
+function visible(el) {
+  if (!el) return false;
+  if (!el.getClientRects().length && el.offsetParent === null) return false;
+  const s = window.getComputedStyle(el);
+  return s.visibility !== "hidden" && s.display !== "none" && s.opacity !== "0";
+}
+function attrs(el) {
+  return [...el.attributes]
+    .filter(a => a.name.startsWith("data-") || ["href", "id", "class", "aria-label", "title", "name"].includes(a.name))
+    .map(a => a.value).join(" ");
+}
+function text(el) {
+  return (el.innerText || el.value || el.getAttribute("aria-label") || "").trim();
+}
+
+let bySelector = [];
+if (configured) {
+  try { bySelector = [...document.querySelectorAll(configured)]; } catch (e) { bySelector = []; }
+}
+const clickables = [...document.querySelectorAll(CLICKABLE)];
+const byAttribute = clickables.filter(el => {
+  const a = attrs(el);
+  return LOGINY.test(a) && !NOT_LOGIN.test(a) && !NOT_LOGIN.test(text(el));
+});
+const byText = clickables.filter(el => {
+  const t = text(el);
+  return t.length <= 30 && LOGINY.test(t) && !NOT_LOGIN.test(t);
+});
+
+const census = {
+  selector_total: bySelector.length,
+  selector_visible: bySelector.filter(visible).length,
+  by_attribute: byAttribute.length,
+  by_attribute_visible: byAttribute.filter(visible).length,
+  by_text_visible: byText.filter(visible).length,
+  fields_open: [...document.querySelectorAll('input[type="password"]')].some(visible),
+  logged_in: clickables.some(el => visible(el) && LOGGED_IN.test(text(el))),
+  ready_state: document.readyState,
+};
+
+if (census.fields_open) return {trigger: null, why: "login form already open", census};
+if (census.logged_in) return {trigger: null, why: "already signed in", census};
+
+const ranked = [
+  [bySelector.filter(visible), "configured selector", true],
+  [byAttribute.filter(visible), "attribute says login", true],
+  [byText.filter(visible), "text says log in", true],
+  [bySelector, "configured selector, hidden", false],
+  [byAttribute, "attribute says login, hidden", false],
+];
+for (const [els, why, isVisible] of ranked) {
+  if (els.length) return {trigger: els[0], why, visible: isVisible, census};
+}
+return {trigger: null, why: "nothing on the page opens a login", census};
+"""
+
+
+def discover_login_trigger(driver, configured: Optional[str]) -> dict:
+    """Ask the page for its login control. See LOGIN_TRIGGER_DISCOVERY_JS.
+
+    Returns the script's answer, or `{}` when the script itself could not run --
+    the caller then falls back to the configured selector alone, which is the
+    behaviour before this existed.
+    """
+    try:
+        found = driver.execute_script(LOGIN_TRIGGER_DISCOVERY_JS, configured)
+    except Exception as exc:  # pragma: no cover - driver/JS variety
+        logger.debug("login trigger discovery failed: %s", exc)
+        return {}
+    return found if isinstance(found, dict) and "census" in found else {}
+
+
 def discover_login_fields(driver) -> dict:
     """Locate the login fields by shape. Returns {} when nothing looks like one.
 
@@ -514,6 +621,89 @@ def _login_auth0(driver, cfg: dict, username: str, password: str) -> bool:
     return _off_auth0_host(current) or ("code=" in current)
 
 
+def _click(driver, element, script_only: bool = False) -> bool:
+    """Click, then click by script if the ordinary click is refused.
+
+    A hidden control cannot take an ordinary click at all, so it goes straight
+    to the script. A visible one can still be refused -- on yakimaherald it sits
+    outside the viewport.
+    """
+    if not script_only:
+        try:
+            element.click()
+            return True
+        except Exception:
+            pass
+    try:
+        driver.execute_script("arguments[0].click();", element)
+        return True
+    except Exception as exc:
+        logger.warning("form login: failed to click login trigger: %s", exc)
+        return False
+
+
+def _open_login_modal(driver, cfg: dict, trigger_sel: str) -> Optional[str]:
+    """Open the login modal. Returns "opened", "signed_in", or None.
+
+    POLLED, not looked up once. Looked up immediately after `driver.get()` the
+    trigger was absent on www.yakimaherald.com because Connext renders it with
+    JS; Playwright measured it not displayed at 3 seconds and displayed at 5-6.
+    The field inside the modal already had a 20-second poll, and the trigger that
+    opens the modal had none, so they now share one budget.
+
+    FOUND BY MEANING, not by one selector. See LOGIN_TRIGGER_DISCOVERY_JS.
+    """
+    deadline = time.time() + float(cfg.get("field_timeout", 20))
+    found: dict = {}
+    while True:
+        found = discover_login_trigger(driver, trigger_sel)
+        if found:
+            census = found.get("census") or {}
+            if census.get("fields_open"):
+                logger.info("form login: the login form is already open")
+                return "opened"
+            if census.get("logged_in"):
+                logger.info("form login: this browser is already signed in")
+                return "signed_in"
+            trigger = found.get("trigger")
+            script_only = not found.get("visible", True)
+        else:
+            # The discovery script could not run. Ask the two questions that do
+            # not need it: is the form already open, and does the configured
+            # selector match -- which is what this did before.
+            if _find_first(
+                driver, [cfg.get("password_selector"), *PASSWORD_CANDIDATES]
+            )[0]:
+                logger.info("form login: the login form is already open")
+                return "opened"
+            trigger, _ = _find_first(driver, [trigger_sel])
+            script_only = False
+        if trigger is not None:
+            logger.info(
+                "form login: opening the login modal (%s)",
+                found.get("why", "configured selector"),
+            )
+            if not _click(driver, trigger, script_only=script_only):
+                return None
+            # The modal it opens is rendered by JS too. One second was
+            # optimistic -- Playwright needed about six against this host -- and
+            # being wrong here is indistinguishable from a wrong selector,
+            # because what fails is the field lookup afterwards.
+            time.sleep(float(cfg.get("modal_delay", 5)))
+            return "opened"
+        if time.time() >= deadline:
+            break
+        time.sleep(1)
+
+    logger.warning(
+        "form login: nothing on %s opens a login (configured %r); page had %s",
+        getattr(driver, "current_url", "?"),
+        trigger_sel,
+        found.get("census") if found else "no census -- discovery did not run",
+    )
+    return None
+
+
 def _login_form(driver, cfg: dict, username: str, password: str) -> bool:
     login_url = cfg.get("login_url")
     if not login_url:
@@ -532,55 +722,18 @@ def _login_form(driver, cfg: dict, username: str, password: str) -> bool:
 
     # Some publishers (e.g., Connext) render login fields in a modal that opens
     # only after clicking a login trigger on the homepage.
+    already_signed_in = False
     if trigger_sel:
-        # POLL FOR IT. Looked up once, immediately after `driver.get()`, this
-        # found nothing on www.yakimaherald.com: Connext renders the control
-        # with JS and it is not in the DOM yet. The modal was therefore never
-        # opened, and `_fill_and_submit` then polled twenty seconds for a field
-        # that could not exist -- two warnings, both true, neither naming the
-        # cause:
-        #
-        #   16:43:01  form login: login trigger selector '...' not found
-        #   16:43:41  Authenticated login: username/email field not found
-        #
-        # Measured in Playwright against the same page: at 3 seconds both
-        # controls read as not displayed; at 5-6 seconds they are displayed and
-        # the login completes, with Connext's /api/user answering 200.
-        #
-        # The asymmetry was the defect -- the field that the modal contains got
-        # a 20-second poll, the trigger that OPENS the modal got none. Same
-        # budget for both.
-        trigger = None
-        trigger_deadline = time.time() + float(cfg.get("field_timeout", 20))
-        while True:
-            trigger, _ = _find_first(driver, [trigger_sel])
-            if trigger or time.time() >= trigger_deadline:
-                break
-            time.sleep(1)
-        if trigger:
-            try:
-                trigger.click()
-            except Exception:
-                try:
-                    driver.execute_script("arguments[0].click();", trigger)
-                except Exception as exc:
-                    logger.warning(
-                        "form login: failed to click login trigger '%s': %s",
-                        trigger_sel,
-                        exc,
-                    )
-            # The modal it opens is rendered by JS too. One second was optimistic
-            # -- Playwright needed about six against this host -- and being wrong
-            # here is indistinguishable from a wrong selector, because what fails
-            # is the field lookup afterwards.
-            time.sleep(float(cfg.get("modal_delay", 5)))
-        else:
-            logger.warning(
-                "form login: login trigger selector '%s' not found",
-                trigger_sel,
-            )
+        state = _open_login_modal(driver, cfg, trigger_sel)
+        if state is None:
+            # No guessing past this point. With the modal shut, the only lone
+            # inputs on a homepage are search and newsletter boxes, and shape
+            # discovery will take one of them for an identifier-first form --
+            # which is how union-bulletin failed on 2026-09-21.
+            return False
+        already_signed_in = state == "signed_in"
 
-    if not _fill_and_submit(driver, cfg, username, password):
+    if not already_signed_in and not _fill_and_submit(driver, cfg, username, password):
         return False
 
     time.sleep(3)

@@ -118,27 +118,28 @@ class TestTheTriggerIsPolled:
     def test_the_trigger_and_the_field_share_one_budget(self):
         """They are the same kind of wait on the same kind of render, and one
         having 20 seconds while the other had none is what broke this host."""
-        source = inspect.getsource(al._login_form)
+        source = inspect.getsource(al._open_login_modal)
         assert 'cfg.get("field_timeout", 20)' in source
 
     def test_the_modal_is_given_time_to_render(self):
         """One second was optimistic -- Playwright needed about six -- and being
         wrong there is indistinguishable from a wrong selector, because what
         fails is the field lookup afterwards."""
-        source = inspect.getsource(al._login_form)
+        source = inspect.getsource(al._open_login_modal)
         assert 'cfg.get("modal_delay", 5)' in source
         # NOT "no time.sleep(1) anywhere": the polling loop added above ticks
         # once a second, which is a legitimate one-second sleep. What must be
         # gone is the FLAT one-second wait that used to follow the click, so the
         # assertion is that the wait after the trigger is the configurable one.
-        after_click = source[source.index("execute_script") :]
+        after_click = source[source.index("_click(driver, trigger") :]
+        after_click = after_click[: after_click.index('return "opened"')]
         assert 'time.sleep(float(cfg.get("modal_delay", 5)))' in after_click
-        assert "\n            time.sleep(1)\n" not in after_click
+        assert "time.sleep(1)" not in after_click
 
 
 class TestTheClickFallbackIsStillThere:
     def test_a_js_click_backs_up_a_refused_click(self):
         """The control is visible, enabled and stable but sits outside the
         viewport on this host, which is enough to refuse an ordinary click."""
-        source = inspect.getsource(al._login_form)
-        assert 'execute_script("arguments[0].click();", trigger)' in source
+        source = inspect.getsource(al._click)
+        assert 'execute_script("arguments[0].click();", element)' in source

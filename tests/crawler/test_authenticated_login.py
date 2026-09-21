@@ -202,6 +202,11 @@ def test_form_login_with_trigger_selector_clicks_trigger_before_submit():
     email = FakeElement(attrs={"type": "text"})
     password = FakeElement(attrs={"type": "password"})
     submit = FakeElement(tag="button")
+    # A modal: its fields are in the DOM but not displayed until the trigger is
+    # clicked. Were they displayed already, the form would be open and there
+    # would be nothing to click.
+    for field in (email, password, submit):
+        field.is_displayed = lambda: trigger.clicked  # type: ignore[method-assign]
 
     login_url = "https://news.example.com/"
     success_url = "https://news.example.com/account"
