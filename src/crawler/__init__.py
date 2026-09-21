@@ -44,6 +44,7 @@ from src.utils.comprehensive_telemetry import ExtractionMetrics
 
 from .browser_errors import interstitial_error
 from .browser_status import read_navigation_status
+from .driver_health import driver_unresponsive, kill_driver
 from .fetch_plan import plan_fetch
 from .fingerprint_profile import (
     FingerprintProfile,
@@ -2756,8 +2757,13 @@ class ContentExtractor:
 
         return ContentExtractor._shared_persistent_driver
 
-    def close_persistent_driver(self):
-        """Close the persistent driver and clean up resources."""
+    def close_persistent_driver(self, unresponsive: bool = False):
+        """Close the persistent driver and clean up resources.
+
+        `unresponsive`: the driver has stopped answering commands, so it is
+        killed rather than asked to quit -- `quit()` is a command too, and would
+        wait out the client timeout and its retries. See `driver_health`.
+        """
         if ContentExtractor._shared_persistent_driver is not None:
             try:
                 logger.info(
@@ -2765,7 +2771,14 @@ class ContentExtractor:
                     f"{ContentExtractor._shared_driver_reuse_count + 1} uses "
                     f"(created {ContentExtractor._shared_driver_creation_count} times)"
                 )
-                ContentExtractor._shared_persistent_driver.quit()
+                if unresponsive:
+                    killed = kill_driver(ContentExtractor._shared_persistent_driver)
+                    logger.warning(
+                        "Killed unresponsive driver processes %s instead of quit()",
+                        killed,
+                    )
+                else:
+                    ContentExtractor._shared_persistent_driver.quit()
             except Exception as e:
                 logger.warning(f"Error closing persistent driver: {e}")
             finally:
@@ -6326,6 +6339,19 @@ class ContentExtractor:
                         nav_exc,
                     )
 
+                    # The DRIVER did not answer, not the page. Every further
+                    # command -- the diagnostics below, the next attempt, the
+                    # next article -- waits out the same client timeout, so
+                    # stop now and replace it. See `driver_health`.
+                    if driver_unresponsive(nav_exc):
+                        logger.error(
+                            "Driver stopped answering on %s; replacing it "
+                            "instead of retrying",
+                            domain,
+                        )
+                        self.close_persistent_driver(unresponsive=True)
+                        return False
+
                     # Capture diagnostics: screenshot, browser logs, UA
                     try:
                         import base64
@@ -6467,7 +6493,15 @@ class ContentExtractor:
                     driver_exc,
                 )
                 try:
-                    self.close_persistent_driver()
+                    self.close_persistent_driver(
+                        unresponsive=driver_unresponsive(driver_exc)
+                    )
+                    # The replacement has no session. Re-fetching a login-gated
+                    # host on it is an anonymous fetch of a wall, which is what
+                    # `_ensure_authenticated` exists to prevent; the link stays
+                    # owed and the next article logs in on the new driver.
+                    if self._requires_login(domain):
+                        return False
                     driver = self.get_persistent_driver()
                     with lock:
                         try:
