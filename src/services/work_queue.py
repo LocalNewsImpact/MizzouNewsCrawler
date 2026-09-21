@@ -18,7 +18,7 @@ import logging
 import os
 import time
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import partial
 from threading import Lock
 from typing import Any, Optional
@@ -79,6 +79,41 @@ app = FastAPI(title="Work Queue Service", version="1.0.0")
 #: Putting the link in `pipeline_rework` does not help: `REWORK_ONLY` is ANDed
 #: onto this clause, so it narrows what is offered and cannot widen it.
 CLAIMABLE_STATUSES = "cl.status IN ('article', 'refetch')"
+
+#: How long a host whose login failed is kept out of the queue before it is
+#: offered again. Long enough that a transient failure -- a login page that timed
+#: out, a reCAPTCHA score that dipped -- is not retried into a lockout counter;
+#: short enough that it recovers without a person. Each offer after the window
+#: costs at most `_MAX_AUTH_ATTEMPTS` logins, per driver.
+AUTH_FAILURE_COOLDOWN_SECONDS = int(os.getenv("AUTH_FAILURE_COOLDOWN_SECONDS", "7200"))
+
+#: ONE definition of "this host's login failed recently", used by the selector
+#: that hands out domains AND by `/stats` that reports them.
+#:
+#: They used to disagree. `/stats` reported a host with `auth_last_failed_at` as
+#: unclaimable -- "login failed on a recent run -- needs re-validation" -- while
+#: `_get_available_domains` never looked at the column and kept offering it. On
+#: the 2026-09-21 seven-host WSU rotation, union-bulletin and
+#: pendoreillerivervalley were refused at 03:47 UTC and then assigned 13 and 11
+#: more times, a quarter of the night's turns, each followed by the batch sleep.
+#:
+#: The cutoff is a bound parameter computed here, not `NOW() - INTERVAL ...`: the
+#: queue also runs on SQLite, which has neither. Bind it with
+#: `login_cooldown_cutoff()`.
+LOGIN_COOLING_DOWN = (
+    "(s.auth_last_failed_at IS NOT NULL "
+    "AND s.auth_last_failed_at > :login_cooldown_cutoff)"
+)
+
+
+def login_cooldown_cutoff() -> datetime:
+    """Failures after this instant are still cooling down.
+
+    Naive UTC, matching the column: `auth_last_failed_at` is `timestamp without
+    time zone`, written by Postgres `NOW()` in a UTC session.
+    """
+    return datetime.utcnow() - timedelta(seconds=AUTH_FAILURE_COOLDOWN_SECONDS)
+
 
 #: An existing article disqualifies a link -- except a rewound one, where
 #: replacing that article's body is the whole point. `ARTICLE_INSERT_SQL` ends
@@ -327,7 +362,11 @@ class WorkQueueCoordinator:
             AND s.status = 'active'
 {NOT_ALREADY_FETCHED}
         """
-        params: dict = {}
+        # Every pool, not only the authenticated one: a `mixed` worker draws
+        # credentialed hosts too, and on an anonymous host the column is NULL so
+        # the clause is always true.
+        sql += f"            AND NOT {LOGIN_COOLING_DOWN}\n"
+        params: dict = {"login_cooldown_cutoff": login_cooldown_cutoff()}
         if dataset is not None:
             sql += "            AND cl.dataset_id = :dataset\n"
             params["dataset"] = dataset
@@ -737,7 +776,9 @@ class WorkQueueCoordinator:
                            s.status,
                            s.auth_type IS NOT NULL
                              AND s.auth_secret_name IS NOT NULL AS has_credentials,
-                           s.auth_last_failed_at IS NOT NULL AS needs_revalidation,
+                           """
+                    + LOGIN_COOLING_DOWN
+                    + """ AS needs_revalidation,
                            COUNT(*) AS owed
                     FROM candidate_links cl
                     JOIN sources s ON cl.source_id = s.id
@@ -752,7 +793,8 @@ class WorkQueueCoordinator:
                     GROUP BY s.host_norm, s.status, has_credentials,
                              needs_revalidation
                 """
-                )
+                ),
+                {"login_cooldown_cutoff": login_cooldown_cutoff()},
             ).fetchall()
 
             credentialed_available = 0
@@ -764,13 +806,15 @@ class WorkQueueCoordinator:
                 credentialed_available += owed
                 if needs_revalidation:
                     # A run refused this host because its login did not
-                    # confirm. Its links are not claimable until a person
-                    # re-validates (`validate-login --record`), and saying so
-                    # here is the difference between a known gap and
-                    # yakimaherald's two silent months.
+                    # confirm. The selector skips it for the same window, by the
+                    # same `LOGIN_COOLING_DOWN` clause, so this line and the
+                    # queue cannot disagree about it. It is offered again when the
+                    # window passes, and `validate-login --record` clears it at
+                    # once.
                     credentialed_unclaimable[str(host)] = (
                         f"{owed} owed; login failed on a recent run -- "
-                        "needs re-validation"
+                        f"not offered for {AUTH_FAILURE_COOLDOWN_SECONDS // 60} "
+                        "minutes, or until validate-login --record"
                     )
                 elif not has_credentials:
                     credentialed_unclaimable[str(host)] = (

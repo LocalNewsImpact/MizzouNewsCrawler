@@ -160,6 +160,15 @@ whose text is *Log In* — and whether that succeeds or not, the source is
 credentialed host it cannot serve today. The person re-runs the entry step.
 Nothing fetches walls quietly in the meantime.
 
+A failed *login* is different from drift, and recovers on its own. The queue
+withholds a host for `AUTH_FAILURE_COOLDOWN_SECONDS` (default two hours) after
+`auth_last_failed_at`, then offers it again, and the next driver gets a fresh
+login budget. A successful login clears the flag, as does
+`validate-login --record`. The selector and `/stats` read one clause,
+`LOGIN_COOLING_DOWN`, so a host reported as withheld is one the queue withholds.
+The cost is up to two logins per driver after each window; a publisher with a
+lockout counter wants a longer one.
+
 ## Why this scales where authoring does not
 
 Vendors are dozens; sites are hundreds; and within one vendor the selectors
@@ -187,7 +196,7 @@ fetch walls is what this run had.
 | a `path` field; validate-on-save; the recording stored as the recipe | new — crawler half |
 | the entry form and the ✔/✘ result | new — datadesk |
 | `authenticated_session` written per fetch | new, small |
-| a "needs re-validation" state reported by `/stats` | new, small |
+| a login-failure cooldown, read by the selector and `/stats` alike | `fix/a-refused-login-is-retried-and-not-reassigned` |
 
 The Playwright harness that found the Yakima cause is the validate-on-save step
 with a person reading the output. It lives in the session scratchpad today and
