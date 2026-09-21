@@ -2468,7 +2468,11 @@ class ContentExtractor:
                     text("SELECT selenium_only FROM sources WHERE host = :host"),
                     {"host": domain},
                 ).fetchone()
-            result = bool(row and row[0])
+            # Only an actual True. A truthiness test would read any object as
+            # "flagged" -- a mocked session's row included, which browser-only'd
+            # every host in 24 tests -- and here a wrong True skips HTTP fetching.
+            value = row[0] if row else None
+            result = value is True or (isinstance(value, int) and value == 1)
             cache[cache_key] = result
             return result
         except Exception as e:

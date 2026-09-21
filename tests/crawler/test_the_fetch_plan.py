@@ -334,7 +334,23 @@ class TestSeleniumOnlyIsHonored:
         assert plan.reason == "subscriber login: authenticated browser only"
 
 
+from src.crawler import ContentExtractor as _CE  # noqa: E402
+
+#: The method as written. tests/conftest.py stubs it for every test, so it is
+#: captured at import, before any fixture runs, and restored where it is the
+#: subject.
+_real_lookup_at_collect = _CE._get_domain_selenium_only
+
+
 class TestTheLookup:
+    @pytest.fixture(autouse=True)
+    def _restore_the_real_method(self, monkeypatch):
+        from src.crawler import ContentExtractor
+
+        monkeypatch.setattr(
+            ContentExtractor, "_get_domain_selenium_only", _real_lookup_at_collect
+        )
+
     def _extractor(self):
         from src.crawler import ContentExtractor
 
@@ -360,6 +376,20 @@ class TestTheLookup:
 
         with patch("src.models.database.DatabaseManager", self._db(row)):
             assert self._extractor()._get_domain_selenium_only("x.example") is False
+
+    def test_a_mocked_row_is_not_a_flag(self):
+        """A MagicMock is truthy. A truthiness test read every mocked host as
+        browser-only and broke 24 tests that mock the session."""
+        from unittest.mock import MagicMock, patch
+
+        with patch("src.models.database.DatabaseManager", MagicMock()):
+            assert self._extractor()._get_domain_selenium_only("x.example") is False
+
+    def test_a_sqlite_integer_flag_counts(self):
+        from unittest.mock import patch
+
+        with patch("src.models.database.DatabaseManager", self._db((1,))):
+            assert self._extractor()._get_domain_selenium_only("x.example") is True
 
     def test_an_error_is_false_not_browser_only(self):
         """An error deciding must not turn a working host into a browser-only
