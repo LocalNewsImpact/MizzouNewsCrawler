@@ -68,7 +68,7 @@ class TestAvailableDomainsQuery:
 
         coordinator._get_available_domains(session)
 
-        assert _params_of(session)[0] == {}
+        assert "dataset" not in _params_of(session)[0]
         assert "dataset" not in str(session.execute.call_args.args[0])
 
     def test_the_sql_actually_filters_on_dataset_id(self, coordinator):

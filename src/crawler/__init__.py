@@ -2045,6 +2045,36 @@ class ContentExtractor:
         except Exception as exc:
             logger.warning("could not record the login failure for %s: %s", host, exc)
 
+    def _record_login_success(self, host: str) -> None:
+        """Clear a recorded login failure once the login works again.
+
+        The queue keeps a host out while `auth_last_failed_at` is recent, and
+        `/stats` reports it as unclaimable. Without this, a host that recovered on
+        its own would still read as failed until the window ran out, and a person
+        looking at /stats would re-validate something that was already fine.
+        Only touches rows that carry a failure, so the ordinary case -- a login
+        that never failed -- writes nothing. Best effort, like the failure
+        writer: it must not turn a working login into an exception.
+        """
+        try:
+            from sqlalchemy import text
+
+            from src.models.database import DatabaseManager
+
+            with DatabaseManager().get_session() as session:
+                session.execute(
+                    text(
+                        "UPDATE sources SET auth_last_failed_at = NULL, "
+                        "auth_failure_reason = NULL "
+                        "WHERE requires_login AND auth_last_failed_at IS NOT NULL "
+                        "AND host_norm IN (:host, :www_host)"
+                    ),
+                    {"host": host, "www_host": f"www.{host}"},
+                )
+                session.commit()
+        except Exception as exc:
+            logger.warning("could not clear the login failure for %s: %s", host, exc)
+
     def _session_state(self, url_or_host: str) -> Optional[bool]:
         """Whether this fetch ran as a subscriber, for the row to record.
 
@@ -2184,6 +2214,7 @@ class ContentExtractor:
                 if ok:
                     ContentExtractor._authenticated_domains.add(host)
                     logger.info("Authenticated session established for %s", host)
+                    self._record_login_success(host)
                     return True
                 logger.warning(
                     "Login to %s did not confirm on attempt %d of %d",
@@ -5386,13 +5417,23 @@ class ContentExtractor:
                     metrics.end_method("selenium", True, None, selenium_result)
                 return True, True
 
-            self._selenium_failure_counts[dom] = (
-                self._selenium_failure_counts.get(dom, 0) + 1
-            )
+            # A LOGIN REFUSAL IS NOT A BROWSER FAILURE, and counting it as one
+            # made the refusal permanent. `_auth_failed_domains` and the login
+            # budget are both reset when the driver is rebuilt -- a new driver is
+            # a new chance -- but this counter is checked BEFORE the login and
+            # never reset. On the 2026-09-21 WSU rotation every refused
+            # union-bulletin article counted here, the counter passed 3 on the
+            # first turn, and "Skipping Selenium ... already failed 8 times"
+            # kept the host from ever being logged into again across 13 driver
+            # rebuilds. The login has its own budget; it does not need this one.
+            if self._bare_host(dom) not in ContentExtractor._auth_failed_domains:
+                self._selenium_failure_counts[dom] = (
+                    self._selenium_failure_counts.get(dom, 0) + 1
+                )
             logger.warning(
                 "❌ Selenium returned empty result for %s (failure #%s)",
                 url,
-                self._selenium_failure_counts[dom],
+                self._selenium_failure_counts.get(dom, 0),
             )
             if metrics:
                 metrics.end_method(

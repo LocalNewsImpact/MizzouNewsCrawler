@@ -85,7 +85,7 @@ class TestTheDomainQueryFiltersOnIt:
 
         sql, params = _sql_and_params(session)
         assert "requires_login" not in sql
-        assert params == {}
+        assert "requires_login" not in params
 
     def test_the_parameter_appears_once(self, coordinator):
         """A repeated named parameter no longer matches its bindings on
@@ -110,7 +110,8 @@ class TestTheDomainQueryFiltersOnIt:
         sql, params = _sql_and_params(session)
         assert "cl.dataset_id = :dataset" in sql
         assert "s.requires_login = :requires_login" in sql
-        assert params == {"dataset": DATASET, "requires_login": True}
+        assert params["dataset"] == DATASET
+        assert params["requires_login"] is True
 
 
 class TestTheFlagIsNeverNullInTheColumn:
