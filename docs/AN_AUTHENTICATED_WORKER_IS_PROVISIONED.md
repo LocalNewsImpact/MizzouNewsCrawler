@@ -143,25 +143,42 @@ safe provisioning, and the count is 1 for that reason rather than for
 throughput. This blocks nothing: one worker is what a monitored one-host-at-a-
 time run wants anyway.
 
-**Credentialed rework, if one ever appears.** `news-housekeeping` runs
-`extract --rework` through its OWN `extraction-step` in
-`housekeeping-workflow.yaml` — a separate definition from the pipeline's, so it
-did not gain `worker-pool` and resolves to `mixed`. A credentialed link in the
-rework queue could therefore be fetched by a worker that recycles every three
-fetches, unwatched.
+**Credentialed rework — BUILT, 2026-09-20.** This was recorded here as a gap
+with a named trigger: "the first review decision that rewinds a paywalled
+article". That trigger fired the same day. `yakimaherald.com`'s two `paywall`
+rows and one misfiled `not_article` were rewound once its login finally worked,
+and the WSU rework plan rewinds 38 more.
 
-Three conditions have to hold at once for that: an open rework row on a
-credentialed source, that source `active`, and the cron firing (3/9/12/15/18/21
-UTC). Measured 2026-09-20: `pipeline_rework` has **0 open rows of 773**, and
-**none** on a credentialed source. The second condition is true by design during
-a monitored run, so the only missing ingredient is the rework row — which a
-review decision creates.
+What the gap was: `news-housekeeping` runs `extract --rework` through its OWN
+`extraction-step` in `housekeeping-workflow.yaml`, a separate definition from the
+pipeline's, so it never gained `worker-pool` and resolved to `mixed` — a
+credentialed link in the rework queue fetched by a worker recycling every three
+fetches, signing in on nearly every visit, unwatched.
 
-Setting housekeeping to `anonymous` would be worse, not better: the
-authenticated worker does not run `--rework`, so credentialed rework would
-become claimable by nobody at all. The fix is an authenticated rework pass in
-housekeeping, and the trigger to build it is the first review decision that
-rewinds a paywalled article. Until then this is recorded, not repaired.
+`housekeeping` now runs **two extraction passes** in sequence, `extract`
+(`anonymous`) then `extract-credentialed` (`authenticated`), before `classify`
+and `enrich`. Both are gated on `anything-owed`, so an empty rework table starts
+no browser.
+
+Three decisions worth keeping straight, because each is easy to undo:
+
+- **Two passes, not one `mixed` pass.** A `mixed` worker picks one driver policy
+  and is wrong for the other half of its work. Setting it to `anonymous` instead
+  would be worse still: the queue's `requires_login=False` is an assertion, not
+  an absent filter, so credentialed rework would be claimable by nobody at all.
+- **Sequential, and not fanned out.** The credentialed pass is its own step group
+  with no `withParam`, because two authenticated workers on one host mean two
+  concurrent sessions for one subscriber account — the same unanswered question
+  that keeps the standalone worker count at 1.
+- **The pool is a flag, not an env var.** `extraction-step` DEFINES the shared
+  `&db_env` anchor that `classify-step` and `enrich-step` alias, so an
+  input-referencing entry in that list hands the reference to templates that
+  cannot resolve it. That already made the workflow unsubmittable once, which is
+  why `extract` gained `--worker-pool` and `worker_pool.announce_pool()`.
+
+Pinned by `tests/test_housekeeping_fetches_credentialed_hosts.py`, and the
+manifest is linted against the Argo server rather than only parsed, because a
+required input with a caller that omits it fails at submit and not before.
 
 ## Running a paywalled host
 
