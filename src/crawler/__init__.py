@@ -44,7 +44,7 @@ from src.utils.comprehensive_telemetry import ExtractionMetrics
 
 from .browser_errors import interstitial_error
 from .browser_status import read_navigation_status
-from .driver_health import driver_unresponsive, kill_driver
+from .driver_health import DriverUnresponsive, driver_unresponsive, kill_driver
 from .fetch_plan import plan_fetch
 from .fingerprint_profile import (
     FingerprintProfile,
@@ -2235,6 +2235,20 @@ class ContentExtractor:
             self._record_login_failure(
                 host, f"{attempts} login attempts did not confirm a session"
             )
+            return False
+        except DriverUnresponsive as e:
+            # The browser died, not the login. Nothing is recorded against the
+            # host: no refusal, no `auth_last_failed_at`, and the attempt budget
+            # resets with the new driver. This article is not fetched -- there
+            # is no session to fetch it with -- and the next one starts on a new
+            # driver and logs in there.
+            logger.error(
+                "Browser stopped answering while logging in to %s; "
+                "replacing it (%s)",
+                host,
+                e,
+            )
+            self.close_persistent_driver(unresponsive=True)
             return False
         except Exception as e:
             ContentExtractor._auth_failed_domains.add(host)

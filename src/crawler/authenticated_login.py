@@ -47,6 +47,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 
+from src.crawler.driver_health import DriverUnresponsive, driver_unresponsive
+
 logger = logging.getLogger(__name__)
 
 # Candidate selectors tried in order when no explicit selector is configured.
@@ -440,6 +442,22 @@ def build_auth0_authorize_url(
     return f"https://{domain}/authorize?" + urllib.parse.urlencode(params)
 
 
+def _open(driver, url: str, what: str) -> None:
+    """Load a login page. A dead driver raises; anything else is logged.
+
+    Most failures here are worth carrying on from -- a page-load timeout on an
+    ad-heavy homepage still leaves a usable DOM. A driver that has stopped
+    answering leaves nothing, and every lookup after it waits out the same
+    client timeout. See `driver_health.DriverUnresponsive`.
+    """
+    try:
+        driver.get(url)
+    except Exception as exc:
+        if driver_unresponsive(exc):
+            raise DriverUnresponsive(f"{what}: the browser stopped answering") from exc
+        logger.warning("%s: navigation to login URL failed: %s", what, exc)
+
+
 def _find_first(driver, selectors):
     """Return the first visible element matching any of the given selectors."""
     for sel in [s for s in selectors if s]:
@@ -592,10 +610,7 @@ def _login_auth0(driver, cfg: dict, username: str, password: str) -> bool:
         driver.set_page_load_timeout(45)
     except Exception:
         pass
-    try:
-        driver.get(authorize_url)
-    except Exception as exc:
-        logger.warning("auth0 login: navigation to authorize URL failed: %s", exc)
+    _open(driver, authorize_url, "auth0 login")
 
     if not _fill_and_submit(driver, cfg, username, password):
         return False
@@ -715,10 +730,7 @@ def _login_form(driver, cfg: dict, username: str, password: str) -> bool:
         driver.set_page_load_timeout(45)
     except Exception:
         pass
-    try:
-        driver.get(login_url)
-    except Exception as exc:
-        logger.warning("form login: navigation to login URL failed: %s", exc)
+    _open(driver, login_url, "form login")
 
     # Some publishers (e.g., Connext) render login fields in a modal that opens
     # only after clicking a login trigger on the homepage.
@@ -802,10 +814,7 @@ def _login_newzware(driver, cfg: dict, username: str, password: str) -> bool:
         driver.set_page_load_timeout(45)
     except Exception:
         pass
-    try:
-        driver.get(login_url)
-    except Exception as exc:
-        logger.warning("newzware login: navigation to login URL failed: %s", exc)
+    _open(driver, login_url, "newzware login")
 
     # The Newzware form is rendered by JS after load; _fill_and_submit polls.
     if not _fill_and_submit(driver, cfg, username, password):
@@ -974,10 +983,7 @@ def _login_simplecirc(driver, cfg: dict, creds: dict) -> bool:
         driver.set_page_load_timeout(45)
     except Exception:
         pass
-    try:
-        driver.get(login_url)
-    except Exception as exc:
-        logger.warning("simplecirc login: navigation to login URL failed: %s", exc)
+    _open(driver, login_url, "simplecirc login")
 
     email_el = None
 
@@ -1075,10 +1081,7 @@ def _login_etype(driver, cfg: dict, username: str, password: str) -> bool:
         driver.set_page_load_timeout(45)
     except Exception:
         pass
-    try:
-        driver.get(login_url)
-    except Exception as exc:
-        logger.warning("etype login: navigation to login URL failed: %s", exc)
+    _open(driver, login_url, "etype login")
 
     login_el = None
 
@@ -1188,6 +1191,9 @@ def perform_login(
         if mechanism == "etype":
             return _login_etype(driver, cfg, user, pw)
         return _login_form(driver, cfg, user, pw)
+    except DriverUnresponsive:
+        # Not a login outcome. The caller replaces the driver.
+        raise
     except Exception as exc:
         logger.error("Authenticated login raised: %s", exc, exc_info=True)
         return False

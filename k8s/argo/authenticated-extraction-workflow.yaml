@@ -136,6 +136,13 @@ spec:
               parameters:
                 - name: worker-pool
                   value: "authenticated"
+                # Two cores, not the fleet's one. See `cpu-limit` on
+                # extraction-step: at 1 core this worker was throttled in 69% of
+                # periods and its chromedriver stalled four times in two hours.
+                - name: cpu-request
+                  value: "1000m"
+                - name: cpu-limit
+                  value: "2000m"
                 - name: dataset
                   value: "{{inputs.parameters.dataset}}"
                 - name: limit

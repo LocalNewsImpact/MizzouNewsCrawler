@@ -49,6 +49,18 @@ _TRANSPORT_FAILURES = frozenset(
 )
 
 
+class DriverUnresponsive(RuntimeError):
+    """Raised where a login page load finds the driver not answering.
+
+    A login swallowed every navigation error and carried on, which on a dead
+    driver meant polling a page that never came for its fields. Spokesman,
+    2026-09-21 17:08 UTC: the Auth0 authorize load timed out on localhost, the
+    field search then waited three minutes on the stalled driver, found half a
+    page, and spent one of the two login attempts on it. Raised instead, so the
+    caller can replace the driver without charging the host for it.
+    """
+
+
 def _chain(exc: BaseException) -> Iterator[BaseException]:
     seen: set[int] = set()
     current: BaseException | None = exc
