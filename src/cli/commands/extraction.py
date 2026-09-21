@@ -2105,6 +2105,28 @@ def _process_batch(
                 content = extractor.extract_content(url, metrics=metrics)
                 detection_payload = None
 
+                # A SOFT 404: the site's own "Page not found" page, served with a
+                # 200. Without this it is stored as an article and later filed
+                # `not_article`, so a dead link reads as an extraction that found
+                # nothing to extract. Raised as the NotFoundError a real 404 is, so
+                # it takes the same road: link marked `404`, not retried.
+                #
+                # Not for a login-gated host whose session is unconfirmed
+                # (`authenticated_session` False): what an anonymous visitor is
+                # shown there is not evidence the page is gone.
+                if (
+                    content
+                    and (content.get("metadata") or {}).get("authenticated_session")
+                    is not False
+                ):
+                    from src.utils.soft_404 import is_page_not_found
+
+                    if is_page_not_found(content.get("title"), content.get("content")):
+                        raise NotFoundError(
+                            f"Soft 404, the page says so: {content.get('title')!r} "
+                            f"({url})"
+                        )
+
                 # Check for proxy/bot challenge page before processing
                 if content and content.get("title"):
                     title = content.get("title", "")
