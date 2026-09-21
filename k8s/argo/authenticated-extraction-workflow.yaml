@@ -13,12 +13,19 @@
 #     * keeps the driver for SELENIUM_DRIVER_REUSE_LIMIT_AUTHENTICATED fetches
 #       instead of SELENIUM_DRIVER_REUSE_LIMIT
 #
-# ONE worker, and that is not a starting guess. Two workers on the same host
-# mean two concurrent sessions for one subscriber account; the WSU credentials
-# are single accounts and no publisher here has been asked whether it tolerates
-# that. The queue also rations by domain -- beyond one worker per domain they
-# wait -- so a second worker buys wall-clock and nothing else. It stays at 1
-# until per-host concurrency is known.
+# ONE worker, and it is a throughput choice rather than a safety one.
+#
+# This comment claimed until 2026-09-20 that two workers would mean two
+# concurrent sessions on one subscriber account. That was wrong: the queue's
+# `_assign_domains_to_worker` excludes every domain already held by another
+# active worker, so two workers can never be on the same publisher at once --
+# the batching queue is designed explicitly not to do that.
+#
+# What a second worker really costs is a second driver and its own set of
+# logins: more logins spread over time, not concurrent ones, plus another
+# Chrome's memory. With seven paywalled hosts, more workers would help. It stays
+# at 1 because one is enough for this backlog and a watched run is easier to read
+# with one.
 #
 # The request profile is the slow one (90/180/420), not the open-host profile
 # `dataset-extraction` uses. A subscriber session is identified on every

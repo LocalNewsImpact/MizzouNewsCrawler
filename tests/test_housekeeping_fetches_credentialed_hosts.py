@@ -22,10 +22,14 @@ needs the driver HELD or every visit pays a fresh login. Running the pass as
 is an assertion rather than an absent filter, so credentialed rework would be
 claimable by nobody at all.
 
-SEQUENTIAL. Two authenticated workers on one host mean two concurrent sessions
-for one subscriber account, and no publisher here has been asked whether that is
-tolerated -- the same unknown that keeps the standalone authenticated worker count
-at 1.
+SEQUENTIAL, and not for safety. An earlier version of this file said two
+authenticated workers on one host would mean two concurrent sessions on one
+subscriber account. That was wrong, and the queue is the reason:
+`_assign_domains_to_worker` excludes every domain already held by another active
+worker, so two workers can never be on the same publisher at once -- the batching
+queue is designed explicitly not to do that. One worker because one is enough for
+a rework backlog and each additional one costs a driver and its own logins, which
+is more logins over time rather than concurrent ones.
 
 And the pool is a FLAG, not an env var, which is not a style choice:
 `extraction-step` DEFINES the `&db_env` anchor that `classify-step` and
@@ -114,7 +118,11 @@ class TestThereAreTwoPasses:
 
 class TestTheyRunInOrderAndAlone:
     def test_the_credentialed_pass_is_its_own_step_group(self, step_groups):
-        """Sequential, not parallel: one session per subscriber account."""
+        """Sequential, not parallel -- a throughput choice, not a safety one.
+
+        The queue already guarantees one worker per domain, so this is about
+        drivers and logins rather than about concurrent sessions.
+        """
         assert _group_index(step_groups, "extract") != _group_index(
             step_groups, "extract-credentialed"
         )
@@ -127,8 +135,10 @@ class TestTheyRunInOrderAndAlone:
     def test_it_is_not_fanned_out_over_workers(self, step_groups):
         """`withParam` would start one authenticated worker per list entry.
 
-        The anonymous pass does fan out, deliberately. This one must not, for the
-        same reason it is sequential.
+        The anonymous pass does fan out, deliberately. This one does not, because
+        one worker is enough for a rework backlog and each extra one costs a
+        driver and its own logins -- not because two would collide on a host,
+        which the queue prevents.
         """
         assert "withParam" not in _step(step_groups, "extract-credentialed")
         assert "withParam" in _step(step_groups, "extract")

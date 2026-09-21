@@ -151,13 +151,16 @@ spec:
     # nobody, since the queue's `requires_login=False` is an assertion and not
     # an absent filter.
     #
-    # SEQUENTIAL, in its own step group. Two authenticated workers on one host
-    # mean two concurrent sessions for one subscriber account, and no publisher
-    # here has been asked whether that is tolerated -- the same unknown that
-    # keeps the standalone authenticated worker count at 1. One worker, after
-    # the anonymous pass, costs wall-clock and nothing else.
+    # SEQUENTIAL, in its own step group, and `withParam` deliberately absent.
     #
-    # `withParam` is deliberately absent for the same reason.
+    # NOT for safety. The queue's `_assign_domains_to_worker` excludes every
+    # domain held by another active worker, so two workers can never be on the
+    # same publisher at once -- it is designed explicitly not to do that. An
+    # earlier version of this comment claimed otherwise and was wrong.
+    #
+    # One worker because one is enough for a rework backlog, and because each
+    # additional one costs a driver and its own logins -- more logins over time,
+    # not concurrent ones. Fanning out is a throughput decision available later.
     - - name: extract-credentialed
         template: extraction-step
         when: "{{steps.anything-owed.outputs.result}} != 0"
