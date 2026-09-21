@@ -225,12 +225,21 @@ class TestALoggedInPageIsJudgedByItsText:
         assert obj._logged_in_page_withheld_the_story(_Broken(), "u") is False
 
     def test_navigation_routes_a_credentialed_host_away_from_the_keyword_scan(self):
+        """The gate, and what is inside it, rather than the two lines adjacency.
+
+        Asserted on order rather than on the two statements being consecutive: a
+        session-lapse check now sits between them, which is right -- a dropped
+        login is asked about BEFORE the body is judged, because the body cannot
+        distinguish a lapse from a short story. The invariant here is unchanged,
+        that a credentialed host reaches the body judgement and never the keyword
+        scan.
+        """
         source = inspect.getsource(ContentExtractor._navigate_with_human_behavior)
-        gate = source.index(
-            "if not self._challenge_check_applies(domain):\n                if self._logged_in_page_withheld_the_story("
-        )
-        assert gate < source.index("modal_closed = self._try_close_modals(")
-        assert gate < source.index("if self._detect_subscription_wall(")
+        gate = source.index("if not self._challenge_check_applies(domain):")
+        body_judgement = source.index("if self._logged_in_page_withheld_the_story(")
+        assert gate < body_judgement
+        assert body_judgement < source.index("modal_closed = self._try_close_modals(")
+        assert body_judgement < source.index("if self._detect_subscription_wall(")
 
     def test_the_subscription_modal_dance_is_skipped_for_a_credentialed_host(self):
         """Each `_try_close_modals` attempt cost ~80 seconds on 2026-09-19, and a

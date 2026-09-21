@@ -119,11 +119,20 @@ The queue rations by domain: beyond one worker per domain they wait. Seven
 paywalled WSU hosts therefore support at most seven, and fewer is fine because
 each holds its sessions.
 
-More to the point, two authenticated workers on the same host mean two
-concurrent sessions for one subscriber account. The WSU credentials are single
-accounts and no publisher here has been asked whether it tolerates that. **This
-is the one question still open**, and it is why the count is 1 rather than a
-number chosen for throughput. A second worker buys wall-clock and nothing else.
+**Not because of concurrent sessions.** This section claimed, until
+2026-09-20, that two authenticated workers on one host would mean two
+simultaneous sessions on one subscriber account, and called that "the one
+question still open". It was wrong, and the paragraph above says why:
+`_assign_domains_to_worker` builds the set of domains held by every other active
+worker and excludes them, so two workers can never be on the same publisher at
+the same time. The queue is designed not to do that.
+
+What N authenticated workers actually cost is N drivers and N separate login
+sets -- more logins spread over time, not concurrent ones -- plus the memory of N
+Chromes. That is a throughput and resource tradeoff, and with seven paywalled
+hosts several workers would genuinely help. The count is 1 because it is enough
+for a backlog this size and because a watched first run is easier to read with
+one worker, not because more would be unsafe.
 
 ## Nothing schedules this worker, and that is the design
 
@@ -167,9 +176,10 @@ Three decisions worth keeping straight, because each is easy to undo:
   would be worse still: the queue's `requires_login=False` is an assertion, not
   an absent filter, so credentialed rework would be claimable by nobody at all.
 - **Sequential, and not fanned out.** The credentialed pass is its own step group
-  with no `withParam`, because two authenticated workers on one host mean two
-  concurrent sessions for one subscriber account — the same unanswered question
-  that keeps the standalone worker count at 1.
+  with no `withParam`. Not for safety — the queue already prevents two workers
+  sharing a domain — but because one worker is enough for a rework backlog and
+  each additional one costs a driver and its own logins. Fanning out is a
+  throughput decision available later, not a risk avoided now.
 - **The pool is a flag, not an env var.** `extraction-step` DEFINES the shared
   `&db_env` anchor that `classify-step` and `enrich-step` alias, so an
   input-referencing entry in that list hands the reference to templates that

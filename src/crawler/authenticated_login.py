@@ -700,6 +700,56 @@ SIMPLECIRC_ZIP_SELECTOR = 'form[action*="admin-post.php"] input[name="zip"]'
 SIMPLECIRC_SUBMIT_SELECTOR = 'form[action*="admin-post.php"] button[type="submit"]'
 
 
+def session_signature(auth_config: dict | None) -> frozenset[str]:
+    """The cookie NAMES a witnessed login for this host left behind.
+
+    Read from `auth_config.witnessed.first_party_cookies_added`, which is already
+    session-only: the infrastructure and ad-tech families were partitioned out
+    before it was stored, so a load balancer's affinity cookie cannot end up
+    standing in for a login.
+
+    Names, never values. Values change every session and were deliberately never
+    recorded; names do not. `wordpress_logged_in_9e191e36...` looks like a value
+    but is a stable per-site name -- WordPress hashes the site URL into it -- so an
+    exact match per host is right and a match across hosts would be wrong.
+
+    An empty set means this host proved itself some other way. `etype` and `auth0`
+    both do: their evidence is a redirect during the login and there is no cookie
+    to look for afterwards. Empty is therefore a real answer and the caller must
+    distinguish it from "the cookies are gone".
+    """
+    witnessed = ((auth_config or {}).get("witnessed") or {}) if auth_config else {}
+    added = witnessed.get("first_party_cookies_added") or []
+    names = set()
+    for key in added:
+        if not isinstance(key, str):
+            continue
+        # Stored as `name@domain`; the name is what survives a new session.
+        names.add(key.split("@", 1)[0].strip())
+    return frozenset(n for n in names if n)
+
+
+def session_still_held(driver, signature: frozenset[str]) -> bool | None:
+    """Whether the driver still carries the cookies that witnessed login left.
+
+    `None` when there is nothing to check -- an empty signature, or a driver that
+    cannot be read. None is NOT False: a host whose proof was a redirect has no
+    cookie to lose, and reporting it as lapsed would refuse every fetch on it.
+
+    Free to call at fetch time. `get_cookies()` is scoped to the current
+    document's origin and at that point the driver is already standing on the
+    publisher's page, which is exactly the origin the witness measured.
+    """
+    if not signature:
+        return None
+    try:
+        held = {c.get("name") for c in (driver.get_cookies() or [])}
+    except Exception as exc:  # pragma: no cover - driver fault is not a verdict
+        logger.debug("could not read cookies to confirm the session: %s", exc)
+        return None
+    return bool(signature & held)
+
+
 def _session_cookie_present(driver, cfg: dict) -> bool | None:
     """Whether the cookie a logged-in session carries is in the jar.
 
