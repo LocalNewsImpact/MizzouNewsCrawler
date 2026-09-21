@@ -116,6 +116,16 @@ def mock_extraction_method_lookup(request, monkeypatch):
         "_get_domain_extraction_method",
         lambda self, domain: ("http", None),
     )
+    # The same for the `selenium_only` flag. It reads the `sources` row, and
+    # these tests share one SQLite file: an earlier test's bot-protection case
+    # writes `example.com` as `selenium_only`, and every later test then
+    # browser-only'd (24 failures across four files). A lookup that reads
+    # shared state must be stubbed here, not left to each test.
+    monkeypatch.setattr(
+        ContentExtractor,
+        "_get_domain_selenium_only",
+        lambda self, domain: False,
+    )
 
 
 @pytest.fixture(autouse=True)

@@ -61,6 +61,7 @@ def plan_fetch(
     protection_type: str | None,
     cloudscraper_available: bool,
     amp_supported: bool | None,
+    selenium_only: bool = False,
 ) -> FetchPlan:
     """Decide the permitted fetch paths for one host.
 
@@ -90,11 +91,24 @@ def plan_fetch(
             reason="subscriber login: authenticated browser only",
         )
 
-    browser_only = (extraction_method or "") in BROWSER_ONLY_METHODS
+    # `sources.selenium_only`: someone has said this host answers HTTP with a
+    # challenge and only the browser gets through. The column existed and the
+    # auto-flagger wrote it, but nothing read it, so a host marked `selenium`
+    # AND `cloudflare` still got cloudscraper first -- an HTTP knock the label
+    # said not to make. My Edmonds News, 2026-09-21: both proxies refused every
+    # HTTP capture (403, a 2.6 KB challenge page) and its home proxy's failure
+    # count for the host stood at 180.
+    #
+    # `unblock` hosts are left as they are. Their whole method is a proxied HTTP
+    # fetch, and refusing them the tls_client rung would remove it.
+    only_browser = selenium_only and extraction_method != "unblock"
+
+    browser_only = only_browser or (extraction_method or "") in BROWSER_ONLY_METHODS
     escalate = (
         extraction_method == "selenium"
         and protection_type == "cloudflare"
         and cloudscraper_available
+        and not only_browser
     )
     return FetchPlan(
         # The escalation exists to let cloudscraper try first, so it reopens the
@@ -104,12 +118,17 @@ def plan_fetch(
         # `bool | None` because the source record may simply not say. Unknown
         # is "do not preemptively fetch": the AMP copy is a guess about a URL
         # that may not exist, and guessing wrong costs a request.
-        allow_amp=bool(amp_supported),
-        allow_tls_capture=True,
+        # The AMP copy and the tls_client capture are anonymous HTTP fetches too.
+        allow_amp=bool(amp_supported) and not only_browser,
+        allow_tls_capture=not only_browser,
         credentialed=False,
         reason=(
             "cloudflare: cloudscraper before selenium"
             if escalate
-            else "browser only" if browser_only else "http first"
+            else (
+                "selenium only: browser, no HTTP of any kind"
+                if only_browser
+                else "browser only" if browser_only else "http first"
+            )
         ),
     )
