@@ -1,0 +1,237 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2880" height="2880" viewBox="0 0 2880 2880">
+<defs>
+<marker id="arr" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0,0 L12,6 L0,12 z" fill="#333"/></marker>
+<marker id="arrR" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0,0 L12,6 L0,12 z" fill="#b03a2e"/></marker>
+<marker id="arrG" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0,0 L12,6 L0,12 z" fill="#2e7d32"/></marker>
+</defs>
+<rect width="2880" height="2880" fill="#fff"/>
+<rect x="60" y="90" width="560" height="2740" fill="#f3faf2" stroke="#ccc" stroke-width="1"/>
+<text x="340.0" y="120" font-size="16" fill="#444" text-anchor="middle" font-weight="bold" font-family="Helvetica, Arial, sans-serif">HUMAN REVIEW  (datadesk)</text>
+<rect x="700" y="90" width="860" height="2740" fill="#f6f8ff" stroke="#ccc" stroke-width="1"/>
+<text x="1130.0" y="120" font-size="16" fill="#444" text-anchor="middle" font-weight="bold" font-family="Helvetica, Arial, sans-serif">AUTOMATED PIPELINE  (MizzouNewsCrawler · Argo on GKE)</text>
+<rect x="1640" y="90" width="800" height="2740" fill="#f7f7f7" stroke="#ccc" stroke-width="1"/>
+<text x="2040.0" y="120" font-size="16" fill="#444" text-anchor="middle" font-weight="bold" font-family="Helvetica, Arial, sans-serif">DATA  &amp;  TECHNICAL DETAIL</text>
+<text x="60" y="50" font-size="24" fill="#111" text-anchor="start" font-weight="bold" font-family="Helvetica, Arial, sans-serif">LocalNewsImpact pipeline — process flow, revised against the code (2026-09-13)</text>
+<rect x="1640" y="150" width="800" height="72" fill="#fff" stroke="#bbb"/>
+<text x="1652" y="172" font-size="13" fill="#111" text-anchor="start" font-weight="bold" font-family="Helvetica, Arial, sans-serif">Legend</text>
+<rect x="1720" y="158" width="26" height="18" rx="4" fill="#dbe7ff" stroke="#2b4c9b"/>
+<text x="1752" y="172" font-size="12" fill="#111" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">process</text>
+<polygon points="1840,158 1854,167 1840,176 1826,167" fill="#fff3a6" stroke="#8a7a00"/>
+<text x="1862" y="172" font-size="12" fill="#111" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">decision</text>
+<rect x="1940" y="158" width="26" height="18" rx="9" fill="#eee" stroke="#b03a2e"/>
+<text x="1972" y="172" font-size="12" fill="#111" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">terminal status (leaves the pipeline)</text>
+<rect x="1720" y="188" width="26" height="18" rx="4" fill="#dff5dc" stroke="#2e7d32"/>
+<text x="1752" y="202" font-size="12" fill="#111" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">human review queue</text>
+<line x1="1930" y1="197" x2="1970" y2="197" stroke="#2e7d32" stroke-width="2" stroke-dasharray="6,5"/>
+<text x="1978" y="202" font-size="12" fill="#111" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">review disposition → rework carry-through</text>
+<line x1="2250" y1="197" x2="2290" y2="197" stroke="#b03a2e" stroke-width="2"/>
+<text x="2298" y="202" font-size="12" fill="#111" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">record leaves the pipeline</text>
+<path d="M950,264 a180.0,14 0 0,0 360,0 v82 a180.0,14 0 0,1 -360,0 z" fill="#f1f1f1" stroke="#666" stroke-width="1.8"/>
+<ellipse cx="1130.0" cy="264" rx="180.0" ry="14" fill="#e2e2e2" stroke="#666" stroke-width="1.8"/>
+<text x="1130.0" y="296" font-size="15" fill="#111" text-anchor="middle" font-weight="bold" font-family="Menlo, Consolas, monospace">sources</text>
+<text x="964" y="316" font-size="12" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">one row per publisher: host, city, county, owner,</text>
+<text x="964" y="332" font-size="12" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">RSS/sitemap, paywall + subscription_cost +</text>
+<text x="964" y="348" font-size="12" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">login_url (credentials in Secret Manager only)</text>
+<rect x="100" y="244" width="520" height="132" rx="8" fill="#dff5dc" stroke="#2e7d32" stroke-width="2"/>
+<rect x="100" y="244" width="520" height="28" rx="8" fill="#b9e6b3" stroke="#2e7d32" stroke-width="2"/>
+<text x="112" y="264" font-size="14" fill="#1b4d1e" text-anchor="start" font-weight="bold" font-family="Helvetica, Arial, sans-serif">HUMAN REVIEW  ·  Source queue</text>
+<text x="112" y="294" font-size="13" fill="#1b3a1c" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">Confirm accuracy and complete the fields. Paywall / cost / login-URL</text>
+<text x="112" y="311" font-size="13" fill="#1b3a1c" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">recorded here; PaywallDismissal marks 'looked, no paywall'.</text>
+<line x1="620" y1="300" x2="950" y2="300" stroke="#2e7d32" stroke-width="2.2" stroke-dasharray="8,6" marker-end="url(#arrG)"/>
+<line x1="1130" y1="360" x2="1130" y2="396" stroke="#333" stroke-width="2.2" marker-end="url(#arr)"/>
+<rect x="920" y="400" width="420" height="118" rx="10" fill="#dbe7ff" stroke="#2b4c9b" stroke-width="2"/>
+<text x="1130" y="430" font-size="21" fill="#111" text-anchor="middle" font-weight="bold" font-family="Helvetica, Arial, sans-serif">URL Discovery</text>
+<text x="936" y="456" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">RSS · sitemap · homepage crawl per source. Writes</text>
+<text x="936" y="473" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">candidate_links(status=discovered). Fetch goes through</text>
+<text x="936" y="490" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">the proxy router (home Squid / Mizzou Squid).</text>
+<path d="M1680,414 a380.0,14 0 0,0 760,0 v96 a380.0,14 0 0,1 -760,0 z" fill="#f1f1f1" stroke="#666" stroke-width="1.8"/>
+<ellipse cx="2060.0" cy="414" rx="380.0" ry="14" fill="#e2e2e2" stroke="#666" stroke-width="1.8"/>
+<text x="2060.0" y="446" font-size="15" fill="#111" text-anchor="middle" font-weight="bold" font-family="Menlo, Consolas, monospace">candidate_links</text>
+<text x="1694" y="466" font-size="12" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">status: discovered → article | not_article | wire | obituary | opinion | weather | non_english |</text>
+<text x="1694" y="482" font-size="12" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">(section_front) | 404 | proxy_blocked | extracted | sampled_out</text>
+<text x="1694" y="498" font-size="12" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">meta.review_verdict = {verdict, kind, decided_at}</text>
+<line x1="1340" y1="460" x2="1674" y2="460" stroke="#333" stroke-width="2.2" marker-end="url(#arr)"/>
+<line x1="1130" y1="518" x2="1130" y2="556" stroke="#333" stroke-width="2.2" marker-end="url(#arr)"/>
+<rect x="920" y="560" width="420" height="150" rx="10" fill="#dbe7ff" stroke="#2b4c9b" stroke-width="2"/>
+<text x="1130" y="590" font-size="21" fill="#111" text-anchor="middle" font-weight="bold" font-family="Helvetica, Arial, sans-serif">URL Verification</text>
+<text x="936" y="616" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">StorySniffer (ML, URL-only) + verification_patterns</text>
+<text x="936" y="633" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">(regex rules in the DB, e.g. /galleries/,</text>
+<text x="936" y="650" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">/(world|us-world-news)/). Pattern type → link status</text>
+<text x="936" y="667" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">via _PATTERN_STATUS_OVERRIDES. Known gap: date-archive</text>
+<text x="936" y="684" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">index pages (/2020/03) pass StorySniffer.</text>
+<rect x="100" y="550" width="520" height="150" rx="8" fill="#dff5dc" stroke="#2e7d32" stroke-width="2"/>
+<rect x="100" y="550" width="520" height="28" rx="8" fill="#b9e6b3" stroke="#2e7d32" stroke-width="2"/>
+<text x="112" y="570" font-size="14" fill="#1b4d1e" text-anchor="start" font-weight="bold" font-family="Helvetica, Arial, sans-serif">HUMAN REVIEW  ·  Discovery queue  (post-verification)</text>
+<text x="112" y="600" font-size="13" fill="#1b3a1c" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">Confirm low-confidence yes/no. ALSO rules the KIND: obituary ·</text>
+<text x="112" y="617" font-size="13" fill="#1b3a1c" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">opinion · weather · column · wire · non-English · section front.</text>
+<text x="112" y="634" font-size="13" fill="#1b3a1c" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">Verdict → candidate_links.meta; lnic_contracts.link_status_for</text>
+<text x="112" y="651" font-size="13" fill="#1b3a1c" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">decides the link status. Wire / non-English / other are never</text>
+<text x="112" y="668" font-size="13" fill="#1b3a1c" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">fetched.</text>
+<line x1="620" y1="620" x2="914" y2="620" stroke="#2e7d32" stroke-width="2.2" stroke-dasharray="8,6" marker-end="url(#arrG)"/>
+<line x1="1130" y1="708" x2="1130" y2="751" stroke="#333" stroke-width="2.2" marker-end="url(#arr)"/>
+<polygon points="1130,755 1320.0,810.0 1130,865 940.0,810.0" fill="#fff3a6" stroke="#8a7a00" stroke-width="2"/>
+<text x="1130" y="815.0" font-size="15" fill="#111" text-anchor="middle" font-weight="bold" font-family="Helvetica, Arial, sans-serif">Best-effort local article URL?</text>
+<rect x="1680" y="763" width="150" height="40" rx="20" fill="#eeeeee" stroke="#b03a2e" stroke-width="2"/>
+<text x="1755.0" y="789" font-size="14" fill="#111" text-anchor="middle" font-weight="normal" font-family="Menlo, Consolas, monospace">wire</text>
+<rect x="1845" y="763" width="170" height="40" rx="20" fill="#eeeeee" stroke="#b03a2e" stroke-width="2"/>
+<text x="1930.0" y="789" font-size="14" fill="#111" text-anchor="middle" font-weight="normal" font-family="Menlo, Consolas, monospace">non_english</text>
+<rect x="2030" y="763" width="170" height="40" rx="20" fill="#eeeeee" stroke="#b03a2e" stroke-width="2"/>
+<text x="2115.0" y="789" font-size="14" fill="#111" text-anchor="middle" font-weight="normal" font-family="Menlo, Consolas, monospace">not_article</text>
+<rect x="2215" y="763" width="190" height="40" rx="20" fill="#eeeeee" stroke="#b03a2e" stroke-width="2"/>
+<text x="2310.0" y="789" font-size="14" fill="#111" text-anchor="middle" font-weight="normal" font-family="Menlo, Consolas, monospace">section_front</text>
+<rect x="1680" y="817" width="740" height="40" rx="20" fill="#eeeeee" stroke="#b03a2e" stroke-width="2"/>
+<text x="2050.0" y="843" font-size="14" fill="#111" text-anchor="middle" font-weight="normal" font-family="Menlo, Consolas, monospace">obituary / opinion / weather  (kind set from the URL, never fetched)</text>
+<line x1="1320" y1="810" x2="1674" y2="810" stroke="#b03a2e" stroke-width="2.2" marker-end="url(#arrR)"/>
+<text x="1505.0" y="804.0" font-size="13" fill="#b03a2e" text-anchor="start" font-weight="normal" font-family="Menlo, Consolas, monospace">no</text>
+<line x1="1130" y1="865" x2="1130" y2="901" stroke="#333" stroke-width="2.2" marker-end="url(#arr)"/>
+<text x="1138.0" y="877.0" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Menlo, Consolas, monospace">yes  status=article</text>
+<rect x="920" y="905" width="420" height="130" rx="10" fill="#dbe7ff" stroke="#2b4c9b" stroke-width="2"/>
+<text x="1130" y="935" font-size="21" fill="#111" text-anchor="middle" font-weight="bold" font-family="Helvetica, Arial, sans-serif">Story Fetching</text>
+<text x="936" y="961" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">requests → cloudscraper → Selenium (undetected Chrome,</text>
+<text x="936" y="978" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">proxy relay, publisher logins). Records collection</text>
+<text x="936" y="995" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">failures instead of storing them: 404, proxy_blocked,</text>
+<text x="936" y="1012" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">bot challenge, and the browser's own error page</text>
+<text x="936" y="1029" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">(net::ERR_CERT_DATE_INVALID etc.).</text>
+<rect x="1680" y="925" width="110" height="40" rx="20" fill="#eeeeee" stroke="#b03a2e" stroke-width="2"/>
+<text x="1735.0" y="951" font-size="14" fill="#111" text-anchor="middle" font-weight="normal" font-family="Menlo, Consolas, monospace">404</text>
+<rect x="1805" y="925" width="190" height="40" rx="20" fill="#eeeeee" stroke="#b03a2e" stroke-width="2"/>
+<text x="1900.0" y="951" font-size="14" fill="#111" text-anchor="middle" font-weight="normal" font-family="Menlo, Consolas, monospace">proxy_blocked</text>
+<rect x="2010" y="925" width="330" height="40" rx="20" fill="#eeeeee" stroke="#b03a2e" stroke-width="2"/>
+<text x="2175.0" y="951" font-size="14" fill="#111" text-anchor="middle" font-weight="normal" font-family="Menlo, Consolas, monospace">fetch failure (browser error page)</text>
+<line x1="1340" y1="945" x2="1674" y2="945" stroke="#b03a2e" stroke-width="2.2" marker-end="url(#arrR)"/>
+<line x1="1130" y1="1035" x2="1130" y2="1073" stroke="#333" stroke-width="2.2" marker-end="url(#arr)"/>
+<rect x="920" y="1077" width="420" height="165" rx="10" fill="#dbe7ff" stroke="#2b4c9b" stroke-width="2"/>
+<text x="1130" y="1107" font-size="21" fill="#111" text-anchor="middle" font-weight="bold" font-family="Helvetica, Arial, sans-serif">Story Extraction</text>
+<text x="936" y="1133" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">Cascade: newspaper4k · mcmetadata (parse-only, never</text>
+<text x="936" y="1150" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">fetches) · custom selectors. Form controls / script /</text>
+<text x="936" y="1167" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">nav decomposed first. Capture-quality gate: empty ·</text>
+<text x="936" y="1184" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">stub (&lt;400 chars) · paywall marker · not_article_like.</text>
+<text x="936" y="1201" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">Writes articles(content = raw capture,</text>
+<text x="936" y="1218" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">status=extracted).</text>
+<rect x="100" y="1057" width="520" height="150" rx="8" fill="#dff5dc" stroke="#2e7d32" stroke-width="2"/>
+<rect x="100" y="1057" width="520" height="28" rx="8" fill="#b9e6b3" stroke="#2e7d32" stroke-width="2"/>
+<text x="112" y="1077" font-size="14" fill="#1b4d1e" text-anchor="start" font-weight="bold" font-family="Helvetica, Arial, sans-serif">HUMAN REVIEW  ·  Extraction queue  (post-extraction)</text>
+<text x="112" y="1107" font-size="13" fill="#1b3a1c" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">Confirm low-confidence yes/no article. ALSO: paywall stub · content</text>
+<text x="112" y="1124" font-size="13" fill="#1b3a1c" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">type (obit, opinion, column, event, gallery, e-edition, advertorial</text>
+<text x="112" y="1141" font-size="13" fill="#1b3a1c" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">…) · REEXTRACT — the one disposition that sends a record BACK to</text>
+<text x="112" y="1158" font-size="13" fill="#1b3a1c" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">fetching. TYPE_BECOMES maps each type to a status.</text>
+<line x1="620" y1="1137" x2="914" y2="1137" stroke="#2e7d32" stroke-width="2.2" stroke-dasharray="8,6" marker-end="url(#arrG)"/>
+<polyline points="560,1063 760.0,1063 760.0,902 960,902" fill="none" stroke="#b03a2e" stroke-width="2.2" stroke-dasharray="8,6" marker-end="url(#arrR)"/>
+<text x="768.0" y="982.5" font-size="13" fill="#b03a2e" text-anchor="start" font-weight="normal" font-family="Menlo, Consolas, monospace">reextract</text>
+<path d="M1680,1101 a380.0,14 0 0,0 760,0 v68 a380.0,14 0 0,1 -760,0 z" fill="#f1f1f1" stroke="#666" stroke-width="1.8"/>
+<ellipse cx="2060.0" cy="1101" rx="380.0" ry="14" fill="#e2e2e2" stroke="#666" stroke-width="1.8"/>
+<text x="2060.0" y="1133" font-size="15" fill="#111" text-anchor="middle" font-weight="bold" font-family="Menlo, Consolas, monospace">articles</text>
+<text x="1694" y="1153" font-size="12" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">content (raw) · text (cleaned) · title · author · publish_date · status · primary_label · wire ·</text>
+<text x="1694" y="1169" font-size="12" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">enrichment_attempts</text>
+<line x1="1340" y1="1137" x2="1674" y2="1137" stroke="#333" stroke-width="2.2" marker-end="url(#arr)"/>
+<line x1="1130" y1="1242" x2="1130" y2="1280" stroke="#333" stroke-width="2.2" marker-end="url(#arr)"/>
+<rect x="920" y="1284" width="420" height="124" rx="10" fill="#dbe7ff" stroke="#2b4c9b" stroke-width="2"/>
+<text x="1130" y="1314" font-size="21" fill="#111" text-anchor="middle" font-weight="bold" font-family="Helvetica, Arial, sans-serif">Story Cleaning</text>
+<text x="936" y="1340" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">strip_boilerplate on the write path → articles.text.</text>
+<text x="936" y="1357" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">Segment-level: consent dumps, nav runs, known markers.</text>
+<text x="936" y="1374" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">`text` and `content` differ on ~4.5% of rows. status</text>
+<text x="936" y="1391" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">extracted → cleaned.</text>
+<line x1="1130" y1="1408" x2="1130" y2="1446" stroke="#333" stroke-width="2.2" marker-end="url(#arr)"/>
+<rect x="920" y="1450" width="420" height="168" rx="10" fill="#dbe7ff" stroke="#2b4c9b" stroke-width="2"/>
+<text x="1130" y="1480" font-size="21" fill="#111" text-anchor="middle" font-weight="bold" font-family="Helvetica, Arial, sans-serif">Story Analysis</text>
+<text x="936" y="1506" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">Applies the reviewer's kind (lnic_contracts.status_for</text>
+<text x="936" y="1523" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">→ obituary / opinion / weather / column→opinion / wire</text>
+<text x="936" y="1540" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">/ non_english). Wire from body evidence (syndication</text>
+<text x="936" y="1557" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">byline, canonical elsewhere) — never overridden by a</text>
+<text x="936" y="1574" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">URL-only verdict. Paywall stub from the capture gate.</text>
+<text x="936" y="1591" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">THIS is where 'is it a story / a stub / a form or</text>
+<text x="936" y="1608" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">script dump' belongs.</text>
+<line x1="1130" y1="1618" x2="1130" y2="1654" stroke="#333" stroke-width="2.2" marker-end="url(#arr)"/>
+<polygon points="1130,1658 1320.0,1713.0 1130,1768 940.0,1713.0" fill="#fff3a6" stroke="#8a7a00" stroke-width="2"/>
+<text x="1130" y="1718.0" font-size="15" fill="#111" text-anchor="middle" font-weight="bold" font-family="Helvetica, Arial, sans-serif">Local article or paywall stub?</text>
+<rect x="1680" y="1666" width="110" height="40" rx="20" fill="#eeeeee" stroke="#b03a2e" stroke-width="2"/>
+<text x="1735.0" y="1692" font-size="14" fill="#111" text-anchor="middle" font-weight="normal" font-family="Menlo, Consolas, monospace">wire</text>
+<rect x="1805" y="1666" width="140" height="40" rx="20" fill="#eeeeee" stroke="#b03a2e" stroke-width="2"/>
+<text x="1875.0" y="1692" font-size="14" fill="#111" text-anchor="middle" font-weight="normal" font-family="Menlo, Consolas, monospace">obituary</text>
+<rect x="1960" y="1666" width="130" height="40" rx="20" fill="#eeeeee" stroke="#b03a2e" stroke-width="2"/>
+<text x="2025.0" y="1692" font-size="14" fill="#111" text-anchor="middle" font-weight="normal" font-family="Menlo, Consolas, monospace">opinion</text>
+<rect x="2105" y="1666" width="130" height="40" rx="20" fill="#eeeeee" stroke="#b03a2e" stroke-width="2"/>
+<text x="2170.0" y="1692" font-size="14" fill="#111" text-anchor="middle" font-weight="normal" font-family="Menlo, Consolas, monospace">weather</text>
+<rect x="2250" y="1666" width="170" height="40" rx="20" fill="#eeeeee" stroke="#b03a2e" stroke-width="2"/>
+<text x="2335.0" y="1692" font-size="14" fill="#111" text-anchor="middle" font-weight="normal" font-family="Menlo, Consolas, monospace">not_article</text>
+<text x="1680" y="1738" font-size="12" fill="#555" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">terminal kinds: kept in Postgres, counted by kind, never CIN-coded, never enriched, never exported</text>
+<line x1="1320" y1="1713" x2="1674" y2="1713" stroke="#b03a2e" stroke-width="2.2" marker-end="url(#arrR)"/>
+<text x="1505.0" y="1707.0" font-size="13" fill="#b03a2e" text-anchor="start" font-weight="normal" font-family="Menlo, Consolas, monospace">no</text>
+<line x1="1130" y1="1768" x2="1130" y2="1804" stroke="#333" stroke-width="2.2" marker-end="url(#arr)"/>
+<text x="1138.0" y="1780.0" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Menlo, Consolas, monospace">yes  status=cleaned | paywall</text>
+<rect x="920" y="1808" width="420" height="152" rx="10" fill="#dbe7ff" stroke="#2b4c9b" stroke-width="2"/>
+<text x="1130" y="1838" font-size="21" fill="#111" text-anchor="middle" font-weight="bold" font-family="Helvetica, Arial, sans-serif">ML Classification  (CIN)</text>
+<text x="936" y="1864" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">Classifier on title + text → primary_label /</text>
+<text x="936" y="1881" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">alternate_label + confidence. Writes article_labels</text>
+<text x="936" y="1898" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">and articles.primary_label. status cleaned → labeled.</text>
+<text x="936" y="1915" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">No review queue on the pipeline: CIN calibration is a</text>
+<text x="936" y="1932" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">separate human-coding process (codebook, percent</text>
+<text x="936" y="1949" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">agreement).</text>
+<path d="M1680,1832 a380.0,14 0 0,0 760,0 v52 a380.0,14 0 0,1 -760,0 z" fill="#f1f1f1" stroke="#666" stroke-width="1.8"/>
+<ellipse cx="2060.0" cy="1832" rx="380.0" ry="14" fill="#e2e2e2" stroke="#666" stroke-width="1.8"/>
+<text x="2060.0" y="1864" font-size="15" fill="#111" text-anchor="middle" font-weight="bold" font-family="Menlo, Consolas, monospace">article_labels</text>
+<text x="1694" y="1884" font-size="12" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">primary_label · confidence · alternate · model_version · label_version</text>
+<line x1="1340" y1="1858" x2="1674" y2="1858" stroke="#333" stroke-width="2.2" marker-end="url(#arr)"/>
+<line x1="1130" y1="1960" x2="1130" y2="1998" stroke="#333" stroke-width="2.2" marker-end="url(#arr)"/>
+<text x="1138.0" y="1973.0" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Menlo, Consolas, monospace">status=labeled</text>
+<rect x="920" y="2002" width="420" height="195" rx="10" fill="#dbe7ff" stroke="#2b4c9b" stroke-width="2"/>
+<text x="1130" y="2032" font-size="21" fill="#111" text-anchor="middle" font-weight="bold" font-family="Helvetica, Arial, sans-serif">AI Enrichment</text>
+<text x="936" y="2058" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">OpenRouter → deepseek-v3.2, provider allowlist</text>
+<text x="936" y="2075" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">(AtlasCloud · SiliconFlow · Baidu), spend ceiling.</text>
+<text x="936" y="2092" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">Reads articles.content. Refuses withheld kinds by</text>
+<text x="936" y="2109" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">verdict. Free gate first: boilerplate score · stated</text>
+<text x="936" y="2126" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">wall (no length test) → then model content gate →</text>
+<text x="936" y="2143" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">scope → places → point → people → organizations →</text>
+<text x="936" y="2160" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">metadata presets. Every refusal is named in</text>
+<text x="936" y="2177" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">skip_reason.</text>
+<rect x="100" y="2012" width="520" height="110" rx="8" fill="#dff5dc" stroke="#2e7d32" stroke-width="2"/>
+<rect x="100" y="2012" width="520" height="28" rx="8" fill="#b9e6b3" stroke="#2e7d32" stroke-width="2"/>
+<text x="112" y="2032" font-size="14" fill="#1b4d1e" text-anchor="start" font-weight="bold" font-family="Helvetica, Arial, sans-serif">HUMAN REVIEW  ·  Geography queue</text>
+<text x="112" y="2062" font-size="13" fill="#1b3a1c" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">Evaluate and add geographic signals: article_places_manual, GEOID /</text>
+<text x="112" y="2079" font-size="13" fill="#1b3a1c" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">county from the shared gazetteer (lnic_contracts.geography).</text>
+<line x1="620" y1="2062" x2="914" y2="2062" stroke="#2e7d32" stroke-width="2.2" stroke-dasharray="8,6" marker-end="url(#arrG)"/>
+<path d="M1680,2016 a380.0,14 0 0,0 760,0 v82 a380.0,14 0 0,1 -760,0 z" fill="#f1f1f1" stroke="#666" stroke-width="1.8"/>
+<ellipse cx="2060.0" cy="2016" rx="380.0" ry="14" fill="#e2e2e2" stroke="#666" stroke-width="1.8"/>
+<text x="2060.0" y="2048" font-size="15" fill="#111" text-anchor="middle" font-weight="bold" font-family="Menlo, Consolas, monospace">article_enrichment  + derived</text>
+<text x="1694" y="2068" font-size="12" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">skip_reason: paywall_stub_rule · paywall_stub · boilerplate_dump · not_news_gate · failed_max_attempts;</text>
+<text x="1694" y="2084" font-size="12" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">non-local → status out_of_scope</text>
+<text x="1694" y="2100" font-size="12" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">article_places · article_people · article_organizations · article_geoids</text>
+<line x1="1340" y1="2062" x2="1674" y2="2062" stroke="#333" stroke-width="2.2" marker-end="url(#arr)"/>
+<rect x="100" y="2132" width="520" height="150" fill="#fff8f6" stroke="#b03a2e" stroke-width="1.5" stroke-dasharray="6,5"/>
+<text x="112" y="2154" font-size="13" fill="#b03a2e" text-anchor="start" font-weight="bold" font-family="Helvetica, Arial, sans-serif">LAST-CHANCE REVIEW</text>
+<text x="112" y="2174" font-size="12" fill="#4a1f1a" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">Enrichment has signals the earlier stages do not (the model). When it finds</text>
+<text x="112" y="2190" font-size="12" fill="#4a1f1a" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">a stub / non-local / not an article, the status is set as the earlier stage</text>
+<text x="112" y="2206" font-size="12" fill="#4a1f1a" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">should have. The primary decision still belongs at Extraction / Analysis;</text>
+<text x="112" y="2222" font-size="12" fill="#4a1f1a" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">this supports it, never replaces it.</text>
+<text x="112" y="2238" font-size="12" fill="#4a1f1a" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">RULED 2026-09-13: non-local → out_of_scope, excluded — an article, just not</text>
+<text x="112" y="2254" font-size="12" fill="#4a1f1a" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">one kept, like wire. Code since 2026-08-22 landed it at enrichment_skipped</text>
+<text x="112" y="2270" font-size="12" fill="#4a1f1a" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">(exported); being corrected.</text>
+<line x1="1130" y1="2198" x2="1130" y2="2234" stroke="#333" stroke-width="2.2" marker-end="url(#arr)"/>
+<polygon points="1130,2238 1320.0,2293.0 1130,2348 940.0,2293.0" fill="#fff3a6" stroke="#8a7a00" stroke-width="2"/>
+<text x="1130" y="2298.0" font-size="15" fill="#111" text-anchor="middle" font-weight="bold" font-family="Helvetica, Arial, sans-serif">Local news article?</text>
+<rect x="1680" y="2246" width="290" height="40" rx="20" fill="#eeeeee" stroke="#b03a2e" stroke-width="2"/>
+<text x="1825.0" y="2272" font-size="14" fill="#111" text-anchor="middle" font-weight="normal" font-family="Menlo, Consolas, monospace">not_article  (not_news_gate)</text>
+<rect x="1985" y="2246" width="440" height="40" rx="20" fill="#eeeeee" stroke="#b03a2e" stroke-width="2"/>
+<text x="2205.0" y="2272" font-size="14" fill="#111" text-anchor="middle" font-weight="normal" font-family="Menlo, Consolas, monospace">out_of_scope  (non-local: an article, not kept)</text>
+<line x1="1320" y1="2293" x2="1674" y2="2293" stroke="#b03a2e" stroke-width="2.2" marker-end="url(#arrR)"/>
+<text x="1505.0" y="2287.0" font-size="13" fill="#b03a2e" text-anchor="start" font-weight="normal" font-family="Menlo, Consolas, monospace">no</text>
+<text x="1680" y="2318" font-size="12" fill="#555" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">enrichment_skipped (paywall stub) stays: exported unenriched, CIN + byline counted</text>
+<line x1="1130" y1="2348" x2="1130" y2="2384" stroke="#333" stroke-width="2.2" marker-end="url(#arr)"/>
+<text x="1138.0" y="2360.0" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Menlo, Consolas, monospace">enriched | enrichment_skipped</text>
+<path d="M920,2402 a210.0,14 0 0,0 420,0 v92 a210.0,14 0 0,1 -420,0 z" fill="#f1f1f1" stroke="#666" stroke-width="1.8"/>
+<ellipse cx="1130.0" cy="2402" rx="210.0" ry="14" fill="#e2e2e2" stroke="#666" stroke-width="1.8"/>
+<text x="1130.0" y="2434" font-size="15" fill="#111" text-anchor="middle" font-weight="bold" font-family="Menlo, Consolas, monospace">BigQuery  mizzou_analytics</text>
+<text x="934" y="2454" font-size="12" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">11 scheduled syncs (EXTERNAL_QUERY, WRITE_TRUNCATE, 07:00).</text>
+<text x="934" y="2470" font-size="12" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">Every article-scoped table filtered on status IN (enriched,</text>
+<text x="934" y="2486" font-size="12" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">enrichment_skipped) — one rule in</text>
+<text x="934" y="2502" font-size="12" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">src/export/bigquery_sync.py, live audit fails on drift.</text>
+<text x="1680" y="2418" font-size="13" fill="#333" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">→ datadesk visuals (data.localnewsimpact.org) · dataset_funnel · march_sheet_ids · syndicators</text>
+<line x1="1340" y1="2428" x2="1674" y2="2428" stroke="#333" stroke-width="2.2" marker-end="url(#arr)"/>
+<rect x="100" y="2548" width="2340" height="230" fill="#eef7ee" stroke="#2e7d32" stroke-width="2"/>
+<text x="114" y="2576" font-size="16" fill="#1b4d1e" text-anchor="start" font-weight="bold" font-family="Helvetica, Arial, sans-serif">REWORK CARRY-THROUGH  —  every review disposition, one mechanism</text>
+<text x="114" y="2604" font-size="13" fill="#1b3a1c" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">A review is POST-stage: an approval, rejection or correction of that stage's output. It never sends the record back to be re-verified (the one exception: reextract). The disposition writes a pipeline_rework(record_type, record_id, stage, reason) row; partial unique index keeps one outstanding row per record+stage. The</text>
+<text x="114" y="2621" font-size="13" fill="#1b3a1c" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">housekeeping run — Argo CronWorkflow `news-housekeeping` (suspended; run once with `argo submit -n production --from cronworkflow/news-housekeeping`, serviceAccount argo-workflow) — carries ONLY those records through the REMAINING stages: extract → classify → enrich. Each stage selects on status ∧ rework flag (work queue,</text>
+<text x="114" y="2638" font-size="13" fill="#1b3a1c" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">FOR UPDATE SKIP LOCKED, domain fairness) and settles its rows when the record leaves that stage's statuses. Settle runs at the START of a step, so budget two runs to reach zero. A reviewer's kind decides the status for every withheld kind (lnic_contracts.WITHHELD_STATUS) so the record reaches a terminal status instead of</text>
+<text x="114" y="2655" font-size="13" fill="#1b3a1c" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">parking at `labeled`.</text>
+<text x="114" y="2748" font-size="12" fill="#1b3a1c" text-anchor="start" font-weight="normal" font-family="Helvetica, Arial, sans-serif">Shared contracts: lnic_contracts (discovery_verdict · pipeline_rework · review_note · geography · coverage_floor) — pinned by tag in both repos; a behavioural release needs its consumer admission merged BEFORE the tag.</text>
+</svg>
