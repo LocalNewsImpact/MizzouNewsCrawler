@@ -81,8 +81,8 @@ def test_the_stages_run_in_pipeline_order(steps):
         # Two passes rather than one `mixed` pass because a worker cannot serve
         # both kinds of host: an anonymous host needs its driver rotated, a
         # credentialed one needs it held or every visit pays a fresh login.
-        # Sequential and not fanned out, because two authenticated workers on one
-        # host mean two concurrent sessions for one subscriber account.
+        # Sequential and not fanned out: one worker is enough for a rework
+        # backlog, and the queue already stops two workers sharing a domain.
         "extract-credentialed",
         "classify",
         "enrich",
