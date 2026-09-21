@@ -1251,6 +1251,133 @@ class URLVerificationService:
             },
         )
 
+    #: `verdict_kind` for a check of an ingested URL. Not a pipeline verdict:
+    #: a person chose the URL, and this records what the rules and the model
+    #: say about that choice.
+    INGESTED_KIND = "ingested"
+
+    @staticmethod
+    def ingest_flag(result: dict) -> str | None:
+        """Why the checks doubt an ingested URL, or None when they do not.
+
+        The same order `process_batch` decides in: a URL rule first, then the
+        URL-level wire filter, then storysniffer. A check that errored is not
+        a doubt -- nothing was learned.
+        """
+        if result.get("error"):
+            return None
+        if result.get("pattern_filtered"):
+            if (result.get("pattern_status") or "not_article") != "article":
+                return f"pattern:{result.get('pattern_type') or 'unknown'}"
+            return None
+        if result.get("wire_filtered"):
+            return "wire_url"
+        if result.get("storysniffer_result") is False:
+            return "storysniffer_no"
+        return None
+
+    def check_ingested(
+        self,
+        limit: int | None = None,
+        batch_size: int = 500,
+        dry_run: bool = False,
+    ) -> dict:
+        """Run the URL rules and storysniffer over ingested URLs -- and change
+        nothing about them.
+
+        An ingested URL skips verification by design: uploading a chosen set
+        is an affirmative decision to collect those URLs, so a rule or a model
+        must not remove one. That left no check at all. KHQ's 31 `/video_`
+        pages and a handful of e-edition viewers came in through the WSU
+        tracker and were fetched, stored and filed before anything looked at
+        the URL.
+
+        So the checks run, and their answer is recorded rather than obeyed:
+
+          * one `url_verifications` row per ingested link, `verdict_kind`
+            `ingested`, carrying `flagged` and `flag_reason`;
+          * `candidate_links.status` is never written -- the link is fetched
+            as it would have been;
+          * a flagged row is for a person to judge, in the discovery review
+            queue.
+
+        The external wire check is NOT part of this. It stays off for
+        ingested URLs, as agreed 2026-09-20.
+
+        storysniffer is local, so this makes no request and needs no proxy.
+        A link is checked once: one that already has an `ingested` row is
+        not selected again.
+        """
+        from src.models.verification import URLVerification
+
+        counts = {"considered": 0, "written": 0, "flagged": 0, "errors": 0}
+        select = """
+            SELECT cl.id, cl.url, cl.status, cl.dataset_id
+            FROM candidate_links cl
+            WHERE cl.is_curated
+              AND NOT EXISTS (
+                    SELECT 1 FROM url_verifications v
+                     WHERE v.candidate_link_id = cl.id
+                       AND CAST(v.meta AS TEXT) LIKE :ingested_marker
+              )
+        """
+        params: dict = {"ingested_marker": '%"verdict_kind": "ingested"%'}
+        if self.dataset_id:
+            select += " AND cl.dataset_id = :dataset_id"
+            params["dataset_id"] = self.dataset_id
+        select += " ORDER BY cl.id"
+
+        with self.db.get_session() as session:
+            rows = safe_execute(session, select, params).fetchall()
+        if limit is not None:
+            rows = rows[:limit]
+
+        job_id = None if dry_run else self._ensure_job("check-ingested")
+        if job_id is None and not dry_run:
+            self.logger.error("Could not open a verification job; nothing written")
+            return counts
+
+        pending: list[URLVerification] = []
+        for row in rows:
+            counts["considered"] += 1
+            result = self.verify_url(row.url)
+            if result.get("error"):
+                counts["errors"] += 1
+            reason = self.ingest_flag(result)
+            if reason:
+                counts["flagged"] += 1
+            if dry_run:
+                continue
+            pending.append(
+                URLVerification(
+                    candidate_link_id=row.id,
+                    verification_job_id=job_id,
+                    url=row.url,
+                    storysniffer_result=result.get("storysniffer_result"),
+                    verification_confidence=self.score_margin(row.url),
+                    dataset_id=row.dataset_id,
+                    # The link's status, both sides: nothing here changes it.
+                    previous_status=row.status,
+                    new_status=row.status,
+                    verification_time_ms=result.get("verification_time_ms"),
+                    verification_error=result.get("error"),
+                    meta={
+                        "decided_by": self._decided_by(result),
+                        "verdict_kind": self.INGESTED_KIND,
+                        "flagged": bool(reason),
+                        "flag_reason": reason,
+                        "pattern_id": result.get("pattern_id"),
+                        "pattern_type": result.get("pattern_type"),
+                    },
+                )
+            )
+            if len(pending) >= batch_size:
+                counts["written"] += self._write_backfilled(pending)
+                pending = []
+        if pending:
+            counts["written"] += self._write_backfilled(pending)
+        return counts
+
     def _write_backfilled(self, rows: list) -> int:
         """Commit one batch, and say so when it fails.
 
