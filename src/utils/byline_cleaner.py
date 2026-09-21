@@ -100,6 +100,13 @@ class BylineCleaner:
         "with",
         "by",
         "staff writer",
+        # A title, not a name. The WSU Murrow College's student reporters carry
+        # it after their names, sometimes with a desk tag ("Kevin Teeter
+        # Local/WSU Murrow Fellow", 17 articles), and once between two authors
+        # ("Henry Brannan Murrow Fellow Sarah Wolf"). Left in, the cleaner keeps
+        # it as part of the name -- or, after a comma, returns it as a second
+        # author.
+        "murrow fellow",
         "to",
         "he",
         "tot",
