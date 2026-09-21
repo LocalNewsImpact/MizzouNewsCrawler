@@ -398,6 +398,21 @@ spec:
       # Every caller in this repo passes a value explicitly.
       - name: worker-pool
         value: "mixed"
+      # CPU for this worker's Chrome. The default is what every extraction
+      # worker had; the authenticated pass raises it. On 2026-09-21 its one
+      # worker, capped at 1 core, was throttled in 18,144 of 26,270 CFS periods
+      # (69%) and chromedriver stopped answering four times in two hours on
+      # three publishers -- each a 30s read timeout on localhost. A fan-out of
+      # anonymous workers keeps the old number; one credentialed worker can
+      # afford two cores.
+      - name: cpu-request
+        value: "250m"
+      - name: cpu-limit
+        value: "1000m"
+    # CPU only, and only through this patch: `resources` is parsed as typed
+    # quantities, so a parameter cannot appear there. The patch merges into
+    # the `main` container's resources below and leaves memory untouched.
+    podSpecPatch: '{"containers":[{"name":"main","resources":{"requests":{"cpu":"{{inputs.parameters.cpu-request}}"},"limits":{"cpu":"{{inputs.parameters.cpu-limit}}"}}}]}'
     metadata:
       labels:
         dataset: "{{=sprig.lower(inputs.parameters.dataset)}}"

@@ -138,6 +138,10 @@ spec:
             value: "{{inputs.parameters.extract-batches}}"
           - name: worker-pool
             value: "anonymous"
+          - name: cpu-request
+            value: "250m"
+          - name: cpu-limit
+            value: "1000m"
 
     # 2b. The same rework, for hosts that need a login.
     #
@@ -172,6 +176,10 @@ spec:
             value: "{{inputs.parameters.extract-batches}}"
           - name: worker-pool
             value: "authenticated"
+          - name: cpu-request
+            value: "1000m"
+          - name: cpu-limit
+            value: "2000m"
 
     # 3. Articles a decision sent back to `cleaned`, and only those.
     - - name: classify
@@ -227,12 +235,21 @@ spec:
       # comment below already records. Required, no default, for the reason
       # given there: a caller that passes nothing must not look correct.
       - name: worker-pool
+      # CPU for this pass's Chrome. Required, like the rest: the anonymous
+      # fan-out keeps the pipeline's 1 core and the credentialed pass takes 2,
+      # for the reason recorded on `cpu-limit` in base-pipeline-workflow.yaml.
+      - name: cpu-request
+      - name: cpu-limit
       # No `worker` parameter. `withParam` fans this step out over the
       # worker list and each pod identifies itself to the queue by its own
       # name, so a worker number here would be a declared input that
       # nothing reads -- and putting it in an env var inside the shared
       # `&db_env` anchor carried the reference into templates that cannot
       # resolve it, which made the workflow unsubmittable.
+    # CPU only, and only through this patch: `resources` is parsed as typed
+    # quantities, so a parameter cannot appear there. The patch merges into
+    # the `main` container's resources below and leaves memory untouched.
+    podSpecPatch: '{"containers":[{"name":"main","resources":{"requests":{"cpu":"{{inputs.parameters.cpu-request}}"},"limits":{"cpu":"{{inputs.parameters.cpu-limit}}"}}}]}'
     metadata:
       labels:
         stage: extraction
