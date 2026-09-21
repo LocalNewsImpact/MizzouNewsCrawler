@@ -867,6 +867,85 @@ def classify_furniture(text: str | None) -> Furniture | None:
     return None
 
 
+#: Furniture that REPLACES a story, as opposed to sitting beside one. Only these
+#: survive a long run of prose in `document_is_furniture`.
+#:
+#: Just the wall. A nav dump, a cookie banner, a comment policy and a newsletter
+#: ask are all things a publisher prints AROUND its reporting, so finding one in a
+#: document says nothing about whether the document also contains a story. A wall
+#: is served INSTEAD of the story, which is why it is the exception.
+REPLACES_THE_STORY: frozenset[str] = frozenset({PAYWALL})
+
+
+def longest_prose_run(text: str | None) -> int:
+    """Characters in the longest unbroken run of paragraphs that read as prose.
+
+    `classify_furniture` is a BLOCK test -- its own docstring says so -- and every
+    shape rule it ends with (prose density, capitalisation, utility-word rate,
+    token repetition) is an AVERAGE over whatever it is handed. Hand it a whole
+    document and the average is decided by whichever part has the most lines.
+
+    That is not hypothetical. `filing-week-kicks-off-with-46-candidates-in-yakima-
+    county` opens with six paragraphs of reporting -- 1,064 characters, prose
+    density 0.265 -- and then lists 46 candidates for 40 offices as 80 lines of 8
+    to 53 characters. Measured whole, its density is 0.11 against a 0.14 floor and
+    its capitalisation 0.67 against a 0.60 ceiling, so it was filed `not_article`
+    and a real story about who is running for local office left the corpus. No
+    threshold fixes that: 80 roster lines outvote 6 paragraphs at any setting.
+
+    So ask the question the other way round. Not "is the average prose" but "is
+    there a stretch of prose long enough to be a story". A table after the
+    reporting is what a filing story, an election result and a budget explainer
+    all look like.
+    """
+    if not text or not text.strip():
+        return 0
+    best = current = 0
+    for paragraph in text.splitlines():
+        stripped = paragraph.strip()
+        if not stripped:
+            continue
+        if classify_furniture(stripped) is None:
+            current += len(stripped)
+            best = max(best, current)
+        else:
+            current = 0
+    return best
+
+
+def document_is_furniture(text: str | None, min_prose_chars: int) -> Furniture | None:
+    """Whether a WHOLE captured body is furniture rather than a story.
+
+    Same detector, one added rule: a verdict is overturned by a long enough run of
+    prose UNLESS the thing it found replaces the story rather than sitting beside
+    it.
+
+    `REPLACES_THE_STORY` is that distinction, and it is the safety property. A
+    paywall teaser is a few real sentences followed by a wall -- exactly the shape
+    this override would wave through -- and it stays caught because
+    `classify_furniture` checks phrases before shape and PAYWALL outranks the
+    noise kinds.
+
+    Everything else CAN be overturned, because everything else is something a
+    publisher puts next to its reporting. This module already says so about
+    newsletter asks: they are "furniture but NOT walls -- a newsletter prompt sits
+    beside a readable story". Treating them as fatal cost two Spanish-language
+    stories from Spokane Public Radio and Northwest Public Broadcasting, filed
+    `not_article` on `sign up for our`, with 1,020 and 603 characters of reporting
+    in them.
+
+    The prose threshold is what protects the genuine cases: a "Page not found"
+    e-edition shell has a 66-character run and a masthead page 114, both under the
+    150 this pipeline needs to call something an article.
+    """
+    verdict = classify_furniture(text)
+    if verdict is None or verdict.kind in REPLACES_THE_STORY:
+        return verdict
+    if longest_prose_run(text) >= min_prose_chars:
+        return None
+    return verdict
+
+
 # A furniture line longer than this is edited sentence-by-sentence rather than
 # dropped whole, because at that length it is likely to be an extractor's
 # unbroken run of banner-plus-story rather than a banner alone. Set from the

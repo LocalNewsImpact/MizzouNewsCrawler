@@ -36,8 +36,8 @@ from src.pipeline.text_cleaning import decode_rot47_segments
 from src.services.wire_detection import resolve_api_token
 from src.utils.boilerplate import (
     PAYWALL,
+    document_is_furniture,
     excise_furniture_lines,
-    looks_like_furniture,
     looks_like_paywall,
 )
 
@@ -2596,8 +2596,14 @@ def _process_batch(
                     # Verified against the 216-article 2026-07-26 run: flags
                     # 8/8 country dropdowns, 9/9 subscription walls, 2/2 PDF
                     # embeds, 0 of the Spanish captures.
-                    is_furniture = bool(stripped_content) and looks_like_furniture(
-                        stripped_content
+                    # document_is_furniture, not looks_like_furniture: the block
+                    # test averages its shape rules over whatever it is handed, so
+                    # a story that ends in a table is decided by the table. The
+                    # document test overturns a SHAPE verdict when there is a run
+                    # of prose at least MIN_CONTENT_LENGTH long, and never
+                    # overturns a MARKER verdict, so every wall stays caught.
+                    is_furniture = bool(stripped_content) and bool(
+                        document_is_furniture(stripped_content, MIN_CONTENT_LENGTH)
                     )
 
                     # A wall (short OR long/nav-wrapped) keeps its metadata and
