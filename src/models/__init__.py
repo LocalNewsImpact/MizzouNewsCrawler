@@ -270,6 +270,38 @@ class BylineNormalization(Base):
     articles_updated = Column(Integer, nullable=True)
 
 
+class BylineReviewCandidate(Base):
+    """A byline string waiting for a person, computed here and read in datadesk.
+
+    See `alembic/versions/9d3a7e2b1c48`. Replaced wholesale on each refresh: a
+    candidate describes the corpus as it is now, and a decided or repaired
+    string stops being written.
+    """
+
+    __tablename__ = "byline_review_candidates"
+    __table_args__ = (
+        UniqueConstraint(
+            "dataset_id",
+            "raw_byline",
+            name="uq_byline_review_candidates_dataset_raw",
+        ),
+    )
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    dataset_id = Column(String, nullable=False, index=True)
+    raw_byline = Column(Text, nullable=False)
+    signal = Column(String(32), nullable=False, index=True)
+    signal_label = Column(Text, nullable=False)
+    signals = Column(JSON, nullable=False, default=list)
+    proposed = Column(JSON, nullable=False, default=list)
+    variants = Column(JSON, nullable=False, default=list)
+    differs_by = Column(JSON, nullable=False, default=list)
+    articles = Column(Integer, nullable=False, default=0)
+    hosts = Column(JSON, nullable=False, default=list)
+    owners = Column(JSON, nullable=False, default=list)
+    computed_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 class OwnerGroup(Base):
     """Which ultimate owner a publisher's owner belongs to.
 
