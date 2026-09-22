@@ -5,7 +5,6 @@ articles that is 7,921 distinct strings across 200 hosts, and counting them
 counts spellings:
 
       645  one person, several spellings "Nate Sanford" / "Nate Sandford"
-      527  a list literal                `["Stanley Schwartz"]`, `[]`
       475  same name, unrelated owners
       135  not a person                  "Admin" -- 717 articles on 6 hosts
        40  a publication name            "Abby Volz - Southeast Arrow"
@@ -51,9 +50,18 @@ class TestTheListLiteral:
         assert br.unwrap_list_literal("[Not a list") is None
         assert br.unwrap_list_literal("Ivan Foley") is None
 
-    def test_it_is_the_first_signal_worked(self):
-        """A mechanical repair with one obvious answer, before any judgement."""
-        assert br.SIGNAL_ORDER[0] == br.LIST_LITERAL
+    def test_it_is_not_a_review_row(self):
+        """A storage form, not a judgement: September 2025 wrote `str(list)`
+        where the current path writes `", ".join(names)`. `repair_list_literals`
+        rewrites it and nobody is asked."""
+        assert br.LIST_LITERAL not in br.SIGNAL_ORDER
+        row = br.BylineRow(
+            raw='["Stanley Schwartz"]',
+            articles=30,
+            hosts=("a.example",),
+            owners=("Owner",),
+        )
+        assert br.LIST_LITERAL not in br.signals_for(row)
 
 
 class TestTheSplitter:
@@ -79,6 +87,22 @@ class TestTheSplitter:
             "Amanda Sullender",
             "Monica Ruiz",
         ]
+
+    def test_a_title_word_does_not_eat_a_surname(self):
+        """Marcus Officer files for fox4kc. The first rule cut the word out of
+        every part that held it and left "Marcus", and then paired that with
+        another byline as a misspelling of "Alyssa Mueller"."""
+        assert br.split_names("Alyssa Mueller, Marcus Officer") == [
+            "Alyssa Mueller",
+            "Marcus Officer",
+        ]
+        assert br.split_names("Marcus Officer, Alyssa Mueller, Jonathan Ketz") == [
+            "Marcus Officer",
+            "Alyssa Mueller",
+            "Jonathan Ketz",
+        ]
+        assert br.split_names("Dana President") == ["Dana President"]
+        assert br.split_names("Jane Chief, Editor") == ["Jane Chief"]
 
     def test_a_title_after_a_name_is_dropped(self):
         assert br.split_names("Patrick Fudally, Officer") == ["Patrick Fudally"]
@@ -113,7 +137,6 @@ class TestTheSignals:
     @pytest.mark.parametrize(
         "raw, signal",
         [
-            ('["Stanley Schwartz"]', br.LIST_LITERAL),
             ("Amanda Barnes, Komu 8 Wellness Coach", br.STRAY_TITLE),
             ("Abby Volz - Southeast Arrow", br.PUBLICATION_SUFFIX),
             ("NPR Staff, www.kbia.org, npr-staff", br.CONTACT_FRAGMENT),
@@ -129,7 +152,7 @@ class TestTheSignals:
         assert self._row("Ivan Foley").needs_review is False
 
     def test_one_string_can_show_several(self):
-        row = self._row("NPR Staff, www.kbia.org")
+        row = self._row("ABC 17 News Team, www.kbia.org")
         assert br.CONTACT_FRAGMENT in row.signals
         assert br.NOT_A_PERSON in row.signals
 
@@ -206,6 +229,39 @@ class TestSpellingVariants:
         assert found["Alex Frick"].proposed == ("Alex Frick",)
 
 
+class TestWhatDiffersIsSaid:
+    """A reviewer reading "Nick McNeal" beside "Nick Mcneal" cannot see the
+    difference. 66 of Mizzou's 645 variant rows differ by case alone, and 357
+    list-literal rows differ from a plain string only by the brackets."""
+
+    @pytest.mark.parametrize(
+        "left, right, expected",
+        [
+            ("Nick McNeal", "Nick Mcneal", br.DIFF_CASE),
+            ("Mark McLaughlin", "Mark Mclaughlin", br.DIFF_CASE),
+            ('["Stanley Schwartz"]', "Stanley Schwartz", br.DIFF_BRACKETS),
+            ("Reneé Dìaz", "Renee Diaz", br.DIFF_ACCENTS),
+            ("Renee-Diaz", "Renee Diaz", br.DIFF_PUNCTUATION),
+            ("Nate Sanford", "Nate Sandford", br.DIFF_SPELLING),
+            ("Ivan Foley", "Ivan Foley", br.DIFF_NONE),
+        ],
+    )
+    def test_the_difference_is_named(self, left, right, expected):
+        assert br.difference_kind(left, right) == expected
+
+    def test_it_reads_the_same_in_either_order(self):
+        assert br.difference_kind("Stanley Schwartz", '["Stanley Schwartz"]') == (
+            br.DIFF_BRACKETS
+        )
+
+    def test_the_candidates_csv_carries_it(self):
+        from pathlib import Path
+
+        source = Path("src/cli/commands/byline_report.py").read_text()
+        assert '"differs_by"' in source
+        assert "br.difference_kind(row.raw, variant)" in source
+
+
 class TestTheQueueOrder:
     def test_worst_first_then_biggest(self):
         rows = [
@@ -215,8 +271,8 @@ class TestTheQueueOrder:
             ("A B, C D", "a.example", "Owner", 900),
         ]
         ordered = [row.raw for row in br.candidates(rows)]
-        assert ordered[0] == '["Stanley Schwartz"]'
         assert ordered[-1] == "Admin"
+        assert '["Stanley Schwartz"]' not in ordered, "a literal is repaired"
         assert "Ivan Foley" not in ordered, "a clean string is not queued"
         assert "A B, C D" not in ordered, "co-authors are not a queue row"
 
@@ -271,6 +327,91 @@ class TestAuthorRecords:
         assert records[-1]["raw_byline"] == '["Stanley Schwartz"]'
 
 
+class TestOwnershipIsAboutCompaniesNotStrings:
+    """126 cross-owner rows on Mizzou held three different things: the same
+    owner spelled two ways, one owner whose name contains a comma split by the
+    report itself, and real parent ownership."""
+
+    @pytest.mark.parametrize(
+        "left, right",
+        [
+            ("Gray Media", "Gray Television"),
+            ("Lancaster Management Inc", "Lancaster Management Inc."),
+            ("News-Press & Gazette Company", "Newspress and Gazette Company"),
+            (
+                "South East Missouri State University",
+                "Southeast Missouri State University",
+            ),
+            ("Faughn Media, LLC", "Faughn Media LLC"),
+        ],
+    )
+    def test_one_owner_spelled_two_ways_is_one_owner(self, left, right):
+        assert br.owner_key(left) == br.owner_key(right)
+
+    def test_two_owners_are_still_two(self):
+        assert br.owner_key("Carter Broadcast Group") != br.owner_key("Carey Media")
+
+    def test_a_parent_is_a_fact_somebody_records(self):
+        """No string comparison reaches it: Missourian Publishing and the
+        University of Missouri are one ownership because somebody says so."""
+        groups = {br.owner_key("Missourian Publishing Association"): "university"}
+        assert br.owner_group("Missourian Publishing Association", groups) == (
+            br.owner_group(
+                "University of Missouri", {**groups, "universitymissouri": "university"}
+            )
+        )
+
+    def test_a_grouped_pair_stops_being_a_cross_owner_row(self):
+        rows = [
+            ("Kellie Houx", "a.example", "Missourian Publishing Association", 40),
+            ("Kellie Houx", "b.example", "University of Missouri", 3),
+        ]
+        ungrouped = br.candidates(rows)
+        assert [r.top_signal for r in ungrouped] == [br.CROSS_OWNER]
+        groups = {
+            br.owner_key("Missourian Publishing Association"): "mizzou",
+            br.owner_key("University of Missouri"): "mizzou",
+        }
+        assert br.candidates(rows, groups) == []
+
+    def test_a_reporter_at_two_unrelated_owners_is_still_asked_about(self):
+        rows = [
+            ("Aaron Beard", "a.example", "Gannett", 30),
+            ("Aaron Beard", "b.example", "Lee Enterprises", 4),
+        ]
+        assert [r.top_signal for r in br.candidates(rows)] == [br.CROSS_OWNER]
+
+
+class TestADecisionIsNotAskedAgain:
+    ROWS = [
+        ("Nate Sandford", "knkx.example", "Cascade", 1),
+        ("Nate Sanford", "knkx.example", "Cascade", 30),
+    ]
+
+    def test_a_decided_string_leaves_the_queue(self):
+        assert [r.raw for r in br.candidates(self.ROWS)] != []
+        decided = {"Nate Sandford": ["Nate Sanford"]}
+        remaining = [r.raw for r in br.candidates(self.ROWS, decisions=decided)]
+        assert "Nate Sandford" not in remaining
+
+    def test_the_reports_count_the_decided_name(self):
+        decided = {"Nate Sandford": ["Nate Sanford"]}
+        report = {r["byline"]: r for r in br.bylines_with_hosts(self.ROWS, decided)}
+        assert "Nate Sandford" not in report
+        assert report["Nate Sanford"]["articles"] == 31
+
+    def test_a_decision_naming_nobody_removes_the_byline(self):
+        rows = [("Admin", "a.example", "Owner", 700)]
+        report = br.bylines_with_hosts(rows, {"Admin": []})
+        assert report == []
+
+    def test_the_records_carry_the_decided_name(self):
+        article_rows = [("a-1", "Nate Sandford", "knkx.example", "Cascade", None, "T")]
+        records = br.author_records(article_rows, {"Nate Sandford": ["Nate Sanford"]})
+        assert records[0]["byline"] == "Nate Sanford"
+        assert records[0]["raw_byline"] == "Nate Sandford"
+
+
 class TestTheReports:
     ROWS = [
         ("Conor Wilson; Moe Clark", "kitsapsun.com", "Gannett", 2),
@@ -311,15 +452,59 @@ class TestTheReports:
         assert report["one.example"]["owner"] == "Owner One"
         assert report["two.example"]["owner"] == "Owner Two"
 
-    def test_the_local_statuses_are_what_the_pipeline_kept(self):
-        """Wire, opinion, obituaries and weather have their own statuses; a
-        byline report over these is a report about local reporting."""
-        assert set(br.LOCAL_STATUSES) == {
-            "enriched",
-            "labeled",
-            "cleaned",
-            "enrichment_skipped",
-        }
+    def test_the_local_statuses_are_what_reached_the_export(self):
+        """`labeled` is not here. Those are classified and not enriched, so
+        they are in no export and nobody has read them: 81,786 of Mizzou's
+        98,210 local articles, carrying 7,156 byline strings of their own."""
+        assert set(br.LOCAL_STATUSES) == {"enriched", "enrichment_skipped"}
+
+
+class TestRepairingListLiterals:
+    """A schema artefact, fixed rather than reviewed."""
+
+    def _session(self, rows):
+        from unittest.mock import MagicMock
+
+        session = MagicMock()
+        session.execute.return_value.fetchall.return_value = rows
+        session.execute.return_value.rowcount = 0
+        return session
+
+    def test_it_counts_what_it_would_write(self):
+        session = self._session([('["Stanley Schwartz"]', 30), ("[]", 188)])
+        result = br.repair_list_literals(session, "ds-1", dry_run=True)
+        assert result["strings"] == 2
+        assert result["articles"] == 218
+
+    def test_a_dry_run_writes_nothing(self):
+        session = self._session([('["Stanley Schwartz"]', 30)])
+        br.repair_list_literals(session, "ds-1", dry_run=True)
+        statements = [str(call.args[0]) for call in session.execute.call_args_list]
+        assert not any("UPDATE articles" in s for s in statements)
+
+    def test_it_writes_the_current_form(self):
+        session = self._session([('["A B", "C D"]', 4)])
+        result = br.repair_list_literals(session, "ds-1")
+        assert result["examples"][0][1] == "A B, C D"
+
+    def test_an_empty_list_clears_the_byline(self):
+        session = self._session([("[]", 188)])
+        result = br.repair_list_literals(session, "ds-1")
+        assert result["examples"][0][1] == ""
+
+    def test_it_repairs_every_status_not_only_the_exported_ones(self):
+        """All 1,716 Mizzou literals sit at `labeled`, outside the export and
+        still wrong. A report reads what was exported; a repair does not."""
+        session = self._session([('["A B"]', 4)])
+        br.repair_list_literals(session, "ds-1")
+        statements = [str(call.args[0]) for call in session.execute.call_args_list]
+        assert not any("a.status = ANY" in s for s in statements)
+
+    def test_a_name_in_brackets_is_left_alone(self):
+        """ "[Not a list" is a name, oddly punctuated."""
+        session = self._session([("[Not a list", 2)])
+        result = br.repair_list_literals(session, "ds-1")
+        assert result["strings"] == 0
 
 
 class TestApplyingADecision:

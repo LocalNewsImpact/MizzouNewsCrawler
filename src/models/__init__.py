@@ -270,6 +270,29 @@ class BylineNormalization(Base):
     articles_updated = Column(Integer, nullable=True)
 
 
+class OwnerGroup(Base):
+    """Which ultimate owner a publisher's owner belongs to.
+
+    See `alembic/versions/b2c3d4e5f6a7`. Spelling variants of one owner are
+    settled by `byline_review.owner_key` and never reach this table; what is
+    here is a fact about companies -- Boone County Journals is owned by
+    Missourian Publishing, and Missourian Publishing and the University of
+    Missouri are ultimately one ownership.
+    """
+
+    __tablename__ = "owner_groups"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    #: The owner as `byline_review.owner_key` reduces it.
+    owner_key = Column(String, nullable=False, unique=True)
+    owner_example = Column(Text, nullable=True)
+    group_key = Column(String, nullable=False, index=True)
+    group_name = Column(Text, nullable=False)
+    note = Column(Text, nullable=True)
+    decided_by = Column(String, nullable=True)
+    decided_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 class ArticleLabel(Base):
     """Versioned article labels with primary and alternate predictions."""
 

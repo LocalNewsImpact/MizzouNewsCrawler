@@ -37,19 +37,27 @@ a desk in another.
 from __future__ import annotations
 
 import ast
+import json
 import re
 import unicodedata
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Iterable
 
-#: Statuses that are "a local story we kept". The pipeline files wire, opinion,
-#: obituaries, weather and the rest under their own statuses, so a byline report
-#: over these is a report about local reporting.
-LOCAL_STATUSES = ("enriched", "labeled", "cleaned", "enrichment_skipped")
+#: The local stories that reached the export. `labeled` is NOT here: those are
+#: classified and not enriched, so they are not in BigQuery and not in anything
+#: anybody has read -- 81,786 of Mizzou's 98,210, carrying 7,156 byline strings
+#: of their own. Reviewing them is reviewing a backlog nobody has published.
+#:
+#: The CLI takes `--statuses` for the other question.
+LOCAL_STATUSES = ("enriched", "enrichment_skipped")
 
-#: Job titles and desk words that ride along after a name. Matched as whole
-#: words: "Fellows" is a surname, "fellow" after a comma is a title.
+#: Job titles and desk words that ride along after a name.
+#:
+#: MOST OF THESE ARE ALSO SURNAMES. Marcus Officer files for fox4kc; there are
+#: people called President, Chief and Coach. So a word from this list never
+#: removes a name on its own -- see `_looks_like_a_title` for the two tests
+#: that do.
 TITLE_WORDS = (
     "reporter",
     "reporters",
@@ -91,6 +99,19 @@ TITLE_WORDS = (
 _TITLE_RE = re.compile(
     r"(?i)(?:^|[\s,;/|-])(" + "|".join(TITLE_WORDS) + r")(?:$|[\s,;/|-])"
 )
+#: Only the phrases. A single ambiguous word is never cut out of a name --
+#: "Marcus Officer" would become "Marcus" -- but "Murrow Fellow" between two
+#: names is a title whatever surrounds it.
+_MULTIWORD_TITLE_RE = re.compile(
+    r"(?i)(?:^|[\s,;/|-])("
+    + "|".join(word for word in TITLE_WORDS if " " in word)
+    + r")(?:$|[\s,;/|-])"
+)
+#: Words that are not names but are not titles either: what is left of a part
+#: once the titles are out is only a name if something is left.
+_TITLE_TOKENS = frozenset(
+    token for word in TITLE_WORDS for token in word.lower().split()
+)
 _SEPARATORS = re.compile(r"\s*(?:,|;|&| and )\s*", re.I)
 _PUBLICATION_RE = re.compile(r"[/|]|\s-\s")
 _CONTACT_RE = re.compile(r"(?i)@|\bwww\.|\.com\b|\.net\b|\.org\b")
@@ -106,8 +127,10 @@ CONTACT_FRAGMENT = "contact_fragment"
 NOT_A_PERSON = "not_a_person"
 CROSS_OWNER = "cross_owner"
 
+#: NOT in `SIGNAL_ORDER`: a list literal is a storage form, not a judgement.
+#: `repair_list_literals` rewrites those rows to the current form, and nobody
+#: is asked about them.
 SIGNAL_ORDER = (
-    LIST_LITERAL,
     SPELLING_VARIANT,
     STRAY_TITLE,
     PUBLICATION_SUFFIX,
@@ -117,7 +140,6 @@ SIGNAL_ORDER = (
 )
 
 SIGNAL_LABELS = {
-    LIST_LITERAL: "Stored as a list literal",
     SPELLING_VARIANT: "One person, several spellings",
     STRAY_TITLE: "Carries a job title",
     PUBLICATION_SUFFIX: "Carries a publication name",
@@ -137,6 +159,8 @@ class BylineRow:
     owners: tuple[str, ...]
     signals: tuple[str, ...] = ()
     proposed: tuple[str, ...] = ()
+    #: A reviewer has said what this string is; it carries their answer.
+    decided: bool = False
     #: The other spellings of the same normalised name, when there are any.
     variants: tuple[str, ...] = ()
 
@@ -197,37 +221,57 @@ def split_names(raw: str) -> list[str]:
         part = _PUBLICATION_RE.split(part)[0].strip()
         if not part:
             continue
-        if _looks_like_a_title(part):
+        if _looks_like_a_title(part) and index > 0:
             # A TITLE AFTER A NAME IS A PART OF ITS OWN and is dropped:
             # "Patrick Fudally, Officer", "Amanda Barnes, Komu 8 Wellness
-            # Coach". A title INSIDE the first part is riding along with the
-            # name -- "Henry Brannan Murrow Fellow Sarah Wolf" -- and dropping
-            # the part there loses both people, so the title comes out and
-            # what is left stands for a reviewer to split.
-            if index > 0:
-                continue
-            part = _strip_titles(part)
-            if not part:
-                continue
+            # Coach".
+            continue
+        # A PHRASE INSIDE A NAME comes out wherever it sits: "Henry Brannan
+        # Murrow Fellow Sarah Wolf" is two people and a title. Single words do
+        # not -- "Marcus Officer" is a person, and cutting the word leaves
+        # "Marcus", who is not him.
+        part = _strip_titles(part)
+        if not part:
+            continue
         names.append(part)
     return names
 
 
 def _strip_titles(part: str) -> str:
-    """The part with its title words removed, spaces collapsed."""
+    """The part with its MULTI-WORD titles removed, spaces collapsed.
+
+    Phrases only: "Henry Brannan Murrow Fellow Sarah Wolf" gives up its title
+    and keeps both people. A single word does not come out of a name, because
+    "Marcus Officer" is a person and "Marcus" is not him.
+    """
     previous = None
     text = f" {part} "
     while previous != text:
         previous = text
-        text = _TITLE_RE.sub(" ", text)
+        text = _MULTIWORD_TITLE_RE.sub(" ", text)
     return " ".join(text.split()).strip(" ,;/|-")
 
 
 def _looks_like_a_title(part: str) -> bool:
-    stripped = part.strip()
+    """Whether a part is a job title rather than a person.
+
+    Two tests, and a word from the list alone satisfies neither:
+
+      every word is a title      "Officer", "Staff Writer", "News Team"
+      a title and a number       "Komu 8 Wellness Coach"
+
+    So "Marcus Officer" and "Dana President" are people, which they are: the
+    first files for fox4kc, and the old rule turned him into "Marcus".
+    """
+    stripped = (part or "").strip()
     if not stripped:
         return False
-    return bool(_TITLE_RE.search(f" {stripped} "))
+    if not _TITLE_RE.search(f" {stripped} "):
+        return False
+    words = [w for w in re.split(r"[^A-Za-z0-9]+", stripped.lower()) if w]
+    if words and all(word in _TITLE_TOKENS or word.isdigit() for word in words):
+        return True
+    return bool(_DIGIT_RE.search(stripped))
 
 
 def _looks_like_contact(part: str) -> bool:
@@ -246,12 +290,129 @@ def normalised_name(name: str) -> str:
     return " ".join(re.sub(r"[^a-z0-9 ]", " ", stripped.lower()).split())
 
 
-def signals_for(row: BylineRow) -> tuple[str, ...]:
-    """Every defect this string shows. A string can show several."""
+#: What separates two spellings of one name, most mechanical first. A reviewer
+#: reading "Nick McNeal" beside "Nick Mcneal" cannot see the difference without
+#: being told which it is -- 66 of Mizzou's 645 variant rows differ by case
+#: alone, and 357 of its list-literal rows differ from a plain string only by
+#: the brackets around it.
+DIFF_BRACKETS = "brackets only"
+DIFF_CASE = "case only"
+DIFF_ACCENTS = "accents only"
+DIFF_PUNCTUATION = "punctuation or spacing only"
+DIFF_SPELLING = "spelling"
+DIFF_NONE = "identical"
+
+
+def difference_kind(left: str, right: str) -> str:
+    """How two byline strings differ, in words."""
+    left = (left or "").strip()
+    right = (right or "").strip()
+    if left == right:
+        return DIFF_NONE
+    unwrapped_left = unwrap_list_literal(left)
+    unwrapped_right = unwrap_list_literal(right)
+    if (unwrapped_left is None) != (unwrapped_right is None):
+        inner = ", ".join(unwrapped_left or unwrapped_right or [])
+        if inner.strip() == (right if unwrapped_left is not None else left).strip():
+            return DIFF_BRACKETS
+    if left.casefold() == right.casefold():
+        return DIFF_CASE
+    strip = lambda text: "".join(  # noqa: E731 - one expression, read in place
+        c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c)
+    )
+    if strip(left).casefold() == strip(right).casefold():
+        return DIFF_ACCENTS
+    if normalised_name(left) == normalised_name(right):
+        return DIFF_PUNCTUATION
+    return DIFF_SPELLING
+
+
+#: Words that say what KIND of company an owner is, not which one. Removed
+#: before two owner strings are compared: "Lancaster Management Inc" and
+#: "Lancaster Management Inc." are one owner, and so are "News-Press & Gazette
+#: Company" and "Newspress and Gazette Company".
+_OWNER_NOISE = frozenset(
+    {
+        "inc",
+        "llc",
+        "llp",
+        "lle",
+        "co",
+        "company",
+        "corp",
+        "corporation",
+        "group",
+        "media",
+        "communications",
+        "publishing",
+        "publishers",
+        "publications",
+        "newspapers",
+        "newspaper",
+        "holdings",
+        "the",
+        "of",
+        "and",
+        "television",
+        "tv",
+        "broadcasting",
+        "enterprises",
+    }
+)
+
+
+def normalised_owner(owner: str) -> str:
+    """An owner string reduced to what two spellings of it share.
+
+    Case, punctuation, "&" against "and", and the company-kind words above all
+    go. What is left is the name: `gray`, `lancaster`, `newspress gazette`.
+
+    NOT a claim that two owners are the same company -- it is a claim that two
+    STRINGS are the same owner. A parent and its subsidiary have different
+    names and are joined by `owner_groups`, which a person writes.
+    """
+    text = unicodedata.normalize("NFKD", owner or "")
+    text = "".join(c for c in text if not unicodedata.combining(c))
+    text = text.replace("&", " and ").lower()
+    words = [w for w in re.split(r"[^a-z0-9]+", text) if w]
+    kept = [w for w in words if w not in _OWNER_NOISE]
+    return " ".join(kept or words)
+
+
+def owner_key(owner: str) -> str:
+    """`normalised_owner` with the spaces out, which is what two spellings of
+    one owner share when the difference is inside a word: "News-Press &
+    Gazette" against "Newspress and Gazette", "South East Missouri State"
+    against "Southeast Missouri State".
+    """
+    return normalised_owner(owner).replace(" ", "")
+
+
+def owner_group(owner: str, groups: dict[str, str] | None = None) -> str:
+    """The ultimate owner of a publication, for the cross-owner test.
+
+    `groups` maps a normalised owner to the group it belongs to -- Missourian
+    Publishing and the University of Missouri are one ownership, and Boone
+    County Journals is now Missourian Publishing. Absent a mapping, an owner is
+    its own group.
+    """
+    key = owner_key(owner)
+    if groups:
+        return groups.get(key, key)
+    return key
+
+
+def signals_for(
+    row: BylineRow, owner_groups: dict[str, str] | None = None
+) -> tuple[str, ...]:
+    """Every defect this string shows. A string can show several.
+
+    A list literal is not among them: it is how September 2025 wrote a list of
+    co-authors, the current form is `", ".join(names)`, and turning one into
+    the other takes no judgement. `repair_list_literals` does it.
+    """
     raw = row.raw or ""
     found: list[str] = []
-    if unwrap_list_literal(raw) is not None:
-        found.append(LIST_LITERAL)
     if _TITLE_RE.search(f" {raw} "):
         found.append(STRAY_TITLE)
     if _PUBLICATION_RE.search(raw):
@@ -266,13 +427,18 @@ def signals_for(row: BylineRow) -> tuple[str, ...]:
         found.append(NOT_A_PERSON)
     if _DIGIT_RE.search(raw) and NOT_A_PERSON not in found:
         found.append(NOT_A_PERSON)
-    if len(row.owners) > 1:
+    # Ultimate owners, not owner strings: "Gray Media" and "Gray Television"
+    # are one company, and so are Missourian Publishing and the University of
+    # Missouri once somebody has said so.
+    if len({owner_group(owner, owner_groups) for owner in row.owners}) > 1:
         found.append(CROSS_OWNER)
     return tuple(found)
 
 
 def review_rows(
     rows: Iterable[tuple[str, str, str, int]],
+    owner_groups: dict[str, str] | None = None,
+    decisions: dict[str, list[str]] | None = None,
 ) -> list[BylineRow]:
     """Build the reviewable rows from `(byline, host, owner, articles)`.
 
@@ -318,12 +484,21 @@ def review_rows(
             for other in siblings:
                 if other.raw != row.raw:
                     variants[row.raw].add(other.raw)
-    for a_raw, b_raw in _near_pairs(single):
+    for a_raw, b_raw in _near_pairs(single, owner_groups):
         variants[a_raw].add(b_raw)
         variants[b_raw].add(a_raw)
 
     for row in built:
-        found = list(signals_for(row))
+        decided = (decisions or {}).get(row.raw)
+        if decided is not None:
+            # SOMEBODY HAS ANSWERED THIS ONE. It carries the names they gave
+            # and no signals: a queue that keeps asking about a decided string
+            # is a queue nobody finishes.
+            row.signals = ()
+            row.proposed = tuple(decided)
+            row.decided = True
+            continue
+        found = list(signals_for(row, owner_groups))
         names = split_names(row.raw)
         if variants.get(row.raw):
             found.append(SPELLING_VARIANT)
@@ -341,7 +516,7 @@ def review_rows(
 NEAR_MATCH = 0.88
 
 
-def _near_pairs(single: dict[str, BylineRow]):
+def _near_pairs(single: dict[str, BylineRow], groups: dict[str, str] | None = None):
     """Pairs of one-name strings close enough to be the same person.
 
     Blocked on the OWNER and on the first letter of the name: two reporters at
@@ -356,7 +531,7 @@ def _near_pairs(single: dict[str, BylineRow]):
         if not key:
             continue
         for owner in row.owners or ("(unknown)",):
-            blocks[(owner, key[:1])].append((raw, key))
+            blocks[(owner_group(owner, groups), key[:1])].append((raw, key))
     seen: set[tuple[str, str]] = set()
     for members in blocks.values():
         for index, (a_raw, a_key) in enumerate(members):
@@ -371,14 +546,20 @@ def _near_pairs(single: dict[str, BylineRow]):
                     yield pair
 
 
-def candidates(rows: Iterable[tuple[str, str, str, int]]) -> list[BylineRow]:
+def candidates(
+    rows: Iterable[tuple[str, str, str, int]],
+    owner_groups: dict[str, str] | None = None,
+    decisions: dict[str, list[str]] | None = None,
+) -> list[BylineRow]:
     """The rows a person should look at, worst first.
 
     Ordered by which defect, then by how many articles carry it: a mechanical
     repair that clears 700 rows is worth more of a reviewer's attention than
     one that clears one.
     """
-    ranked = [row for row in review_rows(rows) if row.needs_review]
+    ranked = [
+        row for row in review_rows(rows, owner_groups, decisions) if row.needs_review
+    ]
     order = {signal: index for index, signal in enumerate(SIGNAL_ORDER)}
 
     def rank(row: BylineRow) -> tuple[int, int, str]:
@@ -414,8 +595,12 @@ _APPLY_SQL = """
      WHERE cl.id = a.candidate_link_id
        AND cl.dataset_id = :dataset_id
        AND a.author = :raw_byline
-       AND a.status = ANY(:statuses)
 """
+
+#: Added when the caller names statuses. The literal repair does not: it fixes
+#: a storage form wherever it is, and all 1,716 Mizzou rows sit outside the
+#: export at `labeled`.
+_APPLY_STATUS_CLAUSE = "       AND a.status = ANY(:statuses)\n"
 
 
 def dataset_rows(session, dataset_id: str, statuses=LOCAL_STATUSES):
@@ -440,15 +625,16 @@ def apply_decision(
     """
     from sqlalchemy import text
 
-    result = session.execute(
-        text(_APPLY_SQL),
-        {
-            "author": rendered(names),
-            "dataset_id": dataset_id,
-            "raw_byline": raw_byline,
-            "statuses": list(statuses),
-        },
-    )
+    sql = _APPLY_SQL
+    params: dict = {
+        "author": rendered(names),
+        "dataset_id": dataset_id,
+        "raw_byline": raw_byline,
+    }
+    if statuses:
+        sql = sql.rstrip() + "\n" + _APPLY_STATUS_CLAUSE
+        params["statuses"] = list(statuses)
+    result = session.execute(text(sql), params)
     return int(getattr(result, "rowcount", 0) or 0)
 
 
@@ -478,7 +664,9 @@ def article_rows(session, dataset_id: str, statuses=LOCAL_STATUSES):
     return [tuple(row) for row in result]
 
 
-def author_records(article_rows_) -> list[dict]:
+def author_records(
+    article_rows_, decisions: dict[str, list[str]] | None = None
+) -> list[dict]:
     """ONE RECORD PER PERSON PER ARTICLE.
 
     A co-authored byline is a list of people, and each of them wrote that
@@ -494,7 +682,10 @@ def author_records(article_rows_) -> list[dict]:
     names_for: dict[str, tuple[str, ...]] = {}
     for article_id, raw, host, owner, publish_date, title in article_rows_:
         if raw not in names_for:
-            names_for[raw] = tuple(split_names(raw))
+            decided = (decisions or {}).get(raw)
+            names_for[raw] = (
+                tuple(decided) if decided is not None else tuple(split_names(raw))
+            )
         names = names_for[raw]
         for position, name in enumerate(names, start=1):
             out.append(
@@ -514,7 +705,149 @@ def author_records(article_rows_) -> list[dict]:
     return out
 
 
-def bylines_with_hosts(rows) -> list[dict]:
+def load_decisions(session, dataset_id: str) -> dict[str, list[str]]:
+    """`{raw_byline: canonical_names}` for one dataset's decided strings.
+
+    A decided string is not asked about again and is counted as the people it
+    names, whatever the article still says: the decision is the answer, and
+    applying it to `articles.author` is how the record catches up.
+    """
+    from sqlalchemy import text
+
+    try:
+        rows = session.execute(
+            text(
+                "SELECT raw_byline, canonical_names FROM byline_normalizations"
+                " WHERE dataset_id = :dataset_id"
+            ),
+            {"dataset_id": dataset_id},
+        ).fetchall()
+    except Exception:  # pragma: no cover - table absent on an old database
+        return {}
+    decided: dict[str, list[str]] = {}
+    for raw, names in rows:
+        if isinstance(names, str):
+            try:
+                names = json.loads(names)
+            except ValueError:
+                continue
+        decided[raw] = [str(name) for name in (names or [])]
+    return decided
+
+
+def load_owner_groups(session) -> dict[str, str]:
+    """`{owner_key: group_key}` from `owner_groups`, or {} when there are none.
+
+    Soft on purpose: a review that cannot read the table asks about a few more
+    cross-owner rows, which is a worse report and not a broken one.
+    """
+    from sqlalchemy import text
+
+    try:
+        rows = session.execute(
+            text("SELECT owner_key, group_key FROM owner_groups")
+        ).fetchall()
+    except Exception:  # pragma: no cover - table absent on an old database
+        return {}
+    return {row[0]: row[1] for row in rows}
+
+
+def repair_list_literals(
+    session, dataset_id: str, statuses=None, dry_run: bool = False
+) -> dict:
+    """Rewrite `["A", "B"]` bylines to the current form.
+
+    A schema artefact, not a decision: extraction writes co-authors as
+    `", ".join(names)` and a September 2025 path wrote `str(list)` instead.
+    1,716 Mizzou articles carry it. `[]` names nobody and becomes an empty
+    byline rather than the two characters.
+
+    EVERY STATUS by default, unlike the reports. The reports read what reached
+    the export; this repairs a storage form, and all 1,716 of those rows are at
+    `labeled` -- outside the export and still wrong.
+    """
+    from sqlalchemy import text
+
+    status_clause = " AND a.status = ANY(:statuses)" if statuses else ""
+    params: dict = {"dataset_id": dataset_id}
+    if statuses:
+        params["statuses"] = list(statuses)
+    found = session.execute(
+        text(
+            "SELECT a.author, count(*) FROM articles a"
+            " JOIN candidate_links cl ON cl.id = a.candidate_link_id"
+            " WHERE cl.dataset_id = :dataset_id"
+            f"{status_clause}"
+            " AND a.author LIKE '[%]' GROUP BY 1 ORDER BY 2 DESC"
+        ),
+        params,
+    ).fetchall()
+
+    strings = 0
+    articles = 0
+    examples: list[tuple[str, str, int]] = []
+    for raw, count in found:
+        if unwrap_list_literal(raw) is None:
+            continue  # "[Not a list" is a name, oddly punctuated
+        after = rendered(split_names(raw))
+        strings += 1
+        articles += int(count)
+        if len(examples) < 5:
+            examples.append((raw, after, int(count)))
+        if not dry_run:
+            apply_decision(session, dataset_id, raw, split_names(raw), statuses)
+
+    return {"strings": strings, "articles": articles, "examples": examples}
+
+
+def owner_grouping(rows, groups: dict[str, str] | None = None) -> list[dict]:
+    """Every owner string in a dataset and the ultimate owner it lands under.
+
+    The review surface for ownership: a row whose `group_name` is its own name
+    is ungrouped, and two rows sharing a `group_key` are treated as one company
+    by the cross-owner test. Spelling variants arrive already merged -- what is
+    left for a person is the parents.
+    """
+    seen: dict[str, dict] = {}
+    for _raw, host, owner, articles in rows:
+        if not owner:
+            continue
+        key = owner_key(owner)
+        entry = seen.setdefault(
+            key,
+            {
+                "owner_key": key,
+                "owner_forms": set(),
+                "hosts": set(),
+                "articles": 0,
+                "group_key": owner_group(owner, groups),
+            },
+        )
+        entry["owner_forms"].add(owner)
+        entry["articles"] += int(articles or 0)
+        if host:
+            entry["hosts"].add(host)
+    out = [
+        {
+            "owner": sorted(entry["owner_forms"])[0],
+            "owner_forms": " | ".join(sorted(entry["owner_forms"])),
+            "spellings": len(entry["owner_forms"]),
+            "hosts": len(entry["hosts"]),
+            "host_list": " | ".join(sorted(entry["hosts"])),
+            "articles": entry["articles"],
+            "owner_key": entry["owner_key"],
+            "group_key": entry["group_key"],
+            "grouped": entry["group_key"] != entry["owner_key"],
+        }
+        for entry in seen.values()
+    ]
+    out.sort(key=lambda e: (-e["articles"], e["owner"]))
+    return out
+
+
+def bylines_with_hosts(
+    rows, decisions: dict[str, list[str]] | None = None
+) -> list[dict]:
     """REPORT ONE: every unique local byline and the hosts it appears on.
 
     The unit is the PERSON, not the string: a byline naming three reporters
@@ -523,7 +856,7 @@ def bylines_with_hosts(rows) -> list[dict]:
     different owners is either filing for both or is not a local byline at all.
     """
     people: dict[str, dict] = {}
-    for row in review_rows(rows):
+    for row in review_rows(rows, decisions=decisions):
         for name in row.proposed:
             entry = people.setdefault(
                 name,
@@ -546,9 +879,9 @@ def bylines_with_hosts(rows) -> list[dict]:
                 "byline": entry["byline"],
                 "articles": entry["articles"],
                 "hosts": len(entry["hosts"]),
-                "host_list": ", ".join(sorted(entry["hosts"])),
+                "host_list": " | ".join(sorted(entry["hosts"])),
                 "owners": len(entry["owners"]),
-                "owner_list": ", ".join(sorted(entry["owners"])),
+                "owner_list": " | ".join(sorted(entry["owners"])),
                 "raw_forms": len(entry["raw_forms"]),
             }
         )
@@ -556,7 +889,9 @@ def bylines_with_hosts(rows) -> list[dict]:
     return out
 
 
-def hosts_with_bylines(rows) -> list[dict]:
+def hosts_with_bylines(
+    rows, decisions: dict[str, list[str]] | None = None
+) -> list[dict]:
     """REPORT TWO: every host and how many unique bylines it carries.
 
     Counted over people, so a host that files "A, B" and "A" has two bylines
@@ -573,7 +908,10 @@ def hosts_with_bylines(rows) -> list[dict]:
         if not host:
             continue
         if raw not in names_for:
-            names_for[raw] = tuple(split_names(raw))
+            decided = (decisions or {}).get(raw)
+            names_for[raw] = (
+                tuple(decided) if decided is not None else tuple(split_names(raw))
+            )
         entry = hosts.setdefault(
             host, {"host": host, "articles": 0, "bylines": set(), "owners": set()}
         )
@@ -586,7 +924,7 @@ def hosts_with_bylines(rows) -> list[dict]:
             "host": entry["host"],
             "unique_bylines": len(entry["bylines"]),
             "articles": entry["articles"],
-            "owner": ", ".join(sorted(entry["owners"])),
+            "owner": " | ".join(sorted(entry["owners"])),
         }
         for entry in hosts.values()
     ]
