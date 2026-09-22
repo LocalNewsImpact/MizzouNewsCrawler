@@ -378,7 +378,14 @@ def candidates(rows: Iterable[tuple[str, str, str, int]]) -> list[BylineRow]:
     """
     ranked = [row for row in review_rows(rows) if row.needs_review]
     order = {signal: index for index, signal in enumerate(SIGNAL_ORDER)}
-    ranked.sort(key=lambda r: (order.get(r.top_signal, 99), -r.articles, r.raw))
+
+    def rank(row: BylineRow) -> tuple[int, int, str]:
+        # `needs_review` is what put the row here, so `top_signal` is set --
+        # but it is `str | None` in general and the default keeps it honest.
+        signal = row.top_signal
+        return (order[signal] if signal else 99, -row.articles, row.raw)
+
+    ranked.sort(key=rank)
     return ranked
 
 

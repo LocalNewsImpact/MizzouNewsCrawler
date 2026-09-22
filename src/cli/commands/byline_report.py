@@ -117,8 +117,8 @@ def handle_byline_report_command(args) -> int:
             found = found[: args.limit]
         out = [
             {
-                "signal": row.top_signal,
-                "what": br.SIGNAL_LABELS.get(row.top_signal, ""),
+                "signal": row.top_signal or "",
+                "what": br.SIGNAL_LABELS.get(row.top_signal or "", ""),
                 "raw_byline": row.raw,
                 "articles": row.articles,
                 "proposed": br.rendered(row.proposed),
