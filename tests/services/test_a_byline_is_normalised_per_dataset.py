@@ -20,6 +20,8 @@ reaches only the dataset it was made in.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from src.services import byline_review as br
@@ -529,3 +531,102 @@ class TestApplyingADecision:
         """ "Admin" names nobody: the byline is emptied, not set to "[]"."""
         assert br.rendered([]) == ""
         assert br.rendered(["A", " ", "B"]) == "A, B"
+
+
+class TestTheQueueIsComputedForTheReviewer:
+    """The signals live here and the person who acts on them works in datadesk,
+    a different repository reading the same database. Computing the queue into
+    a table keeps the rules in one place and keeps 7,921 strings from being
+    scored inside a web request."""
+
+    def _session(self, rows):
+        """A session that answers each query with its own shape.
+
+        One canned answer for every `execute` made the owner-group loader read
+        `(byline, host, owner, articles)` as `(owner_key, group_key)`.
+        """
+        from unittest.mock import MagicMock
+
+        def execute(statement, params=None):
+            sql = str(statement)
+            result = MagicMock()
+            if "FROM owner_groups" in sql or "FROM byline_normalizations" in sql:
+                answer: list = []
+            elif "FROM articles" in sql:
+                answer = list(rows)
+            else:
+                answer = []
+            result.fetchall.return_value = answer
+            result.__iter__ = lambda self: iter(answer)
+            return result
+
+        session = MagicMock()
+        session.execute.side_effect = execute
+        return session
+
+    def test_a_dry_run_writes_nothing(self):
+        session = self._session([("Admin", "a.example", "Owner", 700)])
+        result = br.refresh_candidates(session, "ds-1", dry_run=True)
+        assert result["written"] == 0
+        statements = [str(call.args[0]) for call in session.execute.call_args_list]
+        assert not any("INSERT INTO byline_review_candidates" in s for s in statements)
+
+    def test_it_replaces_the_dataset_wholesale(self):
+        """A decided string stops being written rather than lingering as a row
+        nobody can act on."""
+        session = self._session([("Admin", "a.example", "Owner", 700)])
+        br.refresh_candidates(session, "ds-1")
+        statements = [str(call.args[0]) for call in session.execute.call_args_list]
+        deletes = [s for s in statements if "DELETE FROM byline_review_candidates" in s]
+        assert deletes and "dataset_id = :dataset_id" in deletes[0]
+
+    def test_a_row_carries_what_the_page_has_to_show(self):
+        session = self._session([("Admin", "a.example", "Owner", 700)])
+        br.refresh_candidates(session, "ds-1")
+        inserts = [
+            call.args[1]
+            for call in session.execute.call_args_list
+            if "INSERT INTO byline_review_candidates" in str(call.args[0])
+        ]
+        assert len(inserts) == 1
+        row = inserts[0]
+        assert row["raw"] == "Admin"
+        assert row["signal"] == br.NOT_A_PERSON
+        assert row["label"] == br.SIGNAL_LABELS[br.NOT_A_PERSON]
+        assert row["articles"] == 700
+        assert json.loads(row["hosts"]) == ["a.example"]
+        assert json.loads(row["differs_by"]) == []
+
+    def test_the_difference_is_written_beside_each_variant(self):
+        session = self._session(
+            [
+                ("Nate Sanford", "a.example", "Owner", 30),
+                ("Nate Sandford", "a.example", "Owner", 1),
+            ]
+        )
+        br.refresh_candidates(session, "ds-1")
+        rows = {
+            call.args[1]["raw"]: call.args[1]
+            for call in session.execute.call_args_list
+            if "INSERT INTO byline_review_candidates" in str(call.args[0])
+        }
+        assert json.loads(rows["Nate Sandford"]["variants"]) == ["Nate Sanford"]
+        assert json.loads(rows["Nate Sandford"]["differs_by"]) == [br.DIFF_SPELLING]
+
+    def test_housekeeping_refreshes_it(self):
+        from pathlib import Path
+
+        yaml = pytest.importorskip("yaml")
+        spec = yaml.safe_load(Path("k8s/argo/housekeeping-workflow.yaml").read_text())
+        templates = {t["name"]: t for t in spec["spec"]["templates"]}
+        steps = [
+            step
+            for group in templates["housekeeping"]["steps"]
+            for step in group
+            if step["name"] == "refresh-byline-queue"
+        ]
+        assert steps, "no refresh step"
+        assert steps[0]["continueOn"] == {"failed": True}
+        source = templates["refresh-byline-queue-step"]["script"]["source"]
+        assert "refresh_candidates" in source
+        assert "SELECT id FROM datasets" in source, "every dataset, not one"

@@ -119,6 +119,10 @@ UNGATED_BY_DESIGN = {
     # so it cannot start a stage's work; and gated, a link ingested on a quiet
     # night would go unchecked until a night that happened to have rework.
     "check-ingested",
+    # The byline queue is a count of the corpus as it is now, not work a
+    # review decision rewound. Behind the gate it would refresh only on nights
+    # that happen to have rework.
+    "refresh-byline-queue",
 }
 
 

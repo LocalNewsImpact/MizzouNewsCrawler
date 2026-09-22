@@ -75,6 +75,9 @@ def test_the_stages_run_in_pipeline_order(steps):
         # Records the URL rules' and storysniffer's view of ingested links. It
         # writes no status, so it cannot disturb the order below.
         "check-ingested",
+        # Recomputes the byline review queue. Writes no article status, so it
+        # cannot disturb the order below.
+        "refresh-byline-queue",
         "anything-owed",
         # How many extraction workers the night needs, computed from the
         # rework backlog. The extract step fans out over them.

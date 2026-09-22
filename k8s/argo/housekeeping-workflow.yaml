@@ -115,6 +115,21 @@ spec:
         continueOn:
           failed: true
 
+    # 0c. Recompute the byline review queue for every dataset.
+    #
+    # The signals live in `byline_review` and the person who acts on them works
+    # in datadesk, which reads `byline_review_candidates`. Computed here as a
+    # batch -- 7,921 strings in under a second -- rather than inside a web
+    # request, and wholesale, so a decided string stops being offered.
+    #
+    # Ahead of the gate with the other maintenance, and `continueOn` for the
+    # same reason: a queue that failed to refresh must not stop the
+    # carry-through.
+    - - name: refresh-byline-queue
+        template: refresh-byline-queue-step
+        continueOn:
+          failed: true
+
     # 1. Is anything owed? A run with nothing to carry stops here.
     - - name: anything-owed
         template: anything-owed-step
@@ -658,6 +673,40 @@ spec:
         limits:
           cpu: 500m
           memory: 512Mi
+
+  - name: refresh-byline-queue-step
+    metadata:
+      labels:
+        stage: maintenance
+        housekeeping: "true"
+    script:
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:${PROCESSOR_TAG}
+      imagePullPolicy: IfNotPresent
+      command: [python]
+      source: |
+        # Every dataset: the queue is per dataset and a corpus nobody is
+        # working this week still earns a fresh count.
+        from sqlalchemy import text
+        from src.models.database import DatabaseManager
+        from src.services.byline_review import refresh_candidates
+        db = DatabaseManager()
+        with db.get_session() as session:
+            datasets = [
+                row[0]
+                for row in session.execute(text("SELECT id FROM datasets")).fetchall()
+            ]
+            for dataset_id in datasets:
+                result = refresh_candidates(session, dataset_id)
+                session.commit()
+                print(f"{dataset_id}: {result['candidates']}")
+      env: *db_env
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits:
+          cpu: 500m
+          memory: 1Gi
 
   - name: check-ingested-step
     metadata:

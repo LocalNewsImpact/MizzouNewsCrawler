@@ -9,6 +9,8 @@ stages of the same work:
     bylines     every unique local byline, and the hosts it appears on
     hosts       every host, and how many unique bylines it carries
     owners      every owner string, its spellings, and its ultimate owner
+    refresh     recompute the queue into `byline_review_candidates`, which is
+                what datadesk's review page reads
 
 The reports resolve through `byline_normalizations`: a string a reviewer has
 decided about is counted as the person it names, not as the string. Undecided
@@ -46,6 +48,7 @@ def add_byline_report_parser(subparsers) -> argparse.ArgumentParser:
             "bylines",
             "hosts",
             "owners",
+            "refresh",
             "apply",
             "fix-literals",
         ),
@@ -104,6 +107,21 @@ def handle_byline_report_command(args) -> int:
     # the export and still wrong.
     statuses = tuple(args.statuses) if args.statuses else None
     with db.get_session() as session:
+        if args.kind == "refresh":
+            result = br.refresh_candidates(
+                session,
+                dataset_id,
+                statuses or br.LOCAL_STATUSES,
+                dry_run=args.dry_run,
+            )
+            if not args.dry_run:
+                session.commit()
+            print(
+                f"candidates: {result['candidates']}"
+                f"{' (dry run)' if args.dry_run else ' written'}"
+            )
+            return 0
+
         if args.kind == "fix-literals":
             repaired = br.repair_list_literals(
                 session, dataset_id, statuses=statuses, dry_run=args.dry_run
