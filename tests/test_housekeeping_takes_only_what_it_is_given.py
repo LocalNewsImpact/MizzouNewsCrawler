@@ -119,6 +119,11 @@ UNGATED_BY_DESIGN = {
     # so it cannot start a stage's work; and gated, a link ingested on a quiet
     # night would go unchecked until a night that happened to have rework.
     "check-ingested",
+    # A byline decision is owed to the article, not to `pipeline_rework`: no
+    # review rewound a status, so no row names it. Behind the gate a decision
+    # made on a quiet week would sit unapplied until a night that happened to
+    # have rework.
+    "apply-byline-decisions",
     # The byline queue is a count of the corpus as it is now, not work a
     # review decision rewound. Behind the gate it would refresh only on nights
     # that happen to have rework.

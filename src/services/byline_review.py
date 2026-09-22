@@ -38,11 +38,14 @@ from __future__ import annotations
 
 import ast
 import json
+import logging
 import re
 import unicodedata
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Iterable
+
+logger = logging.getLogger(__name__)
 
 #: The local stories that reached the export. `labeled` is NOT here: those are
 #: classified and not enriched, so they are not in BigQuery and not in anything
@@ -995,3 +998,54 @@ def rendered(names: Iterable[str]) -> str:
     string "[]".
     """
     return ", ".join(name.strip() for name in names if name and name.strip())
+
+
+def apply_pending(session, dataset_id: str, dry_run: bool = False) -> dict:
+    """Write every undecided-but-unapplied decision onto the dataset's articles.
+
+    A decision is not finished when it is recorded. `articles.author` is the
+    permanent record, and until the names reach it the correction exists only in
+    a table nothing downstream reads -- the BigQuery export, the byline reports
+    and anybody querying the corpus all still see the parser's string.
+
+    `applied_at IS NULL` is the whole selector, so this is safe to run every
+    night: a decision applied last night is not written again, and a decision
+    re-made in the console (which clears `applied_at`) is picked up the next
+    night without anybody asking for it.
+
+    Returns `{"decisions": n, "articles": n}`. Commits nothing -- the caller
+    owns the transaction, because the workflow step applies every dataset and a
+    commit per dataset is what keeps one dataset's failure from discarding the
+    ones before it.
+    """
+    from sqlalchemy import text
+
+    pending = session.execute(
+        text(
+            "SELECT id, raw_byline, canonical_names FROM byline_normalizations"
+            " WHERE dataset_id = :dataset_id AND applied_at IS NULL"
+        ),
+        {"dataset_id": dataset_id},
+    ).fetchall()
+
+    written = 0
+    for row in pending:
+        names = row[2]
+        if isinstance(names, str):
+            names = json.loads(names)
+        if dry_run:
+            logger.info("would write %r over %r", rendered(names), row[1])
+            continue
+        count = apply_decision(session, dataset_id, row[1], names)
+        # Stamped even when it wrote nothing. Zero articles is the normal
+        # outcome for a string whose articles a previous run already fixed, and
+        # leaving `applied_at` null would re-run it every night forever.
+        session.execute(
+            text(
+                "UPDATE byline_normalizations SET applied_at = CURRENT_TIMESTAMP,"
+                " articles_updated = :n WHERE id = :id"
+            ),
+            {"n": count, "id": row[0]},
+        )
+        written += count
+    return {"decisions": len(pending), "articles": written}

@@ -125,6 +125,22 @@ spec:
     # Ahead of the gate with the other maintenance, and `continueOn` for the
     # same reason: a queue that failed to refresh must not stop the
     # carry-through.
+    # A reviewer's byline decisions, onto the articles carrying them.
+    #
+    # BEFORE the refresh below, in that order: a decision is applied and the
+    # queue is then recomputed from a corpus that already carries it, so the
+    # count a reviewer opens in the morning is of what is still wrong. The
+    # other order leaves a string in the queue for a night after it was fixed.
+    #
+    # `applied_at IS NULL` is the whole selector, so a nightly run is
+    # idempotent: last night's decisions are not written again, and a decision
+    # re-made in the console (which clears the stamp) is picked up the next
+    # night without anybody asking.
+    - - name: apply-byline-decisions
+        template: apply-byline-decisions-step
+        continueOn:
+          failed: true
+
     - - name: refresh-byline-queue
         template: refresh-byline-queue-step
         continueOn:
@@ -665,6 +681,44 @@ spec:
         from src.services.wire_detection.reclaim import reclaim_stranded
         moved = reclaim_stranded(DatabaseManager().engine)
         print(f"reclaimed {moved}")
+      env: *db_env
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+
+  - name: apply-byline-decisions-step
+    metadata:
+      labels:
+        stage: maintenance
+        housekeeping: "true"
+    script:
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:${PROCESSOR_TAG}
+      imagePullPolicy: IfNotPresent
+      command: [python]
+      source: |
+        # A commit per dataset, so one dataset failing does not discard the
+        # writes made for the ones before it.
+        from sqlalchemy import text
+        from src.models.database import DatabaseManager
+        from src.services.byline_review import apply_pending
+        db = DatabaseManager()
+        with db.get_session() as session:
+            datasets = [
+                row[0]
+                for row in session.execute(text("SELECT id FROM datasets")).fetchall()
+            ]
+            for dataset_id in datasets:
+                result = apply_pending(session, dataset_id)
+                session.commit()
+                if result["decisions"]:
+                    print(
+                        f"{dataset_id}: {result['decisions']} decisions, "
+                        f"{result['articles']} articles"
+                    )
       env: *db_env
       resources:
         requests:

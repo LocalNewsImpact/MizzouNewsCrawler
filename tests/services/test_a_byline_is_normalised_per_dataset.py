@@ -630,3 +630,138 @@ class TestTheQueueIsComputedForTheReviewer:
         source = templates["refresh-byline-queue-step"]["script"]["source"]
         assert "refresh_candidates" in source
         assert "SELECT id FROM datasets" in source, "every dataset, not one"
+
+
+class TestADecisionReachesTheArticle:
+    """A decision is not finished when it is recorded.
+
+    `articles.author` is the permanent record, and until the names reach it the
+    correction exists only in a table nothing downstream reads -- the BigQuery
+    export, the byline reports and anybody querying the corpus all still see the
+    parser's string. Housekeeping applies them, so a decision made in the
+    console reaches the corpus overnight without anybody running a command.
+    """
+
+    def _session(self, pending):
+        """A session whose first SELECT returns the undecided-but-unapplied
+        rows, and whose writes report one row each."""
+        from unittest.mock import MagicMock
+
+        session = MagicMock()
+        calls = []
+
+        def execute(statement, params=None):
+            text = str(statement)
+            calls.append((text, params))
+            result = MagicMock()
+            if "SELECT id, raw_byline" in text:
+                result.fetchall.return_value = pending
+            else:
+                result.rowcount = 1
+            return result
+
+        session.execute.side_effect = execute
+        session.calls = calls
+        return session
+
+    def test_it_writes_each_pending_decision(self):
+        session = self._session(
+            [("n-1", '["Stan S"]', ["Stan S"]), ("n-2", "Jon Smtih", ["Jon Smith"])]
+        )
+        result = br.apply_pending(session, "ds-1")
+        assert result["decisions"] == 2
+        assert result["articles"] == 2
+
+    def test_it_takes_only_what_has_not_been_applied(self):
+        """So a nightly run is idempotent: last night's decisions are not
+        written again."""
+        session = self._session([])
+        br.apply_pending(session, "ds-1")
+        select = session.calls[0][0]
+        assert "applied_at IS NULL" in select
+        assert "dataset_id = :dataset_id" in select
+
+    def test_it_stamps_what_it_applied(self):
+        session = self._session([("n-1", "Jon Smtih", ["Jon Smith"])])
+        br.apply_pending(session, "ds-1")
+        stamps = [c for c in session.calls if "SET applied_at" in c[0]]
+        assert len(stamps) == 1
+        assert stamps[0][1] == {"n": 1, "id": "n-1"}
+
+    def test_a_decision_that_wrote_nothing_is_still_stamped(self):
+        """Zero articles is the normal outcome for a string a previous run
+        already fixed. Leaving the stamp null re-runs it every night forever."""
+        from unittest.mock import MagicMock
+
+        session = MagicMock()
+        calls = []
+
+        def execute(statement, params=None):
+            text = str(statement)
+            calls.append((text, params))
+            result = MagicMock()
+            if "SELECT id, raw_byline" in text:
+                result.fetchall.return_value = [("n-1", "Jon Smtih", ["Jon Smith"])]
+            else:
+                result.rowcount = 0
+            return result
+
+        session.execute.side_effect = execute
+        br.apply_pending(session, "ds-1")
+        assert any("SET applied_at" in text for text, _ in calls)
+
+    def test_names_stored_as_json_text_are_read(self):
+        """sqlite hands a JSON column back as text; Postgres hands back a
+        list. Both are the same decision."""
+        session = self._session([("n-1", "Jon Smtih", '["Jon Smith"]')])
+        assert br.apply_pending(session, "ds-1")["articles"] == 1
+        writes = [c for c in session.calls if "UPDATE articles" in c[0]]
+        assert writes and writes[0][1]["author"] == "Jon Smith"
+
+    def test_a_dry_run_writes_nothing(self):
+        session = self._session([("n-1", "Jon Smtih", ["Jon Smith"])])
+        result = br.apply_pending(session, "ds-1", dry_run=True)
+        assert result["articles"] == 0
+        assert not [c for c in session.calls if "UPDATE" in c[0]]
+
+    def test_it_commits_nothing_itself(self):
+        """The caller owns the transaction: housekeeping commits per dataset, so
+        one dataset failing does not discard the writes made before it."""
+        session = self._session([("n-1", "Jon Smtih", ["Jon Smith"])])
+        br.apply_pending(session, "ds-1")
+        session.commit.assert_not_called()
+
+    def test_housekeeping_applies_them(self):
+        from pathlib import Path
+
+        yaml = pytest.importorskip("yaml")
+        spec = yaml.safe_load(Path("k8s/argo/housekeeping-workflow.yaml").read_text())
+        templates = {t["name"]: t for t in spec["spec"]["templates"]}
+        groups = templates["housekeeping"]["steps"]
+        names = [step["name"] for group in groups for step in group]
+        assert "apply-byline-decisions" in names
+        # BEFORE the refresh: the queue is then recomputed from a corpus that
+        # already carries the decision, so the count a reviewer opens in the
+        # morning is of what is still wrong.
+        assert names.index("apply-byline-decisions") < names.index(
+            "refresh-byline-queue"
+        )
+        # And before the gate, like the rest of the maintenance.
+        assert names.index("apply-byline-decisions") < names.index("anything-owed")
+        step = next(
+            s for g in groups for s in g if s["name"] == "apply-byline-decisions"
+        )
+        assert step["continueOn"] == {"failed": True}
+        source = templates["apply-byline-decisions-step"]["script"]["source"]
+        assert "apply_pending" in source
+        assert "SELECT id FROM datasets" in source, "every dataset, not one"
+        assert "session.commit()" in source, "a commit per dataset"
+
+    def test_the_cli_and_the_schedule_make_the_same_write(self):
+        """One implementation, so a decision applied by hand and one applied by
+        the schedule cannot drift apart."""
+        from pathlib import Path
+
+        source = Path("src/cli/commands/byline_report.py").read_text()
+        assert "br.apply_pending(" in source
+        assert "UPDATE byline_normalizations" not in source

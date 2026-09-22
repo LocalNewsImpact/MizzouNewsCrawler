@@ -26,7 +26,6 @@ deciding twice.
 
 import argparse
 import csv
-import json
 import logging
 import sys
 
@@ -90,7 +89,6 @@ def _write(rows, fieldnames, out):
 
 
 def handle_byline_report_command(args) -> int:
-    from sqlalchemy import text
 
     from src.models.database import DatabaseManager
     from src.utils.dataset_utils import resolve_dataset_id
@@ -151,33 +149,16 @@ def handle_byline_report_command(args) -> int:
         )
 
         if args.kind == "apply":
-            pending = session.execute(
-                text(
-                    "SELECT id, raw_byline, canonical_names FROM byline_normalizations"
-                    " WHERE dataset_id = :dataset_id AND applied_at IS NULL"
-                ),
-                {"dataset_id": dataset_id},
-            ).fetchall()
-            written = 0
-            for row in pending:
-                names = row[2]
-                if isinstance(names, str):
-                    names = json.loads(names)
-                if args.dry_run:
-                    print(f"would write {br.rendered(names)!r} over {row[1]!r}")
-                    continue
-                count = br.apply_decision(session, dataset_id, row[1], names)
-                session.execute(
-                    text(
-                        "UPDATE byline_normalizations SET applied_at = CURRENT_TIMESTAMP,"
-                        " articles_updated = :n WHERE id = :id"
-                    ),
-                    {"n": count, "id": row[0]},
-                )
-                written += count
+            # The same call housekeeping makes every night (`apply-byline-
+            # decisions`). One implementation, so a decision applied by hand and
+            # a decision applied by the schedule are the same write.
+            result = br.apply_pending(session, dataset_id, dry_run=args.dry_run)
             if not args.dry_run:
                 session.commit()
-            print(f"decisions: {len(pending)}  articles written: {written}")
+            print(
+                f"decisions: {result['decisions']}  "
+                f"articles written: {result['articles']}"
+            )
             return 0
 
     if args.kind == "candidates":
