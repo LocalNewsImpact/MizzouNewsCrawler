@@ -4,6 +4,7 @@ Three things one command does, because they are one question asked at three
 stages of the same work:
 
     candidates  which byline strings a person should look at, worst first
+    records     one row per person per article: the aligned author records
     bylines     every unique local byline, and the hosts it appears on
     hosts       every host, and how many unique bylines it carries
 
@@ -37,7 +38,7 @@ def add_byline_report_parser(subparsers) -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "kind",
-        choices=("candidates", "bylines", "hosts", "apply"),
+        choices=("candidates", "records", "bylines", "hosts", "apply"),
         help="What to produce; `apply` writes decided names onto the articles",
     )
     parser.add_argument("--dataset", required=True, help="Name, slug or UUID")
@@ -80,6 +81,9 @@ def handle_byline_report_command(args) -> int:
 
     with db.get_session() as session:
         rows = br.dataset_rows(session, dataset_id)
+        per_article = (
+            br.article_rows(session, dataset_id) if args.kind == "records" else []
+        )
 
         if args.kind == "apply":
             pending = session.execute(
@@ -141,6 +145,21 @@ def handle_byline_report_command(args) -> int:
             "host_list",
             "owners",
             "owner_list",
+        ]
+    elif args.kind == "records":
+        out = br.author_records(per_article)
+        if args.limit:
+            out = out[: args.limit]
+        fields = [
+            "article_id",
+            "byline",
+            "position",
+            "of_authors",
+            "host",
+            "owner",
+            "publish_date",
+            "title",
+            "raw_byline",
         ]
     elif args.kind == "bylines":
         out = br.bylines_with_hosts(rows)

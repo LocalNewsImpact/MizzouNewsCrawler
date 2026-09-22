@@ -4,7 +4,6 @@
 articles that is 7,921 distinct strings across 200 hosts, and counting them
 counts spellings:
 
-    2,689  several names in one string   "Aamer Madhani, Regina Garcia Cano"
       645  one person, several spellings "Nate Sanford" / "Nate Sandford"
       527  a list literal                `["Stanley Schwartz"]`, `[]`
       475  same name, unrelated owners
@@ -120,7 +119,6 @@ class TestTheSignals:
             ("NPR Staff, www.kbia.org, npr-staff", br.CONTACT_FRAGMENT),
             ("Admin", br.NOT_A_PERSON),
             ("ABC 17 News Team", br.NOT_A_PERSON),
-            ("Conor Wilson; Moe Clark", br.MULTIPLE_NAMES),
         ],
     )
     def test_each_defect_is_named(self, raw, signal):
@@ -131,9 +129,16 @@ class TestTheSignals:
         assert self._row("Ivan Foley").needs_review is False
 
     def test_one_string_can_show_several(self):
-        row = self._row("Amanda Sullender/ Spokesman-Review, Monica Ruiz")
-        assert br.PUBLICATION_SUFFIX in row.signals
-        assert br.MULTIPLE_NAMES in row.signals
+        row = self._row("NPR Staff, www.kbia.org")
+        assert br.CONTACT_FRAGMENT in row.signals
+        assert br.NOT_A_PERSON in row.signals
+
+    def test_co_authors_are_not_a_defect(self):
+        """Stories have co-authors and the byline is their list. The work is to
+        parse it into one record per person, which the reports do; it is never
+        a queue row."""
+        assert self._row("Conor Wilson; Moe Clark").signals == ()
+        assert self._row("Loryn Kykendall, Julia Eastham, Kate Smith").signals == ()
 
     def test_unrelated_owners_is_a_signal_about_the_pair_not_the_string(self):
         """One reporter filing for two papers, a syndicated story the wire
@@ -211,11 +216,59 @@ class TestTheQueueOrder:
         ]
         ordered = [row.raw for row in br.candidates(rows)]
         assert ordered[0] == '["Stanley Schwartz"]'
-        assert ordered[-1] == "A B, C D"
+        assert ordered[-1] == "Admin"
         assert "Ivan Foley" not in ordered, "a clean string is not queued"
+        assert "A B, C D" not in ordered, "co-authors are not a queue row"
 
     def test_every_signal_has_a_label(self):
         assert set(br.SIGNAL_ORDER) == set(br.SIGNAL_LABELS)
+
+
+class TestAuthorRecords:
+    """One record per person per article, aligned to the article and the host
+    it ran on. Every other report is an aggregate of these."""
+
+    ROWS = [
+        (
+            "a-1",
+            "Loryn Kykendall, Julia Eastham, Kate Smith",
+            "ub.example",
+            "Owner",
+            None,
+            "Council votes",
+        ),
+        ("a-2", '["Stanley Schwartz"]', "pike.example", "CherryRoad", None, "Fair"),
+    ]
+
+    def test_a_co_authored_article_becomes_one_record_each(self):
+        records = br.author_records(self.ROWS)
+        assert [r["byline"] for r in records if r["article_id"] == "a-1"] == [
+            "Loryn Kykendall",
+            "Julia Eastham",
+            "Kate Smith",
+        ]
+
+    def test_each_record_keeps_its_article_and_host(self):
+        records = br.author_records(self.ROWS)
+        assert {r["host"] for r in records if r["article_id"] == "a-1"} == {
+            "ub.example"
+        }
+        assert all(r["article_id"] for r in records)
+
+    def test_the_position_says_who_led(self):
+        records = [r for r in br.author_records(self.ROWS) if r["article_id"] == "a-1"]
+        assert [(r["position"], r["of_authors"]) for r in records] == [
+            (1, 3),
+            (2, 3),
+            (3, 3),
+        ]
+
+    def test_the_raw_string_is_kept_on_every_record(self):
+        """A record can always be traced back to what the page carried."""
+        records = br.author_records(self.ROWS)
+        assert all(r["raw_byline"] for r in records)
+        assert records[-1]["byline"] == "Stanley Schwartz"
+        assert records[-1]["raw_byline"] == '["Stanley Schwartz"]'
 
 
 class TestTheReports:

@@ -5,7 +5,6 @@
 7,921 distinct strings, and a count of them is a count of spellings rather than
 of people:
 
-    2,854  several names in one string   "Aamer Madhani, Regina Garcia Cano"
       936  one person, several spellings "Nate Sanford" / "Nate Sandford"
       649  same name, unrelated owners   a syndication or a parse, not a person
       527  a list literal                `["Stanley Schwartz"]`, `[]`
@@ -13,6 +12,12 @@ of people:
        84  a publication suffix          "Abby Volz - Southeast Arrow"
        66  a job title                   "Amanda Barnes, Komu 8 Wellness Coach"
        43  digits                        "ABC 17 News Team"
+
+SEVERAL NAMES IN ONE STRING IS NOT A DEFECT. Stories have co-authors, and the
+byline is their list -- `", ".join(names)` is what extraction writes, and the
+`["A", "B"]` rows are a September 2025 serialisation of the same list. The work
+is to parse it into one record per person, aligned to the article and the host
+it ran on, which is what the reports below do. It is never a queue row.
 
 Nobody reads 7,921 rows. The signals below are what a review queue is ordered
 by: each one names a specific defect, carries what it would propose, and can be
@@ -99,7 +104,6 @@ STRAY_TITLE = "stray_title"
 PUBLICATION_SUFFIX = "publication_suffix"
 CONTACT_FRAGMENT = "contact_fragment"
 NOT_A_PERSON = "not_a_person"
-MULTIPLE_NAMES = "multiple_names"
 CROSS_OWNER = "cross_owner"
 
 SIGNAL_ORDER = (
@@ -109,7 +113,6 @@ SIGNAL_ORDER = (
     PUBLICATION_SUFFIX,
     CONTACT_FRAGMENT,
     NOT_A_PERSON,
-    MULTIPLE_NAMES,
     CROSS_OWNER,
 )
 
@@ -120,7 +123,6 @@ SIGNAL_LABELS = {
     PUBLICATION_SUFFIX: "Carries a publication name",
     CONTACT_FRAGMENT: "Carries an address or domain",
     NOT_A_PERSON: "Does not look like a person",
-    MULTIPLE_NAMES: "Several names in one string",
     CROSS_OWNER: "Same name, unrelated owners",
 }
 
@@ -257,8 +259,8 @@ def signals_for(row: BylineRow) -> tuple[str, ...]:
     if _CONTACT_RE.search(raw):
         found.append(CONTACT_FRAGMENT)
     names = split_names(raw)
-    if len(names) > 1:
-        found.append(MULTIPLE_NAMES)
+    # A byline naming several people is a co-authored story, not a defect: it
+    # is parsed into one record per person by the reports.
     if not names or (len(names) == 1 and len(normalised_name(names[0]).split()) < 2):
         # One word is a desk, a bot or a stub: "Admin", "AbbVie", "Aber".
         found.append(NOT_A_PERSON)
@@ -448,6 +450,68 @@ def apply_decision(
         },
     )
     return int(getattr(result, "rowcount", 0) or 0)
+
+
+#: One row per article, so a co-authored story can become one record per
+#: person. `dataset_rows` groups; this does not.
+_ARTICLE_ROWS_SQL = """
+    SELECT a.id AS article_id, a.author AS byline, s.host_norm AS host,
+           coalesce(nullif(trim(s.owner), ''), '(unknown)') AS owner,
+           a.publish_date, a.title
+      FROM articles a
+      JOIN candidate_links cl ON cl.id = a.candidate_link_id
+      JOIN sources s ON s.id = cl.source_id
+     WHERE cl.dataset_id = :dataset_id
+       AND a.status = ANY(:statuses)
+       AND coalesce(trim(a.author), '') <> ''
+"""
+
+
+def article_rows(session, dataset_id: str, statuses=LOCAL_STATUSES):
+    """One row per local article: id, byline, host, owner, date, title."""
+    from sqlalchemy import text
+
+    result = session.execute(
+        text(_ARTICLE_ROWS_SQL),
+        {"dataset_id": dataset_id, "statuses": list(statuses)},
+    )
+    return [tuple(row) for row in result]
+
+
+def author_records(article_rows_) -> list[dict]:
+    """ONE RECORD PER PERSON PER ARTICLE.
+
+    A co-authored byline is a list of people, and each of them wrote that
+    article on that host: "Loryn Kykendall, Julia Eastham, Kate Smith" is three
+    records, not one string. This is the table a per-author count, a per-host
+    count and any later author identity is built from -- every other report
+    here is an aggregate of it.
+
+    The raw string is kept on every record, so a record can always be traced
+    back to what the page carried.
+    """
+    out = []
+    names_for: dict[str, tuple[str, ...]] = {}
+    for article_id, raw, host, owner, publish_date, title in article_rows_:
+        if raw not in names_for:
+            names_for[raw] = tuple(split_names(raw))
+        names = names_for[raw]
+        for position, name in enumerate(names, start=1):
+            out.append(
+                {
+                    "article_id": article_id,
+                    "byline": name,
+                    # Where the name sat in the byline: first is the lead.
+                    "position": position,
+                    "of_authors": len(names),
+                    "host": host,
+                    "owner": owner,
+                    "publish_date": publish_date,
+                    "title": title,
+                    "raw_byline": raw,
+                }
+            )
+    return out
 
 
 def bylines_with_hosts(rows) -> list[dict]:
