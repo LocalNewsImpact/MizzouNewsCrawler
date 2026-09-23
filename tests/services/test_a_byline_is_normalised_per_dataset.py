@@ -1071,3 +1071,55 @@ class TestThePageSaysWhichStoryIsWrong:
         source = Path("src/services/byline_review.py").read_text()
         assert "find_mismatches(" in source
         assert '"mismatches": json.dumps(' in source
+
+
+class TestTheInsertBindsWhatItNames:
+    """The refresh INSERT names its columns and binds its values in two separate
+    strings, and they drifted: `mismatches` was added to the VALUES list and not
+    to the columns, so every refresh raised
+
+        A value is required for bind parameter 'mismatches'
+
+    and the nightly queue refresh would have failed silently behind its
+    `continueOn: failed`. It reached main because the edit that added the column
+    was a string replacement that matched nothing -- the formatter had reflowed
+    the line it was looking for -- and nothing checked the two lists against each
+    other.
+    """
+
+    def _insert(self):
+        source = Path("src/services/byline_review.py").read_text()
+        start = source.index("INSERT INTO byline_review_candidates")
+        end = source.index("CURRENT_TIMESTAMP)", start)
+        # The SQL is built from adjacent string literals; strip the quoting so
+        # the two lists can be counted.
+        return "".join(
+            part
+            for line in source[start:end].splitlines()
+            for part in [line.strip().strip('"').strip("'").strip()]
+        )
+
+    def test_it_binds_one_value_for_every_column(self):
+        sql = self._insert()
+        columns = sql[sql.index("(") + 1 : sql.index(")")].split(",")
+        values = sql[sql.index("VALUES (") + 8 :].split(",")
+        assert len(columns) == len(values), (
+            f"{len(columns)} columns and {len(values)} values: "
+            f"columns {[c.strip() for c in columns]} "
+            f"values {[v.strip() for v in values]}"
+        )
+
+    def test_every_column_has_a_parameter_of_its_own_name(self):
+        """Except the two the statement computes: the id and the timestamp."""
+        sql = self._insert()
+        columns = [
+            c.strip().strip('"')
+            for c in sql[sql.index("(") + 1 : sql.index(")")].split(",")
+        ]
+        values = sql[sql.index("VALUES (") + 8 :]
+        for column in columns:
+            if column in ("id", "computed_at"):
+                continue
+            name = "raw" if column == "raw_byline" else column
+            name = "label" if column == "signal_label" else name
+            assert f":{name}" in values, f"{column} is named and never bound"
