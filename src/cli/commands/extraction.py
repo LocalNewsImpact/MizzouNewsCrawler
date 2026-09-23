@@ -34,12 +34,6 @@ from src.models.database import (
 from src.pipeline import review_hold
 from src.pipeline.text_cleaning import decode_rot47_segments
 from src.services.wire_detection import resolve_api_token
-from src.utils.boilerplate import (
-    PAYWALL,
-    document_is_furniture,
-    excise_furniture_lines,
-    looks_like_paywall,
-)
 
 # Lazy import: entity_extraction only needed for entity-extraction command
 # Importing at top level causes ModuleNotFoundError in crawler image (no rapidfuzz)
@@ -49,6 +43,13 @@ from src.utils.boilerplate import (
 #     attach_gazetteer_matches,
 #     get_gazetteer_rows,
 # )
+from src.utils import printed_byline
+from src.utils.boilerplate import (
+    PAYWALL,
+    document_is_furniture,
+    excise_furniture_lines,
+    looks_like_paywall,
+)
 from src.utils.byline_cleaner import BylineCleaner
 from src.utils.comprehensive_telemetry import (
     ComprehensiveExtractionTelemetry,
@@ -1679,6 +1680,15 @@ def handle_extract_url_command(args) -> int:
         text_hash = calculate_content_hash(cleaned_text)
         now = datetime.utcnow()
 
+        # The byline the paper printed wins, for the reason given in the batch
+        # path above: structured data names the wrong person often enough to be
+        # measurable, and the printed line is the newsroom's own answer.
+        cleaned_author, byline_note = printed_byline.choose(
+            cleaned_author, cleaned_text, cleaner=byline_cleaner
+        )
+        if byline_note:
+            metadata_value.update(byline_note)
+
         # A field that is wrong rather than absent stops here. A garbage
         # byline or an undecoded body otherwise sits on a `labeled` article,
         # which enrichment selects, so the bad value is enriched and
@@ -2869,6 +2879,27 @@ def _process_batch(
                             # readable as a body.
                             cleaned_text = ""
                             text_hash = calculate_content_hash("")
+
+                    # THE BYLINE THE PAPER PRINTED WINS.
+                    #
+                    # The author above came from structured data -- JSON-LD, a
+                    # meta tag, a CMS field -- and where that names somebody
+                    # other than the line printed at the top of the story, the
+                    # printed line is right. It is what the newsroom put on the
+                    # page; the structured field is CMS output nobody proofreads,
+                    # which is how `Karl Zinke` ended up on 489 examiner.net
+                    # stories written by Mike Genet and Bill Althaus, and how one
+                    # unterrifieddemocrat.com story by Neal A. Johnson was
+                    # credited to a KY3 reporter with 896 stories elsewhere.
+                    #
+                    # Here because this is where both facts are in hand, next to
+                    # the body check for the same reason: the cleaned body exists
+                    # and the row is not yet written.
+                    cleaned_author, byline_note = printed_byline.choose(
+                        cleaned_author, cleaned_text, cleaner=byline_cleaner
+                    )
+                    if byline_note:
+                        metadata_value.update(byline_note)
 
                     metrics.set_content_type_detection(detection_payload)
                     _attach_driver_metrics(metrics, extractor, domain)
