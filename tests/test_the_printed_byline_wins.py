@@ -196,3 +196,96 @@ class TestTheExtractionPathUsesIt:
 
         source = Path("src/cli/commands/extraction.py").read_text()
         assert source.count("metadata_value.update(byline_note)") == 2
+
+
+class TestTheBylineIsNotAlwaysTheFirstLine:
+    """A TownNews capture opens with the headline, not the byline.
+
+    Howell County News, stored exactly like this:
+
+        Speaking Personally: A last word before election day   <- the headline
+                  Tue, 03/31/2026 - 2:11pm                     <- the timestamp
+                  admin                                        <- the CMS account
+            By:                                           <- the label, alone
+        Amanda Mendez, publisher                               <- the name
+
+    Reading only the first line found the headline and gave up. That cost 35 real
+    bylines: they were emptied as CMS accounts on 2026-09-22 and restored by hand.
+
+    Scanning further is how the other mistake happens -- a `By` inside a story is
+    a photo credit or a related story -- so the scan is bounded three ways: eight
+    lines, it stops where the prose starts, and a name taken from the line after a
+    bare label has to look like a byline.
+    """
+
+    HOWELL = (
+        "Speaking Personally: A last word before election day\n"
+        "          Tue, 03/31/2026 - 2:11pm\n"
+        "          admin      \n"
+        "    By: \n"
+        "Amanda Mendez, publisher\n"
+        "        Like it or not, the election is upon us."
+    )
+
+    def test_the_byline_below_the_headline_is_read(self, cleaner):
+        assert read(self.HOWELL, cleaner) == "Amanda Mendez"
+
+    def test_a_headline_ending_in_a_question_does_not_stop_the_scan(self, cleaner):
+        """The prose test is not applied to the first line, which is the
+        headline: "Do you love Willow Springs?" would otherwise end it."""
+        text = (
+            "Do you love Willow Springs?\n"
+            "   Tue, 03/24/2026 - 11:34am\n   admin\n   By: \n"
+            "Lou Wehmer, staff\nCalling all volunteers!"
+        )
+        assert read(text, cleaner) == "Lou Wehmer"
+
+    def test_the_same_capture_without_a_byline_stays_unanswered(self, cleaner):
+        """Most of these stories are published unbylined under the account. 738 of
+        the 773 emptied on 2026-09-22 were right."""
+        text = (
+            "Do you love Willow Springs?\n"
+            "   Tue, 03/24/2026 - 11:34am\n   admin\n\n\tCalling all volunteers!"
+        )
+        assert read(text, cleaner) is None
+
+    def test_a_by_line_after_the_story_starts_is_not_the_byline(self, cleaner):
+        """A photo credit, four lines in. Taking it would put a photographer's
+        name on a reporter's story."""
+        text = "Headline\n\nStory text here.\n\nBy John Smith / photo\n\nmore"
+        assert read(text, cleaner) is None
+
+    def test_by_as_a_preposition_further_down_is_not_a_byline(self, cleaner):
+        text = "Headline here\n\nThe council met.\n\nBy the time it voted, nobody was left."
+        assert read(text, cleaner) is None
+
+    def test_a_bare_label_followed_by_prose_is_refused(self, cleaner):
+        """Reading the next line whole gave "Because Kansas" and "Chara
+        According" -- two words of prose that pass every test for a name. So the
+        line has to look like a byline: short, and not a sentence."""
+        text = (
+            "Headline\n  admin\n  By:\n"
+            "Because Kansas City has grown, the council voted to expand the levy."
+        )
+        assert read(text, cleaner) is None
+
+    def test_a_bare_label_followed_by_a_desk_is_refused(self, cleaner):
+        assert read("Headline\n  admin\n  By:\nStaff Reports\nText", cleaner) is None
+
+    def test_a_first_line_byline_still_reads(self, cleaner):
+        """The shape that already worked, unchanged."""
+        assert read("By Neal A. Johnson, UD Editor\n\nLINN — ", cleaner) == (
+            "Neal A. Johnson"
+        )
+
+    def test_a_byline_running_into_its_story_still_reads(self, cleaner):
+        text = "By Tere Siqueira Protests over immigration enforcement in Minnesota"
+        assert read(text, cleaner) == "Tere Siqueira"
+
+    def test_the_scan_is_bounded(self):
+        """Eight lines and 700 characters. A byline nine lines down belongs to
+        something else, whatever it says."""
+        from src.utils import printed_byline as reader
+
+        assert reader._LOOK_AT_LINES == 8
+        assert reader._LOOK_AT == 700

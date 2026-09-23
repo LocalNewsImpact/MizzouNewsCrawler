@@ -1123,3 +1123,95 @@ class TestTheInsertBindsWhatItNames:
             name = "raw" if column == "raw_byline" else column
             name = "label" if column == "signal_label" else name
             assert f":{name}" in values, f"{column} is named and never bound"
+
+
+class TestAStoryWhoseBylineWeNeverStored:
+    """The queue is built from `articles.author`. A story published with an empty
+    one is invisible to review, however plainly its page names the reporter.
+
+    On 2026-09-23 that meant nine stories had to be decided in a chat message --
+    five Examiner stories printing "Karl Zinke", two printing "Gregory Orear",
+    one "KMAland Trevor" (a radio brand glued to a first name) and one "Liberty
+    Hospital" (not a person). The user's answer: those belong in the queue.
+    """
+
+    def _session(self, bodies):
+        from unittest.mock import MagicMock
+
+        session = MagicMock()
+
+        def execute(statement, params=None):
+            result = MagicMock()
+            result.all.return_value = (
+                bodies if "coalesce(trim(a.author), '') = ''" in str(statement) else []
+            )
+            return result
+
+        session.execute.side_effect = execute
+        return session
+
+    ROW = (
+        "a-1",
+        "https://www.examiner.net/story",
+        "Council approves the levy",
+        "www.examiner.net",
+        "CherryRoad Media",
+        "Headline here\n  Tue, 03/31/2026 - 2:11pm\n  admin\n  By:\n"
+        "Karl Zinke, staff\nThe council met Tuesday.",
+    )
+
+    def test_a_story_with_no_byline_is_found_by_its_page(self):
+        found = br.find_unstored(self._session([self.ROW]), "ds-1")
+        assert list(found) == ["Karl Zinke"]
+        assert found["Karl Zinke"][0]["article_id"] == "a-1"
+        assert found["Karl Zinke"][0]["host"] == "www.examiner.net"
+
+    def test_stories_printing_one_name_are_one_question(self):
+        """Five Examiner stories printing "Karl Zinke" are one question about one
+        person, not five."""
+        rows = [
+            (f"a-{n}", "https://x", "T", "www.examiner.net", "CherryRoad", self.ROW[5])
+            for n in range(5)
+        ]
+        found = br.find_unstored(self._session(rows), "ds-1")
+        assert len(found["Karl Zinke"]) == 5
+        candidates = br.unstored_candidates(found)
+        assert len(candidates) == 1
+        assert candidates[0].articles == 5
+
+    def test_the_candidate_proposes_the_printed_name(self):
+        """The page already says it; the reviewer confirms it."""
+        found = br.find_unstored(self._session([self.ROW]), "ds-1")
+        row = br.unstored_candidates(found)[0]
+        assert row.raw == "Karl Zinke"
+        assert row.proposed == ("Karl Zinke",)
+        assert row.signals == (br.PRINTED_NOT_STORED,)
+
+    def test_a_page_printing_nothing_is_not_a_candidate(self):
+        """Most unbylined stories really are unbylined: 738 of the 773 emptied on
+        2026-09-22 print no byline anywhere."""
+        row = list(self.ROW)
+        row[5] = "Headline\n  admin\n\n\tCalling all volunteers!"
+        assert br.find_unstored(self._session([tuple(row)]), "ds-1") == {}
+
+    def test_a_decided_name_is_not_asked_again(self):
+        found = br.find_unstored(self._session([self.ROW]), "ds-1")
+        assert br.unstored_candidates(found, {"Karl Zinke": []}) == []
+
+    def test_it_is_the_first_signal_in_the_order(self):
+        """The only one whose answer is already known: the page says the name."""
+        assert br.SIGNAL_ORDER[0] == br.PRINTED_NOT_STORED
+
+    def test_only_local_stories_are_asked_about(self):
+        """A wire story printing an AP reporter's name is not a missing local
+        byline, and 2,900 of the corpus's unbylined stories are wire from two
+        months of 2025."""
+        session = self._session([])
+        br.find_unstored(session, "ds-1")
+        statement = str(session.execute.call_args_list[0].args[0])
+        assert "a.status = ANY(:statuses)" in statement
+
+    def test_the_queue_carries_them(self):
+        source = Path("src/services/byline_review.py").read_text()
+        assert "find_unstored(session, dataset_id, statuses)" in source
+        assert "unstored_candidates(unstored, decided)" in source

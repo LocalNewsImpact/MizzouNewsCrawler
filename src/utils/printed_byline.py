@@ -42,7 +42,10 @@ logger = logging.getLogger(__name__)
 #: How far into the body to look. The byline is the first thing printed; a `By`
 #: five paragraphs down belongs to a quoted item, a photo credit or a related
 #: story, and is not this story's byline.
-_LOOK_AT = 400
+#: How much of the body to read. Wider than the old 400 because the byline is no
+#: longer assumed to be first: a headline, a timestamp and a CMS account can sit
+#: in front of it.
+_LOOK_AT = 700
 
 #: The byline line. The cleaner's own `^by\s+(.+)$` takes it from here; this only
 #: has to recognise that the line IS one before measuring where it ends.
@@ -205,11 +208,73 @@ def _candidate(tail: str) -> str | None:
     return " ".join(words)
 
 
+#: How many non-empty lines of the head to consider. The byline sits near the
+#: top, but not always ON the top: a TownNews capture opens with the headline,
+#: then the timestamp, then the CMS account, and only then the byline.
+#:
+#: Bounded on purpose. A `By` further down belongs to a photo credit, a related
+#: story or a quoted item, and taking one would put a photographer's name on a
+#: reporter's story.
+_LOOK_AT_LINES = 8
+
+#: A line that reads as the story rather than as part of its header. The byline
+#: sits in the header block -- headline, timestamp, account, byline -- so the
+#: scan stops where the prose starts. Without this, `By John Smith / photo` four
+#: lines into a story becomes the reporter.
+#:
+#: Not applied to the FIRST line, which is the headline: a headline ending in a
+#: question mark ("Do you love Willow Springs?") would otherwise stop the scan
+#: before it began.
+_SENTENCE = re.compile(r"[.!?][\"'\u201d\u2019)]*\s*$")
+
+#: The same, for a full stop alone. A headline ends in a question mark often
+#: enough and in a period almost never.
+_FULL_STOP = re.compile(r"\.[\"'\u201d\u2019)]*\s*$")
+
+
+#: The longest a line can be and still be a byline rather than the story. A
+#: byline with a title and a paper -- "Amanda Mendez, publisher", "Eli Hoff, St.
+#: Louis Post-Dispatch" -- fits inside this; an opening sentence does not.
+_NAME_LINE = 80
+
+
+def _reads_as_prose(line: str, first: bool = False) -> bool:
+    """Whether this line is the story rather than part of its header.
+
+    The FIRST line is a headline, which can end in a question or an exclamation
+    -- "Do you love Willow Springs?" -- and stopping there would end the scan
+    before it began. A headline rarely ends in a FULL STOP, so that is what
+    separates the two: a first line ending in a period is the story already
+    running, and a `By` below it is a credit inside it.
+    """
+    words = line.split()
+    if len(words) < 3:
+        return False
+    stripped = line.strip()
+    if first:
+        return bool(_FULL_STOP.search(stripped))
+    return bool(_SENTENCE.search(stripped))
+
+
 def printed_byline(text: str | None, cleaner=None) -> str | None:
     """The byline the story prints, as the cleaner reads it.
 
     None means "no confident answer", which is the normal case and leaves the
-    structured author exactly as it was. Only the first non-empty line is read.
+    structured author exactly as it was.
+
+    THE BYLINE IS NOT ALWAYS THE FIRST LINE, and it is not always on the same
+    line as its own label. A Howell County News capture reads:
+
+        Speaking Personally: A last word before election day   <- the headline
+                  Tue, 03/31/2026 - 2:11pm                     <- the timestamp
+                  admin                                        <- the CMS account
+            By:\u00a0                                          <- the label, alone
+        Amanda Mendez, publisher                               <- the name
+
+    Reading only the first line found the headline and gave up, which cost 35
+    real bylines: they were emptied as CMS accounts on 2026-09-22 and restored by
+    hand. So the first few lines are considered, and where a label stands alone
+    the next line is read as the name.
 
     The cleaner has the last word: given the printed words it strips the title
     and the paper, keeps the particles, and returns nothing at all for a desk
@@ -217,15 +282,29 @@ def printed_byline(text: str | None, cleaner=None) -> str | None:
     """
     if not text:
         return None
-    for line in text[:_LOOK_AT].splitlines():
-        if not line.strip():
-            continue
+    lines = [line for line in text[:_LOOK_AT].splitlines() if line.strip()]
+    for index, line in enumerate(lines[:_LOOK_AT_LINES]):
         opener = _OPENER.match(line)
         if not opener:
-            # Only the first line is considered.
-            return None
+            if _reads_as_prose(line, first=index == 0):
+                # The story has started; anything below is not its byline.
+                return None
+            continue
         candidate = _candidate(line[opener.end() :])
+        if candidate is None and index + 1 < len(lines):
+            # The label stands alone, so the name is the next line -- read whole,
+            # because it carries no label of its own to step over.
+            #
+            # Only when that line looks like a byline: short, and not a sentence.
+            # A name line is "Amanda Mendez, publisher"; a story's opening line
+            # read this way gave "Because Kansas" and "Chara According", two
+            # words of prose that pass every test for a name.
+            following = lines[index + 1].strip()
+            if len(following) <= _NAME_LINE and not _reads_as_prose(following):
+                candidate = _candidate(following)
         if candidate is None:
+            # A byline line that cannot be read is not guessed at: the line after
+            # it might be the story, and a wrong name looks reviewed.
             return None
         if cleaner is None:
             from src.utils.byline_cleaner import BylineCleaner

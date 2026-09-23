@@ -130,10 +130,24 @@ CONTACT_FRAGMENT = "contact_fragment"
 NOT_A_PERSON = "not_a_person"
 CROSS_OWNER = "cross_owner"
 
+#: The page prints a byline and the record stored none. NOT a defect in a byline
+#: string -- there is no string -- so it reaches the queue by a different road:
+#: the stories are found by reading their bodies, and the candidate is keyed on
+#: the name the page prints.
+#:
+#: Without it these stories can never be reviewed. The queue is built from
+#: `articles.author`, and theirs is empty, so nothing puts them in front of
+#: anybody. On 2026-09-23 nine of them had to be decided in a chat message
+#: instead, which is not a review.
+PRINTED_NOT_STORED = "printed_not_stored"
+
 #: NOT in `SIGNAL_ORDER`: a list literal is a storage form, not a judgement.
 #: `repair_list_literals` rewrites those rows to the current form, and nobody
 #: is asked about them.
 SIGNAL_ORDER = (
+    # First: it is the only signal whose answer is already known. The page says
+    # the name; the reviewer confirms it in one click.
+    PRINTED_NOT_STORED,
     SPELLING_VARIANT,
     STRAY_TITLE,
     PUBLICATION_SUFFIX,
@@ -149,6 +163,7 @@ SIGNAL_LABELS = {
     CONTACT_FRAGMENT: "Carries an address or domain",
     NOT_A_PERSON: "Does not look like a person",
     CROSS_OWNER: "Same name, unrelated owners",
+    PRINTED_NOT_STORED: "The page prints a byline we did not store",
 }
 
 
@@ -1015,6 +1030,11 @@ def refresh_candidates(
         statuses,
     )
 
+    # The stories whose byline the page prints and nothing stored. They reach the
+    # queue only here: it is built from `articles.author`, and theirs is empty.
+    unstored = find_unstored(session, dataset_id, statuses)
+    found = found + unstored_candidates(unstored, decided)
+
     if dry_run:
         return {"candidates": len(found), "written": 0}
 
@@ -1059,12 +1079,16 @@ def refresh_candidates(
                 # The stories whose page names somebody else, for this name and
                 # every spelling folded into it. The only provable answer to
                 # "which newsroom is wrong", and rare: one of Mizzou's 175 rows.
+                # Plus, for a printed-not-stored row, the stories that print it
+                # and stored nothing: both are "here is the story, here is the
+                # name the page gives it".
                 "mismatches": json.dumps(
                     [
                         story
                         for name in ((row.raw,) + tuple(row.variants))
                         for story in mismatched.get(name, ())
                     ]
+                    + list(unstored.get(row.raw, ()))
                 ),
             },
         )
@@ -1337,3 +1361,88 @@ def find_mismatches(session, dataset_id: str, names, statuses=LOCAL_STATUSES) ->
     # Ten at most per byline: a reviewer settles these one at a time, and a row
     # carrying hundreds of them is a row nobody reads.
     return {name: stories[:10] for name, stories in found.items()}
+
+
+#: The stories with NO byline stored, and enough of the body to read the one the
+#: page prints. Local statuses only: a wire story printing an AP reporter's name
+#: is not a missing local byline, and 2,900 of the corpus's unbylined stories are
+#: wire from two months of 2025.
+_UNSTORED_SQL = """
+    SELECT a.id, a.url, a.title, s.host,
+           coalesce(nullif(trim(s.owner), ''), '(unknown)') AS owner,
+           left(a.text, 700) AS head
+      FROM articles a
+      JOIN candidate_links cl ON cl.id = a.candidate_link_id
+      JOIN sources s ON s.id = cl.source_id
+     WHERE a.dataset_id = :dataset_id
+       AND a.text IS NOT NULL
+       AND coalesce(trim(a.author), '') = ''
+"""
+
+
+def find_unstored(session, dataset_id: str, statuses=LOCAL_STATUSES) -> dict:
+    """`{printed name: [story, ...]}` for stories whose byline we never stored.
+
+    These cannot reach the queue any other way. It is built from `articles.author`
+    and theirs is empty, so a story published unbylined-as-far-as-we-know is
+    invisible to review however plainly the page names its reporter.
+
+    Keyed on the name the page prints, so one candidate collects the stories that
+    print it -- five Examiner stories printing "Karl Zinke" are one question about
+    one person, not five.
+    """
+    from sqlalchemy import text
+
+    from src.utils.byline_cleaner import BylineCleaner
+    from src.utils.printed_byline import printed_byline
+
+    sql = _UNSTORED_SQL
+    params: dict = {"dataset_id": dataset_id}
+    if statuses:
+        sql = sql.rstrip() + "\n" + _APPLY_STATUS_CLAUSE
+        params["statuses"] = list(statuses)
+
+    cleaner = BylineCleaner(enable_telemetry=False)
+    found: dict[str, list[dict]] = defaultdict(list)
+    for article_id, url, title, host, owner, head in session.execute(
+        text(sql), params
+    ).all():
+        printed = printed_byline(head, cleaner=cleaner)
+        if not printed:
+            continue
+        found[printed].append(
+            {
+                "article_id": str(article_id),
+                "url": url,
+                "title": title or url,
+                "host": host,
+                "owner": owner,
+                "printed": printed,
+            }
+        )
+    return dict(found)
+
+
+def unstored_candidates(unstored: dict, decisions: dict | None = None) -> list:
+    """`BylineRow`s for the printed names nothing stored.
+
+    A decided name is left out, like every other signal: a reviewer who has said
+    "that is not a real name" must not be asked again.
+    """
+    rows = []
+    for name, stories in unstored.items():
+        if (decisions or {}).get(name) is not None:
+            continue
+        row = BylineRow(
+            raw=name,
+            articles=len(stories),
+            hosts=tuple(sorted({story["host"] for story in stories if story["host"]})),
+            owners=tuple(sorted({story["owner"] for story in stories})),
+            sources=(),
+        )
+        row.signals = (PRINTED_NOT_STORED,)
+        # The page already says the name. The proposal is to store it.
+        row.proposed = (name,)
+        rows.append(row)
+    rows.sort(key=lambda row: (-row.articles, row.raw))
+    return rows
