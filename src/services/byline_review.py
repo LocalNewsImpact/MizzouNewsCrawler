@@ -1005,6 +1005,16 @@ def refresh_candidates(
     decided = load_decisions(session, dataset_id)
     found = candidates(rows, groups, decided)
 
+    # WHICH OF THESE NEWSROOMS IS WRONG, where the page answers it. Computed for
+    # the names being offered, not the whole corpus: one query and a cheap read
+    # per story, over the few thousand stories behind a dataset's queue.
+    mismatched = find_mismatches(
+        session,
+        dataset_id,
+        [name for row in found for name in ((row.raw,) + tuple(row.variants))],
+        statuses,
+    )
+
     if dry_run:
         return {"candidates": len(found), "written": 0}
 
@@ -1020,7 +1030,8 @@ def refresh_candidates(
                 ' articles, hosts, owners, sources, "group", computed_at)'
                 " VALUES (gen_random_uuid()::text, :dataset_id, :raw, :signal,"
                 " :label, :signals, :proposed, :variants, :differs_by, :articles,"
-                " :hosts, :owners, :sources, :group, CURRENT_TIMESTAMP)"
+                " :hosts, :owners, :sources, :group, :mismatches,"
+                " CURRENT_TIMESTAMP)"
             ),
             {
                 "dataset_id": dataset_id,
@@ -1044,6 +1055,16 @@ def refresh_candidates(
                 # cluster is one review, so this is what the reviewer compares
                 # rather than answering the same person once per spelling.
                 "group": json.dumps(list(row.group)),
+                # The stories whose page names somebody else, for this name and
+                # every spelling folded into it. The only provable answer to
+                # "which newsroom is wrong", and rare: one of Mizzou's 175 rows.
+                "mismatches": json.dumps(
+                    [
+                        story
+                        for name in ((row.raw,) + tuple(row.variants))
+                        for story in mismatched.get(name, ())
+                    ]
+                ),
             },
         )
     return {"candidates": len(found), "written": len(found)}
@@ -1244,3 +1265,74 @@ def apply_pending(session, dataset_id: str, dry_run: bool = False) -> dict:
         )
         written += count
     return {"decisions": len(pending), "articles": written}
+
+
+#: The stories behind a set of byline strings, with enough of the body to read
+#: the byline the paper printed. 400 characters: the byline is the first thing
+#: printed, and a `By` five paragraphs down belongs to something else.
+_BODIES_SQL = """
+    SELECT a.author, a.id, a.url, a.title, s.host, left(a.text, 400) AS head
+      FROM articles a
+      JOIN candidate_links cl ON cl.id = a.candidate_link_id
+      JOIN sources s ON s.id = cl.source_id
+     WHERE a.dataset_id = :dataset_id
+       AND a.author = ANY(:names)
+       AND a.text IS NOT NULL
+"""
+
+
+def find_mismatches(session, dataset_id: str, names, statuses=LOCAL_STATUSES) -> dict:
+    """`{byline: [story, ...]}` for the stories whose page names somebody else.
+
+    THE ONLY PROVABLE ANSWER to "which of these newsrooms is wrong". A byline
+    under unrelated owners is legitimate for a stringer and for papers sharing
+    copy, and nothing else on the row separates that from a misattribution --
+    except the line the paper printed, where it printed one.
+
+    It answers rarely, and that is the honest shape of it: of the 1,202 stories
+    behind Mizzou's 175 candidates, ONE disagrees -- the unterrifieddemocrat.com
+    school board story credited to a KY3 reporter, which reads "By Neal A.
+    Johnson, UD Editor". So a page built around this would be empty 174 times
+    out of 175; a page that shows it WHEN it exists gives the reviewer the one
+    case they can settle without judgement.
+
+    Each story carries `printed`, the name the page gives, so the console can
+    offer it as a one-click correction rather than asking somebody to retype it.
+    """
+    from sqlalchemy import text
+
+    from src.utils.byline_cleaner import BylineCleaner
+    from src.utils.printed_byline import disagrees, printed_byline
+
+    names = [name for name in names if name]
+    if not names:
+        return {}
+
+    sql = _BODIES_SQL
+    params: dict = {"dataset_id": dataset_id, "names": list(names)}
+    if statuses:
+        sql = sql.rstrip() + "\n" + _APPLY_STATUS_CLAUSE
+        params["statuses"] = list(statuses)
+
+    # One cleaner for the batch: it reads publication and organisation names from
+    # the database when it is built, so one per story would be the whole cost.
+    cleaner = BylineCleaner(enable_telemetry=False)
+    found: dict[str, list[dict]] = defaultdict(list)
+    for author, article_id, url, title, host, head in session.execute(
+        text(sql), params
+    ).all():
+        printed = printed_byline(head, cleaner=cleaner)
+        if not printed or not disagrees(author, printed):
+            continue
+        found[author].append(
+            {
+                "article_id": str(article_id),
+                "url": url,
+                "title": title or url,
+                "host": host,
+                "printed": printed,
+            }
+        )
+    # Ten at most per byline: a reviewer settles these one at a time, and a row
+    # carrying hundreds of them is a row nobody reads.
+    return {name: stories[:10] for name, stories in found.items()}
