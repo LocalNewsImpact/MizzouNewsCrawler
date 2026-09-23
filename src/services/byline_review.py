@@ -1027,7 +1027,8 @@ def refresh_candidates(
             text(
                 "INSERT INTO byline_review_candidates (id, dataset_id, raw_byline,"
                 " signal, signal_label, signals, proposed, variants, differs_by,"
-                ' articles, hosts, owners, sources, "group", computed_at)'
+                ' articles, hosts, owners, sources, "group", mismatches,'
+                " computed_at)"
                 " VALUES (gen_random_uuid()::text, :dataset_id, :raw, :signal,"
                 " :label, :signals, :proposed, :variants, :differs_by, :articles,"
                 " :hosts, :owners, :sources, :group, :mismatches,"
