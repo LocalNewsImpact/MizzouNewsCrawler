@@ -517,7 +517,10 @@ class TestApplyingADecision:
         session.execute.return_value.rowcount = 17
         written = br.apply_decision(session, "ds-1", '["Stan S"]', ["Stan S"])
         assert written == 17
-        params = session.execute.call_args.args[1]
+        # The FIRST statement: the exact match. A second one follows it for the
+        # bylines that carry this name beside a co-author, which is why the last
+        # call is no longer this one.
+        params = session.execute.call_args_list[0].args[1]
         assert params["author"] == "Stan S"
         assert params["raw_byline"] == '["Stan S"]'
         assert params["dataset_id"] == "ds-1"
@@ -765,3 +768,103 @@ class TestADecisionReachesTheArticle:
         source = Path("src/cli/commands/byline_report.py").read_text()
         assert "br.apply_pending(" in source
         assert "UPDATE byline_normalizations" not in source
+
+
+class TestOneRowIsOneName:
+    """A byline string can name two people, and a row naming two is unanswerable.
+
+    "Alyssa Mueller, Marcus Officer" was offered as one candidate, flagged as
+    carrying a job title because "Officer" is a title word and the pattern read
+    the whole string. Both names are correct; the reviewer could not accept, fix
+    or drop two people at once, and the title it was flagged for was a surname.
+    """
+
+    ROWS = [
+        ("Alyssa Mueller, Marcus Officer", "komu.com", "University of Missouri", 3),
+        ("Alyssa Mueller", "komu.com", "University of Missouri", 5),
+        ("Marcus Officer, Jonathan Ketz", "komu.com", "University of Missouri", 1),
+    ]
+
+    def _rows(self):
+        return {row.raw: row for row in br.review_rows(self.ROWS)}
+
+    def test_a_co_authored_string_is_not_a_row(self):
+        assert "Alyssa Mueller, Marcus Officer" not in self._rows()
+
+    def test_each_name_is_its_own_row(self):
+        assert set(self._rows()) == {
+            "Alyssa Mueller",
+            "Marcus Officer",
+            "Jonathan Ketz",
+        }
+
+    def test_a_surname_that_is_also_a_title_is_not_flagged(self):
+        """The whole reason the row was unanswerable: read on its own, "Marcus
+        Officer" is a person whose surname is Officer."""
+        assert br.STRAY_TITLE not in self._rows()["Marcus Officer"].signals
+
+    def test_a_row_says_which_strings_it_came_from(self):
+        """A name sharing a byline is a different question from a name alone, so
+        the reviewer is shown which it is."""
+        assert self._rows()["Marcus Officer"].sources == (
+            "Alyssa Mueller, Marcus Officer",
+            "Marcus Officer, Jonathan Ketz",
+        )
+
+    def test_the_count_is_of_stories_carrying_the_name(self):
+        """Alyssa Mueller has 5 of her own and 3 with a co-author."""
+        assert self._rows()["Alyssa Mueller"].articles == 8
+
+    def test_a_real_title_is_still_flagged(self):
+        rows = {row.raw: row for row in br.review_rows([("Staff Writer", "h", "o", 2)])}
+        assert br.STRAY_TITLE in rows["Staff Writer"].signals
+
+
+class TestADecisionReachesACoAuthoredByline:
+    """The review unit is a name; the column holds a string."""
+
+    def test_a_fix_keeps_the_co_author(self):
+        assert (
+            br.replace_name(
+                "Alyssa Mueller, Nate Sandford", "Nate Sandford", ["Nate Sanford"]
+            )
+            == "Alyssa Mueller, Nate Sanford"
+        )
+
+    def test_a_drop_removes_only_that_name(self):
+        """A co-authored story keeps the co-author who is real."""
+        assert (
+            br.replace_name("Alyssa Mueller, Sports Desk", "Sports Desk", [])
+            == "Alyssa Mueller"
+        )
+
+    def test_a_string_without_the_name_is_left_alone(self):
+        assert br.replace_name("Alyssa Mueller", "Nate Sandford", ["x"]) is None
+
+    def test_a_fix_onto_a_name_already_there_does_not_double_it(self):
+        """ "Nate Sandford, Nate Sanford" is one person twice; writing the name
+        twice would be a new defect."""
+        assert (
+            br.replace_name(
+                "Nate Sandford, Nate Sanford", "Nate Sandford", ["Nate Sanford"]
+            )
+            == "Nate Sanford"
+        )
+
+    def test_the_exact_match_still_runs_first(self):
+        """One statement covers the great majority; the per-row rewrite is only
+        for the bylines that carry a co-author."""
+        from unittest.mock import MagicMock
+
+        session = MagicMock()
+        session.execute.return_value.rowcount = 4
+        session.execute.return_value.all.return_value = []
+        assert br.apply_decision(session, "ds-1", "Jon Smtih", ["Jon Smith"]) == 4
+        first = session.execute.call_args_list[0].args[1]
+        assert first["raw_byline"] == "Jon Smtih"
+        assert first["author"] == "Jon Smith"
+
+    def test_the_shared_query_excludes_the_exact_match(self):
+        """Or a row would be written twice, and counted twice."""
+        assert "a.author <> :raw_byline" in br._SHARED_SQL
+        assert "a.author LIKE :like" in br._SHARED_SQL

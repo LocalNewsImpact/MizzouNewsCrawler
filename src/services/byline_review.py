@@ -166,6 +166,9 @@ class BylineRow:
     decided: bool = False
     #: The other spellings of the same normalised name, when there are any.
     variants: tuple[str, ...] = ()
+    #: The byline strings this name was read out of. Usually one, and exactly
+    #: the name itself; more when the name shares a byline with a co-author.
+    sources: tuple[str, ...] = ()
 
     @property
     def top_signal(self) -> str | None:
@@ -416,17 +419,19 @@ def signals_for(
     """
     raw = row.raw or ""
     found: list[str] = []
-    if _TITLE_RE.search(f" {raw} "):
+    # `_looks_like_a_title`, not the bare pattern. The pattern matches a title
+    # word anywhere in the string, and the review unit is one name -- so
+    # "Marcus Officer", a reporter whose surname is Officer, was offered as a
+    # byline carrying a job title, in a row that also named his co-author and
+    # was therefore unanswerable.
+    if _looks_like_a_title(raw):
         found.append(STRAY_TITLE)
     if _PUBLICATION_RE.search(raw):
         found.append(PUBLICATION_SUFFIX)
     if _CONTACT_RE.search(raw):
         found.append(CONTACT_FRAGMENT)
-    names = split_names(raw)
-    # A byline naming several people is a co-authored story, not a defect: it
-    # is parsed into one record per person by the reports.
-    if not names or (len(names) == 1 and len(normalised_name(names[0]).split()) < 2):
-        # One word is a desk, a bot or a stub: "Admin", "AbbVie", "Aber".
+    # One word is a desk, a bot or a stub: "Admin", "AbbVie", "Aber".
+    if len(normalised_name(raw).split()) < 2:
         found.append(NOT_A_PERSON)
     if _DIGIT_RE.search(raw) and NOT_A_PERSON not in found:
         found.append(NOT_A_PERSON)
@@ -445,29 +450,48 @@ def review_rows(
 ) -> list[BylineRow]:
     """Build the reviewable rows from `(byline, host, owner, articles)`.
 
-    One row per distinct raw string, carrying every host and owner it appears
-    under, the defects it shows, and what would be written if the proposal were
-    accepted.
+    ONE ROW PER NAME, not per byline string. "Alyssa Mueller, Marcus Officer" is
+    a co-authored story, and offering it as one row asked an unanswerable
+    question: both names are correct, and a reviewer cannot accept, fix or drop
+    two people at once. So the string is split and each name is asked about on
+    its own -- which is also what makes the answer applicable, since the same
+    name appears alone on other stories and beside a different co-author on
+    others again.
+
+    Each row carries every host and owner the NAME appears under, the strings it
+    was read out of, the defects it shows, and what would be written if the
+    proposal were accepted.
     """
     grouped: dict[str, dict] = defaultdict(
-        lambda: {"articles": 0, "hosts": set(), "owners": set()}
+        lambda: {
+            "articles": 0,
+            "hosts": set(),
+            "owners": set(),
+            "sources": set(),
+        }
     )
     for raw, host, owner, articles in rows:
-        entry = grouped[raw]
-        entry["articles"] += int(articles or 0)
-        if host:
-            entry["hosts"].add(host)
-        if owner:
-            entry["owners"].add(owner)
+        for name in split_names(raw) or [raw]:
+            entry = grouped[name]
+            # The article count is of stories carrying this NAME. A co-authored
+            # story counts once for each of its names, which is what "how many
+            # stories does this byline have" means.
+            entry["articles"] += int(articles or 0)
+            entry["sources"].add(raw)
+            if host:
+                entry["hosts"].add(host)
+            if owner:
+                entry["owners"].add(owner)
 
     built = [
         BylineRow(
-            raw=raw,
+            raw=name,
             articles=entry["articles"],
             hosts=tuple(sorted(entry["hosts"])),
             owners=tuple(sorted(entry["owners"])),
+            sources=tuple(sorted(entry["sources"])),
         )
-        for raw, entry in grouped.items()
+        for name, entry in grouped.items()
     ]
 
     # Spellings of one name. Computed across the dataset rather than per row,
@@ -475,10 +499,8 @@ def review_rows(
     single: dict[str, BylineRow] = {}
     by_key: dict[str, list[BylineRow]] = defaultdict(list)
     for row in built:
-        names = split_names(row.raw)
-        if len(names) == 1:
-            single[row.raw] = row
-            by_key[normalised_name(names[0])].append(row)
+        single[row.raw] = row
+        by_key[normalised_name(row.raw)].append(row)
 
     variants: dict[str, set[str]] = defaultdict(set)
     for siblings in by_key.values():
@@ -502,7 +524,11 @@ def review_rows(
             row.decided = True
             continue
         found = list(signals_for(row, owner_groups))
-        names = split_names(row.raw)
+        # The row IS the name, so the proposal is the name as it stands unless a
+        # signal changes it. `split_names` still runs it: a name carrying a
+        # trailing title or publication is trimmed by the same rules that split
+        # the string, and a name it rejects outright proposes nothing.
+        names = split_names(row.raw) or []
         if variants.get(row.raw):
             found.append(SPELLING_VARIANT)
             row.variants = tuple(sorted(variants[row.raw]))
@@ -605,6 +631,18 @@ _APPLY_SQL = """
 #: export at `labeled`.
 _APPLY_STATUS_CLAUSE = "       AND a.status = ANY(:statuses)\n"
 
+#: Articles whose byline CONTAINS the name beside somebody else. The exact match
+#: above has already taken the rows where the name is the whole field, so this
+#: excludes them rather than writing them twice.
+_SHARED_SQL = """
+    SELECT a.id, a.author
+      FROM articles a
+      JOIN candidate_links cl ON cl.id = a.candidate_link_id
+     WHERE cl.dataset_id = :dataset_id
+       AND a.author LIKE :like
+       AND a.author <> :raw_byline
+"""
+
 
 def dataset_rows(session, dataset_id: str, statuses=LOCAL_STATUSES):
     """`(byline, host, owner, articles)` for one dataset's local stories."""
@@ -616,15 +654,57 @@ def dataset_rows(session, dataset_id: str, statuses=LOCAL_STATUSES):
     return [(row[0], row[1], row[2], row[3]) for row in result]
 
 
+def replace_name(author: str | None, name: str, names) -> str | None:
+    """`author` with `name` replaced by `names`, keeping the co-authors.
+
+    The review unit is one name, so a decision about "Marcus Officer" has to
+    reach "Alyssa Mueller, Marcus Officer" without touching Alyssa Mueller.
+    Returns None when the string does not carry the name, so the caller can skip
+    the row rather than write it back unchanged.
+
+    A decision naming nobody removes the name and leaves the rest: a co-authored
+    story keeps the co-author who is real.
+    """
+    if not author:
+        return None
+    parts = [part.strip() for part in _SEPARATORS.split(author) if part.strip()]
+    target = normalised_name(name)
+    if not any(normalised_name(part) == target for part in parts):
+        return None
+    out: list[str] = []
+    for part in parts:
+        if normalised_name(part) == target:
+            out.extend(n for n in names if n and n.strip())
+        else:
+            out.append(part)
+    # Deduplicated in order: fixing a misspelling on a co-authored story can
+    # name somebody already in the string -- "Nate Sandford, Nate Sanford" --
+    # and writing the name twice is a new defect.
+    seen: set[str] = set()
+    unique = []
+    for part in out:
+        key = normalised_name(part)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(part.strip())
+    return rendered(unique)
+
+
 def apply_decision(
     session, dataset_id: str, raw_byline: str, names, statuses=LOCAL_STATUSES
 ) -> int:
-    """Write a decision's names onto every article still carrying the string.
+    """Write a decision's names onto every article carrying the name.
 
     Returns the number of rows written. The article's byline is the permanent
-    record, so a decision is not finished until it is here -- the table keeps
-    it so a later extraction writing the raw form again can be corrected
-    without a person deciding twice.
+    record, so a decision is not finished until it is here -- the table keeps it
+    so a later extraction writing the raw form again can be corrected without a
+    person deciding twice.
+
+    TWO WRITES, because the review unit is a name and the column holds a string.
+    The exact match is one statement and covers the great majority. A name
+    sharing its byline with a co-author cannot be: the string has to be taken
+    apart, the one name replaced and the rest kept, which is per row.
     """
     from sqlalchemy import text
 
@@ -638,7 +718,30 @@ def apply_decision(
         sql = sql.rstrip() + "\n" + _APPLY_STATUS_CLAUSE
         params["statuses"] = list(statuses)
     result = session.execute(text(sql), params)
-    return int(getattr(result, "rowcount", 0) or 0)
+    written = int(getattr(result, "rowcount", 0) or 0)
+
+    # The co-authored ones. Selected by a LIKE on the name so the scan is narrow,
+    # then checked properly in Python: a LIKE cannot tell "Marcus Officer" from
+    # "Marcus Officerson", and normalised comparison can.
+    shared_sql = _SHARED_SQL
+    shared_params: dict = {
+        "dataset_id": dataset_id,
+        "like": f"%{raw_byline}%",
+        "raw_byline": raw_byline,
+    }
+    if statuses:
+        shared_sql = shared_sql.rstrip() + "\n" + _APPLY_STATUS_CLAUSE
+        shared_params["statuses"] = list(statuses)
+    for article_id, author in session.execute(text(shared_sql), shared_params).all():
+        rewritten = replace_name(author, raw_byline, list(names))
+        if rewritten is None or rewritten == author:
+            continue
+        session.execute(
+            text("UPDATE articles SET author = :author WHERE id = :id"),
+            {"author": rewritten, "id": article_id},
+        )
+        written += 1
+    return written
 
 
 #: One row per article, so a co-authored story can become one record per
@@ -834,10 +937,10 @@ def refresh_candidates(
             text(
                 "INSERT INTO byline_review_candidates (id, dataset_id, raw_byline,"
                 " signal, signal_label, signals, proposed, variants, differs_by,"
-                " articles, hosts, owners, computed_at)"
+                " articles, hosts, owners, sources, computed_at)"
                 " VALUES (gen_random_uuid()::text, :dataset_id, :raw, :signal,"
                 " :label, :signals, :proposed, :variants, :differs_by, :articles,"
-                " :hosts, :owners, CURRENT_TIMESTAMP)"
+                " :hosts, :owners, :sources, CURRENT_TIMESTAMP)"
             ),
             {
                 "dataset_id": dataset_id,
@@ -853,6 +956,10 @@ def refresh_candidates(
                 "articles": row.articles,
                 "hosts": json.dumps(list(row.hosts)),
                 "owners": json.dumps(list(row.owners)),
+                # The byline strings this name was read out of. One row is one
+                # name; this is how the reviewer sees that the name shares a
+                # byline with a co-author, which changes what an answer means.
+                "sources": json.dumps(list(row.sources)),
             },
         )
     return {"candidates": len(found), "written": len(found)}
@@ -929,7 +1036,11 @@ def bylines_with_hosts(
             entry["articles"] += row.articles
             entry["hosts"].update(row.hosts)
             entry["owners"].update(row.owners)
-            entry["raw_forms"].add(row.raw)
+            # The STRINGS the name was read out of, not the row's own name --
+            # a row is one name now, so `row.raw` would count 1 for everybody
+            # and the report would stop showing that "Conor Wilson" reaches the
+            # corpus both alone and beside Moe Clark.
+            entry["raw_forms"].update(row.sources or (row.raw,))
     out = []
     for entry in people.values():
         out.append(
