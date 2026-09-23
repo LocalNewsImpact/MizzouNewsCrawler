@@ -517,7 +517,10 @@ class TestApplyingADecision:
         session.execute.return_value.rowcount = 17
         written = br.apply_decision(session, "ds-1", '["Stan S"]', ["Stan S"])
         assert written == 17
-        params = session.execute.call_args.args[1]
+        # The FIRST statement: the exact match. A second one follows it for the
+        # bylines that carry this name beside a co-author, which is why the last
+        # call is no longer this one.
+        params = session.execute.call_args_list[0].args[1]
         assert params["author"] == "Stan S"
         assert params["raw_byline"] == '["Stan S"]'
         assert params["dataset_id"] == "ds-1"
@@ -610,8 +613,19 @@ class TestTheQueueIsComputedForTheReviewer:
             for call in session.execute.call_args_list
             if "INSERT INTO byline_review_candidates" in str(call.args[0])
         }
-        assert json.loads(rows["Nate Sandford"]["variants"]) == ["Nate Sanford"]
-        assert json.loads(rows["Nate Sandford"]["differs_by"]) == [br.DIFF_SPELLING]
+        # ONE ROW FOR THE PAIR, keyed on the spelling with the most stories --
+        # the one a reviewer is most likely to keep. Two rows asked about one
+        # person twice and hoped the answers agreed.
+        assert "Nate Sandford" not in rows
+        row = rows["Nate Sanford"]
+        assert json.loads(row["variants"]) == ["Nate Sandford"]
+        assert json.loads(row["differs_by"]) == [br.DIFF_SPELLING]
+        # Each spelling with its own count, because which one is right is judged
+        # by comparing those: 30 stories against 1.
+        assert [(g["name"], g["articles"]) for g in json.loads(row["group"])] == [
+            ("Nate Sanford", 30),
+            ("Nate Sandford", 1),
+        ]
 
     def test_housekeeping_refreshes_it(self):
         from pathlib import Path
@@ -765,3 +779,193 @@ class TestADecisionReachesTheArticle:
         source = Path("src/cli/commands/byline_report.py").read_text()
         assert "br.apply_pending(" in source
         assert "UPDATE byline_normalizations" not in source
+
+
+class TestOneRowIsOneName:
+    """A byline string can name two people, and a row naming two is unanswerable.
+
+    "Alyssa Mueller, Marcus Officer" was offered as one candidate, flagged as
+    carrying a job title because "Officer" is a title word and the pattern read
+    the whole string. Both names are correct; the reviewer could not accept, fix
+    or drop two people at once, and the title it was flagged for was a surname.
+    """
+
+    ROWS = [
+        ("Alyssa Mueller, Marcus Officer", "komu.com", "University of Missouri", 3),
+        ("Alyssa Mueller", "komu.com", "University of Missouri", 5),
+        ("Marcus Officer, Jonathan Ketz", "komu.com", "University of Missouri", 1),
+    ]
+
+    def _rows(self):
+        return {row.raw: row for row in br.review_rows(self.ROWS)}
+
+    def test_a_co_authored_string_is_not_a_row(self):
+        assert "Alyssa Mueller, Marcus Officer" not in self._rows()
+
+    def test_each_name_is_its_own_row(self):
+        assert set(self._rows()) == {
+            "Alyssa Mueller",
+            "Marcus Officer",
+            "Jonathan Ketz",
+        }
+
+    def test_a_surname_that_is_also_a_title_is_not_flagged(self):
+        """The whole reason the row was unanswerable: read on its own, "Marcus
+        Officer" is a person whose surname is Officer."""
+        assert br.STRAY_TITLE not in self._rows()["Marcus Officer"].signals
+
+    def test_a_row_says_which_strings_it_came_from(self):
+        """A name sharing a byline is a different question from a name alone, so
+        the reviewer is shown which it is."""
+        assert self._rows()["Marcus Officer"].sources == (
+            "Alyssa Mueller, Marcus Officer",
+            "Marcus Officer, Jonathan Ketz",
+        )
+
+    def test_the_count_is_of_stories_carrying_the_name(self):
+        """Alyssa Mueller has 5 of her own and 3 with a co-author."""
+        assert self._rows()["Alyssa Mueller"].articles == 8
+
+    def test_a_real_title_is_still_flagged(self):
+        rows = {row.raw: row for row in br.review_rows([("Staff Writer", "h", "o", 2)])}
+        assert br.STRAY_TITLE in rows["Staff Writer"].signals
+
+
+class TestADecisionReachesACoAuthoredByline:
+    """The review unit is a name; the column holds a string."""
+
+    def test_a_fix_keeps_the_co_author(self):
+        assert (
+            br.replace_name(
+                "Alyssa Mueller, Nate Sandford", "Nate Sandford", ["Nate Sanford"]
+            )
+            == "Alyssa Mueller, Nate Sanford"
+        )
+
+    def test_a_drop_removes_only_that_name(self):
+        """A co-authored story keeps the co-author who is real."""
+        assert (
+            br.replace_name("Alyssa Mueller, Sports Desk", "Sports Desk", [])
+            == "Alyssa Mueller"
+        )
+
+    def test_a_string_without_the_name_is_left_alone(self):
+        assert br.replace_name("Alyssa Mueller", "Nate Sandford", ["x"]) is None
+
+    def test_a_fix_onto_a_name_already_there_does_not_double_it(self):
+        """ "Nate Sandford, Nate Sanford" is one person twice; writing the name
+        twice would be a new defect."""
+        assert (
+            br.replace_name(
+                "Nate Sandford, Nate Sanford", "Nate Sandford", ["Nate Sanford"]
+            )
+            == "Nate Sanford"
+        )
+
+    def test_the_exact_match_still_runs_first(self):
+        """One statement covers the great majority; the per-row rewrite is only
+        for the bylines that carry a co-author."""
+        from unittest.mock import MagicMock
+
+        session = MagicMock()
+        session.execute.return_value.rowcount = 4
+        session.execute.return_value.all.return_value = []
+        assert br.apply_decision(session, "ds-1", "Jon Smtih", ["Jon Smith"]) == 4
+        first = session.execute.call_args_list[0].args[1]
+        assert first["raw_byline"] == "Jon Smtih"
+        assert first["author"] == "Jon Smith"
+
+    def test_the_shared_query_excludes_the_exact_match(self):
+        """Or a row would be written twice, and counted twice."""
+        assert "a.author <> :raw_byline" in br._SHARED_SQL
+        assert "a.author LIKE :like" in br._SHARED_SQL
+
+
+class TestASpellingClusterIsOneReview:
+    """A variant is a relationship, and it was being asked as two questions.
+
+    "Bruce E Stidham" and "Bruce E. Stidham" were separate rows, each naming the
+    other as a variant. A reviewer had to answer the same person twice and hope
+    the answers agreed.
+    """
+
+    #: Three spellings of one reporter, and one unrelated name. "Joe Mcgraw" and
+    #: "Joseph Mcgraw" are NOT in here: they score 0.87 against each other, under
+    #: the 0.88 the matcher requires, so as far as it is concerned they are two
+    #: people -- which is the matcher's documented behaviour and not this test's
+    #: subject.
+    ROWS = [
+        ("Nate Sanford", "a.example", "Owner", 12),
+        ("Nate Sandford", "a.example", "Owner", 2),
+        ("Nate Sandforde", "b.example", "Owner", 1),
+        ("Sandra Quite-Different", "a.example", "Owner", 4),
+    ]
+
+    def _found(self):
+        return {row.raw: row for row in br.candidates(self.ROWS)}
+
+    def test_one_row_for_the_cluster(self):
+        found = self._found()
+        assert "Nate Sandford" not in found
+        assert "Nate Sandforde" not in found
+        assert "Nate Sanford" in found
+
+    def test_the_spelling_with_the_most_stories_leads(self):
+        """The one a reviewer is most likely to keep, so it is the proposal."""
+        assert self._found()["Nate Sanford"].articles == 15
+
+    def test_three_spellings_are_one_cluster_not_two_pairs(self):
+        """A relationship, not a pair: three spellings are one person, and
+        pairing them would ask two questions about three rows."""
+        group = self._found()["Nate Sanford"].group
+        assert [g["name"] for g in group] == [
+            "Nate Sanford",
+            "Nate Sandford",
+            "Nate Sandforde",
+        ]
+
+    def test_each_spelling_carries_its_own_count(self):
+        """Which spelling is right is judged by comparing these."""
+        group = self._found()["Nate Sanford"].group
+        assert [g["articles"] for g in group] == [12, 2, 1]
+
+    def test_each_spelling_says_how_it_differs(self):
+        group = self._found()["Nate Sanford"].group
+        assert all("differs_by" in g for g in group)
+
+    def test_the_cluster_carries_every_hosts(self):
+        row = self._found()["Nate Sanford"]
+        assert row.hosts == ("a.example", "b.example")
+
+    def test_a_name_with_no_defect_is_not_in_the_queue_at_all(self):
+        """Clustering changes which rows are ONE question, not which rows are
+        questions. "Sandra Quite-Different" is spelled one way and shows nothing
+        wrong, so it is not offered -- before this change or after."""
+        assert "Sandra Quite-Different" not in self._found()
+
+    def test_a_name_with_no_variant_carries_no_group(self):
+        rows = [
+            ("Sandra Quite-Different", "a.example", "One Owner", 4),
+            ("Sandra Quite-Different", "b.example", "Other Owner", 1),
+        ]
+        found = {row.raw: row for row in br.candidates(rows)}
+        row = found["Sandra Quite-Different"]
+        assert row.group == ()
+        assert row.articles == 5
+
+    def test_a_folded_spellings_other_defect_is_not_lost(self):
+        """A spelling folded into a cluster keeps its own questions.
+
+        Here the minority spelling also appears under a second, unrelated owner
+        -- which is a question of its own -- and folding the row in must not
+        answer it by silence.
+        """
+        rows = [
+            ("Nate Sanford", "a.example", "One Owner", 12),
+            ("Nate Sandford", "a.example", "One Owner", 2),
+            ("Nate Sandford", "b.example", "Other Owner", 1),
+        ]
+        found = {row.raw: row for row in br.candidates(rows)}
+        row = found["Nate Sanford"]
+        assert br.SPELLING_VARIANT in row.signals
+        assert br.CROSS_OWNER in row.signals

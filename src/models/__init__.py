@@ -273,6 +273,11 @@ class BylineNormalization(Base):
 class BylineReviewCandidate(Base):
     """A byline string waiting for a person, computed here and read in datadesk.
 
+    ONE ROW IS ONE NAME, not one byline string (alembic 2f8b4c1e6a37). A string
+    can name two people, and "Alyssa Mueller, Marcus Officer" offered as one row
+    asked an unanswerable question: both names are correct, and a reviewer cannot
+    accept, fix or drop two people at once.
+
     See `alembic/versions/9d3a7e2b1c48`. Replaced wholesale on each refresh: a
     candidate describes the corpus as it is now, and a decided or repaired
     string stops being written.
@@ -299,6 +304,16 @@ class BylineReviewCandidate(Base):
     articles = Column(Integer, nullable=False, default=0)
     hosts = Column(JSON, nullable=False, default=list)
     owners = Column(JSON, nullable=False, default=list)
+    #: The byline STRINGS this name was read out of (alembic 2f8b4c1e6a37).
+    #: `raw_byline` is one name -- "Alyssa Mueller, Marcus Officer" was one row
+    #: and unanswerable -- and this is how the reviewer sees that the name
+    #: shares a byline with somebody, which changes what an answer means.
+    sources = Column(JSON, nullable=True, default=list)
+    #: Every spelling of this name, when there is more than one (alembic
+    #: 3a9c5e7b2f14). The CLUSTER is the review unit: "Bruce E Stidham" and
+    #: "Bruce E. Stidham" were two rows asking about one person. Quoted in SQL
+    #: because GROUP is a reserved word.
+    group = Column("group", JSON, nullable=True, default=list)
     computed_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
