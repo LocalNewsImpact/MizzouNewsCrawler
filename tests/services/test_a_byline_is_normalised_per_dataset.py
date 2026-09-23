@@ -21,6 +21,7 @@ reaches only the dataset it was made in.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -969,3 +970,104 @@ class TestASpellingClusterIsOneReview:
         row = found["Nate Sanford"]
         assert br.SPELLING_VARIANT in row.signals
         assert br.CROSS_OWNER in row.signals
+
+
+class TestThePageSaysWhichStoryIsWrong:
+    """A byline under unrelated owners is legitimate for a stringer and for papers
+    sharing copy. Nothing on the row separated that from a misattribution --
+    except the line the paper printed, where it printed one.
+
+    It answers rarely, and the tests say so: of the 1,202 stories behind Mizzou's
+    175 candidates, ONE disagrees. A page built around it would be empty 174 times
+    out of 175; a page that shows it when it exists hands the reviewer the one
+    case they can settle without judgement.
+    """
+
+    def _session(self, bodies):
+        """A session whose body query returns `(author, id, url, title, host,
+        head)` rows."""
+        from unittest.mock import MagicMock
+
+        session = MagicMock()
+
+        def execute(statement, params=None):
+            result = MagicMock()
+            result.all.return_value = bodies if "left(a.text" in str(statement) else []
+            return result
+
+        session.execute.side_effect = execute
+        return session
+
+    def test_a_story_whose_page_names_somebody_else_is_named(self):
+        session = self._session(
+            [
+                (
+                    "Christopher Replogle",
+                    "a-1",
+                    "https://www.unterrifieddemocrat.com/stories/linn-r-2",
+                    "Linn R-2 hires Haslag as MS/HS Principal",
+                    "www.unterrifieddemocrat.com",
+                    "By Neal A. Johnson, UD Editor\n\nLINN — Linn R-2 board members",
+                )
+            ]
+        )
+        found = br.find_mismatches(session, "ds-1", ["Christopher Replogle"])
+        story = found["Christopher Replogle"][0]
+        assert story["printed"] == "Neal A. Johnson"
+        assert story["host"] == "www.unterrifieddemocrat.com"
+        assert story["article_id"] == "a-1"
+
+    def test_a_story_whose_page_agrees_is_not_named(self):
+        session = self._session(
+            [
+                (
+                    "Neal A. Johnson",
+                    "a-2",
+                    "https://x",
+                    "T",
+                    "h",
+                    "By Neal A. Johnson, UD Editor\n\nText",
+                )
+            ]
+        )
+        assert br.find_mismatches(session, "ds-1", ["Neal A. Johnson"]) == {}
+
+    def test_a_spelling_variant_is_not_a_mismatch(self):
+        """ "Neal Johnson" against "Neal A. Johnson" is one person spelled two
+        ways, which the queue settles as a cluster. Naming it here would send the
+        reviewer to correct a story that is not wrong."""
+        session = self._session(
+            [("Neal Johnson", "a-3", "https://x", "T", "h", "By Neal A. Johnson\n\nT")]
+        )
+        assert br.find_mismatches(session, "ds-1", ["Neal Johnson"]) == {}
+
+    def test_a_body_with_no_printed_byline_says_nothing(self):
+        """The common case: only 6.8% of bodies print one."""
+        session = self._session(
+            [("Karl Zinke", "a-4", "https://x", "T", "h", "The council met Tuesday.")]
+        )
+        assert br.find_mismatches(session, "ds-1", ["Karl Zinke"]) == {}
+
+    def test_no_names_asks_nothing(self):
+        from unittest.mock import MagicMock
+
+        session = MagicMock()
+        assert br.find_mismatches(session, "ds-1", []) == {}
+        session.execute.assert_not_called()
+
+    def test_at_most_ten_stories_a_byline(self):
+        """A reviewer settles these one at a time, and a row carrying hundreds is
+        a row nobody reads."""
+        bodies = [
+            ("A B", f"a-{n}", "https://x", "T", "h", "By Different Person\n\nT")
+            for n in range(14)
+        ]
+        found = br.find_mismatches(self._session(bodies), "ds-1", ["A B"])
+        assert len(found["A B"]) == 10
+
+    def test_the_queue_carries_them(self):
+        """Including for every spelling folded into a cluster: the misattributed
+        story may carry the minority spelling."""
+        source = Path("src/services/byline_review.py").read_text()
+        assert "find_mismatches(" in source
+        assert '"mismatches": json.dumps(' in source

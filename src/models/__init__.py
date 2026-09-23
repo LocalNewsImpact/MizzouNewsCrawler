@@ -314,6 +314,11 @@ class BylineReviewCandidate(Base):
     #: "Bruce E. Stidham" were two rows asking about one person. Quoted in SQL
     #: because GROUP is a reserved word.
     group = Column("group", JSON, nullable=True, default=list)
+    #: The stories whose page names somebody else (alembic 4b7d8f2a6c53):
+    #: `[{article_id, url, title, host, printed}]`. The only provable answer to
+    #: "which of these newsrooms is wrong about this byline", and rare -- one of
+    #: Mizzou's 175 rows, because only 6.8% of bodies print a byline at all.
+    mismatches = Column(JSON, nullable=True, default=list)
     computed_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
