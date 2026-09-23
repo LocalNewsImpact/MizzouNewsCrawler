@@ -613,8 +613,19 @@ class TestTheQueueIsComputedForTheReviewer:
             for call in session.execute.call_args_list
             if "INSERT INTO byline_review_candidates" in str(call.args[0])
         }
-        assert json.loads(rows["Nate Sandford"]["variants"]) == ["Nate Sanford"]
-        assert json.loads(rows["Nate Sandford"]["differs_by"]) == [br.DIFF_SPELLING]
+        # ONE ROW FOR THE PAIR, keyed on the spelling with the most stories --
+        # the one a reviewer is most likely to keep. Two rows asked about one
+        # person twice and hoped the answers agreed.
+        assert "Nate Sandford" not in rows
+        row = rows["Nate Sanford"]
+        assert json.loads(row["variants"]) == ["Nate Sandford"]
+        assert json.loads(row["differs_by"]) == [br.DIFF_SPELLING]
+        # Each spelling with its own count, because which one is right is judged
+        # by comparing those: 30 stories against 1.
+        assert [(g["name"], g["articles"]) for g in json.loads(row["group"])] == [
+            ("Nate Sanford", 30),
+            ("Nate Sandford", 1),
+        ]
 
     def test_housekeeping_refreshes_it(self):
         from pathlib import Path
@@ -868,3 +879,93 @@ class TestADecisionReachesACoAuthoredByline:
         """Or a row would be written twice, and counted twice."""
         assert "a.author <> :raw_byline" in br._SHARED_SQL
         assert "a.author LIKE :like" in br._SHARED_SQL
+
+
+class TestASpellingClusterIsOneReview:
+    """A variant is a relationship, and it was being asked as two questions.
+
+    "Bruce E Stidham" and "Bruce E. Stidham" were separate rows, each naming the
+    other as a variant. A reviewer had to answer the same person twice and hope
+    the answers agreed.
+    """
+
+    #: Three spellings of one reporter, and one unrelated name. "Joe Mcgraw" and
+    #: "Joseph Mcgraw" are NOT in here: they score 0.87 against each other, under
+    #: the 0.88 the matcher requires, so as far as it is concerned they are two
+    #: people -- which is the matcher's documented behaviour and not this test's
+    #: subject.
+    ROWS = [
+        ("Nate Sanford", "a.example", "Owner", 12),
+        ("Nate Sandford", "a.example", "Owner", 2),
+        ("Nate Sandforde", "b.example", "Owner", 1),
+        ("Sandra Quite-Different", "a.example", "Owner", 4),
+    ]
+
+    def _found(self):
+        return {row.raw: row for row in br.candidates(self.ROWS)}
+
+    def test_one_row_for_the_cluster(self):
+        found = self._found()
+        assert "Nate Sandford" not in found
+        assert "Nate Sandforde" not in found
+        assert "Nate Sanford" in found
+
+    def test_the_spelling_with_the_most_stories_leads(self):
+        """The one a reviewer is most likely to keep, so it is the proposal."""
+        assert self._found()["Nate Sanford"].articles == 15
+
+    def test_three_spellings_are_one_cluster_not_two_pairs(self):
+        """A relationship, not a pair: three spellings are one person, and
+        pairing them would ask two questions about three rows."""
+        group = self._found()["Nate Sanford"].group
+        assert [g["name"] for g in group] == [
+            "Nate Sanford",
+            "Nate Sandford",
+            "Nate Sandforde",
+        ]
+
+    def test_each_spelling_carries_its_own_count(self):
+        """Which spelling is right is judged by comparing these."""
+        group = self._found()["Nate Sanford"].group
+        assert [g["articles"] for g in group] == [12, 2, 1]
+
+    def test_each_spelling_says_how_it_differs(self):
+        group = self._found()["Nate Sanford"].group
+        assert all("differs_by" in g for g in group)
+
+    def test_the_cluster_carries_every_hosts(self):
+        row = self._found()["Nate Sanford"]
+        assert row.hosts == ("a.example", "b.example")
+
+    def test_a_name_with_no_defect_is_not_in_the_queue_at_all(self):
+        """Clustering changes which rows are ONE question, not which rows are
+        questions. "Sandra Quite-Different" is spelled one way and shows nothing
+        wrong, so it is not offered -- before this change or after."""
+        assert "Sandra Quite-Different" not in self._found()
+
+    def test_a_name_with_no_variant_carries_no_group(self):
+        rows = [
+            ("Sandra Quite-Different", "a.example", "One Owner", 4),
+            ("Sandra Quite-Different", "b.example", "Other Owner", 1),
+        ]
+        found = {row.raw: row for row in br.candidates(rows)}
+        row = found["Sandra Quite-Different"]
+        assert row.group == ()
+        assert row.articles == 5
+
+    def test_a_folded_spellings_other_defect_is_not_lost(self):
+        """A spelling folded into a cluster keeps its own questions.
+
+        Here the minority spelling also appears under a second, unrelated owner
+        -- which is a question of its own -- and folding the row in must not
+        answer it by silence.
+        """
+        rows = [
+            ("Nate Sanford", "a.example", "One Owner", 12),
+            ("Nate Sandford", "a.example", "One Owner", 2),
+            ("Nate Sandford", "b.example", "Other Owner", 1),
+        ]
+        found = {row.raw: row for row in br.candidates(rows)}
+        row = found["Nate Sanford"]
+        assert br.SPELLING_VARIANT in row.signals
+        assert br.CROSS_OWNER in row.signals

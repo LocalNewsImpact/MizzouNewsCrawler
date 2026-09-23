@@ -309,6 +309,11 @@ class BylineReviewCandidate(Base):
     #: and unanswerable -- and this is how the reviewer sees that the name
     #: shares a byline with somebody, which changes what an answer means.
     sources = Column(JSON, nullable=True, default=list)
+    #: Every spelling of this name, when there is more than one (alembic
+    #: 3a9c5e7b2f14). The CLUSTER is the review unit: "Bruce E Stidham" and
+    #: "Bruce E. Stidham" were two rows asking about one person. Quoted in SQL
+    #: because GROUP is a reserved word.
+    group = Column("group", JSON, nullable=True, default=list)
     computed_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 

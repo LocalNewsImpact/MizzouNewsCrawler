@@ -169,6 +169,11 @@ class BylineRow:
     #: The byline strings this name was read out of. Usually one, and exactly
     #: the name itself; more when the name shares a byline with a co-author.
     sources: tuple[str, ...] = ()
+    #: Every spelling of this name, when there is more than one: each with its
+    #: own article count, hosts and how it differs from this row's spelling. The
+    #: CLUSTER is the review unit -- one question about one person -- and this is
+    #: what a reviewer compares to decide which spelling is right.
+    group: tuple[dict, ...] = ()
 
     @property
     def top_signal(self) -> str | None:
@@ -575,6 +580,81 @@ def _near_pairs(single: dict[str, BylineRow], groups: dict[str, str] | None = No
                     yield pair
 
 
+def group_spellings(rows: list[BylineRow]) -> list[BylineRow]:
+    """Collapse the spellings of one name into ONE row to review.
+
+    A variant is a relationship, and it was being offered as two questions:
+    "Bruce E Stidham" and "Bruce E. Stidham" were separate rows, each asking
+    about one spelling with the other listed beside it, and a reviewer had to
+    answer the same person twice and hope the two answers agreed. "J Mcgraw" and
+    "Joe Mcgraw" the same, and "Nate Sanford" and "Nate Sandford".
+
+    So the cluster is the row. Its name is the spelling with the most stories --
+    the one most likely to be right, and the default a reviewer would pick -- and
+    `group` carries every spelling with its own count and hosts, because which
+    spelling is correct is a judgement made by comparing those.
+
+    The signals of every member travel with the cluster: a spelling that also
+    carries a job title must not lose that question by being folded in.
+    """
+    by_name = {row.raw: row for row in rows}
+
+    # Union-find over the variant relation. A relation, not a pair: "Nate
+    # Sanford" near "Nate Sandford" near "Nate Sandforde" is one person in three
+    # spellings, and pairing them would ask two questions about three rows.
+    parent: dict[str, str] = {name: name for name in by_name}
+
+    def find(name: str) -> str:
+        while parent[name] != name:
+            parent[name] = parent[parent[name]]
+            name = parent[name]
+        return name
+
+    def union(a: str, b: str) -> None:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[rb] = ra
+
+    for row in rows:
+        for variant in row.variants:
+            if variant in parent:
+                union(row.raw, variant)
+
+    clusters: dict[str, list[BylineRow]] = defaultdict(list)
+    for row in rows:
+        clusters[find(row.raw)].append(row)
+
+    out: list[BylineRow] = []
+    for members in clusters.values():
+        if len(members) == 1:
+            out.append(members[0])
+            continue
+        # Most stories first: the spelling that carries the most is the one a
+        # reviewer is most likely to keep, so it leads and is the proposal.
+        members.sort(key=lambda row: (-row.articles, row.raw))
+        head = members[0]
+        others = members[1:]
+        head.group = tuple(
+            {
+                "name": member.raw,
+                "articles": member.articles,
+                "hosts": list(member.hosts),
+                "differs_by": difference_kind(head.raw, member.raw),
+            }
+            for member in members
+        )
+        head.variants = tuple(member.raw for member in others)
+        # Every member's defects, so folding a row in cannot lose its question.
+        head.signals = tuple(
+            dict.fromkeys(signal for member in members for signal in member.signals)
+        )
+        head.articles = sum(member.articles for member in members)
+        head.hosts = tuple(sorted({host for m in members for host in m.hosts}))
+        head.owners = tuple(sorted({owner for m in members for owner in m.owners}))
+        out.append(head)
+    return out
+
+
 def candidates(
     rows: Iterable[tuple[str, str, str, int]],
     owner_groups: dict[str, str] | None = None,
@@ -586,9 +666,9 @@ def candidates(
     repair that clears 700 rows is worth more of a reviewer's attention than
     one that clears one.
     """
-    ranked = [
-        row for row in review_rows(rows, owner_groups, decisions) if row.needs_review
-    ]
+    ranked = group_spellings(
+        [row for row in review_rows(rows, owner_groups, decisions) if row.needs_review]
+    )
     order = {signal: index for index, signal in enumerate(SIGNAL_ORDER)}
 
     def rank(row: BylineRow) -> tuple[int, int, str]:
@@ -937,10 +1017,10 @@ def refresh_candidates(
             text(
                 "INSERT INTO byline_review_candidates (id, dataset_id, raw_byline,"
                 " signal, signal_label, signals, proposed, variants, differs_by,"
-                " articles, hosts, owners, sources, computed_at)"
+                ' articles, hosts, owners, sources, "group", computed_at)'
                 " VALUES (gen_random_uuid()::text, :dataset_id, :raw, :signal,"
                 " :label, :signals, :proposed, :variants, :differs_by, :articles,"
-                " :hosts, :owners, :sources, CURRENT_TIMESTAMP)"
+                " :hosts, :owners, :sources, :group, CURRENT_TIMESTAMP)"
             ),
             {
                 "dataset_id": dataset_id,
@@ -960,6 +1040,10 @@ def refresh_candidates(
                 # name; this is how the reviewer sees that the name shares a
                 # byline with a co-author, which changes what an answer means.
                 "sources": json.dumps(list(row.sources)),
+                # Every spelling of this name with its own count and hosts. The
+                # cluster is one review, so this is what the reviewer compares
+                # rather than answering the same person once per spelling.
+                "group": json.dumps(list(row.group)),
             },
         )
     return {"candidates": len(found), "written": len(found)}
