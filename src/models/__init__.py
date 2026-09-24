@@ -7,10 +7,13 @@ from typing import Any
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
     Column,
+    Date,
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -760,6 +763,126 @@ class Dataset(Base):
         default=datetime.utcnow,
         server_default=text("CURRENT_TIMESTAMP"),
     )
+
+
+class Nameplate(Base):
+    """A newspaper that exists, whether or not we can reach it.
+
+    `sources` is a domain we crawl. This is the publication, and the two are not
+    the same thing: `myleaderpaper.com` is one source row behind four Jefferson
+    County papers, and across the Missouri Press and Blue Book directories 42
+    domains carry more than one nameplate.
+
+    A nameplate with no live domain is the point of the table rather than a gap
+    in it. Eight Missouri papers publish only a flipbook replica and one only on
+    Facebook; they are newspapers we know about and cannot collect, and until
+    now they could only be absent, which reads the same as not knowing.
+
+    See `docs/A_NAMEPLATE_IS_NOT_A_DOMAIN.md` and alembic `c1d2e3f4a5b6`.
+    """
+
+    __tablename__ = "nameplates"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('publishing','print_only','replica_only',"
+            "'social_only','closed','unknown')",
+            name="ck_nameplates_status",
+        ),
+    )
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String, nullable=False, index=True)
+    # Where the NEWSROOM is. Not always the town it is filed under: the Chariton
+    # Marquee is listed in Salem and its office is in Salisbury.
+    city = Column(String)
+    county = Column(String)
+    fips = Column(String(5), index=True)
+    state = Column(String(2), nullable=False, default="MO")
+    status = Column(String(20), nullable=False, default="unknown")
+    # Which reading of which directory carried it. A nameplate that stops
+    # appearing has not necessarily closed, so these are evidence and never a
+    # reason to delete the row.
+    first_seen = Column(Date)
+    last_seen = Column(Date)
+    note = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    domains = relationship(
+        "NameplateDomain", back_populates="nameplate", cascade="all, delete-orphan"
+    )
+
+
+class NameplateDomain(Base):
+    """Where a nameplate published, and when.
+
+    Several rows per nameplate, several nameplates per domain. A nameplate
+    leaving one domain for another is this row gaining a `to_date` and a new one
+    opening, so a split and a merge are the same rows read in opposite
+    directions and neither needs a table of its own.
+
+    `path` carries a nameplate that is a SECTION of a larger site:
+    `higginsvilleadvance.com` redirects into
+    `lafayettemonews.com/category/higginsville-advance/`.
+
+    `basis` records how the claim was reached, the way `review/mopress.py`
+    argues a match. A link proven by a redirect is worth more than one inferred
+    from two directories agreeing, and a reviewer settling a conflict has to see
+    which they are holding.
+    """
+
+    __tablename__ = "nameplate_domains"
+    __table_args__ = (
+        # One nameplate may return to a domain it left, so the pair is allowed
+        # twice -- but not twice OPEN, which would be two answers to "where does
+        # this publish now". Declared for both dialects: the suite runs on
+        # sqlite, and an index that exists only on Postgres is a rule no test
+        # can see.
+        Index(
+            "uq_nameplate_domain_current",
+            "nameplate_id",
+            "source_id",
+            unique=True,
+            postgresql_where=text("to_date IS NULL"),
+            sqlite_where=text("to_date IS NULL"),
+        ),
+        CheckConstraint(
+            "basis IN ('redirect','masthead_on_page','directory','decided')",
+            name="ck_nameplate_domains_basis",
+        ),
+        # A person overruling the evidence signs it.
+        CheckConstraint(
+            "basis <> 'decided' OR decided_by IS NOT NULL",
+            name="ck_nameplate_domains_decided_by",
+        ),
+        CheckConstraint(
+            "to_date IS NULL OR from_date IS NULL OR to_date >= from_date",
+            name="ck_nameplate_domains_dates",
+        ),
+    )
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    nameplate_id = Column(
+        String,
+        ForeignKey("nameplates.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    source_id = Column(
+        String,
+        ForeignKey("sources.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    path = Column(String)
+    from_date = Column(Date)
+    #: Null means current. A closed row is how a move is recorded.
+    to_date = Column(Date)
+    basis = Column(String(20), nullable=False)
+    evidence = Column(Text)
+    decided_by = Column(String)
+    decided_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    nameplate = relationship("Nameplate", back_populates="domains")
 
 
 class Source(Base):

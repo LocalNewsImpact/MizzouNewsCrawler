@@ -1,0 +1,174 @@
+newspaperName,city,county,fips,ownerName,ownerType,frequency,daysPublished,totalCirculation,yearAdded,newspaperId
+Kirksville Daily Express,Kirksville,Adair,29001,Carpenter Media Group,Regional Baron,W,None,None,None,None
+Savannah Reporter,Savannah,Andrew,29003,CherryRoad Media,Regional Baron,W,None,None,None,None
+Atchison County Mail,Rock Port,Atchison,29005,W C & Mike Farmer,Independent,W,None,None,None,None
+The Vandalia Leader,Vandalia,Audrain,29007,CherryRoad Media,Regional Baron,W,None,None,None,None
+Mexico Ledger,Mexico,Audrain,29007,Westplex Media Group,Independent,W,None,None,None,None
+Cassville Democrat,Cassville,Barry,29009,Troutman Media LLC,Private,W,None,None,None,None
+Barry County Advertiser,Cassville,Barry,29009,Lancaster Management,Private,W,None,None,None,None
+Lamar Democrat,Lamar,Barton,29011,Reaves & Williams Publishing Group,Private,W,None,None,None,None
+Rich Hill Mining Review,Rich Hill,Bates,29013,Main Street Media,Private,W,None,None,None,None
+Benton County Enterprise,Warsaw,Benton,29015,James Mahlon White,Independent,W,None,None,None,None
+Banner-Press,Marble Hill,Bollinger,29017,Rust Communications,Private,W,None,None,None,None
+Boone County Journal,Ashland,Boone,29019,Missourian Publishing Association,Nonprofit,W,None,None,None,None
+Columbia Missourian,Columbia,Boone,29019,Missourian Publishing Association,Nonprofit,D,None,None,None,None
+Centralia Fireside Guard,Centralia,Boone,29019,CherryRoad Media,Regional Baron,W,None,None,None,None
+Columbia Daily Tribune,Columbia,Boone,29019,Gannett/Gatehouse,Investment,D,None,None,None,None
+St. Joseph News-Press,Saint Joseph,Buchanan,29021,News-Press & Gazette Company,Independent,W,None,None,None,None
+Daily American Republic,Poplar Bluff,Butler,29023,Rust Communications,Private,D,None,None,None,None
+Caldwell County News,Hamilton,Caldwell,29025,L & L Publications Inc.,Independent,W,None,None,None,None
+Fulton Sun,Fulton,Callaway,29027,Faughn Media,Private,W,None,None,None,None
+Reporter,Camdenton,Camden,29029,Reporter Publishing LLC/Dale Johnson,Independent,W,None,None,None,None
+The Lake Sun,Camdenton,Camden,29029,Vernon Publishing Inc.,Independent,W,None,None,None,None
+Southeast Missourian,Cape Girardeau,Cape Girardeau,29031,Rust Communications,Private,D,None,None,None,None
+Cash-Book Journal/The Weekender,Jackson,Cape Girardeau,29031,Gina Raffety,Independent,W,None,None,None,None
+Norborne Democrat-Leader,Norborne,Carroll,29033,Main Street Media,Private,W,None,None,None,None
+Hale Horizions,Hale,Carroll,29033,Corf family,Independent,W,None,None,None,None
+Carrollton Democrat,Carrollton,Carroll,29033,CherryRoad Media,Private,W,None,None,None,None
+Current River Observer,Van Buren,Carter,29035,Taylor Petit,Independent,W,None,None,None,None
+Current Local,Van Buren,Carter,29035,Mike Grassham,Independent,W,None,None,None,None
+North Cass Herald,Belton,Cass,29037,Laurie Bassett Edmonds and Allen Edmonds,Independent,W,None,None,None,None
+Tribune and Times,Harrisonville,Cass,29037,Dennis Minich,Independent,W,None,None,None,None
+Cedar County Republican/Stockton Journal,Stockton,Cedar,29039,Carpenter Media Group,Regional Baron,W,None,None,None,None
+Star,El Dorado Springs,Cedar,29039,James and Jeannie Belk,Independent,W,None,None,None,None
+El Dorado Springs Sun,El Dorado Springs,Cedar,29039,Kenny & Kimball Long,Independent,W,None,None,None,None
+Chariton Marquee,Salisbury,Chariton,29041,J3 Marquee Ventures,Independent,W,None,None,None,None
+Christian County Headliner News,Ozark,Christian,29043,Carpenter Media Group,Regional Baron,W,None,None,None,None
+The Clark County Media,Kahoka,Clark,29045,NEMOnews Media Group LLC,Independent,W,None,None,None,None
+Kahoka Hometown Journal,Kahoka,Clark,29045,Joe & Lisa Roberts,Independent,W,None,None,None,None
+Courier-Tribune,Liberty,Clay,29047,CherryRoad Media,Regional Baron,W,None,None,None,None
+Gladstone Dispatch,Gladstone,Clay,29047,CherryRoad Media,Regional Baron,W,None,None,None,None
+Excelsior Springs Standard,Excelsior Springs,Clay,29047,Fackelman News Group/Newspaper Service Company Inc./Marc Richard Ann Nixon & Frank Nixon,Independent,W,None,None,None,None
+Citizen Observer,Cameron,Clinton,29049,Smith Newspapers,Private,W,None,None,None,None
+Clinton County Leader,Plattsburg,Clinton,29049,Tinnen family,Independent,W,None,None,None,None
+News Tribune,Jefferson City,Cole,29051,Faughn Media,Private,D,None,None,None,None
+Boonville Daily News,Boonville,Cooper,29053,CherryRoad Media,Regional Baron,W,None,None,None,None
+Cuba Free Press,Cuba,Crawford,29055,Dennis Warden,Independent,W,None,None,None,None
+Steelville Star-Crawford Mirror,Steelville,Crawford,29055,Dennis Warden,Independent,W,None,None,None,None
+Vedette,Greenfield,Dade,29057,Krista Kay Guy,Independent,W,None,None,None,None
+Buffalo Reflex,Buffalo,Dallas,29059,Carpenter Media Group,Regional Baron,W,None,None,None,None
+Tri-County Weekly,Jamesport,Daviess,29061,K-K Printing,Independent,W,None,None,None,None
+DeKalb County Record-Herald,Maysville,DeKalb,29063,Terry Pearl,Independent,W,None,None,None,None
+Salem News,Salem,Dent,29065,Carpenter Media Group,Regional Baron,W,None,None,None,None
+Douglas County Herald,Ava,Douglas,29067,Better Newspaper Group,Private,W,None,None,None,None
+Delta Dunklin Democrat,Kennett,Dunklin,29069,Rust Communications,Private,D,None,None,None,None
+Sullivan Independent News,Sullivan,Franklin,29071,James Bartle,Independent,W,None,None,None,None
+Washington Missourian,Washington,Franklin,29071,Hoffmann Media Group,Independent,W,None,None,None,None
+The Hermann Advertiser-Courier,Hermann,Gasconade,29073,CherryRoad Media,Regional Baron,W,None,None,None,None
+Gasconade County Republican,Owensville,Gasconade,29073,Dennis Warden,Independent,W,None,None,None,None
+Tri-County Ledger,King City,Gentry,29075,Matthew Pearl,Independent,W,None,None,None,None
+Springfield News-Leader,Springfield,Greene,29077,Gannett/Gatehouse,Investment,D,None,None,None,None
+Greene County Commonwealth,Ash Grove,Greene,29077,Squibb Media,Independent,W,None,None,None,None
+Trenton Telegraph,Trenton,Grundy,29079,CherryRoad Media,Regional Baron,W,None,None,None,None
+Bethany Republican-Clipper,Bethany,Harrison,29081,Phillip G. Conger,Independent,W,None,None,None,None
+Clinton Daily Democrat,Clinton,Henry,29083,James Mahlon White,Independent,W,None,None,None,None
+The Index,Hermitage,Hickory,29085,Vernon Publishing Inc.,Independent,W,None,None,None,None
+Mound City News,Mound City,Holt,29087,Adam Johnson (Mo.),Independent,W,None,None,None,None
+Glasgow Missourian,Glasgow,Howard,29089,J3 Marquee Ventures,Independent,W,None,None,None,None
+Fayette Advertiser,Fayette,Howard,29089,JSA Media,Independent,W,None,None,None,None
+West Plains Daily Quill,West Plains,Howell,29091,Carpenter Media Group,Regional Baron,W,None,None,None,None
+Willow Springs Howell County News,Willow Spring,Howell,29091,Amanda Mendez (Aux Arcs Homestead Publishing LLC),Independent,W,None,None,None,None
+Mountain Echo,Ironton,Iron,29093,Paxton Media Group,Regional Baron,W,None,None,None,None
+The Northeast News,Kansas City,Jackson,29095,Historic Northeast Media Inc.,Nonprofit,W,None,None,None,None
+The Examiner,Independence,Jackson,29095,CherryRoad Media,Regional Baron,D,None,None,None,None
+Focus on Oak Grove,Oak Grove,Jackson,29095,Joe & John Spaar/Spaar Publications LLC,Independent,W,None,None,None,None
+The Next Page KC,Kansas City,Jackson,29095,Eric L. Wesson Sr.,Independent,W,None,None,None,None
+The Kansas City Star,Kansas City,Jackson,29095,McClatchy/Chatham Asset Management,Investment,D,None,None,None,None
+Joplin Globe,Joplin,Jasper,29097,CNHI/Retirement Systems of Alabama,Investment,D,None,None,None,None
+Jasper County Citizen,Sarcoxie,Jasper,29097,Paul Donley and Katrina Garber,Independent,W,None,None,None,None
+Carthage Chronicle,Sarcoxie,Jasper,29097,Paul Donley and Katrina Garber,Independent,W,None,None,None,None
+The Sarcoxie Record,Sarcoxie,Jasper,29097,Paul Donley and Katrina Garber,Independent,W,None,None,None,None
+Jefferson County Leader,Festus,Jefferson,29099,Leader Publications,Independent,W,None,None,None,None
+Eureka Leader,Eureka,Jefferson,29099,Leader Publications,Independent,W,None,None,None,None
+Holden Image,Holden,Johnson,29101,John & Sandy Roberts,Independent,W,None,None,None,None
+The Daily Star-Journal,Warrensburg,Johnson,29101,Carpenter Media Group,Regional Baron,W,None,None,None,None
+Edina Sentinel,Edina,Knox,29103,NEMOnews Media Group LLC,Independent,W,None,None,None,None
+Laclede County Record,Lebanon,Laclede,29105,Lebanon Publishing Co,Independent,W,None,None,None,None
+Concordia Concordian,Concordia,Lafayette,29107,Kathryn Dohrman,Independent,W,None,None,None,None
+Higginsville Advance,Higginsville,Lafayette,29107,Lexington Area Chamber of Commerce,Private,W,None,None,None,None
+Lexington News,Lexington,Lafayette,29107,Lexington Area Chamber of Commerce,Private,W,None,None,None,None
+Santa Fe Times,Alma,Lafayette,29107,Lexington Area Chamber of Commerce,Private,W,None,None,None,None
+Odessan,Odessa,Lafayette,29107,Joe & John Spaar/Spaar Publications LLC,Independent,W,None,None,None,None
+Lawrence County Record and continuing The Monett Times,Mount Vernon,Lawrence,29109,Squibb Media,Independent,W,None,None,None,None
+Aurora Advertiser,Aurora,Lawrence,29109,Sexton Media Group,Independent,W,None,None,None,None
+Canton Press-News Journal,La Grange,Lewis,29111,Reaves & Williams Publishing Group,Private,W,None,None,None,None
+Lincoln County Journal,Troy,Lincoln,29113,CherryRoad Media,Regional Baron,W,None,None,None,None
+Troy Free Press,Troy,Lincoln,29113,CherryRoad Media,Regional Baron,W,None,None,None,None
+Elsberry Democrat,Elsberry,Lincoln,29113,CherryRoad Media,Regional Baron,W,None,None,None,None
+Linn County Leader,Marceline,Linn,29115,CherryRoad Media,Regional Baron,W,None,None,None,None
+Constitution-Tribune,Chillicothe,Livingston,29117,CherryRoad Media,Regional Baron,W,None,None,None,None
+The Home Press,La Plata,Macon,29121,Sharon Coram,Independent,W,None,None,None,None
+Democrat News,Fredericktown,Madison,29123,Paxton Media Group,Regional Baron,W,None,None,None,None
+Maries County Advocate,Belle,Maries,29125,Dennis Warden,Independent,W,None,None,None,None
+Palmyra Spectator,Palmyra,Marion,29127,NEMOnews Media Group LLC,Independent,W,None,None,None,None
+Hannibal Courier-Post,Hannibal,Marion,29127,Carpenter Media Group,Regional Baron,W,None,None,None,None
+McDonald County Press,Pineville,McDonald,29119,Wehco Media,Private,W,None,None,None,None
+Princeton Post-Telegraph,Princeton,Mercer,29129,Blackbird Creek Printing Co,Independent,W,None,None,None,None
+Eldon Advertiser,Eldon,Miller,29131,Vernon Publishing Inc.,Independent,W,None,None,None,None
+East Prairie Eagle and Enterprise Courier,East Prairie,Mississippi,29133,Carlin Bennett,Independent,W,None,None,None,None
+California Democrat,California,Moniteau,29135,Faughn Media,Private,W,None,None,None,None
+Tipton Times,Tipton,Moniteau,29135,Vernon Publishing Inc.,Independent,W,None,None,None,None
+Lake Gazette,Monroe City,Monroe,29137,CherryRoad Media,Regional Baron,W,None,None,None,None
+Montgomery Standard,Montgomery City,Montgomery,29139,Westplex Media Group,Independent,W,None,None,None,None
+Wellsville Optic-News,Wellsville,Montgomery,29139,Tracy L Park,Independent,W,None,None,None,None
+Morgan County Statesman,Stover,Morgan,29141,Bryan Jones,Independent,W,None,None,None,None
+Newton County News,Neosho,Newton,29145,Jennifer Hayworth,Independent,W,None,None,None,None
+Neosho Daily News,Neosho,Newton,29145,Sexton Media Group,Independent,W,None,None,None,None
+Nodaway News Leader,Maryville,Nodaway,29147,Kay Wilson,Independent,W,None,None,None,None
+Maryville Forum,Maryville,Nodaway,29147,Garner Media Holdings LLC,Investment,W,None,None,None,None
+South Missourian News,Thayer,Oregon,29149,CherryRoad Media,Regional Baron,W,None,None,None,None
+Unterrified Democrat,Linn,Osage,29151,Dennis Warden,Independent,W,None,None,None,None
+Ozark County Times,Gainesville,Ozark,29153,Norene Prososki,Independent,W,None,None,None,None
+Pemiscott Press,Caruthersville,Pemiscot,29155,Rust Communications,Private,W,None,None,None,None
+Republic Monitor,Perryville,Perry,29157,Perry County Newspapers Inc.,Private,W,None,None,None,None
+Sedalia Democrat,Sedalia,Pettis,29159,Carpenter Media Group,Regional Baron,W,None,None,None,None
+Phelps County Focus,Rolla,Phelps,29161,Carpenter Media Group,Regional Baron,W,None,None,None,None
+St. James Press,St. James,Phelps,29161,Dennis Warden,Independent,W,None,None,None,None
+The People's Tribune,Bowling Green,Pike,29163,Jerry Hickerson,Independent,W,None,None,None,None
+Pike County News,Louisiana,Pike,29163,CherryRoad Media,Regional Baron,W,None,None,None,None
+Landmark,Platte City,Platte,29165,Foley Newspapers,Independent,W,None,None,None,None
+Platte County Citizen,Platte City,Platte,29165,Adam Johnson (Mo.),Independent,W,None,None,None,None
+Weston Chronicle,Weston,Platte,29165,Jim McPherson,Independent,W,None,None,None,None
+Bolivar Herald-Free Press,Bolivar,Polk,29167,Carpenter Media Group,Regional Baron,W,None,None,None,None
+The Dixon Pilot,Dixon,Pulaski,29169,Connie Erisman,Independent,W,None,None,None,None
+Pulaski County Weekly,Rolla,Pulaski,29169,Carpenter Media Group,Regional Baron,W,None,None,None,None
+Unionville Republican,Unionville,Putnam,29171,Blackbird Creek Printing Co,Independent,W,None,None,None,None
+Monroe-Ralls,Paris,Ralls,29173,Reaves & Williams Publishing Group,Private,W,None,None,None,None
+Moberly Monitor-Index,Moberly,Randolph,29175,CherryRoad Media,Regional Baron,W,None,None,None,None
+Lawson Review,Lawson,Ray,29177,Anita & Kenny Duncan,Independent,W,None,None,None,None
+Richmond Daily News,Richmond,Ray,29177,Fackelman News Group/Newspaper Service Company Inc./Marc Richard Ann Nixon & Frank Nixon,Independent,W,None,None,None,None
+Reynolds County Courier,Ellington,Reynolds,29179,Paxton Media Group,Regional Baron,W,None,None,None,None
+The Prospect-News,Doniphan,Ripley,29181,Rust Communications,Private,W,None,None,None,None
+Marshall Democrat-News,Marshall,Saline,29195,CherryRoad Media,Regional Baron,W,None,None,None,None
+Slater Main Street News,Slater,Saline,29195,Jean E Black,Independent,W,None,None,None,None
+Sweet Springs Herald,Sweet Springs,Saline,29195,Kathryn Dohrman,Independent,W,None,None,None,None
+Schuyler County Times,Queen City,Schuyler,29197,NEMOnews Media Group LLC,Independent,W,None,None,None,None
+Memphis Democrat,Memphis,Scotland,29199,NEMOnews Media Group LLC,Independent,W,None,None,None,None
+Standard Democrat,Sikeston,Scott,29201,Rust Communications,Private,D,None,None,None,None
+Current Wave,Eminence,Shannon,29203,Roger Dillon,Independent,W,None,None,None,None
+Shelby County Herald,Shelbyville,Shelby,29205,NEMOnews Media Group LLC,Independent,W,None,None,None,None
+St. Charles Community News,St. Charles,St. Charles,29183,Westplex Media Group,Independent,W,None,None,None,None
+St. Clair Co. Courier,Osceola,St. Clair,29185,Main Street Media,Private,W,None,None,None,None
+Farmington Press,Farmington,St. Francois,29187,Paxton Media Group,Regional Baron,W,None,None,None,None
+"Daily Journal, Park Hills",Park Hills,St. Francois,29187,Paxton Media Group,Regional Baron,D,None,None,None,None
+St. Louis Community News,St. Louis,St. Louis,29189,Westplex Media Group,Independent,W,None,None,None,None
+St. Louis Call Newspapers,St. Louis,St. Louis,29189,Deborah Baker,Independent,W,None,None,None,None
+Webster-Kirkwood Times,St. Louis,St. Louis,29189,WKTimes LLC,Independent,W,None,None,None,None
+St. Louis Post-Dispatch,St. Louis,St. Louis city,29510,Lee Enterprises,Investment,D,None,None,None,None
+Ste. Genevieve Herald,Sainte Genevieve,Ste. Genevieve,29186,Paxton Media Group,Regional Baron,W,None,None,None,None
+Dexter Statesman,Dexter,Stoddard,29207,Rust Communications,Private,W,None,None,None,None
+Crane Chronicle/Stone County Republican,Crane,Stone,29209,Lancaster Management,Private,W,None,None,None,None
+Milan Standard,Milan,Sullivan,29211,NEMOnews Media Group LLC,Independent,W,None,None,None,None
+Branson Tri-Lakes News,Hollister,Taney,29213,Lancaster Management,Private,W,None,None,None,None
+Houston Herald,Houston,Texas,29215,Isaiah Buse,Independent,W,None,None,None,None
+Licking News,Licking,Texas,29215,Group Duncan LLC,Independent,W,None,None,None,None
+Summersville Beacon,Summersville,Texas,29215,Sharon Vaughn,Independent,W,None,None,None,None
+The Nevada Daily Mail,Nevada,Vernon,29217,Rust Communications,Private,D,None,None,None,None
+Warren County Record,Warrenton,Warren,29219,Westplex Media Group,Independent,W,None,None,None,None
+Independent-Journal,Potosi,Washington,29221,Kris Richards and Joyce Kathleen Richards,Independent,W,None,None,None,None
+Wayne County Journal-Banner,Piedmont,Wayne,29223,Paxton Media Group,Regional Baron,W,None,None,None,None
+Webster County Citizen,Seymour,Webster,29225,Dan Wehmer,Independent,W,None,None,None,None
+Marshfield Mail,Marshfield,Webster,29225,Carpenter Media Group,Regional Baron,W,None,None,None,None
+Sheridan Express,Sheridan,Worth,29227,Sheridan Express Newspaper Cooperative,Independent,W,None,None,None,None
+Times Tribune,Grant City,Worth,29227,Garner Media Holdings LLC,Investment,W,None,None,None,None
+Wright County Journal,Mansfield,Wright,29229,Ron Schott,Independent,W,None,None,None,None

@@ -168,8 +168,8 @@ schools_*.csv
 # Book newspaper directory, the comparison of it against the dataset, and the
 # extracts that feed the datadesk visuals builder. Named rather than
 # force-added, so the next edition does not need `git add -f`.
-!src/lookups/mo_bluebook_*.csv
-!src/lookups/mo_new_*.csv
+!src/lookups/mo_*.csv
+!src/lookups/mo_*.json
 
 # EXCEPT the DMA crosswalk, which stays local and never reaches origin.
 #
