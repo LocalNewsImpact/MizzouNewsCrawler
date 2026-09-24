@@ -615,6 +615,134 @@ class BylineCleaner:
             return text
         return ", ".join(people)
 
+    # ------------------------------------------------------------------
+    # FOUR WAYS A CAPTURE IS NOT THE BYLINE IT LOOKS LIKE.
+    #
+    # All four are pattern, not judgement, and all four were reaching the
+    # corpus whole: 183 photo credits, the whole Missouri Independent family
+    # (Rudi Keller alone split 266/126 across two spellings of his own name),
+    # doubled names and usernames run onto surnames.
+    # ------------------------------------------------------------------
+
+    #: A photo credit, in the forms these sites actually print: `Photo`,
+    #: `Photos`, `File Photo`, `All Photos`, with an optional qualifier.
+    _PHOTO_CREDIT = re.compile(
+        r"(?i)(?:^|\s)(?:all\s+|file\s+|staff\s+|courtesy\s+|submitted\s+)?photos?(?:\s|$)"
+    )
+
+    #: Segments of a byline. A credit is usually its own comma segment --
+    #: "Chris Higgins, File Photo" -- and the segment is the unit dropped.
+    _SEGMENTS = re.compile(r"\s*[,;]\s*|\s+/\s+")
+
+    @classmethod
+    def drop_photo_credits(cls, byline: str) -> str:
+        """Remove the segments that credit a PHOTOGRAPH, not the reporting.
+
+        A photo credit is not a weak byline to be trimmed into a good one. It
+        names who supplied a picture, and salvaging the name from it credits
+        somebody with writing a story they photographed: `Cameron Montemayor
+        File Photo` would become a byline for a reporter with 302 real ones,
+        on a story he did not write. `Jim Faasen Photos` is eleven such
+        stories.
+
+        So a segment carrying the marker is DROPPED, not trimmed. Where the
+        byline and the credit are merged -- "Chris Higgins, File Photo" --
+        that leaves the real byline behind. Where the credit is the whole
+        string, it leaves nothing, which is the right answer: the article has
+        no byline, and an empty field says so where an invented one does not.
+        """
+        if not byline or not cls._PHOTO_CREDIT.search(byline):
+            return byline
+        kept = [
+            part.strip()
+            for part in cls._SEGMENTS.split(byline)
+            if part and part.strip() and not cls._PHOTO_CREDIT.search(part)
+        ]
+        return ", ".join(kept)
+
+    #: Separators a masthead is hung off a name with: "Rudi Keller - MISSOURI
+    #: INDEPENDENT", "... | Missouri Independent", "... ~ Missouri Independent".
+    _MASTHEAD_JOIN = re.compile(r"\s*[|~\u2013\u2014-]+\s*$")
+
+    @staticmethod
+    def _without_article(tokens: tuple[str, ...]) -> tuple[str, ...]:
+        """`the missouri independent` and `missouri independent` are one name.
+
+        THIS IS THE WHOLE BUG. The publication cache holds the canonical name
+        from `sources`, which carries the article -- `the missouri
+        independent` -- and the matcher compared n-grams for exact equality. A
+        byline prints the masthead without the article, so two words were
+        compared against three and 2,017 loaded publication names could never
+        fire on the commonest case there is.
+        """
+        return tokens[1:] if tokens and tokens[0] == "the" else tokens
+
+    def drop_trailing_publication(self, byline: str) -> str:
+        """Trim the newsroom's own name off the end of its reporter's byline.
+
+        `Rudi Keller Missouri Independent` is Rudi Keller. The corpus carries
+        126 articles under that string and 266 under his name, so every count
+        drawn off either is wrong by the other.
+        """
+        if not byline:
+            return byline
+        names = set()
+        for name in self.get_publication_names():
+            tokens = self._without_article(tuple(str(name).lower().split()))
+            if len(tokens) >= 2:  # one word is far too eager to strip
+                names.add(tokens)
+        if not names:
+            return byline
+        words = byline.split()
+        lowered = [w.lower().strip(".,|~") for w in words]
+        for size in range(min(6, len(words) - 1), 1, -1):
+            tail = self._without_article(tuple(lowered[-size:]))
+            if tail in names or tuple(lowered[-size:]) in names:
+                trimmed = " ".join(words[:-size])
+                return self._MASTHEAD_JOIN.sub("", trimmed).strip()
+        return byline
+
+    @classmethod
+    def drop_repeated_name(cls, byline: str) -> str:
+        """`Jon Dykstra Jon Dykstra` is Jon Dykstra, on 52 articles."""
+        if not byline:
+            return byline
+        words = byline.split()
+        if len(words) % 2:
+            return byline
+        half = len(words) // 2
+        first, second = words[:half], words[half:]
+        if [w.lower() for w in first] == [w.lower() for w in second]:
+            return " ".join(first)
+        return byline
+
+    @classmethod
+    def drop_own_username(cls, byline: str) -> str:
+        """Drop a trailing token that is the reporter's own name squashed.
+
+        `John Hacker Jhacker` and `Bill Battle Battleb` are a CMS username run
+        onto the display name -- first initial plus surname, or surname plus
+        first initial. 85 and 63 articles respectively, each splitting a real
+        reporter's byline in two.
+
+        Only those two shapes, and only against the name it follows, so an
+        actual third name is never mistaken for one.
+        """
+        if not byline:
+            return byline
+        words = byline.split()
+        if len(words) < 3:
+            return byline
+        tail = words[-1].lower()
+        if not tail.isalpha():
+            return byline
+        given, surname = words[0].lower(), words[-2].lower()
+        if not given or not surname:
+            return byline
+        if tail in (given[:1] + surname, surname + given[:1]):
+            return " ".join(words[:-1])
+        return byline
+
     def __init__(self, enable_telemetry: bool = True, dataset_id: str | None = None):
         """Initialize the byline cleaner.
 
@@ -701,7 +829,22 @@ class BylineCleaner:
             # Dash-joined bylines, before anything else reads them.
             byline = self._decode_lost_escapes(byline)
             byline = self._drop_contact_tokens(byline)
+
+            # THE ORDER HERE IS THE RULE.
+            #
+            # Photo credits go first, because every rule after this one tries
+            # to salvage a name and a credit is the one case where salvaging
+            # is the error: `Cameron Montemayor File Photo` trimmed to a
+            # byline credits a reporter with a story he photographed.
+            byline = self.drop_photo_credits(byline)
+            # Then the masthead, BEFORE the dash split. `Rudi Keller -
+            # MISSOURI INDEPENDENT` reaching `normalise_dash_separators`
+            # first becomes two authors, because an uppercase masthead is
+            # name-shaped; trimmed first, it is one reporter.
+            byline = self.drop_trailing_publication(byline)
             byline = self.normalise_dash_separators(byline)
+            byline = self.drop_repeated_name(byline)
+            byline = self.drop_own_username(byline)
 
             if not byline or not byline.strip():
                 self.telemetry.finalize_cleaning_session(
