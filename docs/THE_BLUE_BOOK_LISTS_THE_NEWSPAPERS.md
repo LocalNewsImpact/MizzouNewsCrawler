@@ -44,21 +44,29 @@ page is therefore cropped into halves and read separately. Three things bite:
 
 ## How it compares with the Mizzou dataset
 
-Against the 213 sources in `Mizzou-Missouri-State`:
+**COUNT HOSTS, NOT MASTHEADS.** The book lists mastheads; we hold domains. 36
+of its entries share 15 hosts — St. Charles Community News and St. Louis
+Community News are one office on `www.mycnews.com`, `myleaderpaper.com` carries
+four, `mainstreetnewsgroup.com` four. Counting entries overstates both the book
+and the gap.
 
-| | Count |
-| --- | --- |
-| Blue Book newspapers | 199 |
-| …with a website printed | 176 |
-| Matched to one of our sources by host | 130 |
-| Matched by name but under a different host | 8 |
-| In the book, not in our data | 61 |
-| In our data, not in the book | 84 |
+| | Mastheads | Hosts |
+| --- | --- | --- |
+| Blue Book entries / distinct hosts | 199 | **155** |
+| Matched to one of our sources | 130 | **120** |
+| In the book, not in our data | 61 | **35** |
+| Printing no website | 23 | 23 |
 
-The 84 we hold and the book does not are not errors: the book lists newspapers,
-and the dataset also carries broadcasters, digital natives and college papers.
+A source is matched on `host` OR `host_norm`: the Washington Missourian is
+`www.missourian.com` with a `host_norm` of `www.emissourian.com`, which is the
+host the book prints, and matching on `host` alone reported it as one we do not
+hold.
 
-### The 61 we do not carry
+The sources we hold and the book does not are not errors: the book lists
+newspapers, and the dataset also carries broadcasters, digital natives and
+college papers.
+
+### The ones we do not carry
 
 21 print no website at all. Of the 40 that do, checked from a laptop:
 
@@ -131,3 +139,41 @@ Advance, which the book does not name — one of the 8 host mismatches.
 - The 58 name differences are mostly ours carrying a fuller or older masthead
   (`Booneville Daily News` against the book's `BOONVILLE NEWS`). They are listed,
   not judged.
+
+## What the comparison found once it was worked
+
+The missing list was reviewed and annotated in
+`mo_bluebook_missing_from_ours.csv` (`website_status`): 404, replica-only,
+print-only, social-only, closed, or a second masthead on a site already listed.
+What survived is `mo_bluebook_candidates_to_add.csv`, and those ten were added
+to the dataset on 2026-09-24. County came from geocoding the OFFICE ADDRESS, not
+the town the masthead is filed under — the Chariton Marquee is listed under
+Salem and sits in Salisbury, the Ralls County Herald-Enterprise is listed under
+New London and sits in Paris.
+
+Two entries the listing itself gets wrong:
+
+- **Pike County News appears twice**, same address, same telephone, same editor,
+  under two different publishers — Amy Elliott, and Jeremy Gulban, who runs
+  CherryRoad. CherryRoad is the current owner, so the Elliott entry is stale.
+- **The Lincoln County Journal and Troy Free Press are printed against
+  `www.lincolnnewsnow.com`**, which is now only a notice telling subscribers
+  those two and the Elsberry Democrat have moved to their own sites. All three
+  are in the dataset under their own domains.
+
+Comparing our records against the listing also turned up four of ours that were
+wrong, all corrected in production on 2026-09-24:
+`www.fayettenewspapers.com` and `www.timesnewspapers.com` held each other's
+name, city, county and owner; `auroraadvertiser.net` was filed in Neosho;
+`www.greenecountycommonwealth.com` in St. Charles County; and
+`threeriverspublishing.com` carried the identity of the Jamesport Tri-County
+Weekly when it is Rob Viehman's Cuba/Steelville/St. James operation.
+
+## The locator map
+
+`mo_new_newsrooms_locator.csv` and its `.sql` feed the datadesk visuals
+builder's locator map — the counties and cities of the thirteen newsrooms new to
+the dataset. The column MUST be named `geoid`: `visuals.types.GEO_NAMES` is the
+set of header names that let a 5-digit code read as geography, and a Missouri
+code has no leading zero, so under any other name it types as a number, the role
+refuses it and the map draws blank.
