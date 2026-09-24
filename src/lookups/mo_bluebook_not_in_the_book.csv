@@ -1,0 +1,85 @@
+host,name,city,county,owner,type,status,articles
+abc17news.com,ABC 17 KMIZ News,Columbia,Boone,News-Press & Gazette Co.,video broadcast,paused,6405
+www.ksmu.org,KSMU Ozarks Public Radio,Springfield,Greene,Missouri State University,audio broadcast,active,4646
+www.kmbc.com,KMBC News 9,Kansas City,Jackson,Hearst Television,video broadcast,active,4312
+www.ky3.com,KSPR/KY3,Springfield,Greene,Gray Television,video broadcast,active,3756
+www.kfvs12.com,KFVS 12,Cape Girardeau,Cape Girardeau,Gray Television,video broadcast,active,3726
+www.krcu.org,KRCU,Cape Girardeau,Cape Girardeau,Southeast Missouri State University,audio broadcast,active,3491
+www.firstalert4.com,KMOV CBS,St. Louis,St. Louis,Meredith Local Media,video broadcast,active,3210
+www.komu.com,KOMU,Columbia,Boone,University of Missouri,video broadcast,active,3034
+www.koamnewsnow.com,KOAM,Joplin,Jasper,Morgan Murphy Media,video broadcast,active,2760
+www.kctv5.com,KCTV5,Kansas City,Jackson,Meredith Corportation,video broadcast,active,2678
+fox2now.com,KPLR11/Fox 2 Now,St. Louis,St. Louis,Nexstar Media Group,video broadcast,active,2470
+krcgtv.com,KRCG,New Bloomfield,Callaway,"Sinclair Broadcast Group, Inc.",video_broadcast,active,2361
+www.stlpr.org,STL Public Radio,St. Louis,St. Louis,University of Missouri-St. Louis,audio broadcast,active,2166
+www.ksdk.com,KSDK NBC,St. Louis,St. Louis,Tegna Inc,video broadcast,active,2085
+www.kxcv.org,KXCV,Maryville,Nodaway,Nothwest Missouri State University,audio broadcast,active,2062
+www.kbia.org,KBIA,Columbia,Boone,University of Missouri,audio broadcast,active,1998
+www.fourstateshomepage.com,KSN/KODE TV,Joplin,Jasper,Mission Broadcasting Inc,video broadcast,active,1301
+kq2.com,KQTV,St. Joseph,Buchanan,News-Press & Gazette Co.,video broadcast,active,1289
+www.missourian.com,Missourian,Washington,Franklin,The Missourian Publishing Company,print native,active,1192
+www.griffonnews.com,Griffon News,St. Joseph,Buchanan,Missouri Western State University,print native,active,1189
+www.ozarksfirst.com,KOLR,Springfield,Greene,Mission Broadcasting Inc,video broadcast,active,1186
+fox4kc.com,FOX4KC WDAF TV,Kansas City,Jackson,Nexstar Media Group,video broadcast,active,1130
+www.northwestmoinfo.com,Northwest Mo Media,Bethany,DeKalb,Carter Media Group,audio broadcast,active,1053
+www.kcur.org,KCUR,Kansas City,Jackson,University of Missouri-Kansas City,audio broadcast,active,908
+www.mycouriertribune.com,Courier Tribune,Liberty,Clay,CherryRoad Media,print native,active,838
+www.newstalkkzrg.com,KZRG,Joplin,Jasper,Zimmer Radio,audio broadcast,active,748
+www.thepitchkc.com,The Pitch/Kansas City Pitch,Kansas City,Jackson,Carey Media,print native,active,712
+www.mymoinfo.com,My Mo info,Farmington,St. Francois,GoodRadio.TV,audio broadcast,active,694
+www.ktts.com,KTTS,Springfield,Greene,Summit Media,audio broadcast,active,675
+mdcp.nwaonline.com,McDonald County Press,Pineville,McDonald,Wehco Media,print native,active,665
+metrovoicenews.com,Metro Voice Christian Newspaper,Lee's Summit,Jackson,Dwight and Anita Widaman,print native,active,488
+www.kshb.com,KSHB 41,Kansas City,Jackson,Scripps,video broadcast,active,480
+www.nwmissourinews.com,North West Missourian,Maryville,Nodaway,Northwest Missouri State University,print native,active,480
+missouribusinessalert.com,Missouri Business Alert,Columbia,Boone,Missouri School of Journalism,digital native,active,468
+www.missourinet.com,Missouri Net,Jefferson City,Cole,"Learfield Communications, LLC.",digital native,active,432
+www.southeastarrow.com,The Arrow,Cape Girardeau,Cape Girardeau,Southeast Missouri State University,print native,active,427
+comobuz.com,CoMoBuzz,Columbia,Boone,Mike Murphy,digital native,active,424
+www.redlatinastl.com,Radio Red Latina,St. Louis,St. Louis,Cecilia Velazquez,audio broadcast,active,413
+stljewishlight.org,St. Louis Jewish Light,St. Louis,St. Louis,Jewish Federation of St. Louis,print native,active,396
+dosmundos.com,Dos Mundos Bilingual Newspaper,Kansas City,Wyandotte,Clara Reyes,print native,active,395
+www.studlife.com,Student Life,St. Louis,St. Louis,Washington University,print native,active,330
+kansascitymag.com,KC Magazine,Kansas City,Jackson,Dave Claflin,print native,active,315
+pulaskicountyweekly.com,Pulaski County Weekly,Rolla,Pulaski,Carpenter Media Group,print native,active,314
+www.kprs.com,Carter Broadcast Group (KPRS/KPRT),Kansas City,Jackson,Carter Broadcast Group,audio broadcast,retired,306
+moscout.com,Missouri Scout,Jefferson City,Cole,Dave Drebes,digital native,active,291
+www.the-standard.org,The Standard,Springfield,Greene,Missouri State University,print native,active,229
+thebeaconnews.org,KC Beacon,Kansas City,Jackson,Beacon Media Inc.,digital native,active,226
+www.949kcmo.com,KCMO,Jackson,Jackson,Cumulus Media,audio broadcast,retired,217
+themaneater.com,The Maneater,Columbia,Boone,University of Missouri,print native,active,203
+themissouritimes.com,The Missouri Times,Jefferson City,Cole,"Faughn Media, LLC",print native,active,192
+unewsonline.com,The University News,St. Louis,St. Louis,University of St. Louis,print native,active,185
+www.lincolncountyjournal.com,Lincoln News Now,Troy,Lincoln,CherryRoad Media,print native,active,180
+kcroonews.com,UMKC Roo News,Kansas City,Jackson,University of Missouri-Kansas City,print native,active,175
+www.khqa.com,KHQA 7,Hannibal,Marion,Rincon Broadcasting Quincy LLC,video broadcast,active,122
+kansascitydefender.com,KC Defender,Kansas City,Jackson,Ryan Sorrell,digital native,active,107
+www.ktvo.com,KTVO CBS,Kirksville,Adair,Rincon Broadcasting Ottumwa LLC,video broadcast,active,100
+drurymirror.org,Drury Mirror,Springfield,Greene,Drury University,print native,active,94
+mbcpathway.com,The Pathway,Jefferson City,Cole,Missouri Baptist Convention,print native,retired,92
+www.gladstonedispatch.com,Gladstone Dispatch,Gladstone,Clay,CherryRoad Media,print native,active,89
+www.kbsi23.com,KBSI Fox,Cape Girardeau,Cape Girardeau,Paducah Television Operations LLC,video broadcast,active,77
+abcstlouis.com,ABC 30,St Louis,St. Louis,"Sinclair Broadcast Group, Inc.",broadcast,active,75
+www.417mag.com,417 Magazine,Springfield,Greene,Whitaker Publishing,print native,active,65
+sgfneighborhoodnews.com,Springfield Neighborhood News,Springfield,Newton,Sexton Media Group Inc.,print native,active,57
+thechartonline.com,The Chart,Joplin,Jasper,Missouri Southern State University,print native,active,53
+sgfcitizen.org,Springfield Daily Citizen,Springfield,Greene,"Springfield Daily Citizen, Inc.",print native,active,45
+midriversnewsmagazine.com,Mid Rivers Newsmagazine,Chesterfield,St. Charles,"21 Publishing, LLC",print native,active,43
+the-standard.org,The Standard,Springfield,Greene,Missouri State University,print native,active,43
+www.excelsiorcitizen.com,Excelsior Citizen,Excelsior Springs,Clay,"Sticky Wicket Media, LLC",print native,active,35
+www.trentontelegraph.com,Trenton Telegraph,Trenton,Grundy,CherryRoad Media,print native,active,35
+www.digitalburg.com,The Daily BURG,Warrensburg,Johnson,The University of Central Missouri,print native,retired,20
+www.929thebeat.com,KOSP/The Beat,Springfield,Greene,Mid-West Family Broadcasting,audio broadcast,retired,19
+www.riverfronttimes.com,St. Louis Riverfront Times,St. Louis,St. Louis,Euclid Media Group,print native,retired,17
+websterjournal.com,The Journal/The Webster Journal,Webster Groves,St. Louis,Webster University,print native,retired,11
+stonecountyrepublican.com,Stone County Republican / Crane Chronicle,Crane,Stone,Lancaster Management Inc.,print native,active,8
+www.audacy.com/971talk,KFTK,St. Louis,St. Louis,Audacy Inc,audio broadcast,retired,7
+www.legends1063.fm,KRZK,Branson,Taney,KOMC-KRZK,audio broadcast,retired,3
+audacy.com,KMBZ,Mission,Johnson,Audacy Inc,audio_broadcast,paused,1
+ky3.com,KSPR/KY3,Springfield,Greene,Gray Media,video broadcast,retired,0
+thenewsdispatch.net,Seneca News Dispatch,Neosho,Newton,Sexton Media Group Inc.,print native,retired,0
+whatsupkansascity.net,What's Up Kansas City,Kansas City,Jackson,"Carlos M. Nelson, Sr.",digital native,retired,0
+www.archstl.org,St. Louis Review,St. Louis,St. Louis,Archdiocese of St. Louis,print native,retired,0
+www.monett-times.com,The Monett Times,Monett,Lawrence,Rust Communications,print native,retired,0
+www.newstime-mo.com,Newstime,St. Louis,St. Louis,Lakeway Publishers,print native,retired,0
+www.pulaskicountydaily.com,Pulaski County Mirror/Daily News,St. Robert,Pulaski,Lebanon Publishing Co,print native,retired,0

@@ -1,0 +1,4171 @@
+[
+  {
+    "name": "TRI-COUNTY LEDGER",
+    "url": "",
+    "editorial_email": "news@tricounty.net",
+    "address": "110 E. Vermont St., PO Box 428, King City 64463",
+    "telephone": "(660) 535-4313",
+    "fax": "",
+    "people": {
+      "Publisher/Editor": "Matthew Pearl"
+    },
+    "schedule": "Fri.",
+    "affiliation": "Dem",
+    "cities": [
+      "Albany",
+      "King City"
+    ],
+    "city": "Albany",
+    "host": "",
+    "publisher": "Matthew Pearl",
+    "editor": "Matthew Pearl"
+  },
+  {
+    "name": "APPLETON CITY JOURNAL",
+    "url": "www.stclaircourier.com/",
+    "editorial_email": "sacosagenews@centurytel.net",
+    "address": "285 Pine, PO Box 580, Osceola 64776",
+    "telephone": "(417) 646-2211",
+    "fax": "",
+    "people": {
+      "Publisher": "Trevor Vernon",
+      "Editor": "Brandy Bourland"
+    },
+    "schedule": "Fri.",
+    "affiliation": "Rep",
+    "cities": [
+      "Appleton City"
+    ],
+    "city": "Appleton City",
+    "host": "www.stclaircourier.com",
+    "publisher": "Trevor Vernon",
+    "editor": "Brandy Bourland"
+  },
+  {
+    "name": "ARNOLD-IMPERIAL LEADER",
+    "url": "www.myleaderpaper.com",
+    "editorial_email": "news@leaderpublications.biz",
+    "address": "503 N. Second St., PO Box 159, Festus 63028",
+    "telephone": "(636) 937-7501",
+    "fax": "",
+    "people": {
+      "Publisher": "Pam LaPlant",
+      "Editor": "Kim Robertson"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "NP",
+    "cities": [
+      "Arnold"
+    ],
+    "city": "Arnold",
+    "host": "www.myleaderpaper.com",
+    "publisher": "Pam LaPlant",
+    "editor": "Kim Robertson"
+  },
+  {
+    "name": "BOONE COUNTY JOURNAL",
+    "url": "www.bocojo.com",
+    "editorial_email": "bocojoreporter@gmail.com",
+    "address": "201 S. Henry Clay, PO Box 197, Ashland 65010",
+    "telephone": "(573) 657-2334",
+    "fax": "",
+    "people": {
+      "Publisher": "Tara Blue"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Ashland"
+    ],
+    "city": "Ashland",
+    "host": "www.bocojo.com",
+    "publisher": "Tara Blue",
+    "editor": ""
+  },
+  {
+    "name": "AURORA ADVERTISER, THE",
+    "url": "www.auroraadvertiser.net",
+    "editorial_email": "news@auroraadvertiser.net",
+    "address": "212 E. Main St., Neosho 64850",
+    "telephone": "(417) 451-1520",
+    "fax": "",
+    "people": {
+      "Publisher": "Jimmy Sexton"
+    },
+    "schedule": "Fri.",
+    "affiliation": "NP",
+    "cities": [
+      "Aurora"
+    ],
+    "city": "Aurora",
+    "host": "www.auroraadvertiser.net",
+    "publisher": "Jimmy Sexton",
+    "editor": ""
+  },
+  {
+    "name": "DOUGLAS COUNTY HERALD",
+    "url": "www.douglascountyherald.com",
+    "editorial_email": "",
+    "address": "302 E. Washington, PO Box 577, Ava 65608",
+    "telephone": "(417) 683-4181",
+    "fax": "",
+    "people": {
+      "Publisher": "Scott Hoskins",
+      "Editor": "Kim Combs"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Rep",
+    "cities": [
+      "Ava"
+    ],
+    "city": "Ava",
+    "host": "www.douglascountyherald.com",
+    "publisher": "Scott Hoskins",
+    "editor": "Kim Combs"
+  },
+  {
+    "name": "MARIES COUNTY ADVOCATE",
+    "url": "www.mariescountyadvocate.com",
+    "editorial_email": "news@wardpub.com",
+    "address": "1110 Hwy. 28, Unit B, PO Box 540, Belle 65013",
+    "telephone": "(573) 437-2323 (Belle); (573) 422-6323 (Vienna)",
+    "fax": "",
+    "people": {
+      "Publisher": "Dennis Warden",
+      "Editor": "Dave Marner"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Belle",
+      "Vienna"
+    ],
+    "city": "Belle",
+    "host": "www.mariescountyadvocate.com",
+    "publisher": "Dennis Warden",
+    "editor": "Dave Marner"
+  },
+  {
+    "name": "NORTH CASS HERALD",
+    "url": "www.northcassherald.com",
+    "editorial_email": "allen@northcassherald.com",
+    "address": "120 N. Main, Belton 64033",
+    "telephone": "(816) 322-2375",
+    "fax": "",
+    "people": {
+      "Publisher": "Laurie Bassett",
+      "Editor": "Allen Edmonds"
+    },
+    "schedule": "Fri",
+    "affiliation": "NP",
+    "cities": [
+      "Belton"
+    ],
+    "city": "Belton",
+    "host": "www.northcassherald.com",
+    "publisher": "Laurie Bassett",
+    "editor": "Allen Edmonds"
+  },
+  {
+    "name": "BETHANY REPUBLICAN-CLIPPER",
+    "url": "www.bethanyclipper.com",
+    "editorial_email": "news1@grm.net",
+    "address": "202 N. 16th St., PO Box 351, Bethany 64424",
+    "telephone": "(660) 425-6325",
+    "fax": "(660) 425-3441",
+    "people": {
+      "Publisher": "Phillip G. Conger",
+      "Editor": "Phillip G. Conger"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Bethany"
+    ],
+    "city": "Bethany",
+    "host": "www.bethanyclipper.com",
+    "publisher": "Phillip G. Conger",
+    "editor": "Phillip G. Conger"
+  },
+  {
+    "name": "BOLIVAR HERALD-FREE PRESS",
+    "url": "www.bolivarmonews.com",
+    "editorial_email": "news@bolivarmonews.com",
+    "address": "335 S. Springfield Ave., PO Box 330, Bolivar 65613",
+    "telephone": "(417) 326-7636",
+    "fax": "",
+    "people": {
+      "Publisher": "Deanna Moore"
+    },
+    "schedule": "Wed. & Fri.",
+    "affiliation": "Rep",
+    "cities": [
+      "Bolivar"
+    ],
+    "city": "Bolivar",
+    "host": "www.bolivarmonews.com",
+    "publisher": "Deanna Moore",
+    "editor": ""
+  },
+  {
+    "name": "BOONVILLE NEWS",
+    "url": "www.boonvilledailynews.com",
+    "editorial_email": "news@boonvilledailynews.com",
+    "address": "301 Main St., PO Box 47, Boonville 65233",
+    "telephone": "(660) 774-4183",
+    "fax": "",
+    "people": {
+      "Publisher": "Jeremy Gulban",
+      "Reporter": "Chris Bowie"
+    },
+    "schedule": "Wed. & Fri.",
+    "affiliation": "NP",
+    "cities": [
+      "Boonville"
+    ],
+    "city": "Boonville",
+    "host": "www.boonvilledailynews.com",
+    "publisher": "Jeremy Gulban",
+    "editor": ""
+  },
+  {
+    "name": "PIKE COUNTY NEWS",
+    "url": "www.pikecountynews.com",
+    "editorial_email": "sschwartz@pikecountynews.com",
+    "address": "106 W. Main St., PO Box 110, Bowling Green 63334",
+    "telephone": "(573) 324-2222",
+    "fax": "",
+    "people": {
+      "Publisher": "Amy Elliott",
+      "Editor": "Stan Schwartz"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Bowling Green",
+      "Louisiana"
+    ],
+    "city": "Bowling Green",
+    "host": "www.pikecountynews.com",
+    "publisher": "Amy Elliott",
+    "editor": "Stan Schwartz"
+  },
+  {
+    "name": "BRANSON TRI-LAKES NEWS",
+    "url": "www.bransontrilakesnews.com",
+    "editorial_email": "editor@bransontrilakesnews.com",
+    "address": "200 Industrial Park Dr., PO Box 1900, Hollister 65672",
+    "telephone": "(417) 334-3161",
+    "fax": "",
+    "people": {
+      "Publisher": "Karen Fioretti",
+      "Editor": "AJ Fahr"
+    },
+    "schedule": "Wed. & Sat.",
+    "affiliation": "Rep",
+    "cities": [
+      "Branson"
+    ],
+    "city": "Branson",
+    "host": "www.bransontrilakesnews.com",
+    "publisher": "Karen Fioretti",
+    "editor": "AJ Fahr"
+  },
+  {
+    "name": "LINN COUNTY LEADER",
+    "url": "www.linncountyleader.com",
+    "editorial_email": "ahutschreider@cherryroad.com",
+    "address": "PO Box 707, Chillicothe 64601",
+    "telephone": "(660) 858-8700",
+    "fax": "",
+    "people": {
+      "Publisher": "Jeremy Gulban",
+      "Editor": "Angie Hutschreider"
+    },
+    "schedule": "Fri.",
+    "affiliation": "NP",
+    "cities": [
+      "Brookfield"
+    ],
+    "city": "Brookfield",
+    "host": "www.linncountyleader.com",
+    "publisher": "Jeremy Gulban",
+    "editor": "Angie Hutschreider"
+  },
+  {
+    "name": "BUFFALO REFLEX",
+    "url": "www.buffaloreflex.com",
+    "editorial_email": "news@buffaloreflex.com",
+    "address": "114 E. Lincoln St., PO Box 770, Buffalo 65622",
+    "telephone": "(417) 345-2224",
+    "fax": "",
+    "people": {
+      "Publisher": "Deanna Moore",
+      "Editor": "Kailyn Smith"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Buffalo"
+    ],
+    "city": "Buffalo",
+    "host": "www.buffaloreflex.com",
+    "publisher": "Deanna Moore",
+    "editor": "Kailyn Smith"
+  },
+  {
+    "name": "CALIFORNIA DEMOCRAT",
+    "url": "www.californiademocrat.com",
+    "editorial_email": "editor@californiademocrat.com",
+    "address": "PO Box 126, California 65018",
+    "telephone": "(573) 796-2135",
+    "fax": "",
+    "people": {
+      "Publisher": "Gary Castor",
+      "Editor": "Kaden Quinn"
+    },
+    "schedule": "Wed.",
+    "affiliation": "NP",
+    "cities": [
+      "California"
+    ],
+    "city": "California",
+    "host": "www.californiademocrat.com",
+    "publisher": "Gary Castor",
+    "editor": "Kaden Quinn"
+  },
+  {
+    "name": "LAKE SUN",
+    "url": "www.lakenewsonline.com",
+    "editorial_email": "dan.lakesun@gmail.com",
+    "address": "4075 Osage Beach Pkwy., Ste. 100, Camdenton 65020",
+    "telephone": "(573) 346-2132",
+    "fax": "",
+    "people": {
+      "Publisher": "Trevor Vernon",
+      "Editor": "Dan Field"
+    },
+    "schedule": "Wed. & Fri.",
+    "affiliation": "Rep",
+    "cities": [
+      "Camdenton"
+    ],
+    "city": "Camdenton",
+    "host": "www.lakenewsonline.com",
+    "publisher": "Trevor Vernon",
+    "editor": "Dan Field"
+  },
+  {
+    "name": "REPORTER, THE",
+    "url": "www.theccreporter.com",
+    "editorial_email": "thereporter@socket.net",
+    "address": "551 Old S. 5, PO Box 1265, Camdenton 65020",
+    "telephone": "(573) 346-5222",
+    "fax": "",
+    "people": {
+      "Publisher": "Dale Johnson",
+      "Editor": "Dale Johnson"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Camdenton"
+    ],
+    "city": "Camdenton",
+    "host": "www.theccreporter.com",
+    "publisher": "Dale Johnson",
+    "editor": "Dale Johnson"
+  },
+  {
+    "name": "CAMERON CITIZEN-OBSERVER",
+    "url": "www.mycameronnews.com",
+    "editorial_email": "editor@mycameronnews.com",
+    "address": "403 E. Evergreen Hwy. BB, PO Box 498, Cameron 64429",
+    "telephone": "(816) 632-6543",
+    "fax": "",
+    "people": {
+      "Publisher": "Amy Keeney",
+      "Editor": "Mike Hanrahan"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Ind",
+    "cities": [
+      "Cameron"
+    ],
+    "city": "Cameron",
+    "host": "www.mycameronnews.com",
+    "publisher": "Amy Keeney",
+    "editor": "Mike Hanrahan"
+  },
+  {
+    "name": "LEWIS COUNTY PRESS-NEWS JOURNAL",
+    "url": "www.lewispnj.com",
+    "editorial_email": "rita@lewispnj.com",
+    "address": "109 N. Fourth St., LaGrange 63448, PO Box 227, Canton 63435",
+    "telephone": "(573) 288-5668",
+    "fax": "",
+    "people": {
+      "Publisher": "Rita Cox",
+      "Editor": "Rita Cox"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "NP",
+    "cities": [
+      "Canton",
+      "Lagrange"
+    ],
+    "city": "Canton",
+    "host": "www.lewispnj.com",
+    "publisher": "Rita Cox",
+    "editor": "Rita Cox"
+  },
+  {
+    "name": "SOUTHEAST MISSOURIAN",
+    "url": "www.semissourian.com",
+    "editorial_email": "news@semissourian.com",
+    "address": "301 Broadway, PO Box 699, Cape Girardeau 63702",
+    "telephone": "(573) 335-6611",
+    "fax": "",
+    "people": {
+      "Publisher": "Jon K. Rust",
+      "Editor": "Rick Fahr"
+    },
+    "schedule": "Sat., Tue. & Thurs.",
+    "affiliation": "NP",
+    "cities": [
+      "Cape Girardeau"
+    ],
+    "city": "Cape Girardeau",
+    "host": "www.semissourian.com",
+    "publisher": "Jon K. Rust",
+    "editor": "Rick Fahr"
+  },
+  {
+    "name": "JASPER COUNTY CITIZEN",
+    "url": "",
+    "editorial_email": "fstop@centurytel.net",
+    "address": "101 N. Sixth St., PO Box 400, Sarcoxie 64862",
+    "telephone": "(417) 548-3311",
+    "fax": "",
+    "people": {
+      "Publisher": "Paul E. Donley",
+      "Editor": "Paul E. Donley"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Carl Junction"
+    ],
+    "city": "Carl Junction",
+    "host": "",
+    "publisher": "Paul E. Donley",
+    "editor": "Paul E. Donley"
+  },
+  {
+    "name": "CARROLLTON DEMOCRAT",
+    "url": "www.mainstreetnewsgroup.com/thecarrolltondemocrat",
+    "editorial_email": "carrolltondemocrat.news@gmail.com",
+    "address": "102 E. Benton St., PO Box 69, Carrollton 64633",
+    "telephone": "(660) 542-0881",
+    "fax": "",
+    "people": {
+      "Publisher": "Frank W. Mercer",
+      "Editor": "Janet Zullig"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Dem",
+    "cities": [
+      "Carrollton"
+    ],
+    "city": "Carrollton",
+    "host": "www.mainstreetnewsgroup.com",
+    "publisher": "Frank W. Mercer",
+    "editor": "Janet Zullig"
+  },
+  {
+    "name": "CARTHAGE CHRONICLE",
+    "url": "www.carthagenewsonline.com",
+    "editorial_email": "fstop@centurytel.net",
+    "address": "101 N. Sixth St., PO Box 400, Sarcoxie 64862",
+    "telephone": "(417) 548-3311",
+    "fax": "",
+    "people": {
+      "Publisher": "Paul E. Donley",
+      "Editor": "Paul E. Donley"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Carthage"
+    ],
+    "city": "Carthage",
+    "host": "www.carthagenewsonline.com",
+    "publisher": "Paul E. Donley",
+    "editor": "Paul E. Donley"
+  },
+  {
+    "name": "PEMISCOT PRESS",
+    "url": "www.pemiscotpress.com",
+    "editorial_email": "cwilliams@pemiscotpress.com",
+    "address": "1011 N. Truman Blvd., PO Box 1059, Caruthersville 63877",
+    "telephone": "(573) 333-4336",
+    "fax": "",
+    "people": {
+      "Publisher": "Chris Pruett",
+      "Editor": "Christina Williams"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Caruthersville"
+    ],
+    "city": "Caruthersville",
+    "host": "www.pemiscotpress.com",
+    "publisher": "Chris Pruett",
+    "editor": "Christina Williams"
+  },
+  {
+    "name": "BARRY COUNTY ADVERTISER",
+    "url": "www.4bcaonline.com",
+    "editorial_email": "editor@4bca.com",
+    "address": "201 W. Ninth St., PO Box 488, Cassville 65625",
+    "telephone": "(417) 847-4475",
+    "fax": "",
+    "people": {
+      "Publisher": "Karen Fioretti"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Cassville"
+    ],
+    "city": "Cassville",
+    "host": "www.4bcaonline.com",
+    "publisher": "Karen Fioretti",
+    "editor": ""
+  },
+  {
+    "name": "CASSVILLE DEMOCRAT",
+    "url": "www.cassville-democrat.com",
+    "editorial_email": "editor@cassville-democrat.com",
+    "address": "600 Main St., PO Box 486, Cassville 65625",
+    "telephone": "(417) 847-2610",
+    "fax": "",
+    "people": {
+      "Publisher": "Kyle Troutman",
+      "Editor": "Kyle Troutman"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Cassville"
+    ],
+    "city": "Cassville",
+    "host": "www.cassville-democrat.com",
+    "publisher": "Kyle Troutman",
+    "editor": "Kyle Troutman"
+  },
+  {
+    "name": "CENTRALIA FIRESIDE GUARD",
+    "url": "www.firesideguard.com",
+    "editorial_email": "cfged@lcs.net",
+    "address": "123 N. Allen St., PO Box 7, Centralia 65240",
+    "telephone": "(573) 682-2133",
+    "fax": "",
+    "people": {
+      "Publisher": "Jeremy Gulban",
+      "Editor": "James Smith"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Centralia"
+    ],
+    "city": "Centralia",
+    "host": "www.firesideguard.com",
+    "publisher": "Jeremy Gulban",
+    "editor": "James Smith"
+  },
+  {
+    "name": "CHARLESTON ENTERPRISE-COURIER",
+    "url": "www.enterprisecourier.com",
+    "editorial_email": "news@enterprisecourier.com",
+    "address": "101 E. Main St., East Prairie 63845",
+    "telephone": "(573) 649-9500",
+    "fax": "",
+    "people": {
+      "Publisher": "Carlin Bennett",
+      "Editor": "Adam Rhodes"
+    },
+    "schedule": "Tues.",
+    "affiliation": "Rep",
+    "cities": [
+      "Charleston"
+    ],
+    "city": "Charleston",
+    "host": "www.enterprisecourier.com",
+    "publisher": "Carlin Bennett",
+    "editor": "Adam Rhodes"
+  },
+  {
+    "name": "WEST & MID RIVERS NEWSMAGAZINE",
+    "url": "www.westnewsmagazine.com",
+    "editorial_email": "editor@newsmagazinenetwork.com",
+    "address": "754 Spirit 40 Park Dr., Chesterfield 63005",
+    "telephone": "(636) 591-0010",
+    "fax": "",
+    "people": {
+      "Publisher": "Tim Weber",
+      "Editor": "Kate Uptergrove"
+    },
+    "schedule": "Bi-Monthly on Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Chesterfield",
+      "St. Charles"
+    ],
+    "city": "Chesterfield",
+    "host": "www.westnewsmagazine.com",
+    "publisher": "Tim Weber",
+    "editor": "Kate Uptergrove"
+  },
+  {
+    "name": "CONSTITUTION-TRIBUNE",
+    "url": "www.chillicothenews.com",
+    "editorial_email": "ahutschreider@cherryroad.com",
+    "address": "614 Washington St., PO Box 707, Chillicothe 64601",
+    "telephone": "(660) 776-9400",
+    "fax": "",
+    "people": {
+      "Publisher": "Jeremy Gulban",
+      "Editor": "Angie Hutschreider"
+    },
+    "schedule": "Fri.",
+    "affiliation": "NP",
+    "cities": [
+      "Chillicothe"
+    ],
+    "city": "Chillicothe",
+    "host": "www.chillicothenews.com",
+    "publisher": "Jeremy Gulban",
+    "editor": "Angie Hutschreider"
+  },
+  {
+    "name": "COUNTIAN ST. LOUIS, THE",
+    "url": "www.molawyersmedia.com",
+    "editorial_email": "edit@molawyersmedia.com",
+    "address": "7777 Bonhomme Ave., Ste. 1205, St. Louis 63105",
+    "telephone": "(314) 727-6011",
+    "fax": "",
+    "people": {
+      "Publisher": "Liz Irwin",
+      "Editor": "Rick Jackoway"
+    },
+    "schedule": "Daily",
+    "affiliation": "NP",
+    "cities": [
+      "Clayton"
+    ],
+    "city": "Clayton",
+    "host": "www.molawyersmedia.com",
+    "publisher": "Liz Irwin",
+    "editor": "Rick Jackoway"
+  },
+  {
+    "name": "CLINTON DAILY DEMOCRAT",
+    "url": "www.clintondailydemocrat.com",
+    "editorial_email": "clintondailydemocrat@gmail.com",
+    "address": "212 S. Washington St., PO Box 586, Clinton 64735",
+    "telephone": "(660) 885-2281",
+    "fax": "",
+    "people": {
+      "Publisher": "James White",
+      "Editor": "Adam Howe"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Rep",
+    "cities": [
+      "Clinton"
+    ],
+    "city": "Clinton",
+    "host": "www.clintondailydemocrat.com",
+    "publisher": "James White",
+    "editor": "Adam Howe"
+  },
+  {
+    "name": "COLE CAMP COURIER",
+    "url": "www.bentoncountyenterprise.com",
+    "editorial_email": "bentoncountyenterprise@yahoo.com",
+    "address": "107 E. Main St., PO Box 128, Warsaw 65355",
+    "telephone": "(660) 438-6312",
+    "fax": "",
+    "people": {
+      "Publisher": "James White",
+      "Editor": "Adam Howe"
+    },
+    "schedule": "Fri.",
+    "affiliation": "Rep",
+    "cities": [
+      "Cole Camp"
+    ],
+    "city": "Cole Camp",
+    "host": "www.bentoncountyenterprise.com",
+    "publisher": "James White",
+    "editor": "Adam Howe"
+  },
+  {
+    "name": "COLUMBIA DAILY TRIBUNE",
+    "url": "www.columbiatribune.com",
+    "editorial_email": "editor@columbiatribune.com",
+    "address": "101 N. Fourth St., PO Box 798, Columbia 65205",
+    "telephone": "(888) 348-3315",
+    "fax": "",
+    "people": {
+      "Managing Editor": "Stephen Herzog"
+    },
+    "schedule": "Daily",
+    "affiliation": "Ind",
+    "cities": [
+      "Columbia"
+    ],
+    "city": "Columbia",
+    "host": "www.columbiatribune.com",
+    "publisher": "",
+    "editor": "Stephen Herzog"
+  },
+  {
+    "name": "COLUMBIA MISSOURIAN",
+    "url": "www.columbiamissourian.com",
+    "editorial_email": "news@columbiamissourian.com",
+    "address": "221 S. Eighth St., PO Box 917, Columbia 65205",
+    "telephone": "(573) 882-5714",
+    "fax": "",
+    "people": {
+      "Publisher": "David Kurpius",
+      "Editor": "Elizabeth Stevens"
+    },
+    "schedule": "Tues.-Fri. & Sun.",
+    "affiliation": "Ind",
+    "cities": [
+      "Columbia"
+    ],
+    "city": "Columbia",
+    "host": "www.columbiamissourian.com",
+    "publisher": "David Kurpius",
+    "editor": "Elizabeth Stevens"
+  },
+  {
+    "name": "CONCORDIAN, THE",
+    "url": "",
+    "editorial_email": "concordianpaper@gmail.com",
+    "address": "607 S. Main St., Ste. B, PO Box 658, Concordia 64020",
+    "telephone": "(660) 463-7522",
+    "fax": "",
+    "people": {
+      "Publisher": "Kathryn Dohrman",
+      "Editor": "Kathryn Dohrman"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Concordia"
+    ],
+    "city": "Concordia",
+    "host": "",
+    "publisher": "Kathryn Dohrman",
+    "editor": "Kathryn Dohrman"
+  },
+  {
+    "name": "CRANE CHRONICLE/STONE COUNTY REPUBLICAN",
+    "url": "www.cc-scrnews.com",
+    "editorial_email": "screditor@centurylink.net",
+    "address": "114 Main St., PO Box 401, Crane 65633",
+    "telephone": "(417) 723-5248",
+    "fax": "",
+    "people": {
+      "Publisher": "Karen Fioretti",
+      "Editor": "AJ Fahr"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Rep",
+    "cities": [
+      "Crane"
+    ],
+    "city": "Crane",
+    "host": "www.cc-scrnews.com",
+    "publisher": "Karen Fioretti",
+    "editor": "AJ Fahr"
+  },
+  {
+    "name": "CUBA FREE PRESS",
+    "url": "www.cubafreepress.co.com",
+    "editorial_email": "news@cubafreepress.com",
+    "address": "501 E. Washington, PO Box 568, Cuba 65453",
+    "telephone": "(573) 885-7460",
+    "fax": "",
+    "people": {
+      "Publisher": "Rob Viehman",
+      "Editor": "Rob Viehman"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Dem",
+    "cities": [
+      "Cuba"
+    ],
+    "city": "Cuba",
+    "host": "www.cubafreepress.co.com",
+    "publisher": "Rob Viehman",
+    "editor": "Rob Viehman"
+  },
+  {
+    "name": "STATESMAN, THE",
+    "url": "www.dexterstatesman.com",
+    "editorial_email": "dfarley@darnews.com",
+    "address": "133 S. Walnut St., PO Box 579, Dexter 63841",
+    "telephone": "(573) 624-4545",
+    "fax": "",
+    "people": {
+      "Publisher": "Chris Pruett",
+      "Editor": "Donna Farley"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Dexter"
+    ],
+    "city": "Dexter",
+    "host": "www.dexterstatesman.com",
+    "publisher": "Chris Pruett",
+    "editor": "Donna Farley"
+  },
+  {
+    "name": "DIXON PILOT",
+    "url": "www.dixonpilot.com",
+    "editorial_email": "dixonpilotnews@yahoo.com",
+    "address": "302 S. Locust St., PO Drawer V, Dixon 65459",
+    "telephone": "(573) 759-2127",
+    "fax": "",
+    "people": {
+      "Publisher": "Connie Erisman",
+      "Editor": "Connie Erisman"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Dixon"
+    ],
+    "city": "Dixon",
+    "host": "www.dixonpilot.com",
+    "publisher": "Connie Erisman",
+    "editor": "Connie Erisman"
+  },
+  {
+    "name": "PROSPECT-NEWS, THE",
+    "url": "www.theprospectnews.com",
+    "editorial_email": "cpruett@darnews.com",
+    "address": "110 Washington St., PO Box 367, Doniphan 63935",
+    "telephone": "(573) 996-2103",
+    "fax": "",
+    "people": {
+      "Publisher": "Chris Pruett"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Doniphan"
+    ],
+    "city": "Doniphan",
+    "host": "www.theprospectnews.com",
+    "publisher": "Chris Pruett",
+    "editor": ""
+  },
+  {
+    "name": "EAST PRAIRIE EAGLE",
+    "url": "www.enterprisecourier.com",
+    "editorial_email": "news@enterprisecourier.com",
+    "address": "101 E. Main St., East Prairie 63845",
+    "telephone": "(573) 649-9500",
+    "fax": "",
+    "people": {
+      "Publisher": "Carlin Bennett",
+      "Editor": "Adam Rhodes"
+    },
+    "schedule": "Tues.",
+    "affiliation": "Rep",
+    "cities": [
+      "East Prairie"
+    ],
+    "city": "East Prairie",
+    "host": "www.enterprisecourier.com",
+    "publisher": "Carlin Bennett",
+    "editor": "Adam Rhodes"
+  },
+  {
+    "name": "EDINA SENTINEL, THE",
+    "url": "www.edinasentinel.com",
+    "editorial_email": "editor@edinasentinel.com",
+    "address": "207 N. Main, PO Box 270, Edina 63537",
+    "telephone": "(660) 397-2226",
+    "fax": "",
+    "people": {
+      "Publisher": "Mike & Sue Scott",
+      "Editor": "Echo Menges"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Edina"
+    ],
+    "city": "Edina",
+    "host": "www.edinasentinel.com",
+    "publisher": "Mike & Sue Scott",
+    "editor": "Echo Menges"
+  },
+  {
+    "name": "EL DORADO SPRINGS SUN",
+    "url": "www.eldoradospringsmo.com",
+    "editorial_email": "kwlong@centurylink.net",
+    "address": "125 N. Main St., PO Box 71, El Dorado Springs 64744",
+    "telephone": "(417) 876-3841",
+    "fax": "",
+    "people": {
+      "Publisher": "Kimball Long",
+      "Editor": "Kenny Long"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Rep",
+    "cities": [
+      "El Dorado Springs"
+    ],
+    "city": "El Dorado Springs",
+    "host": "www.eldoradospringsmo.com",
+    "publisher": "Kimball Long",
+    "editor": "Kenny Long"
+  },
+  {
+    "name": "STAR, THE",
+    "url": "",
+    "editorial_email": "thestar@socket.net",
+    "address": "105 S. Main St., PO Box 269, El Dorado Springs 64744",
+    "telephone": "(417) 876-2500",
+    "fax": "",
+    "people": {
+      "Publisher": "James Belk",
+      "Editor": "James Belk"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Rep",
+    "cities": [
+      "El Dorado Springs"
+    ],
+    "city": "El Dorado Springs",
+    "host": "",
+    "publisher": "James Belk",
+    "editor": "James Belk"
+  },
+  {
+    "name": "ELDON ADVERTISER",
+    "url": "",
+    "editorial_email": "tflora@vernonpublishing.com",
+    "address": "eldonadvertiser.com, 415 S. Maple St., PO Box 315, Eldon 65026",
+    "telephone": "(573) 392-5658",
+    "fax": "",
+    "people": {
+      "Publisher": "Trevor Vernon",
+      "Editor": "Tim Flora"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Rep",
+    "cities": [
+      "Eldon"
+    ],
+    "city": "Eldon",
+    "host": "",
+    "publisher": "Trevor Vernon",
+    "editor": "Tim Flora"
+  },
+  {
+    "name": "REYNOLDS COUNTY COURIER",
+    "url": "www.reynoldscountycourier.com",
+    "editorial_email": "news@waynecojournalbanner.com",
+    "address": "370 Main St., PO Box 130, Ellington 63638",
+    "telephone": "(573) 223-7122",
+    "fax": "",
+    "people": {
+      "Publisher": "Scott Hoskins",
+      "General Manager/Editor": "Kimberly Combs"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Ellington"
+    ],
+    "city": "Ellington",
+    "host": "www.reynoldscountycourier.com",
+    "publisher": "Scott Hoskins",
+    "editor": "Kimberly Combs"
+  },
+  {
+    "name": "ELSBERRY DEMOCRAT, THE",
+    "url": "www.elsberrydemocrat.com",
+    "editorial_email": "gregorear@cherryroad.com",
+    "address": "280 Magee St., Troy 63379",
+    "telephone": "(573) 898-2318",
+    "fax": "",
+    "people": {
+      "Publisher": "Jeremy Gulban",
+      "Editor": "Gregory Orear"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Elsberry"
+    ],
+    "city": "Elsberry",
+    "host": "www.elsberrydemocrat.com",
+    "publisher": "Jeremy Gulban",
+    "editor": "Gregory Orear"
+  },
+  {
+    "name": "SHANNON COUNTY CURRENT WAVE",
+    "url": "www.currentwave.news",
+    "editorial_email": "cwave128@gmail.com",
+    "address": "102 Plum St., PO Box 728, Eminence 65466",
+    "telephone": "(573) 226-5229",
+    "fax": "",
+    "people": {
+      "Publisher": "Roger Dillon",
+      "Editor": "Roger Dillon"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Dem",
+    "cities": [
+      "Eminence"
+    ],
+    "city": "Eminence",
+    "host": "www.currentwave.news",
+    "publisher": "Roger Dillon",
+    "editor": "Roger Dillon"
+  },
+  {
+    "name": "EUREKA LEADER",
+    "url": "www.myleaderpaper.com",
+    "editorial_email": "news@leaderpublications.biz",
+    "address": "503 N. Second St., PO Box 159, Festus 63028",
+    "telephone": "(636) 937-7501",
+    "fax": "",
+    "people": {
+      "Publisher": "Peggy Scott",
+      "Editor": "Kim Robertson"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "NP",
+    "cities": [
+      "Eureka"
+    ],
+    "city": "Eureka",
+    "host": "www.myleaderpaper.com",
+    "publisher": "Peggy Scott",
+    "editor": "Kim Robertson"
+  },
+  {
+    "name": "EXCELSIOR SPRINGS STANDARD",
+    "url": "www.excelsiorspringsstandard.com",
+    "editorial_email": "news@leaderpress.com",
+    "address": "118 Spring St., Ste. B, PO Box 70, Excelsior Springs 64024",
+    "telephone": "(816) 637-6155",
+    "fax": "",
+    "people": {
+      "General Manager": "Sharon Donat"
+    },
+    "schedule": "Fri.",
+    "affiliation": "NP",
+    "cities": [
+      "Excelsior Springs"
+    ],
+    "city": "Excelsior Springs",
+    "host": "www.excelsiorspringsstandard.com",
+    "publisher": "",
+    "editor": ""
+  },
+  {
+    "name": "FAYETTE ADVERTISER",
+    "url": "www.fayettenewspapers.com",
+    "editorial_email": "news@fayettenews.com",
+    "address": "203 N. Main St., PO Box 32, Fayette 65248",
+    "telephone": "(660) 248-2235",
+    "fax": "",
+    "people": {
+      "Publisher": "Justin Addison",
+      "Editor": "Justin Addison"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Ind",
+    "cities": [
+      "Fayette"
+    ],
+    "city": "Fayette",
+    "host": "www.fayettenewspapers.com",
+    "publisher": "Justin Addison",
+    "editor": "Justin Addison"
+  },
+  {
+    "name": "JEFFERSON COUNTY LEADER",
+    "url": "www.myleaderpaper.com",
+    "editorial_email": "news@leaderpublications.biz",
+    "address": "503 N. Second St., PO Box 159, Festus 63028",
+    "telephone": "(636) 937-7501",
+    "fax": "",
+    "people": {
+      "Publisher": "Peggy Scott",
+      "Editor": "Kim Robertson"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "NP",
+    "cities": [
+      "Festus"
+    ],
+    "city": "Festus",
+    "host": "www.myleaderpaper.com",
+    "publisher": "Peggy Scott",
+    "editor": "Kim Robertson"
+  },
+  {
+    "name": "WEST SIDE LEADER",
+    "url": "www.myleaderpaper.com",
+    "editorial_email": "news@leaderpublications.biz",
+    "address": "503 N. Second St., PO Box 159, Festus 63028",
+    "telephone": "(636) 937-7501",
+    "fax": "",
+    "people": {
+      "Publisher": "Peggy Scott",
+      "Editor": "Kim Robertson"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "NP",
+    "cities": [
+      "Festus"
+    ],
+    "city": "Festus",
+    "host": "www.myleaderpaper.com",
+    "publisher": "Peggy Scott",
+    "editor": "Kim Robertson"
+  },
+  {
+    "name": "FREDERICKTOWN DEMOCRAT-NEWS",
+    "url": "www.democratnewsonline.com",
+    "editorial_email": "dn@democratnewsonline.com",
+    "address": "131 S. Main St., PO Box 471, Fredericktown 63645",
+    "telephone": "(573) 783-3366",
+    "fax": "",
+    "people": {
+      "Publisher": "Scott Hoskins",
+      "Editor": "Alan Kopitsky"
+    },
+    "schedule": "Wed.",
+    "affiliation": "NP",
+    "cities": [
+      "Fredericktown"
+    ],
+    "city": "Fredericktown",
+    "host": "www.democratnewsonline.com",
+    "publisher": "Scott Hoskins",
+    "editor": "Alan Kopitsky"
+  },
+  {
+    "name": "FULTON SUN",
+    "url": "www.fultonsun.com",
+    "editorial_email": "editor@fultonsun.com",
+    "address": "115 E. Fifth St., PO Box 420, Fulton 65251",
+    "telephone": "(573) 642-7272",
+    "fax": "",
+    "people": {
+      "Publisher": "Gary Castor",
+      "Editor": "Emily O’Leary"
+    },
+    "schedule": "Sat.",
+    "affiliation": "NP",
+    "cities": [
+      "Fulton"
+    ],
+    "city": "Fulton",
+    "host": "www.fultonsun.com",
+    "publisher": "Gary Castor",
+    "editor": "Emily O’Leary"
+  },
+  {
+    "name": "GAINESVILLE OZARK COUNTY TIMES",
+    "url": "www.ozarkcountytimes.com",
+    "editorial_email": "jessi@ozarkcountytimes.com",
+    "address": "504 Third St., PO Box 188, Gainesville 65655",
+    "telephone": "(417) 679-4641",
+    "fax": "(417) 679-3423",
+    "people": {
+      "Publisher": "Jenny Yarger",
+      "Editor": "Jessi Dreckman"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Gainesville"
+    ],
+    "city": "Gainesville",
+    "host": "www.ozarkcountytimes.com",
+    "publisher": "Jenny Yarger",
+    "editor": "Jessi Dreckman"
+  },
+  {
+    "name": "GLASGOW MISSOURIAN",
+    "url": "www.mainstreetnewsgroup.com/theglasgowmissourian",
+    "editorial_email": "glasgow@mcmsys.com",
+    "address": "109 Market St., Glasgow 65254",
+    "telephone": "(660) 338-2195",
+    "fax": "",
+    "people": {
+      "Publisher": "Frank Mercer",
+      "Editor": "Mike Heying"
+    },
+    "schedule": "Fri.",
+    "affiliation": "Dem",
+    "cities": [
+      "Glasgow"
+    ],
+    "city": "Glasgow",
+    "host": "www.mainstreetnewsgroup.com",
+    "publisher": "Frank Mercer",
+    "editor": "Mike Heying"
+  },
+  {
+    "name": "GRANT CITY TIMES TRIBUNE",
+    "url": "www.maryvilleforum.com",
+    "editorial_email": "skyep@maryvilleforum.com",
+    "address": "1 E. Third St., PO Box 130, Grant City 64456",
+    "telephone": "(660) 562-2424",
+    "fax": "",
+    "people": {
+      "Publisher": "Ken Garner",
+      "Editor": "Skye Pournazari"
+    },
+    "schedule": "Fri.",
+    "affiliation": "Rep",
+    "cities": [
+      "Grant City"
+    ],
+    "city": "Grant City",
+    "host": "www.maryvilleforum.com",
+    "publisher": "Ken Garner",
+    "editor": "Skye Pournazari"
+  },
+  {
+    "name": "GREENFIELD VEDETTE",
+    "url": "www.greenfieldvedette.com",
+    "editorial_email": "krista@greenfieldvedette.com",
+    "address": "7 N. Main, PO Box 216, Greenfield 65661",
+    "telephone": "(417) 637-2712",
+    "fax": "",
+    "people": {
+      "General Manager": "Krista Guy",
+      "Editor": "Krista Guy"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Ind",
+    "cities": [
+      "Greenfield"
+    ],
+    "city": "Greenfield",
+    "host": "www.greenfieldvedette.com",
+    "publisher": "",
+    "editor": "Krista Guy"
+  },
+  {
+    "name": "HALE HORIZONS",
+    "url": "",
+    "editorial_email": "halehorizons@yahoo.com",
+    "address": "29236 Hwy. J, PO Box 36, Hale 64643",
+    "telephone": "(660) 565-2555",
+    "fax": "",
+    "people": {
+      "Publisher": "Cindy Corf",
+      "Editor": "Robert Corf"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Hale"
+    ],
+    "city": "Hale",
+    "host": "",
+    "publisher": "Cindy Corf",
+    "editor": "Robert Corf"
+  },
+  {
+    "name": "CALDWELL COUNTY NEWS",
+    "url": "www.mycaldwellcounty.com",
+    "editorial_email": "news@mycaldwellcounty.com",
+    "address": "101 S. Davis, PO Box 218, Hamilton 64644",
+    "telephone": "(816) 583-2116",
+    "fax": "",
+    "people": {
+      "Publisher": "Harold Henry Jr.",
+      "Editor": "Deb Rankin"
+    },
+    "schedule": "Tues.",
+    "affiliation": "Rep",
+    "cities": [
+      "Hamilton"
+    ],
+    "city": "Hamilton",
+    "host": "www.mycaldwellcounty.com",
+    "publisher": "Harold Henry Jr.",
+    "editor": "Deb Rankin"
+  },
+  {
+    "name": "HANNIBAL COURIER-POST",
+    "url": "www.hannibal.net",
+    "editorial_email": "newsroom@courierpost.com",
+    "address": "130 S. Fifth St., Quincy, IL 62301",
+    "telephone": "(573) 221-2800",
+    "fax": "",
+    "people": {
+      "Publisher": "Ann Blunt",
+      "Executive Editor": "Matthew Hopf"
+    },
+    "schedule": "Tues.-Sat.",
+    "affiliation": "NP",
+    "cities": [
+      "Hannibal"
+    ],
+    "city": "Hannibal",
+    "host": "www.hannibal.net",
+    "publisher": "Ann Blunt",
+    "editor": ""
+  },
+  {
+    "name": "TRIBUNE AND TIMES",
+    "url": "www.tribuneandtimes.com",
+    "editorial_email": "news@tribuneandtimes.com",
+    "address": "305 W. Wall St. #C, PO Box 275, Harrisonville 64701",
+    "telephone": "(816) 793-0540",
+    "fax": "",
+    "people": {
+      "Publisher": "Dennis Minich",
+      "Editor": "James Gillespie"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Dem",
+    "cities": [
+      "Harrisonville"
+    ],
+    "city": "Harrisonville",
+    "host": "www.tribuneandtimes.com",
+    "publisher": "Dennis Minich",
+    "editor": "James Gillespie"
+  },
+  {
+    "name": "HERMANN ADVERTISER-COURIER",
+    "url": "www.hermannadvertisercourier.com",
+    "editorial_email": "acarosella@cherryroad.com",
+    "address": "136 E. Fourth St., PO Box 350, Hermann 65041",
+    "telephone": "(573) 486-5418",
+    "fax": "",
+    "people": {
+      "Publisher": "Jeremy Gulban",
+      "Editor": "Anthony Carosella"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Hermann"
+    ],
+    "city": "Hermann",
+    "host": "www.hermannadvertisercourier.com",
+    "publisher": "Jeremy Gulban",
+    "editor": "Anthony Carosella"
+  },
+  {
+    "name": "HERMITAGE INDEX",
+    "url": "www.hermitageindex.com",
+    "editorial_email": "theindex1885@vernonpublishing.com",
+    "address": "23638 Polk St., PO Box 127, Hermitage 65668",
+    "telephone": "(417) 745-6404",
+    "fax": "",
+    "people": {
+      "Publisher": "Trevor Vernon"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Hermitage"
+    ],
+    "city": "Hermitage",
+    "host": "www.hermitageindex.com",
+    "publisher": "Trevor Vernon",
+    "editor": ""
+  },
+  {
+    "name": "HIGGINSVILLE ADVANCE",
+    "url": "www.mainstreetnewsgroup.com/higginsvilleadvance/",
+    "editorial_email": "bookeradvancenews@gmail.com",
+    "address": "3002 Hwy. 13, PO Box 422, Higginsville 64037",
+    "telephone": "(660) 584-3611",
+    "fax": "",
+    "people": {
+      "Publisher": "Frank Mercer",
+      "Editor": "Doug Booker"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Dem",
+    "cities": [
+      "Higginsville"
+    ],
+    "city": "Higginsville",
+    "host": "www.mainstreetnewsgroup.com",
+    "publisher": "Frank Mercer",
+    "editor": "Doug Booker"
+  },
+  {
+    "name": "COUNTIAN JEFFERSON, THE",
+    "url": "",
+    "editorial_email": "jyount@molawyersmedia.com",
+    "address": "mlmcounties.com/news/jefferson-county, 10626 Hwy. 21, Ste. B, Hillsboro 63050",
+    "telephone": "(636) 789-5853",
+    "fax": "",
+    "people": {
+      "Publisher": "Johnny Aguirre",
+      "Editor": "Jordan Yount"
+    },
+    "schedule": "Fri.",
+    "affiliation": "NP",
+    "cities": [
+      "Hillsboro"
+    ],
+    "city": "Hillsboro",
+    "host": "",
+    "publisher": "Johnny Aguirre",
+    "editor": "Jordan Yount"
+  },
+  {
+    "name": "JEFFERSON COUNTY REPORTER",
+    "url": "",
+    "editorial_email": "",
+    "address": "284 Main St., Hillsboro 63050",
+    "telephone": "(816) 221-2552",
+    "fax": "",
+    "people": {
+      "Publisher": "Shannon Grindinger",
+      "Editor": "Pamela Wingo"
+    },
+    "schedule": "Fri.",
+    "affiliation": "NP",
+    "cities": [
+      "Hillsboro"
+    ],
+    "city": "Hillsboro",
+    "host": "",
+    "publisher": "Shannon Grindinger",
+    "editor": "Pamela Wingo"
+  },
+  {
+    "name": "HOLDEN IMAGE",
+    "url": "www.hipaperclips.com",
+    "editorial_email": "holdenimagenews@gmail.com",
+    "address": "117 E. Second St., Holden 64040",
+    "telephone": "(816) 732-5552",
+    "fax": "",
+    "people": {
+      "Publisher": "John Roberts",
+      "Editor": "John Roberts"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Rep",
+    "cities": [
+      "Holden"
+    ],
+    "city": "Holden",
+    "host": "www.hipaperclips.com",
+    "publisher": "John Roberts",
+    "editor": "John Roberts"
+  },
+  {
+    "name": "HOUSTON HERALD",
+    "url": "www.houstonherald.com",
+    "editorial_email": "news@houstonherald.com",
+    "address": "113 N. Grand Ave., PO Box 170, Houston 65483",
+    "telephone": "(417) 967-2000",
+    "fax": "",
+    "people": {
+      "Publisher": "Isaiah Buse",
+      "Editor": "Isaiah Buse"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Dem",
+    "cities": [
+      "Houston"
+    ],
+    "city": "Houston",
+    "host": "www.houstonherald.com",
+    "publisher": "Isaiah Buse",
+    "editor": "Isaiah Buse"
+  },
+  {
+    "name": "INDEPENDENCE EXAMINER",
+    "url": "www.examiner.net",
+    "editorial_email": "jfox@cherryroad.com",
+    "address": "12012 E. US 40, Independence 64055",
+    "telephone": "(816) 648-1611",
+    "fax": "",
+    "people": {
+      "Publisher": "Jeremy Gulban",
+      "Editor": "Jeff Fox"
+    },
+    "schedule": "Tues.-Sat.",
+    "affiliation": "NP",
+    "cities": [
+      "Independence"
+    ],
+    "city": "Independence",
+    "host": "www.examiner.net",
+    "publisher": "Jeremy Gulban",
+    "editor": "Jeff Fox"
+  },
+  {
+    "name": "IRONTON MOUNTAIN ECHO",
+    "url": "www.myironcountynews.com",
+    "editorial_email": "news@myironcountynews.com",
+    "address": "110 N. Main St., Ironton 63650",
+    "telephone": "(573) 546-3917",
+    "fax": "",
+    "people": {
+      "Publisher": "Scott Hoskins",
+      "General Manager/Editor": "Kimberly Combs"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Ironton"
+    ],
+    "city": "Ironton",
+    "host": "www.myironcountynews.com",
+    "publisher": "Scott Hoskins",
+    "editor": "Kimberly Combs"
+  },
+  {
+    "name": "CASH-BOOK JOURNAL, THE",
+    "url": "www.thecash-book.com",
+    "editorial_email": "cashbook@mvp.net",
+    "address": "210 W. Main, PO Box 369, Jackson 63755",
+    "telephone": "(583) 243-3515",
+    "fax": "",
+    "people": {
+      "Publisher": "Gina Raffety",
+      "Editor": "Jay Forness"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Dem",
+    "cities": [
+      "Jackson"
+    ],
+    "city": "Jackson",
+    "host": "www.thecash-book.com",
+    "publisher": "Gina Raffety",
+    "editor": "Jay Forness"
+  },
+  {
+    "name": "JAMESPORT TRI-COUNTY WEEKLY",
+    "url": "www.jamesporttricountyweekly.com",
+    "editorial_email": "tcw@grm.net",
+    "address": "103 S. Broadway, PO Box 137, Jamesport 64648",
+    "telephone": "(660) 684-6718",
+    "fax": "",
+    "people": {
+      "Publisher": "Natha McAllister",
+      "Editor": "Natha McAllister"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Rep",
+    "cities": [
+      "Jamesport"
+    ],
+    "city": "Jamesport",
+    "host": "www.jamesporttricountyweekly.com",
+    "publisher": "Natha McAllister",
+    "editor": "Natha McAllister"
+  },
+  {
+    "name": "JEFFERSON CITY NEWS TRIBUNE",
+    "url": "www.newstribune.com",
+    "editorial_email": "gcastor@newstribune.com",
+    "address": "320 E. Capitol Ave., PO Box 420, Jefferson City 65101",
+    "telephone": "(573) 636-3131",
+    "fax": "",
+    "people": {
+      "General Manager": "Gary Castor",
+      "Editor": "Gary Castor"
+    },
+    "schedule": "Daily",
+    "affiliation": "NP",
+    "cities": [
+      "Jefferson City"
+    ],
+    "city": "Jefferson City",
+    "host": "www.newstribune.com",
+    "publisher": "",
+    "editor": "Gary Castor"
+  },
+  {
+    "name": "MISSOURI INDEPENDENT",
+    "url": "www.missouriindependent.com",
+    "editorial_email": "rkeller@missouriindependent.com",
+    "address": "P.O. Box 2255, Jefferson City 65101",
+    "telephone": "(573) 340-5153 or (573) 382-6583",
+    "fax": "",
+    "people": {
+      "Publisher": "Jason Hancock",
+      "Editor": "Rudy Keller"
+    },
+    "schedule": "",
+    "affiliation": "",
+    "cities": [
+      "Jefferson City"
+    ],
+    "city": "Jefferson City",
+    "host": "www.missouriindependent.com",
+    "publisher": "Jason Hancock",
+    "editor": "Rudy Keller"
+  },
+  {
+    "name": "JOPLIN GLOBE",
+    "url": "www.joplinglobe.com",
+    "editorial_email": "news@joplinglobe.com",
+    "address": "117 E. Fourth St., PO Box 7, Joplin 64802",
+    "telephone": "(417) 623-3480",
+    "fax": "",
+    "people": {
+      "Publisher": "Katherine Miller",
+      "Editor": "Andy Ostmeyer"
+    },
+    "schedule": "Daily",
+    "affiliation": "NP",
+    "cities": [
+      "Joplin"
+    ],
+    "city": "Joplin",
+    "host": "www.joplinglobe.com",
+    "publisher": "Katherine Miller",
+    "editor": "Andy Ostmeyer"
+  },
+  {
+    "name": "KAHOKA HOMETOWN JOURNAL",
+    "url": "www.htjournal.net",
+    "editorial_email": "htjournal91@gmail.com",
+    "address": "258 W. Main St., Kahoka 63445",
+    "telephone": "(660) 727-3383",
+    "fax": "",
+    "people": {
+      "Publisher": "Joe & Lisa Roberts",
+      "Editor": "Joe Roberts"
+    },
+    "schedule": "Tues.",
+    "affiliation": "Dem",
+    "cities": [
+      "Kahoka"
+    ],
+    "city": "Kahoka",
+    "host": "www.htjournal.net",
+    "publisher": "Joe & Lisa Roberts",
+    "editor": "Joe Roberts"
+  },
+  {
+    "name": "THE MEDIA",
+    "url": "www.kahokamedia.com",
+    "editorial_email": "mike@kahokamedia.com",
+    "address": "178 W. Main St., PO Box 230, Kahoka 63445",
+    "telephone": "(660) 727-3395",
+    "fax": "",
+    "people": {
+      "Publisher": "Mike & Sue Scott",
+      "Editor": "Mike Scott"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Kahoka"
+    ],
+    "city": "Kahoka",
+    "host": "www.kahokamedia.com",
+    "publisher": "Mike & Sue Scott",
+    "editor": "Mike Scott"
+  },
+  {
+    "name": "KANSAS CITY BEACON",
+    "url": "www.kcbeacon.org",
+    "editorial_email": "scott@thebeacon.media",
+    "address": "300 E. 39th St., Kansas City 64111",
+    "telephone": "(816) 514-6071",
+    "fax": "",
+    "people": {
+      "Editor": "Scott Canon"
+    },
+    "schedule": "",
+    "affiliation": "",
+    "cities": [
+      "Kansas City"
+    ],
+    "city": "Kansas City",
+    "host": "www.kcbeacon.org",
+    "publisher": "",
+    "editor": "Scott Canon"
+  },
+  {
+    "name": "DELTA DUNKLIN DEMOCRAT",
+    "url": "www.dddnews.com",
+    "editorial_email": "jdorris@dddnews.com",
+    "address": "203 First St., PO Box 669, Kennett 63857",
+    "telephone": "(573) 888-4505",
+    "fax": "",
+    "people": {
+      "Publisher": "Chris Pruett",
+      "General Manager/Editor": "Jeff Dorris"
+    },
+    "schedule": "Tues., Thurs. & Sat.",
+    "affiliation": "NP",
+    "cities": [
+      "Kennett"
+    ],
+    "city": "Kennett",
+    "host": "www.dddnews.com",
+    "publisher": "Chris Pruett",
+    "editor": "Jeff Dorris"
+  },
+  {
+    "name": "TRI-COUNTY LEDGER",
+    "url": "",
+    "editorial_email": "news@tricountynews.net",
+    "address": "110 E. Vermont St., PO Box 498, King City 64463",
+    "telephone": "(660) 535-4313",
+    "fax": "",
+    "people": {
+      "Publisher": "Matthew Pearl",
+      "Editor": "Matthew Pearl"
+    },
+    "schedule": "Fri.",
+    "affiliation": "Rep",
+    "cities": [
+      "King City",
+      "Albany"
+    ],
+    "city": "King City",
+    "host": "",
+    "publisher": "Matthew Pearl",
+    "editor": "Matthew Pearl"
+  },
+  {
+    "name": "KIRKSVILLE DAILY EXPRESS & NEWS",
+    "url": "www.kirksvilledailyexpress.com",
+    "editorial_email": "news@kirksvilledailyexpress.com",
+    "address": "110 E. McPherson, PO Box 809, Kirksville 63501",
+    "telephone": "(660) 665-2808",
+    "fax": "",
+    "people": {
+      "Publisher": "Ann Blunt",
+      "Editor": "Martin Bachman"
+    },
+    "schedule": "Wed.",
+    "affiliation": "NP",
+    "cities": [
+      "Kirksville"
+    ],
+    "city": "Kirksville",
+    "host": "www.kirksvilledailyexpress.com",
+    "publisher": "Ann Blunt",
+    "editor": "Martin Bachman"
+  },
+  {
+    "name": "LAMAR DEMOCRAT",
+    "url": "www.lamardemocrat.com",
+    "editorial_email": "info@lamardemocrat.com",
+    "address": "100 E. 11th St., PO Box 12, Lamar 64759",
+    "telephone": "(417) 417-6397",
+    "fax": "",
+    "people": {
+      "Publisher": "Melody Metzger",
+      "Editor": "Melody Metzger"
+    },
+    "schedule": "Wed.",
+    "affiliation": "NP",
+    "cities": [
+      "Lamar"
+    ],
+    "city": "Lamar",
+    "host": "www.lamardemocrat.com",
+    "publisher": "Melody Metzger",
+    "editor": "Melody Metzger"
+  },
+  {
+    "name": "LAWSON REVIEW",
+    "url": "www.facebook.com/lawsonreview1979",
+    "editorial_email": "lawsonreview@gmail.com",
+    "address": "405 N. Pennsylvania Ave., PO Box 125, Lawson 64062",
+    "telephone": "(816) 296-3412",
+    "fax": "",
+    "people": {
+      "Publisher": "Anita Duncan",
+      "Editor": "Anita Duncan"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Lawson"
+    ],
+    "city": "Lawson",
+    "host": "www.facebook.com",
+    "publisher": "Anita Duncan",
+    "editor": "Anita Duncan"
+  },
+  {
+    "name": "LACLEDE COUNTY RECORD",
+    "url": "www.laclederecord.com",
+    "editorial_email": "editor@laclederecord.com",
+    "address": "100 E. Commercial, PO Box 192, Lebanon 65536",
+    "telephone": "(417) 532-9131",
+    "fax": "",
+    "people": {
+      "Publisher": "Jennifer Early",
+      "Editor": "Steve Smith"
+    },
+    "schedule": "Wed. & Sat.",
+    "affiliation": "Rep",
+    "cities": [
+      "Lebanon"
+    ],
+    "city": "Lebanon",
+    "host": "www.laclederecord.com",
+    "publisher": "Jennifer Early",
+    "editor": "Steve Smith"
+  },
+  {
+    "name": "LEE’S SUMMIT TRIBUNE",
+    "url": "www.lstribune.net",
+    "editorial_email": "editor.lstribune08@gmail.com",
+    "address": "219 SE Douglas, Lee’s Summit 64063",
+    "telephone": "(816) 524-0061",
+    "fax": "",
+    "people": {
+      "Publisher": "Linda Ahern",
+      "Editor": "Linda Ahern"
+    },
+    "schedule": "Sat.",
+    "affiliation": "Rep",
+    "cities": [
+      "Lee’s Summit"
+    ],
+    "city": "Lee’s Summit",
+    "host": "www.lstribune.net",
+    "publisher": "Linda Ahern",
+    "editor": "Linda Ahern"
+  },
+  {
+    "name": "LEXINGTON NEWS",
+    "url": "www.mainstreetnewsgroup.com/thelexingtonnews",
+    "editorial_email": "lexingtonnews@embarqmail.com",
+    "address": "1009 Franklin Ave., PO Box 279, Lexington 64067",
+    "telephone": "(660) 259-2266",
+    "fax": "",
+    "people": {
+      "Publisher": "Frank Mercer",
+      "Editor": "Joe Parmon"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Dem",
+    "cities": [
+      "Lexington"
+    ],
+    "city": "Lexington",
+    "host": "www.mainstreetnewsgroup.com",
+    "publisher": "Frank Mercer",
+    "editor": "Joe Parmon"
+  },
+  {
+    "name": "COURIER TRIBUNE/GLADSTONE DISPATCH",
+    "url": "",
+    "editorial_email": "news@mycouriertribune.com",
+    "address": "mycouriertribune.com, 104 N. Main St., Liberty 64068",
+    "telephone": "(816) 781-4941",
+    "fax": "",
+    "people": {
+      "Publisher": "Jeremy Gulban",
+      "Editor": "Amanda Lubinski"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Rep",
+    "cities": [
+      "Liberty",
+      "Kearney",
+      "Smithville"
+    ],
+    "city": "Liberty",
+    "host": "",
+    "publisher": "Jeremy Gulban",
+    "editor": "Amanda Lubinski"
+  },
+  {
+    "name": "LICKING NEWS",
+    "url": "www.thelickingnews.net",
+    "editorial_email": "shari@thelickingnews.net",
+    "address": "115 S. Main St., PO Box 297, Licking 65542",
+    "telephone": "(573) 674-2412",
+    "fax": "",
+    "people": {
+      "Publisher": "Shari Harris",
+      "Editor": "Christy Porter"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Rep",
+    "cities": [
+      "Licking"
+    ],
+    "city": "Licking",
+    "host": "www.thelickingnews.net",
+    "publisher": "Shari Harris",
+    "editor": "Christy Porter"
+  },
+  {
+    "name": "LINCOLN NEW ERA",
+    "url": "www.bentoncountyenterprise.com",
+    "editorial_email": "bentoncountyenterprise@yahoo.com",
+    "address": "107 E. Main St., PO Box 128 Warsaw 63555",
+    "telephone": "(660) 438-6312",
+    "fax": "",
+    "people": {
+      "Publisher": "James M. White",
+      "Editor": "Adam Dean Howe"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Rep",
+    "cities": [
+      "Lincoln"
+    ],
+    "city": "Lincoln",
+    "host": "www.bentoncountyenterprise.com",
+    "publisher": "James M. White",
+    "editor": "Adam Dean Howe"
+  },
+  {
+    "name": "LINN UNTERRIFIED DEMOCRAT",
+    "url": "www.unterrifieddemocrat.com",
+    "editorial_email": "udnewslinn@gmail.com",
+    "address": "300 E. Main St., PO Box 109, Linn 65051",
+    "telephone": "(573) 897-3150",
+    "fax": "",
+    "people": {
+      "Publisher": "Dennis Warden",
+      "Editor": "Neal Johnson"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Linn"
+    ],
+    "city": "Linn",
+    "host": "www.unterrifieddemocrat.com",
+    "publisher": "Dennis Warden",
+    "editor": "Neal Johnson"
+  },
+  {
+    "name": "PIKE COUNTY NEWS",
+    "url": "www.pikecountynews.com",
+    "editorial_email": "sschwartz@cherryroad.com",
+    "address": "106 W. Main St., PO Box 110, Bowling Green 63334",
+    "telephone": "(573) 324-2222",
+    "fax": "",
+    "people": {
+      "Publisher": "Jeremy Gulban",
+      "Editor": "Stan Schwartz"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Louisiana"
+    ],
+    "city": "Louisiana",
+    "host": "www.pikecountynews.com",
+    "publisher": "Jeremy Gulban",
+    "editor": "Stan Schwartz"
+  },
+  {
+    "name": "MACON COUNTY HOME PRESS & JOURNAL",
+    "url": "www.maconhomepress.com",
+    "editorial_email": "news@maconhomepress.com",
+    "address": "515 S Rubey, PO Box 303, Macon 63552",
+    "telephone": "(660) 346-7046",
+    "fax": "",
+    "people": {
+      "Publisher": "Sharon Coram",
+      "Editor": "Sharon Coram"
+    },
+    "schedule": "Wed.",
+    "affiliation": "NP",
+    "cities": [
+      "Macon"
+    ],
+    "city": "Macon",
+    "host": "www.maconhomepress.com",
+    "publisher": "Sharon Coram",
+    "editor": "Sharon Coram"
+  },
+  {
+    "name": "MARBLE HILL BANNER PRESS",
+    "url": "www.thebannerpress.com",
+    "editorial_email": "news@thebannerpress.com",
+    "address": "PO Box 699, Cape Girardeau 63764",
+    "telephone": "(573) 388-2766",
+    "fax": "",
+    "people": {
+      "Publisher": "Jon Rust",
+      "Editor": "Mary Layton"
+    },
+    "schedule": "Wed.",
+    "affiliation": "NP",
+    "cities": [
+      "Marble Hill"
+    ],
+    "city": "Marble Hill",
+    "host": "www.thebannerpress.com",
+    "publisher": "Jon Rust",
+    "editor": "Mary Layton"
+  },
+  {
+    "name": "MARSHALL DEMOCRAT-NEWS",
+    "url": "www.marshallnews.com",
+    "editorial_email": "sgray@cherryroad.com",
+    "address": "28 N. Jefferson Ave., PO Box 100, Marshall 65340",
+    "telephone": "(660) 886-2233",
+    "fax": "",
+    "people": {
+      "General Manager": "Sarah Gray",
+      "Editor": "Sarah Gray"
+    },
+    "schedule": "Wed. & Fri.",
+    "affiliation": "Ind",
+    "cities": [
+      "Marshall"
+    ],
+    "city": "Marshall",
+    "host": "www.marshallnews.com",
+    "publisher": "",
+    "editor": "Sarah Gray"
+  },
+  {
+    "name": "MARSHFIELD MAIL",
+    "url": "www.marshfieldmail.com",
+    "editorial_email": "news@marshfieldmail.com",
+    "address": "225 N. Clay, PO Box A, Marshfield 65706",
+    "telephone": "(417) 468-2013",
+    "fax": "",
+    "people": {
+      "Publisher": "Deanna Moore",
+      "Editor": "Shelby Atkison"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Marshfield"
+    ],
+    "city": "Marshfield",
+    "host": "www.marshfieldmail.com",
+    "publisher": "Deanna Moore",
+    "editor": "Shelby Atkison"
+  },
+  {
+    "name": "MARYVILLE FORUM",
+    "url": "www.maryvilleforum.com",
+    "editorial_email": "skyep@maryvilleforum.com",
+    "address": "111 E. Jenkins, PO Box 188, Maryville 64468",
+    "telephone": "(660) 562-2424",
+    "fax": "",
+    "people": {
+      "Publisher": "Ken Garner",
+      "Editor": "Skye Pournazari"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Rep",
+    "cities": [
+      "Maryville"
+    ],
+    "city": "Maryville",
+    "host": "www.maryvilleforum.com",
+    "publisher": "Ken Garner",
+    "editor": "Skye Pournazari"
+  },
+  {
+    "name": "NODAWAY NEWS LEADER, MARYVILLE",
+    "url": "www.nodawaynews.com",
+    "editorial_email": "nnl@nodawaynews.com",
+    "address": "116 E. Third, PO Box 373, Maryville 64468",
+    "telephone": "(660) 562-4747",
+    "fax": "",
+    "people": {
+      "Publisher": "Kay Wilson",
+      "Editor": "Kay Wilson"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Rep",
+    "cities": [
+      "Maryville"
+    ],
+    "city": "Maryville",
+    "host": "www.nodawaynews.com",
+    "publisher": "Kay Wilson",
+    "editor": "Kay Wilson"
+  },
+  {
+    "name": "DEKALB CO. RECORD-HERALD",
+    "url": "",
+    "editorial_email": "pearlterry@gmail.com",
+    "address": "508 S. Polk St., PO Box 98, Maysville 64469",
+    "telephone": "(816) 449-2121",
+    "fax": "",
+    "people": {
+      "Publisher": "Terry Pearl",
+      "Editor": "Chrissy Stefano"
+    },
+    "schedule": "",
+    "affiliation": "",
+    "cities": [
+      "Maysville"
+    ],
+    "city": "Maysville",
+    "host": "",
+    "publisher": "Terry Pearl",
+    "editor": "Chrissy Stefano"
+  },
+  {
+    "name": "MEMPHIS DEMOCRAT",
+    "url": "www.memphisdemocrat.com",
+    "editorial_email": "news@memphisdemocrat.com",
+    "address": "121 S. Main St., Memphis 63555",
+    "telephone": "(660) 465-7016",
+    "fax": "",
+    "people": {
+      "Publisher": "Mike & Sue Scott",
+      "Editor": "Mike Scott"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Rep",
+    "cities": [
+      "Memphis"
+    ],
+    "city": "Memphis",
+    "host": "www.memphisdemocrat.com",
+    "publisher": "Mike & Sue Scott",
+    "editor": "Mike Scott"
+  },
+  {
+    "name": "MEXICO LEDGER",
+    "url": "www.mexicoledger.com",
+    "editorial_email": "news@mexicoledger.com",
+    "address": "222 S. Jefferson, Stes. 201 & 202, Mexico 65265",
+    "telephone": "(573) 581-1111",
+    "fax": "",
+    "people": {
+      "Publisher": "Tim Schmidt",
+      "GM/Editor": "Don Munsch"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Mexico"
+    ],
+    "city": "Mexico",
+    "host": "www.mexicoledger.com",
+    "publisher": "Tim Schmidt",
+    "editor": ""
+  },
+  {
+    "name": "MILAN STANDARD",
+    "url": "www.themilanstandard.com",
+    "editorial_email": "milanstandard1@gmail.com",
+    "address": "218 N. Clark St, PO Box 276, Milan 63556",
+    "telephone": "(660) 265-4244",
+    "fax": "",
+    "people": {
+      "Publisher": "Mike & Sue Scott",
+      "Editor": "Mike Scott"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Rep",
+    "cities": [
+      "Milan"
+    ],
+    "city": "Milan",
+    "host": "www.themilanstandard.com",
+    "publisher": "Mike & Sue Scott",
+    "editor": "Mike Scott"
+  },
+  {
+    "name": "MOBERLY MONITOR-INDEX",
+    "url": "www.moberlymonitor.com",
+    "editorial_email": "editor@moberlymonitor.com",
+    "address": "218 N. Clark St., PO Box 697, Moberly 65270",
+    "telephone": "(660) 263-4123",
+    "fax": "",
+    "people": {
+      "Publisher": "Jeremy Gulban",
+      "Editor": "Sarah Gray"
+    },
+    "schedule": "Fri.",
+    "affiliation": "Rep",
+    "cities": [
+      "Moberly"
+    ],
+    "city": "Moberly",
+    "host": "www.moberlymonitor.com",
+    "publisher": "Jeremy Gulban",
+    "editor": "Sarah Gray"
+  },
+  {
+    "name": "MONROE CITY LAKE GAZETTE",
+    "url": "www.lakegazette.net",
+    "editorial_email": "cgottman@cherryroad.com",
+    "address": "304 S. Main St., PO Box 187, Monroe City 63456",
+    "telephone": "(573) 735-3300",
+    "fax": "(573) 735-3261",
+    "people": {
+      "Publisher": "Jeremy Gulban",
+      "Editor": "Consetta Gottman"
+    },
+    "schedule": "Fri.",
+    "affiliation": "Rep",
+    "cities": [
+      "Monroe City"
+    ],
+    "city": "Monroe City",
+    "host": "www.lakegazette.net",
+    "publisher": "Jeremy Gulban",
+    "editor": "Consetta Gottman"
+  },
+  {
+    "name": "MONTGOMERY STANDARD",
+    "url": "www.mystandardnews.com",
+    "editorial_email": "theo@mystandardnews.com",
+    "address": "115 W. Third St., PO Box 190, Montgomery City 63361",
+    "telephone": "(573) 564-2339",
+    "fax": "",
+    "people": {
+      "Publisher": "Tim Schmidt",
+      "Editor": "Theo Tate"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Montgomery City"
+    ],
+    "city": "Montgomery City",
+    "host": "www.mystandardnews.com",
+    "publisher": "Tim Schmidt",
+    "editor": "Theo Tate"
+  },
+  {
+    "name": "MOUND CITY NEWS",
+    "url": "www.moundcitynews.com",
+    "editorial_email": "moundcitynews@socket.net",
+    "address": "18121 Hwy. 59, PO Box 175, Mound City 64470",
+    "telephone": "(660) 442-5423",
+    "fax": "",
+    "people": {
+      "Publisher": "Adam Johnson",
+      "Editor": "Dennis Sharkey"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Dem",
+    "cities": [
+      "Mound City"
+    ],
+    "city": "Mound City",
+    "host": "www.moundcitynews.com",
+    "publisher": "Adam Johnson",
+    "editor": "Dennis Sharkey"
+  },
+  {
+    "name": "MOUNT VERNON LAWRENCE CO. RECORD",
+    "url": "www.lawrencecountyrecord.com",
+    "editorial_email": "thepaper@lawrencecountyrecord.com",
+    "address": "312 S. Hickory St., PO Box 348, Mt. Vernon 65712, Mountain Grove / Mansfield",
+    "telephone": "(417) 466-2185",
+    "fax": "",
+    "people": {
+      "Publisher": "Ryan Squibb",
+      "Editor": "Ryan Squibb"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Mount Vernon"
+    ],
+    "city": "Mount Vernon",
+    "host": "www.lawrencecountyrecord.com",
+    "publisher": "Ryan Squibb",
+    "editor": "Ryan Squibb"
+  },
+  {
+    "name": "WRIGHT COUNTY JOURNAL",
+    "url": "www.wrightcountyjournal.com",
+    "editorial_email": "editor@wrightcountyjournal.com",
+    "address": "150 E. First St., PO Box 530, Mountain Grove 65711",
+    "telephone": "(417) 926-5148",
+    "fax": "",
+    "people": {
+      "Publisher": "Ron Schott",
+      "Editor": "Ron Schott"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Mount Vernon"
+    ],
+    "city": "Mount Vernon",
+    "host": "www.wrightcountyjournal.com",
+    "publisher": "Ron Schott",
+    "editor": "Ron Schott"
+  },
+  {
+    "name": "NEOSHO DAILY NEWS",
+    "url": "www.neoshodailynews.com",
+    "editorial_email": "jimmy@neoshodailynews.com",
+    "address": "1006 W. Harmony, PO Box 848, Neosho 64850, Tues. & Fri.",
+    "telephone": "(417) 451-1520",
+    "fax": "",
+    "people": {
+      "Publisher": "Jimmy Sexton"
+    },
+    "schedule": "",
+    "affiliation": "",
+    "cities": [
+      "Neosho"
+    ],
+    "city": "Neosho",
+    "host": "www.neoshodailynews.com",
+    "publisher": "Jimmy Sexton",
+    "editor": ""
+  },
+  {
+    "name": "NEWTON COUNTY NEWS, NEOSHO",
+    "url": "",
+    "editorial_email": "news@newconews.com",
+    "address": "15647 Hammer Rd., Neosho 64850",
+    "telephone": "(417) 455-6901",
+    "fax": "",
+    "people": {
+      "Publisher": "Chad Hayworth",
+      "Editor": "Chad Hayworth"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Neosho"
+    ],
+    "city": "Neosho",
+    "host": "",
+    "publisher": "Chad Hayworth",
+    "editor": "Chad Hayworth"
+  },
+  {
+    "name": "NEVADA DAILY MAIL",
+    "url": "www.nevadadailymail.com",
+    "editorial_email": "lharter@nevadadailymail.com",
+    "address": "131 S. Cedar St., PO Box 247, Nevada 64772",
+    "telephone": "(417) 667-3344",
+    "fax": "(417) 667-8384",
+    "people": {
+      "Publisher": "Lorie Harter",
+      "Editor": "Sarah Honey"
+    },
+    "schedule": "Tues., Wed., Fri. & Sat.",
+    "affiliation": "NP",
+    "cities": [
+      "Nevada"
+    ],
+    "city": "Nevada",
+    "host": "www.nevadadailymail.com",
+    "publisher": "Lorie Harter",
+    "editor": "Sarah Honey"
+  },
+  {
+    "name": "RALLS CO HERALD-ENTERPRISE",
+    "url": "www.monroe-ralls.com",
+    "editorial_email": "robingregg@monroecountyappeal.com",
+    "address": "221 N. Main St., PO Box 207, Paris 65275",
+    "telephone": "(573) 985-3420",
+    "fax": "",
+    "people": {
+      "Publisher": "Robin Gregg",
+      "Editor": "Robin Gregg"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "NP",
+    "cities": [
+      "New London"
+    ],
+    "city": "New London",
+    "host": "www.monroe-ralls.com",
+    "publisher": "Robin Gregg",
+    "editor": "Robin Gregg"
+  },
+  {
+    "name": "NEW MADRID WEEKLY RECORD",
+    "url": "www.standard-democrat.com",
+    "editorial_email": "news@standard-democrat.com",
+    "address": "205 S. New Madrid, Sikeston 63801",
+    "telephone": "(573) 471-1137",
+    "fax": "",
+    "people": {
+      "Publisher": "DeAnna Nelson",
+      "Editor": "Leonna Heuring, David Jenkins"
+    },
+    "schedule": "Fri.",
+    "affiliation": "Dem",
+    "cities": [
+      "New Madrid"
+    ],
+    "city": "New Madrid",
+    "host": "www.standard-democrat.com",
+    "publisher": "DeAnna Nelson",
+    "editor": "Leonna Heuring, David Jenkins"
+  },
+  {
+    "name": "FOCUS ON OAK GROVE",
+    "url": "www.theodessan.net",
+    "editorial_email": "odessannews@gmail.com",
+    "address": "103 SE 12th St., Oak Grove 64075",
+    "telephone": "(816) 690-7218",
+    "fax": "",
+    "people": {
+      "Publisher": "John & Joe Spaar",
+      "Editor": "Ruth Ann Hafner"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Dem",
+    "cities": [
+      "Oak Grove"
+    ],
+    "city": "Oak Grove",
+    "host": "www.theodessan.net",
+    "publisher": "John & Joe Spaar",
+    "editor": "Ruth Ann Hafner"
+  },
+  {
+    "name": "ODESSA ODESSAN",
+    "url": "www.theodessan.net",
+    "editorial_email": "odessannews@gmail.com",
+    "address": "212 Mason St., Odessa 64076",
+    "telephone": "(816) 230-5311",
+    "fax": "",
+    "people": {
+      "Publisher": "John & Joe Spaar",
+      "Editor": "Hannah Spaar"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Dem",
+    "cities": [
+      "Odessa"
+    ],
+    "city": "Odessa",
+    "host": "www.theodessan.net",
+    "publisher": "John & Joe Spaar",
+    "editor": "Hannah Spaar"
+  },
+  {
+    "name": "KANSAS CITY CALL NEWSPAPERS",
+    "url": "www.kccallnews.net",
+    "editorial_email": "tallen@kccallnews.net",
+    "address": "1515 E. 18th St., Kansas City 64108",
+    "telephone": "(816) 842-4804",
+    "fax": "",
+    "people": {
+      "Editor": "Tracey Allen"
+    },
+    "schedule": "Fri.",
+    "affiliation": "Ind",
+    "cities": [
+      "Online newspaper"
+    ],
+    "city": "Online newspaper",
+    "host": "www.kccallnews.net",
+    "publisher": "",
+    "editor": "Tracey Allen"
+  },
+  {
+    "name": "KANSAS CITY DAILY RECORD",
+    "url": "www.mlmcounties.com",
+    "editorial_email": "jyount@molawyersmedia.com",
+    "address": "920 Main St., Ste. 825, Kansas City 64105",
+    "telephone": "(816) 931-2002",
+    "fax": "",
+    "people": {
+      "Publisher": "Johnny Aguirre",
+      "Editor": "Jordan Yount"
+    },
+    "schedule": "Daily",
+    "affiliation": "NP",
+    "cities": [
+      "Online newspaper"
+    ],
+    "city": "Online newspaper",
+    "host": "www.mlmcounties.com",
+    "publisher": "Johnny Aguirre",
+    "editor": "Jordan Yount"
+  },
+  {
+    "name": "KANSAS CITY GLOBE",
+    "url": "www.thekansascityglobe.com",
+    "editorial_email": "kcglobe@swbell.net",
+    "address": "615 E. 29th, Kansas City 64109",
+    "telephone": "(816) 531-5253",
+    "fax": "",
+    "people": {
+      "Publisher": "Marion Jordon",
+      "Editor": "Marion Jordon"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Ind",
+    "cities": [
+      "Online newspaper"
+    ],
+    "city": "Online newspaper",
+    "host": "www.thekansascityglobe.com",
+    "publisher": "Marion Jordon",
+    "editor": "Marion Jordon"
+  },
+  {
+    "name": "KANSAS CITY NORTHEAST NEWS",
+    "url": "www.northeastnews.net",
+    "editorial_email": "northeastnewskc@gmail.com",
+    "address": "2659 Independence Blvd., Kansas City 64124",
+    "telephone": "(816) 241-0765",
+    "fax": "",
+    "people": {
+      "Publisher": "Historic Northeast Media, Inc.",
+      "Editor": "Julia Williams"
+    },
+    "schedule": "Biweekly Wed.",
+    "affiliation": "NP",
+    "cities": [
+      "Online newspaper"
+    ],
+    "city": "Online newspaper",
+    "host": "www.northeastnews.net",
+    "publisher": "Historic Northeast Media, Inc.",
+    "editor": "Julia Williams"
+  },
+  {
+    "name": "KANSAS CITY STAR",
+    "url": "www.kansascity.com",
+    "editorial_email": "gfarmer@kcstar.com",
+    "address": "2405 Grand, Ste. 410, Kansas City 64108",
+    "telephone": "(816) 234-4636",
+    "fax": "",
+    "people": {
+      "Executive Editor": "Greg Farmer"
+    },
+    "schedule": "Daily",
+    "affiliation": "NP",
+    "cities": [
+      "Online newspaper"
+    ],
+    "city": "Online newspaper",
+    "host": "www.kansascity.com",
+    "publisher": "",
+    "editor": ""
+  },
+  {
+    "name": "KANSAS CITY THE PULSE LEGAL PUBLICATION",
+    "url": "www.pulselegal.com",
+    "editorial_email": "lisa@pulselegal.com",
+    "address": "501 E. Armour Blvd., Kansas City 64109",
+    "telephone": "(816) 221-2552",
+    "fax": "",
+    "people": {
+      "Publisher": "Pamela Wingo",
+      "Editor": "Lisa Clark"
+    },
+    "schedule": "Daily",
+    "affiliation": "NP",
+    "cities": [
+      "Online newspaper"
+    ],
+    "city": "Online newspaper",
+    "host": "www.pulselegal.com",
+    "publisher": "Pamela Wingo",
+    "editor": "Lisa Clark"
+  },
+  {
+    "name": "LAKE EXPO",
+    "url": "www.lakeexpo.com",
+    "editorial_email": "nathan@lakeexpo.com",
+    "address": "2820 Bagnell Dam Blvd., Ste. B5, Lake Ozark 65049",
+    "telephone": "(573) 693-1990",
+    "fax": "",
+    "people": {
+      "Publisher": "Brent Simpson",
+      "Editor": "Nathan Bechtold"
+    },
+    "schedule": "",
+    "affiliation": "",
+    "cities": [
+      "Osage Beach"
+    ],
+    "city": "Osage Beach",
+    "host": "www.lakeexpo.com",
+    "publisher": "Brent Simpson",
+    "editor": "Nathan Bechtold"
+  },
+  {
+    "name": "OSCEOLA ST. CLAIR COUNTY COURIER",
+    "url": "",
+    "editorial_email": "sacosagenews@centurytel.net",
+    "address": "285 Pine St., PO Box 580, Osceola 64776",
+    "telephone": "(417) 646-2211",
+    "fax": "",
+    "people": {
+      "Publisher": "Trevor Vernon",
+      "Editor": "Brandy Bourland"
+    },
+    "schedule": "Fri.",
+    "affiliation": "Rep",
+    "cities": [
+      "Osceola"
+    ],
+    "city": "Osceola",
+    "host": "",
+    "publisher": "Trevor Vernon",
+    "editor": "Brandy Bourland"
+  },
+  {
+    "name": "OWENSVILLE GASCONADE CO. REPUBLICAN",
+    "url": "www.gasconadecountyrepublican.com",
+    "editorial_email": "news@wardpub.com",
+    "address": "106 E. Washington Ave., PO Box 540, Owensville 65066",
+    "telephone": "(573) 437-2323",
+    "fax": "",
+    "people": {
+      "Publisher": "Dennis Warden",
+      "Editor": "Dave Marner"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Dem",
+    "cities": [
+      "Owensville"
+    ],
+    "city": "Owensville",
+    "host": "www.gasconadecountyrepublican.com",
+    "publisher": "Dennis Warden",
+    "editor": "Dave Marner"
+  },
+  {
+    "name": "CHRISTIAN COUNTY HEADLINER-NEWS",
+    "url": "www.ccheadliner.com",
+    "editorial_email": "leahg@ccheadliner.com",
+    "address": "PO Box 490, Ozark 65721",
+    "telephone": "(417) 504-7515",
+    "fax": "",
+    "people": {
+      "Publisher": "Deanna Moore",
+      "Editor": "Leah Greenwood"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Ozark"
+    ],
+    "city": "Ozark",
+    "host": "www.ccheadliner.com",
+    "publisher": "Deanna Moore",
+    "editor": "Leah Greenwood"
+  },
+  {
+    "name": "PALMYRA SPECTATOR",
+    "url": "www.palmyra-spectator.com",
+    "editorial_email": "editorial@palmyra-spectator.com",
+    "address": "304 S. Main St., Palmyra 63461, PO Box 230, Kahoka 63445",
+    "telephone": "(573) 769-3111",
+    "fax": "",
+    "people": {
+      "Publisher": "Mike Scott",
+      "Editor": "Mike Scott"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Palmyra"
+    ],
+    "city": "Palmyra",
+    "host": "www.palmyra-spectator.com",
+    "publisher": "Mike Scott",
+    "editor": "Mike Scott"
+  },
+  {
+    "name": "MONROE COUNTY APPEAL",
+    "url": "www.monroe-ralls.com",
+    "editorial_email": "robingregg@monroecountyappeal.com",
+    "address": "209 N. Main St., Paris 65275",
+    "telephone": "(660) 462-6937",
+    "fax": "",
+    "people": {
+      "Publisher": "Robin Gregg",
+      "Editor": "Robin Gregg"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "NP",
+    "cities": [
+      "Paris"
+    ],
+    "city": "Paris",
+    "host": "www.monroe-ralls.com",
+    "publisher": "Robin Gregg",
+    "editor": "Robin Gregg"
+  },
+  {
+    "name": "PARK HILLS DAILY JOURNAL",
+    "url": "www.dailyjournalonline.com",
+    "editorial_email": "dstricklin@dailyjournalonline.com",
+    "address": "1513 St. Joe Dr., PO Box 9, Park Hills 63601",
+    "telephone": "(573) 431-2010",
+    "fax": "",
+    "people": {
+      "President": "Dwight Stricklin",
+      "Editor": "Kevin Jenkins"
+    },
+    "schedule": "Tues.",
+    "affiliation": "NP",
+    "cities": [
+      "Park Hills"
+    ],
+    "city": "Park Hills",
+    "host": "www.dailyjournalonline.com",
+    "publisher": "",
+    "editor": "Kevin Jenkins"
+  },
+  {
+    "name": "MIDAMERICA FARMER GROWER",
+    "url": "www.mafg.net",
+    "editorial_email": "editor@mafg.net",
+    "address": "19 N. Main St., PO Box 323, Perryville 63775",
+    "telephone": "(573) 547-2244",
+    "fax": "",
+    "people": {
+      "Publisher": "John M. LaRose",
+      "Editor": "Barb Galeski"
+    },
+    "schedule": "Fri.",
+    "affiliation": "Rep",
+    "cities": [
+      "Perryville"
+    ],
+    "city": "Perryville",
+    "host": "www.mafg.net",
+    "publisher": "John M. LaRose",
+    "editor": "Barb Galeski"
+  },
+  {
+    "name": "REPUBLIC-MONITOR, PERRYVILLE",
+    "url": "www.republicmonitor.com",
+    "editorial_email": "editor@perryvillenews.com",
+    "address": "11 W. St. Joseph St., PO Box 367, Perryville 63775",
+    "telephone": "(573) 547-4567",
+    "fax": "",
+    "people": {
+      "Publisher": "Robert Cox",
+      "Editor": "Justin Hotop"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Rep",
+    "cities": [
+      "Perryville"
+    ],
+    "city": "Perryville",
+    "host": "www.republicmonitor.com",
+    "publisher": "Robert Cox",
+    "editor": "Justin Hotop"
+  },
+  {
+    "name": "PIEDMONT WAYNE CO. JOURNAL-BANNER",
+    "url": "www.waynecojournalbanner.com",
+    "editorial_email": "mcpress@nwaonline.com",
+    "address": "101 W. Elm St., PO Box 97, Piedmont 63957, mdcp.nwaonline.com, 212 Northeast Ave., PO Box 266, Pineville 64856",
+    "telephone": "(479) 571-6482",
+    "fax": "",
+    "people": {
+      "Publisher": "Scott Hoskins",
+      "Editor": "Randy Moll"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "NP",
+    "cities": [
+      "Piedmont"
+    ],
+    "city": "Piedmont",
+    "host": "www.waynecojournalbanner.com",
+    "publisher": "Scott Hoskins",
+    "editor": "Randy Moll"
+  },
+  {
+    "name": "PLATTE COUNTY CITIZEN",
+    "url": "www.plattecountycitizen.com",
+    "editorial_email": "editor@plattecountycitizen.com",
+    "address": "303 Marshall Rd., Ste. 1A, PO Box 888, Platte City 64079",
+    "telephone": "(816) 858-5154",
+    "fax": "",
+    "people": {
+      "Publisher": "Will Johnson"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Platte City"
+    ],
+    "city": "Platte City",
+    "host": "www.plattecountycitizen.com",
+    "publisher": "Will Johnson",
+    "editor": ""
+  },
+  {
+    "name": "PLATTE COUNTY LANDMARK",
+    "url": "www.plattecountylandmark.com",
+    "editorial_email": "ivan@plattecountylandmark.com",
+    "address": "212 Marshall Rd, Ste. C, PO Box 410, Platte City 64079",
+    "telephone": "(816) 858-0363",
+    "fax": "",
+    "people": {
+      "Publisher": "Ivan Foley",
+      "Editor": "Ivan Foley"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Platte City"
+    ],
+    "city": "Platte City",
+    "host": "www.plattecountylandmark.com",
+    "publisher": "Ivan Foley",
+    "editor": "Ivan Foley"
+  },
+  {
+    "name": "CLINTON COUNTY LEADER, PLATTSBURG",
+    "url": "www.clintoncountyleader.com",
+    "editorial_email": "leader@clintoncountyleader.com",
+    "address": "102 E. Maple St., Plattsburg 64477",
+    "telephone": "(816) 539-2111",
+    "fax": "",
+    "people": {
+      "Publisher": "Jamey & D’Anna Honeycutt",
+      "Editor": "Brett Adkison"
+    },
+    "schedule": "Tues.",
+    "affiliation": "Rep",
+    "cities": [
+      "Plattsburg"
+    ],
+    "city": "Plattsburg",
+    "host": "www.clintoncountyleader.com",
+    "publisher": "Jamey & D’Anna Honeycutt",
+    "editor": "Brett Adkison"
+  },
+  {
+    "name": "POPLAR BLUFF DAILY AMERICAN REPUBLIC",
+    "url": "www.darnews.com",
+    "editorial_email": "dfarley@darnews.com",
+    "address": "208 Poplar St., PO Box 7, Poplar Bluff 63902, Tues.–Sat. (Rep)",
+    "telephone": "(573) 785-1414",
+    "fax": "",
+    "people": {
+      "Publisher": "Chris Pruett",
+      "Editor": "Donna Farley"
+    },
+    "schedule": "",
+    "affiliation": "",
+    "cities": [
+      "Poplar Bluff"
+    ],
+    "city": "Poplar Bluff",
+    "host": "www.darnews.com",
+    "publisher": "Chris Pruett",
+    "editor": "Donna Farley"
+  },
+  {
+    "name": "POTOSI INDEPENDENT JOURNAL",
+    "url": "www.theijnews.com",
+    "editorial_email": "theijnews@gmail.com",
+    "address": "119 E. High St., PO Box 340, Potosi 63664",
+    "telephone": "(573) 438-5141",
+    "fax": "",
+    "people": {
+      "Publisher": "Kris Richards & JK Richards",
+      "Editor": "Neil Richards"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "NP",
+    "cities": [
+      "Potosi"
+    ],
+    "city": "Potosi",
+    "host": "www.theijnews.com",
+    "publisher": "Kris Richards & JK Richards",
+    "editor": "Neil Richards"
+  },
+  {
+    "name": "PRINCETON POST-TELEGRAPH",
+    "url": "https://northmissouriannews.com/post-telegraph",
+    "editorial_email": "posttele@grm.net",
+    "address": "704 Main St., PO Box 286, Princeton 64673",
+    "telephone": "(660) 748-3266",
+    "fax": "",
+    "people": {
+      "Publisher": "Preston Cole",
+      "Editor": "Preston Cole"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Rep",
+    "cities": [
+      "Princeton"
+    ],
+    "city": "Princeton",
+    "host": "northmissouriannews.com",
+    "publisher": "Preston Cole",
+    "editor": "Preston Cole"
+  },
+  {
+    "name": "SCHUYLER COUNTY TIMES",
+    "url": "www.schuylercountytimes.com",
+    "editorial_email": "news@schuylercountytimes.com",
+    "address": "20447 New Hope Rd., Lancaster 63548",
+    "telephone": "(660) 457-8555",
+    "fax": "",
+    "people": {
+      "Publisher": "Mike & Sue Scott",
+      "Editor": "Mike Scott"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Rep",
+    "cities": [
+      "Queen City"
+    ],
+    "city": "Queen City",
+    "host": "www.schuylercountytimes.com",
+    "publisher": "Mike & Sue Scott",
+    "editor": "Mike Scott"
+  },
+  {
+    "name": "GREENE COUNTY COMMONWEALTH",
+    "url": "www.greenecountycommonwealth.com/",
+    "editorial_email": "thepaper@lawrencecountyrecord.com",
+    "address": "312 S. Hickory St., PO Box 348, Mt. Vernon 65738",
+    "telephone": "(417) 466-2185",
+    "fax": "",
+    "people": {
+      "Publisher": "Ryan Squibb",
+      "Editor": "Ryan Squibb"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Republic"
+    ],
+    "city": "Republic",
+    "host": "www.greenecountycommonwealth.com",
+    "publisher": "Ryan Squibb",
+    "editor": "Ryan Squibb"
+  },
+  {
+    "name": "RICH HILL MINING REVIEW",
+    "url": "www.richhillminingreview.com",
+    "editorial_email": "richhillminingreview@gmail.com",
+    "address": "PO Box 580, Osceola 64779",
+    "telephone": "(417) 646-2211",
+    "fax": "",
+    "people": {
+      "Publisher": "Trevor Vernon",
+      "Editor": "Brandy Bourland"
+    },
+    "schedule": "Fri.",
+    "affiliation": "Rep",
+    "cities": [
+      "Rich Hill"
+    ],
+    "city": "Rich Hill",
+    "host": "www.richhillminingreview.com",
+    "publisher": "Trevor Vernon",
+    "editor": "Brandy Bourland"
+  },
+  {
+    "name": "RICHMOND NEWS",
+    "url": "www.richmond-dailynews.com",
+    "editorial_email": "gm@leaderpress.com",
+    "address": "204 W. North Main, PO Box 128, Richmond 64085",
+    "telephone": "(816) 776-5454",
+    "fax": "",
+    "people": {
+      "Publisher": "Sharon Donat"
+    },
+    "schedule": "Fri.",
+    "affiliation": "NP",
+    "cities": [
+      "Richmond"
+    ],
+    "city": "Richmond",
+    "host": "www.richmond-dailynews.com",
+    "publisher": "Sharon Donat",
+    "editor": ""
+  },
+  {
+    "name": "ATCHISON COUNTY MAIL",
+    "url": "www.farmerpublishing.com",
+    "editorial_email": "amail@rpt.coop",
+    "address": "300 S. Main St., PO Box 40, Rock Port 64482",
+    "telephone": "(660) 744-6245",
+    "fax": "",
+    "people": {
+      "Publisher": "William C. & Mike Farmer",
+      "Editor": "W.C. Farmer"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Dem",
+    "cities": [
+      "Rock Port"
+    ],
+    "city": "Rock Port",
+    "host": "www.farmerpublishing.com",
+    "publisher": "William C. & Mike Farmer",
+    "editor": "W.C. Farmer"
+  },
+  {
+    "name": "PHELPS COUNTY FOCUS",
+    "url": "www.phelpscountyfocus.com",
+    "editorial_email": "contact@phelpscountyfocus.com",
+    "address": "101 W. Seventh St., PO Box 1128, Rolla 65401",
+    "telephone": "(573) 426-3700",
+    "fax": "",
+    "people": {
+      "Publisher": "Catherine Wynn",
+      "Editor": "Catherine Wynn"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Rep",
+    "cities": [
+      "Rolla"
+    ],
+    "city": "Rolla",
+    "host": "www.phelpscountyfocus.com",
+    "publisher": "Catherine Wynn",
+    "editor": "Catherine Wynn"
+  },
+  {
+    "name": "SAINT JAMES PRESS",
+    "url": "www.threeriverspublishing.com",
+    "editorial_email": "news@saintjamespress.com",
+    "address": "120 S. Jefferson, Ste. 107, PO Box 428, St. James 65559",
+    "telephone": "(573) 899-2345",
+    "fax": "",
+    "people": {
+      "Publisher": "Rob Viehman",
+      "Editor": "Chris Daniels"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Dem",
+    "cities": [
+      "Saint James"
+    ],
+    "city": "Saint James",
+    "host": "www.threeriverspublishing.com",
+    "publisher": "Rob Viehman",
+    "editor": "Chris Daniels"
+  },
+  {
+    "name": "CHARITON MARQUEE",
+    "url": "www.charitonmarquee.com",
+    "editorial_email": "editor@charitonmarquee.com",
+    "address": "110 E. Second St., Salisbury 65281",
+    "telephone": "(660) 388-6131",
+    "fax": "",
+    "people": {
+      "Publisher": "Melanie Latamondeer"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Ind",
+    "cities": [
+      "Salem"
+    ],
+    "city": "Salem",
+    "host": "www.charitonmarquee.com",
+    "publisher": "Melanie Latamondeer",
+    "editor": ""
+  },
+  {
+    "name": "THE SALEM NEWS",
+    "url": "www.thesalemnewsonline.com",
+    "editorial_email": "salemnews@thesalemnewsonline.com",
+    "address": "500 N. Washington, PO Box 798, Salem 65560, Salisbury/ Brunswick",
+    "telephone": "(573) 729-4126",
+    "fax": "",
+    "people": {
+      "Publisher": "Catherine Wynn",
+      "Editor": "Catherine Wynn"
+    },
+    "schedule": "Tues.",
+    "affiliation": "Rep",
+    "cities": [
+      "Salem"
+    ],
+    "city": "Salem",
+    "host": "www.thesalemnewsonline.com",
+    "publisher": "Catherine Wynn",
+    "editor": "Catherine Wynn"
+  },
+  {
+    "name": "SARCOXIE RECORD",
+    "url": "",
+    "editorial_email": "fstop@centurytel.net",
+    "address": "101 N. Sixth St., PO Box 400, Sarcoxie 64862",
+    "telephone": "(417) 548-3311",
+    "fax": "",
+    "people": {
+      "Publisher": "Paul E. Donley",
+      "Editor": "Paul E. Donley"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Sarcoxie"
+    ],
+    "city": "Sarcoxie",
+    "host": "",
+    "publisher": "Paul E. Donley",
+    "editor": "Paul E. Donley"
+  },
+  {
+    "name": "SAVANNAH REPORTER",
+    "url": "www.savrep.com",
+    "editorial_email": "editor@savrep.com",
+    "address": "427 W. Main St., PO Box 299, Savannah 64485",
+    "telephone": "(816) 324-3149",
+    "fax": "",
+    "people": {
+      "Publisher": "Jeremy Gulban",
+      "Editor": "Gregory Orear"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Dem",
+    "cities": [
+      "Savannah"
+    ],
+    "city": "Savannah",
+    "host": "www.savrep.com",
+    "publisher": "Jeremy Gulban",
+    "editor": "Gregory Orear"
+  },
+  {
+    "name": "SEDALIA DEMOCRAT",
+    "url": "www.sedaliademocrat.com",
+    "editorial_email": "news@sedaliademocrat.com",
+    "address": "111 W. Fourth St., Sedalia 65301, Mon.–Sat. (Ind)",
+    "telephone": "(660) 826-1000",
+    "fax": "",
+    "people": {
+      "Publisher": "Jamila Khalil",
+      "Editor": "Nicole Cooke"
+    },
+    "schedule": "",
+    "affiliation": "",
+    "cities": [
+      "Sedalia"
+    ],
+    "city": "Sedalia",
+    "host": "www.sedaliademocrat.com",
+    "publisher": "Jamila Khalil",
+    "editor": "Nicole Cooke"
+  },
+  {
+    "name": "SEYMOUR WEBSTER COUNTY CITIZEN",
+    "url": "www.webstercountycitizen.com",
+    "editorial_email": "citizen@webstercountycitizen.com",
+    "address": "221 S. Commercial St., PO Box 190, Seymour 65746",
+    "telephone": "(417) 935-2257",
+    "fax": "",
+    "people": {
+      "Publisher": "Dan Wehmer",
+      "Editor": "Dan Wehmer"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Seymour"
+    ],
+    "city": "Seymour",
+    "host": "www.webstercountycitizen.com",
+    "publisher": "Dan Wehmer",
+    "editor": "Dan Wehmer"
+  },
+  {
+    "name": "SHELBY COUNTY HERALD",
+    "url": "www.shelbycountyherald.com",
+    "editorial_email": "editor@shelbycountyherald.com",
+    "address": "109 E. Main St., PO Box 225, Shelbyville 63469",
+    "telephone": "(573) 633-2261",
+    "fax": "",
+    "people": {
+      "Publisher": "Mike Scott",
+      "Editor": "Martha Jane East"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Dem",
+    "cities": [
+      "Shelbyville"
+    ],
+    "city": "Shelbyville",
+    "host": "www.shelbycountyherald.com",
+    "publisher": "Mike Scott",
+    "editor": "Martha Jane East"
+  },
+  {
+    "name": "SHERIDAN EXPRESS",
+    "url": "",
+    "editorial_email": "express@grm.net",
+    "address": "sheridanexpress.blogspot.com, 205 N. Fourth, #8, PO Box 136, Sheridan 64486",
+    "telephone": "(660) 254-2161",
+    "fax": "",
+    "people": {
+      "Publisher": "Jesse Stark",
+      "Editor": "Jesse Stark"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Dem",
+    "cities": [
+      "Sheridan"
+    ],
+    "city": "Sheridan",
+    "host": "",
+    "publisher": "Jesse Stark",
+    "editor": "Jesse Stark"
+  },
+  {
+    "name": "SIKESTON STANDARD-DEMOCRAT",
+    "url": "www.standard-democrat.com",
+    "editorial_email": "news@standard-democrat.com",
+    "address": "205 S. New Madrid, Sikeston 63801",
+    "telephone": "(573) 471-1137",
+    "fax": "",
+    "people": {
+      "Publisher": "DeAnna Nelson",
+      "Editor": "Leonna Heuring"
+    },
+    "schedule": "Sun., Wed. & Fri.",
+    "affiliation": "Rep",
+    "cities": [
+      "Sikeston"
+    ],
+    "city": "Sikeston",
+    "host": "www.standard-democrat.com",
+    "publisher": "DeAnna Nelson",
+    "editor": "Leonna Heuring"
+  },
+  {
+    "name": "SLATER MAIN STREET NEWS",
+    "url": "www.slatermainstreetnews.com",
+    "editorial_email": "slaternews@socket.net",
+    "address": "222 Main St., Slater 65349",
+    "telephone": "(660) 529-2249",
+    "fax": "",
+    "people": {
+      "Publisher": "Jean E. Black",
+      "Editor": "Jean E. Black"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Dem",
+    "cities": [
+      "Slater"
+    ],
+    "city": "Slater",
+    "host": "www.slatermainstreetnews.com",
+    "publisher": "Jean E. Black",
+    "editor": "Jean E. Black"
+  },
+  {
+    "name": "SPRINGFIELD BUSINESS JOURNAL",
+    "url": "www.sbj.net",
+    "editorial_email": "sbj@sbj.net",
+    "address": "2101 W. Chesterfield Blvd., Ste. B105, PO Box 1365,, Springfield 65807",
+    "telephone": "(417) 831-3238",
+    "fax": "",
+    "people": {
+      "Publisher": "Marty Goodnight",
+      "Editor": "Christine Temple"
+    },
+    "schedule": "Mon.",
+    "affiliation": "NP",
+    "cities": [
+      "Springfield"
+    ],
+    "city": "Springfield",
+    "host": "www.sbj.net",
+    "publisher": "Marty Goodnight",
+    "editor": "Christine Temple"
+  },
+  {
+    "name": "SPRINGFIELD DAILY EVENTS",
+    "url": "www.thedailyevents.com",
+    "editorial_email": "editor@thedailyevents.com",
+    "address": "310 W. Walnut St., PO Box 1, Springfield 65806",
+    "telephone": "(417) 866-1401",
+    "fax": "",
+    "people": {
+      "Publisher": "Jeff Schrag",
+      "Editor": "Susie Barnes"
+    },
+    "schedule": "Daily",
+    "affiliation": "Rep",
+    "cities": [
+      "Springfield"
+    ],
+    "city": "Springfield",
+    "host": "www.thedailyevents.com",
+    "publisher": "Jeff Schrag",
+    "editor": "Susie Barnes"
+  },
+  {
+    "name": "SPRINGFIELD NEWS-LEADER",
+    "url": "www.news-leader.com",
+    "editorial_email": "webeditor@news-leader.com",
+    "address": "901 E. St. Louis St., Ste. 1100, Springfield 65806",
+    "telephone": "(417) 836-1170",
+    "fax": "",
+    "people": {
+      "Editor": "Amos Bridges"
+    },
+    "schedule": "Daily",
+    "affiliation": "NP",
+    "cities": [
+      "Springfield"
+    ],
+    "city": "Springfield",
+    "host": "www.news-leader.com",
+    "publisher": "",
+    "editor": "Amos Bridges"
+  },
+  {
+    "name": "ST. CHARLES COMMUNITY NEWS",
+    "url": "www.mycnews.com",
+    "editorial_email": "editor@mycnews.com",
+    "address": "1001 Boardwalk Springs Pl., Ste. 111, O’Fallon 63368",
+    "telephone": "(636) 379-1775",
+    "fax": "",
+    "people": {
+      "Publisher": "Tim Schmidt",
+      "Editor": "Tim Schmidt"
+    },
+    "schedule": "Wed.",
+    "affiliation": "NP",
+    "cities": [
+      "St. Charles"
+    ],
+    "city": "St. Charles",
+    "host": "www.mycnews.com",
+    "publisher": "Tim Schmidt",
+    "editor": "Tim Schmidt"
+  },
+  {
+    "name": "ST. CHARLES COUNTY BUSINESS RECORD",
+    "url": "www.mlmcounties.com",
+    "editorial_email": "jyount@molawyersmedia.com",
+    "address": "1660 Heritage Landing, Ste. 209, St. Peters 63303",
+    "telephone": "(636) 949-6928",
+    "fax": "",
+    "people": {
+      "Publisher": "Johnny Aguirre",
+      "Editor": "Jordan Yount"
+    },
+    "schedule": "Daily",
+    "affiliation": "NP",
+    "cities": [
+      "St. Charles"
+    ],
+    "city": "St. Charles",
+    "host": "www.mlmcounties.com",
+    "publisher": "Johnny Aguirre",
+    "editor": "Jordan Yount"
+  },
+  {
+    "name": "ST. CHARLES COUNTY JOURNAL",
+    "url": "",
+    "editorial_email": "gail@pulselegal.com",
+    "address": "300 S. Second St., St. Charles 63301",
+    "telephone": "(816) 221-2552",
+    "fax": "",
+    "people": {
+      "Publisher": "Shannon Grindinger"
+    },
+    "schedule": "Daily",
+    "affiliation": "NP",
+    "cities": [
+      "St. Charles"
+    ],
+    "city": "St. Charles",
+    "host": "",
+    "publisher": "Shannon Grindinger",
+    "editor": ""
+  },
+  {
+    "name": "ST. JOSEPH NEWS-PRESS",
+    "url": "www.newspressnow.com",
+    "editorial_email": "steve.booher@newspressnow.com",
+    "address": "825 Edmond St., PO Box 29, St. Joseph 64502",
+    "telephone": "(816) 271-8500",
+    "fax": "",
+    "people": {
+      "Publisher": "David Bradley",
+      "Editor": "Steve Booher"
+    },
+    "schedule": "Daily",
+    "affiliation": "Rep",
+    "cities": [
+      "St. Joseph"
+    ],
+    "city": "St. Joseph",
+    "host": "www.newspressnow.com",
+    "publisher": "David Bradley",
+    "editor": "Steve Booher"
+  },
+  {
+    "name": "ST. LOUIS AMERICAN",
+    "url": "www.stlamerican.com",
+    "editorial_email": "news@stlamerican.com",
+    "address": "2315 Pine St., St. Louis 63103",
+    "telephone": "(314) 533-8000",
+    "fax": "",
+    "people": {
+      "Publisher": "Donald Suggs",
+      "Editor": "Donald Suggs"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Dem",
+    "cities": [
+      "St. Louis"
+    ],
+    "city": "St. Louis",
+    "host": "www.stlamerican.com",
+    "publisher": "Donald Suggs",
+    "editor": "Donald Suggs"
+  },
+  {
+    "name": "ST. LOUIS BUSINESS JOURNAL",
+    "url": "www.bizjournals.com/stlouis/",
+    "editorial_email": "esiemers@bizjournals.com",
+    "address": "815 Olive St., Ste. 100, St. Louis 63101",
+    "telephone": "(314) 421-6200",
+    "fax": "",
+    "people": {
+      "Publisher": "Robert Bobroff",
+      "Editor": "Erik Siemers"
+    },
+    "schedule": "Fri.",
+    "affiliation": "NP",
+    "cities": [
+      "St. Louis"
+    ],
+    "city": "St. Louis",
+    "host": "www.bizjournals.com",
+    "publisher": "Robert Bobroff",
+    "editor": "Erik Siemers"
+  },
+  {
+    "name": "ST. LOUIS CALL NEWSPAPERS",
+    "url": "www.callnewspapers.com",
+    "editorial_email": "new1@callnewspapers.com",
+    "address": "9977 Lin-Ferry Dr., St. Louis 63123",
+    "telephone": "(314) 843-0102",
+    "fax": "",
+    "people": {
+      "Publisher": "Deborah Baker",
+      "Editor": "Erin Achenbach"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Ind",
+    "cities": [
+      "St. Louis"
+    ],
+    "city": "St. Louis",
+    "host": "www.callnewspapers.com",
+    "publisher": "Deborah Baker",
+    "editor": "Erin Achenbach"
+  },
+  {
+    "name": "ST. LOUIS CITY MONITOR",
+    "url": "",
+    "editorial_email": "",
+    "address": "200 N. 13th St., St. Louis 63103",
+    "telephone": "(816) 221-2552",
+    "fax": "",
+    "people": {
+      "Publisher": "John Wingo",
+      "Editor": "Trevor Henderson"
+    },
+    "schedule": "Daily",
+    "affiliation": "NP",
+    "cities": [
+      "St. Louis"
+    ],
+    "city": "St. Louis",
+    "host": "",
+    "publisher": "John Wingo",
+    "editor": "Trevor Henderson"
+  },
+  {
+    "name": "ST. LOUIS COMMUNITY NEWS",
+    "url": "www.mycnews.com",
+    "editorial_email": "editor@mycnews.com",
+    "address": "1001 Boardwalk Springs Pl., Ste. 111., O’Fallon 63368",
+    "telephone": "(636) 379-1775",
+    "fax": "",
+    "people": {
+      "Publisher": "Tim Schmidt",
+      "Editor": "Tim Schmidt"
+    },
+    "schedule": "Wed.",
+    "affiliation": "NP",
+    "cities": [
+      "St. Louis"
+    ],
+    "city": "St. Louis",
+    "host": "www.mycnews.com",
+    "publisher": "Tim Schmidt",
+    "editor": "Tim Schmidt"
+  },
+  {
+    "name": "ST. LOUIS COUNTY LEDGER",
+    "url": "",
+    "editorial_email": "",
+    "address": "7730 Carondelet, Ste. 101, St. Louis 63105",
+    "telephone": "(314) 862-1875",
+    "fax": "",
+    "people": {
+      "Publisher": "John Wingo",
+      "Editor": "Lacey Whittaker"
+    },
+    "schedule": "Daily",
+    "affiliation": "NP",
+    "cities": [
+      "St. Louis"
+    ],
+    "city": "St. Louis",
+    "host": "",
+    "publisher": "John Wingo",
+    "editor": "Lacey Whittaker"
+  },
+  {
+    "name": "ST. LOUIS DAILY RECORD",
+    "url": "www.mlmcounties.com",
+    "editorial_email": "jyount@molawyersmedia.com",
+    "address": "319 N. 100 Fourth St., Ste. 534, St. Louis 63188",
+    "telephone": "(314) 421-1880",
+    "fax": "",
+    "people": {
+      "Publisher": "Susan Bocomazo",
+      "Editor": "Jordan Yount"
+    },
+    "schedule": "Daily",
+    "affiliation": "NP",
+    "cities": [
+      "St. Louis"
+    ],
+    "city": "St. Louis",
+    "host": "www.mlmcounties.com",
+    "publisher": "Susan Bocomazo",
+    "editor": "Jordan Yount"
+  },
+  {
+    "name": "ST. LOUIS LABOR TRIBUNE",
+    "url": "www.labortribune.com",
+    "editorial_email": "tim@labortribune.com",
+    "address": "505 S. Ewing Ave., St. Louis 63103",
+    "telephone": "(314) 535-9660",
+    "fax": "(314) 531-6131",
+    "people": {
+      "Publisher": "Edward M. Finkelstein",
+      "Editor": "Tim Rowden"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Dem",
+    "cities": [
+      "St. Louis"
+    ],
+    "city": "St. Louis",
+    "host": "www.labortribune.com",
+    "publisher": "Edward M. Finkelstein",
+    "editor": "Tim Rowden"
+  },
+  {
+    "name": "ST. LOUIS MISSOURI LAWYERS WEEKLY",
+    "url": "www.molawyersmedia.com",
+    "editorial_email": "jyount@molawyersmedia.com",
+    "address": "1400 S. Highway Dr., Ste. 103, Fenton 63026",
+    "telephone": "(314) 421-1880",
+    "fax": "",
+    "people": {
+      "Publisher": "Johnny Aguirre",
+      "Editor": "Jordan Yount"
+    },
+    "schedule": "Daily",
+    "affiliation": "NP",
+    "cities": [
+      "St. Louis"
+    ],
+    "city": "St. Louis",
+    "host": "www.molawyersmedia.com",
+    "publisher": "Johnny Aguirre",
+    "editor": "Jordan Yount"
+  },
+  {
+    "name": "ST. LOUIS POST-DISPATCH",
+    "url": "www.stltoday.com",
+    "editorial_email": "editor@post-dispatch.com",
+    "address": "901 N. 10th St., St. Louis 63101",
+    "telephone": "(314) 340-8888",
+    "fax": "",
+    "people": {
+      "Publisher": "Ian Caso",
+      "Editor": "Alan Achkar"
+    },
+    "schedule": "Daily",
+    "affiliation": "NP",
+    "cities": [
+      "St. Louis"
+    ],
+    "city": "St. Louis",
+    "host": "www.stltoday.com",
+    "publisher": "Ian Caso",
+    "editor": "Alan Achkar"
+  },
+  {
+    "name": "ST. LOUIS WEBSTER - KIRKWOOD TIMES",
+    "url": "https://www.timesnewspapers.com/webster-kirkwood",
+    "editorial_email": "newsroom@timesnewspapers.com",
+    "address": "times/, 122 W. Lockwood Ave., Second Fl., St. Louis 63119",
+    "telephone": "(314) 968-2699",
+    "fax": "",
+    "people": {
+      "Publisher": "Randy Drilingas",
+      "Editor": "Jaime Mowers"
+    },
+    "schedule": "Fri.",
+    "affiliation": "Dem",
+    "cities": [
+      "St. Louis"
+    ],
+    "city": "St. Louis",
+    "host": "www.timesnewspapers.com",
+    "publisher": "Randy Drilingas",
+    "editor": "Jaime Mowers"
+  },
+  {
+    "name": "STE. GENEVIEVE HERALD",
+    "url": "www.stegenherald.com",
+    "editorial_email": "mevans@stegenherald.com",
+    "address": "316 A Market St., PO Box 447, Ste. Genevieve 63670",
+    "telephone": "(573) 883-2222",
+    "fax": "",
+    "people": {
+      "Publisher": "Scott Hoskins",
+      "Editor": "Mark Evans"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Ste. Genevieve"
+    ],
+    "city": "Ste. Genevieve",
+    "host": "www.stegenherald.com",
+    "publisher": "Scott Hoskins",
+    "editor": "Mark Evans"
+  },
+  {
+    "name": "STEELVILLE STAR-CRAWFORD MIRROR",
+    "url": "www.threeriverspublishing.com",
+    "editorial_email": "news@cubafreepress.com",
+    "address": "115 E. Main St., PO Box BG, Steelville 65565",
+    "telephone": "(573) 775-5454",
+    "fax": "",
+    "people": {
+      "Publisher": "Rob Viehman",
+      "Editor": "Amy England"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Rep",
+    "cities": [
+      "Steelville"
+    ],
+    "city": "Steelville",
+    "host": "www.threeriverspublishing.com",
+    "publisher": "Rob Viehman",
+    "editor": "Amy England"
+  },
+  {
+    "name": "CEDAR COUNTY REPUBLICAN, STOCKTON",
+    "url": "www.cedarrepublican.com",
+    "editorial_email": "news@cedarrepublican.com",
+    "address": "26 Public Sq., Stockton 65785",
+    "telephone": "(417) 276-4211",
+    "fax": "",
+    "people": {
+      "Publisher": "Deanna Moore",
+      "Editor": "Pat Hindman"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Stockton"
+    ],
+    "city": "Stockton",
+    "host": "www.cedarrepublican.com",
+    "publisher": "Deanna Moore",
+    "editor": "Pat Hindman"
+  },
+  {
+    "name": "SULLIVAN INDEPENDENT NEWS",
+    "url": "www.mysullivannews.net",
+    "editorial_email": "general@sullivannews.net",
+    "address": "411 Scottsdale Dr., PO Box 268, Sullivan 63080",
+    "telephone": "(573) 468-6511",
+    "fax": "",
+    "people": {
+      "Publisher": "James Bartle",
+      "Editor": "James Bartle"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Ind",
+    "cities": [
+      "Sullivan"
+    ],
+    "city": "Sullivan",
+    "host": "www.mysullivannews.net",
+    "publisher": "James Bartle",
+    "editor": "James Bartle"
+  },
+  {
+    "name": "SUMMERSVILLE BEACON",
+    "url": "www.sbeacon.com",
+    "editorial_email": "sbeaconeditor@gmail.com",
+    "address": "205 Richards Ave., PO Box 272, Summersville 65571",
+    "telephone": "(417) 932-4700",
+    "fax": "",
+    "people": {
+      "Publisher/Editor": "Sharon Vaughn"
+    },
+    "schedule": "Tues.",
+    "affiliation": "NP",
+    "cities": [
+      "Summersville"
+    ],
+    "city": "Summersville",
+    "host": "www.sbeacon.com",
+    "publisher": "Sharon Vaughn",
+    "editor": "Sharon Vaughn"
+  },
+  {
+    "name": "SWEET SPRINGS HERALD",
+    "url": "",
+    "editorial_email": "sweetspringsherald@gmail.com",
+    "address": "238 W. Main St., Sweet Springs 65351",
+    "telephone": "(660) 335-6366",
+    "fax": "",
+    "people": {
+      "Publisher": "Kathryn Dohrman",
+      "Editor": "Kathryn Dohrman"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Sweet Springs"
+    ],
+    "city": "Sweet Springs",
+    "host": "",
+    "publisher": "Kathryn Dohrman",
+    "editor": "Kathryn Dohrman"
+  },
+  {
+    "name": "THE SOUTH MISSOURIAN NEWS",
+    "url": "",
+    "editorial_email": "vmarshall@cherryroad.com",
+    "address": "wwwsouthmissouriannews.com, 112 Chestnut St., Thayer 65791",
+    "telephone": "(417) 264-3085",
+    "fax": "",
+    "people": {
+      "Publisher": "Jeremy Gulban",
+      "Editor": "Renee James"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "NP",
+    "cities": [
+      "Thayer"
+    ],
+    "city": "Thayer",
+    "host": "",
+    "publisher": "Jeremy Gulban",
+    "editor": "Renee James"
+  },
+  {
+    "name": "TIPTON TIMES",
+    "url": "www.tiptontimes.com",
+    "editorial_email": "times@vernonpublishing.com",
+    "address": "113 E. Morgan St., PO Box U, Tipton 65081",
+    "telephone": "(660) 433-5721",
+    "fax": "",
+    "people": {
+      "Publisher": "Trevor Vernon",
+      "Editor": "Becky Holloway"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Rep",
+    "cities": [
+      "Tipton"
+    ],
+    "city": "Tipton",
+    "host": "www.tiptontimes.com",
+    "publisher": "Trevor Vernon",
+    "editor": "Becky Holloway"
+  },
+  {
+    "name": "TRENTON REPUBLICAN-TIMES",
+    "url": "www.republican-times.com",
+    "editorial_email": "news@republican-times.com",
+    "address": "122 E. Eighth St., PO Box 548, Trenton 64683",
+    "telephone": "(660) 359-2212",
+    "fax": "",
+    "people": {
+      "Publisher": "Jamey & D’Anna Honeycutt",
+      "Editor": "Jamey Honeycutt"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Rep",
+    "cities": [
+      "Trenton"
+    ],
+    "city": "Trenton",
+    "host": "www.republican-times.com",
+    "publisher": "Jamey & D’Anna Honeycutt",
+    "editor": "Jamey Honeycutt"
+  },
+  {
+    "name": "LINCOLN COUNTY JOURNAL",
+    "url": "www.lincolnnewsnow.com",
+    "editorial_email": "gorear@cherryroad.com",
+    "address": "280 Magee St., Troy 63379",
+    "telephone": "(636) 528-9550",
+    "fax": "",
+    "people": {
+      "Publisher": "Jeremy Gulban",
+      "Editor": "Gregory Orear"
+    },
+    "schedule": "Tues.",
+    "affiliation": "Ind",
+    "cities": [
+      "Troy"
+    ],
+    "city": "Troy",
+    "host": "www.lincolnnewsnow.com",
+    "publisher": "Jeremy Gulban",
+    "editor": "Gregory Orear"
+  },
+  {
+    "name": "TROY FREE PRESS",
+    "url": "www.lincolnnewsnow.com",
+    "editorial_email": "",
+    "address": "230 Magee St., Troy 63379",
+    "telephone": "(636) 528-9550",
+    "fax": "",
+    "people": {
+      "Editor email": "gorear@cherryroad.com",
+      "Publisher": "Jeremy Gulban",
+      "Editor": "Gregory Orear"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Ind",
+    "cities": [
+      "Troy"
+    ],
+    "city": "Troy",
+    "host": "www.lincolnnewsnow.com",
+    "publisher": "Jeremy Gulban",
+    "editor": "Gregory Orear"
+  },
+  {
+    "name": "UNIONVILLE REPUBLICAN",
+    "url": "",
+    "editorial_email": "urep@nemr.net",
+    "address": "northmissourinews.com, 111 S. 16th St., PO Box 365, Unionville 63565",
+    "telephone": "(660) 947-2222",
+    "fax": "",
+    "people": {
+      "Publisher": "Ron Kinzler",
+      "Editor": "Karen Bradshaw"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Unionville"
+    ],
+    "city": "Unionville",
+    "host": "",
+    "publisher": "Ron Kinzler",
+    "editor": "Karen Bradshaw"
+  },
+  {
+    "name": "CURRENT LOCAL",
+    "url": "",
+    "editorial_email": "currentlocal@centurytel.net",
+    "address": "504 Ash St., PO Box 100, Van Buren 63965",
+    "telephone": "(573) 323-4515",
+    "fax": "",
+    "people": {
+      "Publisher": "Mike Grassham",
+      "Editor": "Mike Grassham"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "NP",
+    "cities": [
+      "Van Buren"
+    ],
+    "city": "Van Buren",
+    "host": "",
+    "publisher": "Mike Grassham",
+    "editor": "Mike Grassham"
+  },
+  {
+    "name": "VANDALIA LEADER",
+    "url": "www.vandalialeader.com",
+    "editorial_email": "sschwartz@pikecountynews.com",
+    "address": "101 W. Main, PO Box 110, Bowling Green 63334",
+    "telephone": "(573) 594-2222",
+    "fax": "",
+    "people": {
+      "Publisher": "Stan Schwartz",
+      "Editor": "Stan Schwartz"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Rep",
+    "cities": [
+      "Vandalia"
+    ],
+    "city": "Vandalia",
+    "host": "www.vandalialeader.com",
+    "publisher": "Stan Schwartz",
+    "editor": "Stan Schwartz"
+  },
+  {
+    "name": "MORGAN COUNTY STATESMAN",
+    "url": "www.morgancountystatesman.com",
+    "editorial_email": "news@morgancountystatesman.com",
+    "address": "104 W. Jasper, PO Box 348, Versailles 65084, Wed. (Rep",
+    "telephone": "(573) 378-5441",
+    "fax": "",
+    "people": {
+      "Publisher": "Bryan E. Jones",
+      "Editor": "Bryan E. Jones"
+    },
+    "schedule": "",
+    "affiliation": "",
+    "cities": [
+      "Versailles"
+    ],
+    "city": "Versailles",
+    "host": "www.morgancountystatesman.com",
+    "publisher": "Bryan E. Jones",
+    "editor": "Bryan E. Jones"
+  },
+  {
+    "name": "WARRENSBURG DAILY STAR-JOURNAL",
+    "url": "www.warrensburgstarjournal.com",
+    "editorial_email": "news@warrensburgstarjournal.com",
+    "address": "101 E. Market St., Ste. D, Warrensburg 64093",
+    "telephone": "(660) 747-8123",
+    "fax": "",
+    "people": {
+      "Publisher": "Jamila Khalil",
+      "Editor": "Nicole Cooke"
+    },
+    "schedule": "Tues. & Fri.",
+    "affiliation": "Rep",
+    "cities": [
+      "Warrensburg"
+    ],
+    "city": "Warrensburg",
+    "host": "www.warrensburgstarjournal.com",
+    "publisher": "Jamila Khalil",
+    "editor": "Nicole Cooke"
+  },
+  {
+    "name": "WARREN COUNTY RECORD",
+    "url": "www.warrencountyrecord.com",
+    "editorial_email": "jason@warrencountyrecord.com",
+    "address": "103 E. Booneslick Rd., Warrenton 63383",
+    "telephone": "(636) 456-6397",
+    "fax": "",
+    "people": {
+      "Publisher": "Tim Schmidt",
+      "Editor": "Tim Schmidt"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Rep",
+    "cities": [
+      "Warrenton"
+    ],
+    "city": "Warrenton",
+    "host": "www.warrencountyrecord.com",
+    "publisher": "Tim Schmidt",
+    "editor": "Tim Schmidt"
+  },
+  {
+    "name": "BENTON COUNTY ENTERPRISE",
+    "url": "www.bentoncountyenterprise.com",
+    "editorial_email": "bentoncountyenterprise@yahoo.com",
+    "address": "107 E. Main St., PO Box 128, Warsaw 63555",
+    "telephone": "(660) 438-6312",
+    "fax": "",
+    "people": {
+      "Publisher": "James Mahlon White",
+      "Editor": "Adam Dean Howe"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Rep",
+    "cities": [
+      "Warsaw"
+    ],
+    "city": "Warsaw",
+    "host": "www.bentoncountyenterprise.com",
+    "publisher": "James Mahlon White",
+    "editor": "Adam Dean Howe"
+  },
+  {
+    "name": "WASHINGTON MISSOURIAN",
+    "url": "www.emissourian.com",
+    "editorial_email": "washnews@emissourian.com",
+    "address": "6321 Bluff Rd., PO Box 336, Washington 63090",
+    "telephone": "(636) 239-7701",
+    "fax": "",
+    "people": {
+      "Publisher": "William L. Miller Jr.",
+      "Editor": "Jonathan Riley"
+    },
+    "schedule": "Wed., Sat. & Sun.",
+    "affiliation": "Ind",
+    "cities": [
+      "Washington"
+    ],
+    "city": "Washington",
+    "host": "www.emissourian.com",
+    "publisher": "William L. Miller Jr.",
+    "editor": "Jonathan Riley"
+  },
+  {
+    "name": "WELLSVILLE OPTIC-NEWS",
+    "url": "",
+    "editorial_email": "opticnews@socket.net",
+    "address": "123 W. Hudson St., PO Box 73, Wellsville 63384",
+    "telephone": "(573) 684-2929",
+    "fax": "",
+    "people": {
+      "Publisher": "Tracy L. Park",
+      "Editor": "Natalie A. Ison"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Wellsville"
+    ],
+    "city": "Wellsville",
+    "host": "",
+    "publisher": "Tracy L. Park",
+    "editor": "Natalie A. Ison"
+  },
+  {
+    "name": "WEST PLAINS DAILY QUILL",
+    "url": "www.westplainsdailyquill.net",
+    "editorial_email": "news@westplainsdailyquill.net",
+    "address": "205 Washington Ave., PO Box 110, West Plains 65775",
+    "telephone": "(417) 256-9191",
+    "fax": "",
+    "people": {
+      "GM & Editor": "Abby Hess",
+      "Editor": "Abby Hess"
+    },
+    "schedule": "Wed. & Sat.",
+    "affiliation": "NP",
+    "cities": [
+      "West Plains"
+    ],
+    "city": "West Plains",
+    "host": "www.westplainsdailyquill.net",
+    "publisher": "",
+    "editor": "Abby Hess"
+  },
+  {
+    "name": "WESTON CHRONICLE",
+    "url": "www.plattechronicle.com",
+    "editorial_email": "wcnews@embarqmail.com",
+    "address": "18275 Hwy. 45 N, PO Box 6, Weston 64098",
+    "telephone": "(816) 640-2251",
+    "fax": "",
+    "people": {
+      "Publisher": "Jim & Beth McPherson",
+      "Editor": "Beth McPherson"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Dem",
+    "cities": [
+      "Weston"
+    ],
+    "city": "Weston",
+    "host": "www.plattechronicle.com",
+    "publisher": "Jim & Beth McPherson",
+    "editor": "Beth McPherson"
+  },
+  {
+    "name": "HOWELL COUNTY NEWS",
+    "url": "www.howellcountynews.com",
+    "editorial_email": "editor@howellcountynews.com",
+    "address": "110 W. Main St., Willow Springs 65793",
+    "telephone": "(417) 252-2123",
+    "fax": "",
+    "people": {
+      "Publisher": "Amanda Mendez",
+      "Editor": "Amanda Mendez"
+    },
+    "schedule": "Wed.",
+    "affiliation": "Rep",
+    "cities": [
+      "Willow Springs"
+    ],
+    "city": "Willow Springs",
+    "host": "www.howellcountynews.com",
+    "publisher": "Amanda Mendez",
+    "editor": "Amanda Mendez"
+  },
+  {
+    "name": "WINDSOR REVIEW",
+    "url": "www.clintondailydemocrat.com",
+    "editorial_email": "clintondailydemocrat@gmail.com",
+    "address": "212 S. Washington St., PO Box 586, Clinton 64735",
+    "telephone": "(660) 885-2281",
+    "fax": "",
+    "people": {
+      "Publisher": "James White",
+      "Editor": "Adam Howe"
+    },
+    "schedule": "Thurs.",
+    "affiliation": "Rep",
+    "cities": [
+      "Windsor"
+    ],
+    "city": "Windsor",
+    "host": "www.clintondailydemocrat.com",
+    "publisher": "James White",
+    "editor": "Adam Howe"
+  }
+]
