@@ -69,10 +69,17 @@ def find_source_sql(host: str, select: str = "id") -> tuple[str, dict]:
     index on either can be used; production holds no mixed-case host, and
     `host_spellings` supplies the lowered forms anyway.
 
-    Ordered so that the spelling as given wins when both spellings exist as
-    separate rows. Without it the row returned would depend on the table's
+    Ordered so a LIVE row beats a retired one, and then so the spelling as
+    given wins. Without an order the row returned would depend on the table's
     physical order, and a bot encounter on one spelling could be recorded
     against the other.
+
+    Status leads because retiring one of a pair is how a duplicate is settled:
+    `newspressnow.com` was retired into `www.newspressnow.com` on 2026-09-24,
+    and a lookup for the bare spelling matches the retired row exactly. Ranking
+    exactness first would hand back the row that was just taken out of service.
+    A NULL status ranks as live -- five rows have one, and an unrecorded status
+    is not a statement that the source is finished.
 
     Returns `("", {})` for a host with no spellings; the caller must treat that
     as "no match" and NOT run a query.
@@ -85,8 +92,8 @@ def find_source_sql(host: str, select: str = "id") -> tuple[str, dict]:
     sql = (
         f"SELECT {select} FROM sources "
         f"WHERE host IN ({placeholders}) OR host_norm IN ({placeholders}) "
-        "ORDER BY CASE WHEN host = :h0 THEN 0 WHEN host_norm = :h0 THEN 1 "
-        "ELSE 2 END "
+        "ORDER BY CASE WHEN status IN ('retired', 'inactive') THEN 1 ELSE 0 END, "
+        "CASE WHEN host = :h0 THEN 0 WHEN host_norm = :h0 THEN 1 ELSE 2 END "
         "LIMIT 1"
     )
     return sql, dict(zip(names, spellings, strict=True))
