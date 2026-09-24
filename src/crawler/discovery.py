@@ -70,6 +70,7 @@ except Exception:
 
 from src.crawler.utils import mask_proxy_url
 from src.utils.discovery_outcomes import DiscoveryResult
+from src.utils.source_lookup import find_source_sql
 from src.utils.telemetry import (
     DiscoveryMethod,
     DiscoveryMethodStatus,
@@ -2130,17 +2131,17 @@ class NewsDiscovery:
                         # Use jsonb cast for PostgreSQL, text for SQLite tests.
                         # If a source with the same host already exists (different id),
                         # update it instead of inserting a duplicate (host_norm unique).
-                        existing_by_host = safe_execute(
-                            conn,
-                            (
-                                "SELECT id FROM sources "
-                                "WHERE host = :host OR host_norm = :host_norm"
-                            ),
-                            {
-                                "host": host_value,
-                                "host_norm": host_value.lower(),
-                            },
-                        ).fetchone()
+                        # Every spelling of the host, so pausing
+                        # `www.chinookobserver.com` pauses the loaded
+                        # `chinookobserver.com` row rather than inserting a
+                        # second, dataset-less one -- see
+                        # `src/utils/source_lookup.py`.
+                        lookup_sql, lookup_params = find_source_sql(host_value)
+                        existing_by_host = (
+                            safe_execute(conn, lookup_sql, lookup_params).fetchone()
+                            if lookup_sql
+                            else None
+                        )
                         if existing_by_host:
                             safe_execute(
                                 conn,
@@ -2217,17 +2218,13 @@ class NewsDiscovery:
                                     host_value,
                                     ie,
                                 )
-                                existing_retry = safe_execute(
-                                    conn,
-                                    (
-                                        "SELECT id FROM sources "
-                                        "WHERE host = :host OR host_norm = :host_norm"
-                                    ),
-                                    {
-                                        "host": host_value,
-                                        "host_norm": host_value.lower(),
-                                    },
-                                ).fetchone()
+                                existing_retry = (
+                                    safe_execute(
+                                        conn, lookup_sql, lookup_params
+                                    ).fetchone()
+                                    if lookup_sql
+                                    else None
+                                )
                                 if existing_retry:
                                     safe_execute(
                                         conn,

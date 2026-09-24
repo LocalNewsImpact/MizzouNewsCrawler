@@ -13,6 +13,7 @@ from typing import Any, Optional
 from sqlalchemy import text
 
 from src.models.database import DatabaseManager, safe_session_execute
+from src.utils.source_lookup import find_source_sql
 
 logger = logging.getLogger(__name__)
 
@@ -132,6 +133,11 @@ SENSITIVITY_ADJUSTMENT_RULES = {
 # Sensitivity is defined on 1..10; negative adjustments must not undershoot it.
 SENSITIVITY_FLOOR = 1
 
+#: What a host with no recorded sensitivity is treated as. Was the bare literal
+#: 5 at the end of `get_bot_sensitivity`, which every early return then had to
+#: repeat.
+DEFAULT_SENSITIVITY = 5
+
 # Known bot-sensitive publishers (pre-configured)
 # Add known aggressive bot detectors here with their sensitivity levels (1-10)
 KNOWN_SENSITIVE_PUBLISHERS = {
@@ -159,7 +165,9 @@ class BotSensitivityManager:
             Configuration dict with rate limiting parameters
         """
         sensitivity = self.get_bot_sensitivity(host, source_id)
-        return BOT_SENSITIVITY_CONFIG.get(sensitivity, BOT_SENSITIVITY_CONFIG[5])
+        return BOT_SENSITIVITY_CONFIG.get(
+            sensitivity, BOT_SENSITIVITY_CONFIG[DEFAULT_SENSITIVITY]
+        )
 
     def get_bot_sensitivity(self, host: str, source_id: Optional[str] = None) -> int:
         """Get current bot sensitivity rating for a host.
@@ -186,13 +194,16 @@ class BotSensitivityManager:
                         session, query, {"source_id": source_id}
                     )
                 else:
-                    query = text(
-                        "SELECT bot_sensitivity FROM sources "
-                        "WHERE host = :host OR host_norm = :host_norm "
-                        "LIMIT 1"
+                    # Every spelling of the host: matching on `host.lower()`
+                    # alone missed the `www.` row and returned the DEFAULT
+                    # sensitivity for a site whose sensitivity was recorded.
+                    lookup_sql, lookup_params = find_source_sql(
+                        host, select="bot_sensitivity"
                     )
+                    if not lookup_sql:
+                        return DEFAULT_SENSITIVITY
                     result = safe_session_execute(
-                        session, query, {"host": host, "host_norm": host.lower()}
+                        session, text(lookup_sql), lookup_params
                     )
 
                 row = result.fetchone()
@@ -204,7 +215,7 @@ class BotSensitivityManager:
                 f"Error fetching bot sensitivity for {host}: {e}, using default"
             )
 
-        return 5  # Default moderate sensitivity
+        return DEFAULT_SENSITIVITY
 
     def record_bot_detection(
         self,
@@ -394,15 +405,15 @@ class BotSensitivityManager:
         """
         try:
             with self.db.get_session() as session:
-                query = text("""
-                    SELECT bot_sensitivity_updated_at
-                    FROM sources
-                    WHERE host = :host OR host_norm = :host_norm
-                    LIMIT 1
-                    """)
-                result = safe_session_execute(
-                    session, query, {"host": host, "host_norm": host.lower()}
+                # Every spelling of the host: matching on `host.lower()`
+                # alone missed the `www.` row, so the cooldown was read as
+                # never set and the host was probed again immediately.
+                lookup_sql, lookup_params = find_source_sql(
+                    host, select="bot_sensitivity_updated_at"
                 )
+                if not lookup_sql:
+                    return False
+                result = safe_session_execute(session, text(lookup_sql), lookup_params)
                 row = result.fetchone()
 
                 if row and row[0]:
@@ -426,16 +437,17 @@ class BotSensitivityManager:
         """
         try:
             with self.db.get_session() as session:
-                # Try to find existing source
-                query = text("""
-                    SELECT id FROM sources
-                    WHERE host = :host OR host_norm = :host_norm
-                    LIMIT 1
-                    """)
-                result = safe_session_execute(
-                    session, query, {"host": host, "host_norm": host.lower()}
-                )
-                row = result.fetchone()
+                # Every spelling of the host, so `www.ptleader.com` finds the
+                # loaded `ptleader.com` row. Matching on `host.lower()` alone
+                # inserted a second, dataset-less row instead -- see
+                # `src/utils/source_lookup.py`.
+                lookup_sql, lookup_params = find_source_sql(host)
+                row = None
+                if lookup_sql:
+                    result = safe_session_execute(
+                        session, text(lookup_sql), lookup_params
+                    )
+                    row = result.fetchone()
 
                 if row:
                     return str(row[0])
