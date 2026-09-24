@@ -164,6 +164,10 @@ schools_*.csv
 # so the enrichment tests failed in CI on FileNotFoundError while passing
 # on any machine holding a copy.
 !src/enrichment/reference/*.csv
+# Reference listings the crawler reads and nobody generates: the Missouri Blue
+# Book newspaper directory and the comparison of it against the dataset. Named
+# rather than force-added, so the next edition does not need `git add -f`.
+!src/lookups/mo_bluebook_*.csv
 
 # EXCEPT the DMA crosswalk, which stays local and never reaches origin.
 #

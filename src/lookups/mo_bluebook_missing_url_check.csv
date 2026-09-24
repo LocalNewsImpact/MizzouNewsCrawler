@@ -1,0 +1,41 @@
+name,city,book_url,host,resolves,status,final_url,verdict,detail
+CARROLLTON DEMOCRAT,Carrollton,www.mainstreetnewsgroup.com/thecarrolltondemocrat,www.mainstreetnewsgroup.com,yes,403,,blocked: refuses this client,Forbidden
+GLASGOW MISSOURIAN,Glasgow,www.mainstreetnewsgroup.com/theglasgowmissourian,www.mainstreetnewsgroup.com,yes,403,,blocked: refuses this client,Forbidden
+LEXINGTON NEWS,Lexington,www.mainstreetnewsgroup.com/thelexingtonnews,www.mainstreetnewsgroup.com,yes,403,,blocked: refuses this client,Forbidden
+CRANE CHRONICLE/STONE COUNTY REPUBLICAN,Crane,www.cc-scrnews.com,www.cc-scrnews.com,no,,,dead: does not resolve,"[Errno 8] nodename nor servname provided, or not known"
+PRINCETON POST-TELEGRAPH,Princeton,https://northmissouriannews.com/post-telegraph,northmissouriannews.com,no,,,dead: does not resolve,"[Errno 8] nodename nor servname provided, or not known"
+LAWSON REVIEW,Lawson,www.facebook.com/lawsonreview1979,www.facebook.com,yes,400,,error: HTTP 400,Bad Request
+RICH HILL MINING REVIEW,Rich Hill,www.richhillminingreview.com,www.richhillminingreview.com,yes,404,,error: HTTP 404,Not Found
+"NODAWAY NEWS LEADER, MARYVILLE",Maryville,www.nodawaynews.com,www.nodawaynews.com,yes,409,,error: HTTP 409,Conflict
+APPLETON CITY JOURNAL,Appleton City,www.stclaircourier.com/,www.stclaircourier.com,yes,200,https://www.stclaircourier.com,live,4096 bytes
+CHARITON MARQUEE,Salem,www.charitonmarquee.com,www.charitonmarquee.com,yes,200,https://charitonmarquee.com/,live,4096 bytes
+CHARLESTON ENTERPRISE-COURIER,Charleston,www.enterprisecourier.com,www.enterprisecourier.com,yes,200,https://www.enterprisecourier.com,live,4096 bytes
+"CLINTON COUNTY LEADER, PLATTSBURG",Plattsburg,www.clintoncountyleader.com,www.clintoncountyleader.com,yes,200,https://clintoncountyleader.com/,live,4096 bytes
+EAST PRAIRIE EAGLE,East Prairie,www.enterprisecourier.com,www.enterprisecourier.com,yes,200,https://www.enterprisecourier.com,live,4096 bytes
+FOCUS ON OAK GROVE,Oak Grove,www.theodessan.net,www.theodessan.net,yes,200,https://theodessan.net/,live,4096 bytes
+HERMITAGE INDEX,Hermitage,www.hermitageindex.com,www.hermitageindex.com,yes,200,https://www.hermitageindex.com,live,4096 bytes
+KAHOKA HOMETOWN JOURNAL,Kahoka,www.htjournal.net,www.htjournal.net,yes,200,https://www.htjournal.net,live,4096 bytes
+KANSAS CITY DAILY RECORD,Online newspaper,www.mlmcounties.com,www.mlmcounties.com,yes,200,https://mlmcounties.com/,live,4096 bytes
+KANSAS CITY THE PULSE LEGAL PUBLICATION,Online newspaper,www.pulselegal.com,www.pulselegal.com,yes,200,https://pulselegal.com/,live,4096 bytes
+LAKE EXPO,Osage Beach,www.lakeexpo.com,www.lakeexpo.com,yes,200,https://www.lakeexpo.com,live,4096 bytes
+LINCOLN COUNTY JOURNAL,Troy,www.lincolnnewsnow.com,www.lincolnnewsnow.com,yes,200,https://www.lincolnnewsnow.com,live,4096 bytes
+MIDAMERICA FARMER GROWER,Perryville,www.mafg.net,www.mafg.net,yes,200,https://www.mafg.net,live,4096 bytes
+MONROE COUNTY APPEAL,Paris,www.monroe-ralls.com,www.monroe-ralls.com,yes,200,https://www.monroe-ralls.com,live,4096 bytes
+MORGAN COUNTY STATESMAN,Versailles,www.morgancountystatesman.com,www.morgancountystatesman.com,yes,200,https://www.morgancountystatesman.com,live,4096 bytes
+MOUND CITY NEWS,Mound City,www.moundcitynews.com,www.moundcitynews.com,yes,200,https://www.moundcitynews.com,live,4096 bytes
+ODESSA ODESSAN,Odessa,www.theodessan.net,www.theodessan.net,yes,200,https://theodessan.net/,live,4096 bytes
+RALLS CO HERALD-ENTERPRISE,New London,www.monroe-ralls.com,www.monroe-ralls.com,yes,200,https://www.monroe-ralls.com,live,4096 bytes
+SLATER MAIN STREET NEWS,Slater,www.slatermainstreetnews.com,www.slatermainstreetnews.com,yes,200,https://www.slatermainstreetnews.com,live,4096 bytes
+SPRINGFIELD BUSINESS JOURNAL,Springfield,www.sbj.net,www.sbj.net,yes,200,https://www.sbj.net,live,4096 bytes
+SPRINGFIELD DAILY EVENTS,Springfield,www.thedailyevents.com,www.thedailyevents.com,yes,200,https://www.thedailyevents.com,live,4096 bytes
+ST. CHARLES COUNTY BUSINESS RECORD,St. Charles,www.mlmcounties.com,www.mlmcounties.com,yes,200,https://mlmcounties.com/,live,4096 bytes
+ST. LOUIS DAILY RECORD,St. Louis,www.mlmcounties.com,www.mlmcounties.com,yes,200,https://mlmcounties.com/,live,4096 bytes
+ST. LOUIS LABOR TRIBUNE,St. Louis,www.labortribune.com,www.labortribune.com,yes,200,https://labortribune.com/,live,4096 bytes
+SUMMERSVILLE BEACON,Summersville,www.sbeacon.com,www.sbeacon.com,yes,200,https://www.sbeacon.com,live,4096 bytes
+TIPTON TIMES,Tipton,www.tiptontimes.com,www.tiptontimes.com,yes,200,https://www.tiptontimes.com,live,4096 bytes
+TRENTON REPUBLICAN-TIMES,Trenton,www.republican-times.com,www.republican-times.com,yes,200,https://republican-times.com/,live,4096 bytes
+TRIBUNE AND TIMES,Harrisonville,www.tribuneandtimes.com,www.tribuneandtimes.com,yes,200,https://www.tribuneandtimes.com,live,4096 bytes
+WEST & MID RIVERS NEWSMAGAZINE,Chesterfield,www.westnewsmagazine.com,www.westnewsmagazine.com,yes,200,https://www.westnewsmagazine.com,live,4096 bytes
+KANSAS CITY BEACON,Kansas City,www.kcbeacon.org,www.kcbeacon.org,yes,200,https://thebeaconnews.org/,live: redirects elsewhere,4096 bytes
+WASHINGTON MISSOURIAN,Washington,www.emissourian.com,www.emissourian.com,yes,200,https://www.missourian.com/,live: redirects elsewhere,4096 bytes
+CUBA FREE PRESS,Cuba,www.cubafreepress.co.com,www.cubafreepress.co.com,yes,,,unreachable,URLError: <urlopen error [Errno 61] Connection refused>
