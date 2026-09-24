@@ -182,6 +182,27 @@ class Article(Base):
     meta: Mapped[dict | None] = mapped_column("metadata", JSON)
     # Wire service attribution payload stored as JSON for downstream reports
     wire: Mapped[dict | None] = mapped_column(JSON)
+    # WHICH NEWSROOM THIS COPY CAME FROM, when it is somebody else's story.
+    #
+    # `status = 'wire'` says a story is not this newsroom's reporting. It does
+    # not say whose it is, so every count drawn off it is subtractive: the
+    # copies disappear and nobody is credited. Steph Quinn's 307 wire copies
+    # across 36 Missouri domains are the Missouri Independent's work, and the
+    # corpus had no way to say so.
+    #
+    # Set by the byline review when a reviewer rules the outlying newsrooms
+    # and ticks "give syndication credit": every story ruled `wire` in that
+    # submission takes the newsroom left at `local reporting` as its origin.
+    # Null everywhere else, including on a wire story whose origin nobody has
+    # claimed -- absent is not the same as none.
+    #
+    # NEVER THE STORY'S OWN SOURCE. A newsroom does not syndicate to itself,
+    # and the 16 `/repub/` roundups sitting at `wire` on
+    # `missouriindependent.com` are exactly the rows a rule without that guard
+    # would credit to the Independent, on the Independent.
+    syndicated_from_source_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("sources.id"), nullable=True, index=True
+    )
     wire_check_status: Mapped[str] = mapped_column(
         String, nullable=False, default="pending"
     )
