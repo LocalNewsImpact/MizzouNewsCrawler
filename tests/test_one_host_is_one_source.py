@@ -58,18 +58,26 @@ def sources():
         conn.execute(
             text(
                 "CREATE TABLE sources (id VARCHAR PRIMARY KEY, host VARCHAR, "
-                "host_norm VARCHAR)"
+                "host_norm VARCHAR, status VARCHAR)"
             )
         )
     return engine
 
 
-def _add(engine, host, host_norm=None):
+def _add(engine, host, host_norm=None, status="active"):
     source_id = str(uuid.uuid4())
     with engine.begin() as conn:
         conn.execute(
-            text("INSERT INTO sources (id, host, host_norm) VALUES (:i, :h, :n)"),
-            {"i": source_id, "h": host, "n": host_norm if host_norm else host},
+            text(
+                "INSERT INTO sources (id, host, host_norm, status) "
+                "VALUES (:i, :h, :n, :s)"
+            ),
+            {
+                "i": source_id,
+                "h": host,
+                "n": host_norm if host_norm else host,
+                "s": status,
+            },
         )
     return source_id
 
@@ -143,3 +151,29 @@ class TestNeitherPathBuildsItsOwnLookup:
             "second row for the www spelling"
         )
         assert "find_source_sql" in source
+
+
+class TestARetiredRowIsNotTheAnswer:
+    """Retiring one of a pair is how a duplicate is settled. `newspressnow.com`
+    was retired into `www.newspressnow.com` on 2026-09-24, its 1,093 links moved
+    across; a lookup for the bare spelling still matches the retired row
+    exactly, and must not be handed the row that was taken out of service."""
+
+    @pytest.mark.parametrize("gone", ["retired", "inactive"])
+    def test_the_live_row_wins_even_on_a_worse_spelling_match(self, sources, gone):
+        live = _add(sources, "www.newspressnow.com")
+        _add(sources, "newspressnow.com", status=gone)
+        assert _find(sources, "newspressnow.com") == live
+
+    def test_a_retired_row_is_still_found_when_it_is_all_there_is(self, sources):
+        """The lookup answers "which row is this host", not "which row is
+        live" -- a retired source still has a bot sensitivity and a history."""
+        only = _add(sources, "kansascity.com", status="retired")
+        assert _find(sources, "www.kansascity.com") == only
+
+    def test_an_unrecorded_status_ranks_as_live(self, sources):
+        """Five production rows have no status. That is not a statement that the
+        source is finished."""
+        unrecorded = _add(sources, "www.example.com", status=None)
+        _add(sources, "example.com", status="retired")
+        assert _find(sources, "example.com") == unrecorded
