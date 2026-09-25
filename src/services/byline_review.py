@@ -700,7 +700,16 @@ def candidates(
 #: The rows a dataset's byline review reads. One row per (byline, host, owner).
 _ROWS_SQL = """
     SELECT a.author AS byline, s.host_norm AS host,
-           coalesce(nullif(trim(s.owner), ''), '(unknown)') AS owner,
+           -- THE OPERATOR WHERE THERE IS ONE, otherwise the licensee.
+           -- `cross_owner` asks whether a byline crosses newsrooms, and two
+           -- stations run by one operator are one newsroom whoever holds the
+           -- licences: KOLR and KODE are Mission Broadcasting's, operated by
+           -- Nexstar under a structure that exists because the combination
+           -- would otherwise exceed the FCC's ownership caps. Grouping on
+           -- `owner` alone fired on six Mizzou bylines that cross that
+           -- boundary correctly and uselessly.
+           coalesce(nullif(trim(s.operator), ''),
+                    nullif(trim(s.owner), ''), '(unknown)') AS owner,
            count(*) AS articles
       FROM articles a
       JOIN candidate_links cl ON cl.id = a.candidate_link_id
@@ -844,7 +853,8 @@ def apply_decision(
 #: person. `dataset_rows` groups; this does not.
 _ARTICLE_ROWS_SQL = """
     SELECT a.id AS article_id, a.author AS byline, s.host_norm AS host,
-           coalesce(nullif(trim(s.owner), ''), '(unknown)') AS owner,
+           coalesce(nullif(trim(s.operator), ''),
+                    nullif(trim(s.owner), ''), '(unknown)') AS owner,
            a.publish_date, a.title
       FROM articles a
       JOIN candidate_links cl ON cl.id = a.candidate_link_id
@@ -1518,7 +1528,8 @@ def find_mismatches(session, dataset_id: str, names, statuses=LOCAL_STATUSES) ->
 #: wire from two months of 2025.
 _UNSTORED_SQL = """
     SELECT a.id, a.url, a.title, s.host,
-           coalesce(nullif(trim(s.owner), ''), '(unknown)') AS owner,
+           coalesce(nullif(trim(s.operator), ''),
+                    nullif(trim(s.owner), ''), '(unknown)') AS owner,
            left(a.text, 700) AS head
       FROM articles a
       JOIN candidate_links cl ON cl.id = a.candidate_link_id
