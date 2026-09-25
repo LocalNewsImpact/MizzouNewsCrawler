@@ -44,6 +44,7 @@ import unicodedata
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
+from functools import lru_cache
 from typing import Iterable
 
 logger = logging.getLogger(__name__)
@@ -453,6 +454,14 @@ def owner_group(owner: str, groups: dict[str, str] | None = None) -> str:
     return key
 
 
+@lru_cache(maxsize=1)
+def _cleaner():
+    """The byline cleaner, for its classifier. No telemetry, no database."""
+    from src.utils.byline_cleaner import BylineCleaner
+
+    return BylineCleaner(enable_telemetry=False)
+
+
 def signals_for(
     row: BylineRow, owner_groups: dict[str, str] | None = None
 ) -> tuple[str, ...]:
@@ -477,6 +486,12 @@ def signals_for(
         found.append(CONTACT_FRAGMENT)
     # One word is a desk, a bot or a stub: "Admin", "AbbVie", "Aber".
     if len(normalised_name(raw).split()) < 2:
+        found.append(NOT_A_PERSON)
+    # And whatever the cleaner itself would not keep as a name. "Khqa Desk."
+    # is two words and no digit, so the two rules here passed it; the
+    # cleaner's own classifier knows a desk is not a person. One judgement,
+    # made in one place, rather than a second list here to drift from it.
+    if NOT_A_PERSON not in found and _cleaner()._identify_part_type(raw) == "title":
         found.append(NOT_A_PERSON)
     if _DIGIT_RE.search(raw) and NOT_A_PERSON not in found:
         found.append(NOT_A_PERSON)
@@ -837,11 +852,20 @@ def replace_name(author: str | None, name: str, names) -> str | None:
         return None
     parts = [part.strip() for part in _SEPARATORS.split(author) if part.strip()]
     target = normalised_name(name)
-    if not any(normalised_name(part) == target for part in parts):
+
+    # A PART IS MATCHED AS THE QUEUE READ IT. The queue shows a name through
+    # `split_names`, which takes a title off -- "ABC 17 News Team" is shown as
+    # "ABC 17" -- and a decision comparing against the untrimmed part matched
+    # nothing. "ABC 17" was dropped on 2026-09-24 and applied to 0 articles.
+    def carries(part: str) -> bool:
+        read = [part] + split_names(part)
+        return any(normalised_name(r) == target for r in read)
+
+    if not any(carries(part) for part in parts):
         return None
     out: list[str] = []
     for part in parts:
-        if normalised_name(part) == target:
+        if carries(part):
             out.extend(n for n in names if n and n.strip())
         else:
             out.append(part)

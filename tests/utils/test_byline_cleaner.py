@@ -139,12 +139,12 @@ def test_clean_byline_wire_service_from_local_source_continues_processing():
         patch.object(
             cleaner,
             "_remove_source_name",
-            return_value="Reporter John",
+            return_value="John Carter",
         ),
         patch.object(
             cleaner,
             "_extract_authors",
-            return_value=["Reporter John"],
+            return_value=["John Carter"],
         ),
         patch.object(
             cleaner,
@@ -167,7 +167,7 @@ def test_clean_byline_wire_service_from_local_source_continues_processing():
             source_name="The Associated Press",
         )
 
-    assert result == ["Reporter John"]
+    assert result == ["John Carter"]
     assert cleaner._detected_wire_services == []
 
 
