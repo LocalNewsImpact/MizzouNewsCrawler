@@ -293,6 +293,24 @@ class BylineNormalization(Base):
     applied_at = Column(DateTime, nullable=True)
     articles_updated = Column(Integer, nullable=True)
 
+    #: SET WHEN THE ANSWER NEEDS ASKING AGAIN, and null the rest of the time.
+    #:
+    #: A decided byline is never asked about again, which assumes the answer
+    #: stays true. It does not: `cross_owner` is read through `owner_groups`
+    #: and `sources.owner`, so an answer is only as good as the ownership
+    #: recorded the day it was given. Correcting seven NEMOnews papers from
+    #: seven unrelated owners left 50 Mizzou bylines still crossing ownership,
+    #: every one of them already decided.
+    #:
+    #: The row keeps its answer, its author and its `applied_at`. Deleting it
+    #: to re-open the question would destroy the record that the decision
+    #: already reached `articles.author`.
+    stale_at = Column(DateTime, nullable=True)
+    #: Why, in the reviewer's terms -- what changed under the old answer. It
+    #: is shown beside the prior answer so the second pass is faster than the
+    #: first, not slower.
+    stale_reason = Column(Text, nullable=True)
+
 
 class BylineReviewCandidate(Base):
     """A byline string waiting for a person, computed here and read in datadesk.

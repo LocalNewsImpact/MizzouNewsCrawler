@@ -43,6 +43,7 @@ import re
 import unicodedata
 from collections import defaultdict
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Iterable
 
 logger = logging.getLogger(__name__)
@@ -912,6 +913,12 @@ def load_decisions(session, dataset_id: str) -> dict[str, list[str]]:
     A decided string is not asked about again and is counted as the people it
     names, whatever the article still says: the decision is the answer, and
     applying it to `articles.author` is how the record catches up.
+
+    A STALE DECISION IS NOT A DECISION HERE. `stale_at` says the answer was
+    given against facts that have since changed -- ownership, or the byline
+    string itself -- so the string returns to the queue with its signals and
+    is asked again. The row keeps its answer; `load_prior_answers` reads it so
+    the reviewer sees what they said last time.
     """
     from sqlalchemy import text
 
@@ -919,7 +926,7 @@ def load_decisions(session, dataset_id: str) -> dict[str, list[str]]:
         rows = session.execute(
             text(
                 "SELECT raw_byline, canonical_names FROM byline_normalizations"
-                " WHERE dataset_id = :dataset_id"
+                " WHERE dataset_id = :dataset_id AND stale_at IS NULL"
             ),
             {"dataset_id": dataset_id},
         ).fetchall()
@@ -934,6 +941,148 @@ def load_decisions(session, dataset_id: str) -> dict[str, list[str]]:
                 continue
         decided[raw] = [str(name) for name in (names or [])]
     return decided
+
+
+def mark_stale(
+    session,
+    dataset_id: str,
+    raw_bylines,
+    reason: str,
+    *,
+    dry_run: bool = False,
+) -> int:
+    """Send decided strings back to the queue, keeping their answers.
+
+    Returns how many rows were marked. A string with no decision is not an
+    error and is not counted -- it is already in the queue.
+
+    ALREADY-STALE ROWS ARE LEFT ALONE, so running this twice does not rewrite
+    the reason a reviewer is about to read, and the count reported is of what
+    actually changed.
+    """
+    from sqlalchemy import text
+
+    names = [name for name in dict.fromkeys(raw_bylines) if name]
+    if not names:
+        return 0
+    # `IN` with an expanding bind rather than `ANY(:n)`, and a Python
+    # timestamp rather than `now()`: both of those are Postgres-only, and the
+    # suite runs on sqlite.
+    from sqlalchemy import bindparam
+
+    if dry_run:
+        found = session.execute(
+            text(
+                "SELECT count(*) FROM byline_normalizations"
+                " WHERE dataset_id = :d AND raw_byline IN :n"
+                "   AND stale_at IS NULL"
+            ).bindparams(bindparam("n", expanding=True)),
+            {"d": dataset_id, "n": names},
+        ).scalar()
+        return int(found or 0)
+    result = session.execute(
+        text(
+            "UPDATE byline_normalizations"
+            "   SET stale_at = :when, stale_reason = :why"
+            " WHERE dataset_id = :d AND raw_byline IN :n"
+            "   AND stale_at IS NULL"
+        ).bindparams(bindparam("n", expanding=True)),
+        {
+            "d": dataset_id,
+            "n": names,
+            "why": reason,
+            "when": datetime.utcnow(),
+        },
+    )
+    return int(result.rowcount or 0)
+
+
+def settled(session, dataset_id: str, raw_bylines) -> int:
+    """Clear staleness without changing the answer.
+
+    The reviewer looked again and the old answer stands. Distinct from
+    deciding it afresh: nothing about the decision changes, it simply stops
+    being asked.
+    """
+    from sqlalchemy import text
+
+    names = [name for name in dict.fromkeys(raw_bylines) if name]
+    if not names:
+        return 0
+    from sqlalchemy import bindparam
+
+    result = session.execute(
+        text(
+            "UPDATE byline_normalizations"
+            "   SET stale_at = NULL, stale_reason = NULL"
+            " WHERE dataset_id = :d AND raw_byline IN :n"
+            "   AND stale_at IS NOT NULL"
+        ).bindparams(bindparam("n", expanding=True)),
+        {"d": dataset_id, "n": names},
+    )
+    return int(result.rowcount or 0)
+
+
+def bylines_with_signal(session, dataset_id: str, signal: str, statuses=LOCAL_STATUSES):
+    """Every string in this dataset that currently carries `signal`.
+
+    Computed against TODAY's owners and today's byline strings, decisions
+    ignored -- which is the point. A decided string that now crosses ownership
+    is exactly what needs asking again, and it is invisible to the ordinary
+    queue by design.
+    """
+    groups = load_owner_groups(session)
+    rows = dataset_rows(session, dataset_id, statuses)
+    return sorted(
+        {row.raw for row in review_rows(rows, groups, None) if signal in row.signals}
+    )
+
+
+def load_prior_answers(session, dataset_id: str) -> dict[str, dict]:
+    """What a reviewer said about each STALE string, and why it came back.
+
+    A re-review with no memory is the first review again. The point of
+    staleness over deletion is that the second pass is faster: the reviewer
+    sees the answer they gave, whether it ever reached `articles.author`, and
+    what changed underneath it.
+    """
+    from sqlalchemy import text
+
+    try:
+        rows = session.execute(
+            text(
+                "SELECT raw_byline, decision, canonical_names, reason,"
+                "       decided_by, decided_at, applied_at, stale_reason"
+                "  FROM byline_normalizations"
+                " WHERE dataset_id = :dataset_id AND stale_at IS NOT NULL"
+            ),
+            {"dataset_id": dataset_id},
+        ).fetchall()
+    except Exception:  # pragma: no cover - table absent on an old database
+        return {}
+    prior: dict[str, dict] = {}
+    for raw, decision, names, reason, by, at, applied, why in rows:
+        if isinstance(names, str):
+            try:
+                names = json.loads(names)
+            except ValueError:
+                names = []
+        prior[raw] = {
+            "decision": decision,
+            "names": [str(name) for name in (names or [])],
+            "reason": reason,
+            "decided_by": by,
+            "decided_at": (
+                (at.isoformat() if hasattr(at, "isoformat") else (str(at) or None))
+                if at
+                else None
+            ),
+            # Whether the corpus already carries it, which decides whether a
+            # changed answer needs anything undone.
+            "applied": applied is not None,
+            "stale_reason": why,
+        }
+    return prior
 
 
 def load_owner_groups(session) -> dict[str, str]:
