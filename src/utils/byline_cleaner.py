@@ -1322,6 +1322,16 @@ class BylineCleaner:
             if byline_lower.startswith(prefix):
                 byline_lower = byline_lower[len(prefix) :].strip()
 
+        # A NETWORK AND A CHANNEL NUMBER IS A STATION. "ABC 17" is KMIZ in
+        # Columbia, not ABC News, and "abc" in WIRE_SERVICES read every
+        # "ABC 17 News Team" credit on abc17news.com as network copy: 31 of
+        # the station's own stories -- city council, a barn fire, road
+        # conditions -- filed as wire from 2022 on. On the station's own
+        # site it is the station's own copy. On anybody else's it is still
+        # copy from elsewhere, and the rules below go on deciding that.
+        if self._is_own_station(byline_lower):
+            return False
+
         # Check if the byline matches known wire services
         for wire_service in self.WIRE_SERVICES:
             if byline_lower == wire_service or byline_lower.startswith(
@@ -1411,6 +1421,24 @@ class BylineCleaner:
         )
 
         return cleaned
+
+    #: A broadcast network's name followed by a channel number: "ABC 17",
+    #: "FOX 2", "KOMU 8". What comes after the number is the credit.
+    STATION_CREDIT = re.compile(r"^(abc|nbc|cbs|fox|cw|komu|kmbc|kctv)\s*(\d{1,2})\b")
+
+    def _is_own_station(self, byline_lower: str) -> bool:
+        """Whether a credit names the station the story is published by.
+
+        Compared with spacing and punctuation dropped, because the station
+        writes itself as "ABC 17" in a byline, "ABC 17 KMIZ News" in our
+        sources table and "abc17news.com" in its domain.
+        """
+        match = self.STATION_CREDIT.match(byline_lower)
+        source = getattr(self, "_current_source_name", None)
+        if not match or not source:
+            return False
+        station = match.group(1) + match.group(2)
+        return station in re.sub(r"[^a-z0-9]", "", source.lower())
 
     def _is_wire_service_from_own_source(
         self, wire_service: str, source_name: str
@@ -1704,8 +1732,11 @@ class BylineCleaner:
         if "@" in part and "." in part:
             return "email"
 
-        # Check for titles/journalism words
-        part_words = part.lower().split()
+        # Check for titles/journalism words. Trailing punctuation off first:
+        # "Khqa Desk." read "desk." and missed "desk", so a newsroom's credit
+        # classified as a person's name.
+        part_words = [w.strip(".,;:") for w in part.lower().split()]
+        part_words = [w for w in part_words if w]
         title_word_count = 0
 
         # Check for non-name contexts with Roman numerals
@@ -1718,6 +1749,11 @@ class BylineCleaner:
         ):
             return "title"
 
+        # A wire name counts against a name only beside a newsroom word.
+        # "NPR Washington Desk" is a desk; "Madeline Fox" is a reporter at
+        # KCUR, and "fox" alone is in WIRE_SERVICES.
+        newsroom_word = any(word in self.JOURNALISM_NOUNS for word in part_words)
+
         for i, word in enumerate(part_words):
             is_title_word = False
 
@@ -1726,6 +1762,7 @@ class BylineCleaner:
                 word in self.TITLES_TO_REMOVE
                 or word in self.JOURNALISM_NOUNS
                 or word in self.ORGANIZATION_PATTERNS
+                or (newsroom_word and word in self.WIRE_SERVICES)
             ):
                 is_title_word = True
 
@@ -2541,6 +2578,14 @@ class BylineCleaner:
 
     def _format_result(self, authors: list[str], return_json: bool) -> list[str] | dict:
         """Format the final result as array or JSON."""
+        # A TEAM IS NOT A BYLINE, and the part classifier already says so:
+        # "ABC 17 News Team" is a title, not a name. It reached the corpus
+        # anyway because the wire path hands back the credit it matched
+        # verbatim, past the classifier every other author goes through.
+        # Checked here, at the one exit, and not earlier on the text: "CNN
+        # Newsource Staff" is also the evidence that the story is CNN copy,
+        # and wire detection has to have read it first.
+        authors = [a for a in authors or [] if self._identify_part_type(a) != "title"]
         # FINAL STEP: Remove any duplicates that made it through
         if authors:
             seen = set()
