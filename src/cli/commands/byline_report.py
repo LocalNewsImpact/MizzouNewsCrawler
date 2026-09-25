@@ -50,8 +50,25 @@ def add_byline_report_parser(subparsers) -> argparse.ArgumentParser:
             "refresh",
             "apply",
             "fix-literals",
+            "stale",
         ),
         help="What to produce; `apply` writes decided names onto the articles",
+    )
+    parser.add_argument(
+        "--signal",
+        default=None,
+        help=(
+            "stale: send every decided string carrying this signal back to "
+            "the queue, keeping its answer. `cross_owner` is the one that "
+            "goes stale on its own -- it is read through `owner_groups` and "
+            "`sources.owner`, so an answer is only as good as the ownership "
+            "recorded the day it was given."
+        ),
+    )
+    parser.add_argument(
+        "--reason",
+        default=None,
+        help="stale: what changed under the old answer (required)",
     )
     parser.add_argument("--dataset", required=True, help="Name, slug or UUID")
     parser.add_argument("--out", help="Write CSV here instead of stdout")
@@ -105,6 +122,31 @@ def handle_byline_report_command(args) -> int:
     # the export and still wrong.
     statuses = tuple(args.statuses) if args.statuses else None
     with db.get_session() as session:
+        if args.kind == "stale":
+            if not args.signal:
+                print("stale needs --signal (try cross_owner)")
+                return 1
+            if not args.reason:
+                print("stale needs --reason: what changed under the old answer")
+                return 1
+            names = br.bylines_with_signal(
+                session, dataset_id, args.signal, statuses or br.LOCAL_STATUSES
+            )
+            marked = br.mark_stale(
+                session, dataset_id, names, args.reason, dry_run=args.dry_run
+            )
+            if not args.dry_run:
+                session.commit()
+            print(f"carrying {args.signal}: {len(names)}")
+            print(
+                f"decided, sent back to the queue: {marked}"
+                f"{' (dry run)' if args.dry_run else ''}"
+            )
+            # The rest are already in the queue, which is not a failure and
+            # not a no-op worth hiding: it is how many the first pass missed.
+            print(f"already open: {len(names) - marked}")
+            return 0
+
         if args.kind == "refresh":
             result = br.refresh_candidates(
                 session,
