@@ -942,6 +942,20 @@ class Source(Base):
     city = Column(String, index=True)
     county = Column(String, index=True)
     owner = Column(String)
+    #: WHO RUNS THE NEWSROOM, when that is not who owns the licence.
+    #:
+    #: Null for almost everything: a newspaper's owner runs it. It fills for
+    #: shared-services arrangements, where a station is licensed to one company
+    #: and operated by another -- KOLR and KODE are Mission Broadcasting's
+    #: licences run by Nexstar, a structure that exists because the combination
+    #: would otherwise exceed the FCC's ownership caps.
+    #:
+    #: `owner` keeps the licensee, which is the true answer to who owns it.
+    #: The cross-owner signal groups on `coalesce(operator, owner)`, because
+    #: two stations under one operator are one newsroom whoever holds the
+    #: licences. Left null unless the arrangement is confirmed: a wrong
+    #: operator silently suppresses a real question.
+    operator = Column(String)
     type = Column(String)
     # Stored in DB as `metadata` column; attribute named `meta` to avoid
     # conflict with SQLAlchemy's class-level `metadata` attribute.
