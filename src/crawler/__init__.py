@@ -25,6 +25,7 @@ import requests
 from bs4 import BeautifulSoup, Tag
 from dateutil import parser as dateparser
 
+from src.pipeline.byline_repair import repair as repair_scraped_byline
 from src.pipeline.title_repair import repair as repair_split_title
 from src.utils.boilerplate import (
     CONSENT,
@@ -4745,7 +4746,12 @@ class ContentExtractor:
             # girls widen gap". Put the cut half back where the page's own
             # markup proves it was there (src/pipeline/title_repair.py).
             "title": repair_split_title(article.title, html),
-            "author": ", ".join(article.authors) if article.authors else None,
+            # newspaper4k collects authorship document-wide, so a template
+            # that prints related stories with their authors puts those
+            # authors in the byline (src/pipeline/byline_repair.py).
+            "author": repair_scraped_byline(
+                ", ".join(article.authors) if article.authors else None, html
+            ),
             "publish_date": publish_date,
             "content": article.text,
             "metadata": {
@@ -5071,7 +5077,9 @@ class ContentExtractor:
                     "url": url,
                     "title": repair_split_title(article.title, html) or "",
                     "content": article.text or "",
-                    "author": ", ".join(article.authors) if article.authors else "",
+                    "author": repair_scraped_byline(
+                        ", ".join(article.authors) if article.authors else "", html
+                    ),
                     "publish_date": (
                         article.publish_date.isoformat() if article.publish_date else ""
                     ),
