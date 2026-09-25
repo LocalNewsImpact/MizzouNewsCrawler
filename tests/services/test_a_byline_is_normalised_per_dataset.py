@@ -556,6 +556,13 @@ class TestTheQueueIsComputedForTheReviewer:
             result = MagicMock()
             if "FROM owner_groups" in sql or "FROM byline_normalizations" in sql:
                 answer: list = []
+            # The credit query also reads `FROM articles`, and handed the
+            # queue's four-column rows it unpacked a byline, host, owner and
+            # count as one author -- the same mistake this fake exists to
+            # prevent, one query later. It answers with no owed credit, so
+            # these tests see the queue exactly as they did before it existed.
+            elif "syndicated_from_source_id" in sql:
+                answer = []
             elif "FROM articles" in sql:
                 answer = list(rows)
             else:

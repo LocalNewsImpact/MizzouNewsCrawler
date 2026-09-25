@@ -142,6 +142,26 @@ CROSS_OWNER = "cross_owner"
 #: instead, which is not a review.
 PRINTED_NOT_STORED = "printed_not_stored"
 
+#: A byline whose WIRE copies name no home newsroom. Not a defect in the string:
+#: the name is usually right. What is missing is a credit -- ruling a
+#: newsroom's copies `wire` takes them out of the export, and without a HOME
+#: ruling nothing records whose reporting they were.
+#:
+#: IT SURVIVES A DECISION, which no other signal does. "Is this a real name" and
+#: "which newsroom is home" are independent questions, and a decided byline
+#: (accepted, the string settled) can still owe a home. Twenty bylines ruled
+#: before the HOME dropdown existed were exactly that: decided, carrying no
+#: signal, and invisible to the queue.
+#:
+#: It clears itself. A HOME ruling writes `syndicated_from_source_id` onto the
+#: copies, the copies stop being uncredited, and the byline leaves the queue.
+WIRE_UNCREDITED = "wire_uncredited"
+
+#: The window the credit question is asked over: the active processing period.
+#: Every wire copy ever captured would put 227 bylines in the queue; March 2026
+#: puts 55, and March is what the analysis reads.
+CREDIT_PERIOD = ("2026-03-01", "2026-04-01")
+
 #: NOT in `SIGNAL_ORDER`: a list literal is a storage form, not a judgement.
 #: `repair_list_literals` rewrites those rows to the current form, and nobody
 #: is asked about them.
@@ -155,6 +175,9 @@ SIGNAL_ORDER = (
     CONTACT_FRAGMENT,
     NOT_A_PERSON,
     CROSS_OWNER,
+    # Last: the name is fine and only the credit is owed, so it waits behind
+    # every question about whether the string is right.
+    WIRE_UNCREDITED,
 )
 
 SIGNAL_LABELS = {
@@ -165,6 +188,7 @@ SIGNAL_LABELS = {
     NOT_A_PERSON: "Does not look like a person",
     CROSS_OWNER: "Same name, unrelated owners",
     PRINTED_NOT_STORED: "The page prints a byline we did not store",
+    WIRE_UNCREDITED: "Wire copies with no home newsroom credited",
 }
 
 
@@ -468,6 +492,7 @@ def review_rows(
     rows: Iterable[tuple[str, str, str, int]],
     owner_groups: dict[str, str] | None = None,
     decisions: dict[str, list[str]] | None = None,
+    uncredited: set[str] | None = None,
 ) -> list[BylineRow]:
     """Build the reviewable rows from `(byline, host, owner, articles)`.
 
@@ -543,6 +568,11 @@ def review_rows(
             row.signals = ()
             row.proposed = tuple(decided)
             row.decided = True
+            # EXCEPT THE CREDIT. The decision settled the string; it said
+            # nothing about which newsroom is home, so that question is still
+            # open and still asked.
+            if uncredited and row.raw in uncredited:
+                row.signals = (WIRE_UNCREDITED,)
             continue
         found = list(signals_for(row, owner_groups))
         # The row IS the name, so the proposal is the name as it stands unless a
@@ -553,6 +583,8 @@ def review_rows(
         if variants.get(row.raw):
             found.append(SPELLING_VARIANT)
             row.variants = tuple(sorted(variants[row.raw]))
+        if uncredited and row.raw in uncredited:
+            found.append(WIRE_UNCREDITED)
         row.signals = tuple(dict.fromkeys(found))
         row.proposed = tuple(names)
     return built
@@ -675,6 +707,7 @@ def candidates(
     rows: Iterable[tuple[str, str, str, int]],
     owner_groups: dict[str, str] | None = None,
     decisions: dict[str, list[str]] | None = None,
+    uncredited: set[str] | None = None,
 ) -> list[BylineRow]:
     """The rows a person should look at, worst first.
 
@@ -683,7 +716,11 @@ def candidates(
     one that clears one.
     """
     ranked = group_spellings(
-        [row for row in review_rows(rows, owner_groups, decisions) if row.needs_review]
+        [
+            row
+            for row in review_rows(rows, owner_groups, decisions, uncredited)
+            if row.needs_review
+        ]
     )
     order = {signal: index for index, signal in enumerate(SIGNAL_ORDER)}
 
@@ -747,6 +784,32 @@ _SHARED_SQL = """
        AND a.author LIKE :like
        AND a.author <> :raw_byline
 """
+
+
+def uncredited_wire_names(session, dataset_id: str, period=CREDIT_PERIOD) -> set[str]:
+    """Every NAME with a wire copy in `period` that credits no home newsroom.
+
+    Names, not byline strings: the queue is one row per name, and a wire copy
+    captured as "Steph Quinn - MISSOURI INDEPENDENT" is Steph Quinn's. The same
+    `split_names` that builds the queue reads these, so the two agree on who a
+    string names.
+    """
+    from sqlalchemy import text
+
+    result = session.execute(
+        text(
+            "SELECT DISTINCT a.author FROM articles a"
+            " WHERE a.dataset_id = :d AND a.status = 'wire'"
+            "   AND a.syndicated_from_source_id IS NULL"
+            "   AND coalesce(trim(a.author), '') <> ''"
+            "   AND a.publish_date >= :start AND a.publish_date < :end"
+        ),
+        {"d": dataset_id, "start": period[0], "end": period[1]},
+    )
+    names: set[str] = set()
+    for (author,) in result:
+        names.update(split_names(author) or [])
+    return names
 
 
 def dataset_rows(session, dataset_id: str, statuses=LOCAL_STATUSES):
@@ -1177,7 +1240,11 @@ def refresh_candidates(
     rows = dataset_rows(session, dataset_id, statuses)
     groups = load_owner_groups(session)
     decided = load_decisions(session, dataset_id)
-    found = candidates(rows, groups, decided)
+    # The wire copies owing a home newsroom. Read separately because they are
+    # not local stories -- `rows` holds only those -- and the name reaches the
+    # queue through its local work, carrying this as one of its questions.
+    owed = uncredited_wire_names(session, dataset_id)
+    found = candidates(rows, groups, decided, owed)
 
     # WHICH OF THESE NEWSROOMS IS WRONG, where the page answers it. Computed for
     # the names being offered, not the whole corpus: one query and a cheap read
