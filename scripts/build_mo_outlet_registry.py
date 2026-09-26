@@ -20,6 +20,24 @@ carries no street address.
 Output: src/lookups/mo_outlet_registry.csv, one row per outlet, with the
 lists it appears in and its March 2026 article count.
 
+IDENTITY. `outlet_id` is the outlet's `sources.id` where we hold it. An
+outlet we do not hold is given a new UUID the first time it appears and
+keeps it on every rebuild, read back from the previous file; if it is added
+to `sources` later, that UUID is the id it takes.
+
+REVIEW IS KEPT, EVIDENCE IS DERIVED. `status`, `merged_into`,
+`status_basis`, `reviewed_by` and `reviewed_at` are a person's answer and
+are carried across rebuilds untouched. `signals` is recomputed every run:
+the evidence that an outlet may have closed, merged or moved -- no recent
+articles, retired in our sources, a website shared with other nameplates,
+a closure note in the 2025 working sheet. A signal is a question, never a
+status. See docs/MO_OUTLET_REGISTRY.md.
+
+LOCATION. `address_basis` says where the street address came from (mpa,
+bluebook) or that there is none yet; `lat`/`lon` are the town's centroid
+from the Census places file, so every outlet can be mapped while street
+addresses are still being filled.
+
     DATABASE_HOST=127.0.0.1 DATABASE_PORT=5439 DATABASE_NAME=mizzou \\
     DATABASE_USER=mizzou_user PGPASSWORD=... \\
     python scripts/build_mo_outlet_registry.py \\
@@ -78,6 +96,61 @@ def similar(a: str, b: str) -> float:
     return SequenceMatcher(None, name_key(a), name_key(b)).ratio()
 
 
+
+#: Reviewer columns: a person's answer, carried across rebuilds untouched.
+REVIEW = ["status", "merged_into", "status_basis", "reviewed_by", "reviewed_at"]
+
+#: Towns the lists name without a county.
+TOWN_COUNTY = {"charleston": "Mississippi", "carljunction": "Jasper", "albany": "Gentry"}
+
+#: A 2025 working-sheet note that says an outlet may be gone or print-only.
+SHEET_SIGNAL = re.compile(
+    r"no longer publish|closed|site not live|no longer active|e-edition only|"
+    r"pdf only|print only|no news content|different website",
+    re.I,
+)
+
+
+def load_previous(path: Path):
+    """The last build's rows, so identity and review survive a rebuild."""
+    if not path.exists():
+        return {}, {}
+    by_source, by_name = {}, {}
+    for r in csv.DictReader(open(path)):
+        if r.get("source_id"):
+            by_source[r["source_id"]] = r
+        by_name[(name_key(r["outlet"]), city_key(r["city"]), r.get("source_id", ""))] = r
+    return by_source, by_name
+
+
+def load_places():
+    """Missouri town centroids, keyed by town."""
+    places = {}
+    for r in csv.DictReader(open(ROOT / "src/enrichment/reference/census_places.csv")):
+        if r["USPS"] != "MO":
+            continue
+        town = re.sub(r"\s+(city|town|village|CDP)$", "", r["NAME"], flags=re.I)
+        places.setdefault(city_key(town), (r["INTPTLAT"], r["INTPTLONG"]))
+    return places
+
+
+def load_sheet_notes(path: Path | None):
+    """{host or name key: note} from the 2025 working sheet's notes."""
+    notes = {}
+    if not path or not path.exists():
+        return notes
+    for r in csv.DictReader(open(path)):
+        note = " ".join(
+            r.get(k) or "" for k in ("working", "developer_notes", "journalism_notes")
+        ).strip()
+        if not SHEET_SIGNAL.search(note):
+            continue
+        if r.get("host"):
+            notes[host_of(r["host"])] = note
+        notes[name_key(r["name"])] = note
+    return notes
+
+
 def load_ours(conn):
     cur = conn.cursor()
     cur.execute(
@@ -87,7 +160,8 @@ def load_ours(conn):
                s.status, s.metadata::jsonb ->> 'state',
                count(a.id) FILTER (
                    WHERE a.publish_date >= %s AND a.publish_date < %s
-               ) AS march
+               ) AS march,
+               max(a.publish_date)::date AS newest
           FROM sources s
           JOIN dataset_sources ds ON ds.source_id = s.id
           JOIN datasets d ON d.id = ds.dataset_id AND d.slug = %s
@@ -99,7 +173,7 @@ def load_ours(conn):
         (MARCH[0], MARCH[1], DATASET),
     )
     cols = ["id", "host", "name", "city", "county", "owner", "status", "state",
-            "march"]
+            "march", "newest"]
     return [dict(zip(cols, row, strict=True)) for row in cur.fetchall()]
 
 
@@ -213,6 +287,12 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--mpa", type=Path, required=True)
     ap.add_argument("--out", type=Path, default=LOOKUPS / "mo_outlet_registry.csv")
+    ap.add_argument(
+        "--sheet-2025",
+        type=Path,
+        default=LOOKUPS / "mo_working_urls_2025.csv",
+        help="the 2025 working sheet's Working URLs tab, for closure notes",
+    )
     args = ap.parse_args()
 
     conn = psycopg2.connect(
@@ -235,6 +315,35 @@ def main():
         }
         outlets.append(o)
 
+    # OURS IS CANONICAL for an outlet it holds: name, owner, county, status.
+    matched_ours = set()
+    for o in outlets:
+        s = ours_by_host.get(o["host"]) if o["host"] else None
+        o["in_sources"] = bool(s)
+        o["source_id"] = (s or {}).get("id") or ""
+        o["_source_name"] = (s or {}).get("name") or ""
+        o["source_status"] = (s or {}).get("status") or ""
+        o["march_articles"] = int((s or {}).get("march") or 0)
+        o["newest"] = (s or {}).get("newest") or ""
+        if s:
+            matched_ours.add(s["id"])
+            o["owner"] = s["owner"] or o["owner"]
+            o["county"] = s["county"] or o["county"]
+            o["lists"].add("ours")
+    for s in ours:
+        if s["id"] in matched_ours:
+            continue
+        outlets.append({
+            "outlet": s["name"], "city": s["city"], "county": s["county"],
+            "host": host_of(s["host"]), "type": "", "owner": s["owner"] or "",
+            "web_access": "collected" if s["march"] else "never collected",
+            "lists": {"ours"}, "_cities": set(), "address": "", "fips": "",
+            "in_sources": True, "source_status": s["status"] or "",
+            "march_articles": int(s["march"] or 0),
+            "source_id": s["id"], "newest": s.get("newest") or "",
+            "_source_name": s["name"] or "",
+        })
+
     hosts = [o["host"] for o in outlets if o["host"]]
     unique_hosts = {h for h in hosts if hosts.count(h) == 1}
     unmatched = []
@@ -253,36 +362,14 @@ def main():
         o["_cities"].add(city_key(entry["city"]))
         if entry["list"] == "mpa" and entry["address"]:
             o["address"] = entry["address"]
+            o["_address_from"] = "mpa"
         elif not o["address"] and entry["address"]:
             o["address"] = entry["address"]
+            o["_address_from"] = entry["list"]
         o["county"] = o["county"] or entry["county"]
         o["fips"] = o["fips"] or entry.get("fips", "")
         o["host"] = o["host"] or entry["host"]
         o["owner"] = o["owner"] or entry["owner"]
-
-    # OURS IS CANONICAL for an outlet it holds: name, owner, county, status.
-    matched_ours = set()
-    for o in outlets:
-        s = ours_by_host.get(o["host"]) if o["host"] else None
-        o["in_sources"] = bool(s)
-        o["source_status"] = (s or {}).get("status") or ""
-        o["march_articles"] = int((s or {}).get("march") or 0)
-        if s:
-            matched_ours.add(s["id"])
-            o["owner"] = s["owner"] or o["owner"]
-            o["county"] = s["county"] or o["county"]
-            o["lists"].add("ours")
-    for s in ours:
-        if s["id"] in matched_ours:
-            continue
-        outlets.append({
-            "outlet": s["name"], "city": s["city"], "county": s["county"],
-            "host": host_of(s["host"]), "type": "", "owner": s["owner"] or "",
-            "web_access": "collected" if s["march"] else "never collected",
-            "lists": {"ours"}, "_cities": set(), "address": "", "fips": "",
-            "in_sources": True, "source_status": s["status"] or "",
-            "march_articles": int(s["march"] or 0),
-        })
 
     # Blue Book-only outlets have no county: take it from any list that
     # placed the same city.
@@ -293,10 +380,93 @@ def main():
     for o in outlets:
         o["county"] = county_key(o["county"]) or city_county.get(city_key(o["city"]), "")
 
-    fields = ["outlet", "city", "county", "fips", "address", "host", "type",
-              "owner", "in_sources", "source_status", "march_articles",
-              "collected_in_march", "web_access", "in_mpa", "in_bluebook",
-              "in_lni", "lists"]
+    import uuid
+
+    previous_by_source, previous_by_name = load_previous(args.out)
+    places = load_places()
+    sheet = load_sheet_notes(args.sheet_2025)
+    host_count = {}
+    for o in outlets:
+        if o["host"]:
+            host_count[o["host"]] = host_count.get(o["host"], 0) + 1
+    same_name = {}
+    for o in outlets:
+        key = (name_key(o["outlet"]), city_key(o["city"]))
+        same_name[key] = same_name.get(key, 0) + 1
+    today = str(__import__("datetime").date.today())
+    stale_before = str(
+        __import__("datetime").date.today() - __import__("datetime").timedelta(days=90)
+    )
+    # ONE ROW PER UUID. Several nameplates can share one of our sources --
+    # one website, several papers -- and each carries that source as
+    # `source_id`. The source's own UUID goes to the nameplate its name
+    # matches best; the rest are outlets of their own and get their own.
+    holder = {}
+    for o in outlets:
+        # An outlet first seen in a list holds none of our fields.
+        o.setdefault("source_id", "")
+        o.setdefault("newest", "")
+        o.setdefault("in_sources", False)
+        o.setdefault("source_status", "")
+        o.setdefault("march_articles", 0)
+        sid = o["source_id"]
+        if not sid:
+            continue
+        score = similar(o["outlet"], o.get("_source_name", ""))
+        if sid not in holder or score > holder[sid][0]:
+            holder[sid] = (score, id(o))
+    for o in outlets:
+        holds = o["source_id"] and holder[o["source_id"]][1] == id(o)
+        before = previous_by_name.get(
+            (name_key(o["outlet"]), city_key(o["city"]), o["source_id"])
+        )
+        if holds:
+            before = previous_by_source.get(o["source_id"]) or before
+        o["outlet_id"] = (
+            o["source_id"] if holds else (before or {}).get("outlet_id") or str(uuid.uuid4())
+        )
+        if (before or {}).get("outlet_id") == o["source_id"] and not holds:
+            o["outlet_id"] = str(uuid.uuid4())
+        for k in REVIEW:
+            o[k] = (before or {}).get(k, "")
+        # Where we hold the outlet, our table's status is the standing answer
+        # until somebody reviews it.
+        if not o["status"] and o["source_status"]:
+            o["status"] = o["source_status"]
+            o["status_basis"] = o["status_basis"] or "sources table"
+        o["county"] = o["county"] or TOWN_COUNTY.get(city_key(o["city"]), "")
+        o["county_basis"] = "town" if city_key(o["city"]) in TOWN_COUNTY and o["county"] else (
+            "listed" if o["county"] else "missing"
+        )
+        o["address_basis"] = o.pop("_address_from", "") or ("missing" if not o["address"] else "list")
+        lat, lon = places.get(city_key(o["city"]), ("", ""))
+        o["lat"], o["lon"] = lat, lon
+        o["location_basis"] = "town centroid" if lat else "missing"
+        signals = []
+        if o["in_sources"] and o["source_status"] == "active" and not o["newest"]:
+            signals.append("active but never collected")
+        elif o["in_sources"] and o["newest"] and str(o["newest"]) < stale_before:
+            signals.append(f"no articles since {o['newest']}")
+        if o["source_status"] in ("retired", "paused"):
+            signals.append(f"{o['source_status']} in sources")
+        twins = same_name.get((name_key(o["outlet"]), city_key(o["city"])), 0)
+        if twins > 1:
+            signals.append(f"possible duplicate: {twins} rows with this name here")
+        if o["host"] and host_count.get(o["host"], 0) > 1:
+            signals.append(f"website shared with {host_count[o['host']] - 1} other outlet(s)")
+        note = sheet.get(o["host"]) or sheet.get(name_key(o["outlet"]))
+        if note:
+            signals.append(f"2025 sheet: {note[:120]}")
+        if o["web_access"] in ("website gone", "print or replica only", "no web edition"):
+            signals.append(o["web_access"])
+        o["signals"] = "; ".join(signals)
+    del today
+
+    fields = ["outlet_id", "source_id", "outlet", "city", "county", "county_basis",
+              "fips", "address", "address_basis", "lat", "lon", "location_basis",
+              "host", "type", "owner", "in_sources", "source_status",
+              "march_articles", "collected_in_march", "newest", "web_access",
+              "in_mpa", "in_bluebook", "in_lni", "lists", "signals", *REVIEW]
     with open(args.out, "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=fields)
         w.writeheader()
