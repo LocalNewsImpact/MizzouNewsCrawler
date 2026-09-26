@@ -42,11 +42,19 @@ holds one (`address1`/`address2`/`zip`, or `address`/`zip_code`), it is the
 address, whatever a list says. The lists fill a gap; nothing here writes to
 `sources`.
 
-**The FCC is not a newsroom address.** Its facility records carry the
-licensee's mailing address, which for a group-owned station is the group's
-headquarters -- Sinclair's in Maryland, Audacy's in Pennsylvania. Those are
-left out; a station without a stored address stays at its town of license
-until its studio address is found. A street address replaces
+**A broadcaster's FCC facility is its own set of columns.** The FCC licenses
+a transmitter at a point, for a community: `fcc_call_signs`,
+`fcc_facility_id`, `fcc_community`, `tx_lat`, `tx_lon`, built by
+`scripts/build_mo_broadcast_facilities.py` into
+`src/lookups/mo_broadcast_facilities.csv` and joined by website. Call signs
+are mapped by hand, because a newsroom's name often does not carry its own
+(KY3 is KYTV, Fox 2 Now is KTVI, STL Public Radio is KWMU).
+
+The licensee's mailing address is not used anywhere: for a group-owned
+station it is the group's headquarters -- Sinclair's in Maryland, Audacy's in
+Pennsylvania. AM stations have a facility and community but no transmitter
+point, because the FCC's AM text query no longer answers; they come from the
+CDBS facility file instead. A street address replaces
 a town point when one is found; `county_basis` does the same for county
 (`listed`, `town`, `missing`).
 

@@ -123,6 +123,25 @@ def load_previous(path: Path):
     return by_source, by_name
 
 
+def load_facilities():
+    """{website: primary FCC facility} from mo_broadcast_facilities.csv.
+
+    Where a broadcaster is licensed to transmit -- the FCC's point, not a
+    studio and not the licensee's office, which for a group-owned station is
+    its headquarters out of state. Kept in columns of its own beside the
+    street address and the town."""
+    path = LOOKUPS / "mo_broadcast_facilities.csv"
+    if not path.exists():
+        return {}
+    out = {}
+    for r in csv.DictReader(open(path)):
+        entry = out.setdefault(r["host"], {"calls": [], "primary": None})
+        entry["calls"].append(r["call_sign"])
+        if r["primary"] == "yes":
+            entry["primary"] = r
+    return out
+
+
 def load_places():
     """Missouri town centroids, keyed by town."""
     places = {}
@@ -412,6 +431,7 @@ def main():
 
     previous_by_source, previous_by_name = load_previous(args.out)
     places = load_places()
+    facilities = load_facilities()
     sheet = load_sheet_notes(args.sheet_2025)
     host_count = {}
     for o in outlets:
@@ -470,6 +490,15 @@ def main():
         lat, lon = places.get(city_key(o["city"]), ("", ""))
         o["lat"], o["lon"] = lat, lon
         o["location_basis"] = "town centroid" if lat else "missing"
+        fac = facilities.get(o["host"]) or {}
+        primary = fac.get("primary") or {}
+        o["fcc_call_signs"] = ";".join(fac.get("calls") or [])
+        o["fcc_facility_id"] = primary.get("facility_id", "")
+        o["fcc_community"] = (
+            f"{primary.get('community', '')}, {primary.get('state', '')}" if primary else ""
+        )
+        o["tx_lat"] = primary.get("tx_lat", "")
+        o["tx_lon"] = primary.get("tx_lon", "")
         signals = []
         if o["in_sources"] and o["source_status"] == "active" and not o["newest"]:
             signals.append("active but never collected")
@@ -492,6 +521,7 @@ def main():
 
     fields = ["outlet_id", "source_id", "outlet", "city", "county", "county_basis",
               "fips", "address", "address_basis", "lat", "lon", "location_basis",
+              "fcc_call_signs", "fcc_facility_id", "fcc_community", "tx_lat", "tx_lon",
               "host", "type", "owner", "in_sources", "source_status",
               "march_articles", "collected_in_march", "newest", "web_access",
               "in_mpa", "in_bluebook", "in_lni", "lists", "signals", *REVIEW]
