@@ -2,7 +2,7 @@ outlet,city,county,fips,address,host,type,owner,in_sources,source_status,march_a
 KTVO CBS,Kirksville,Adair,,,ktvo.com,video broadcast,Rincon Broadcasting Ottumwa LLC,yes,active,75,yes,collected,no,no,no,ours
 Kirksville Daily Express,Kirksville,Adair,29001,"705 E. LaHarpe Street, Ste. F, P.O Box 809, Kirksville, MO 63501",kirksvilledailyexpress.com,print native,Carpenter Media Group,yes,active,251,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
 The Savannah Reporter,Savannah,Andrew,29003,"427 West Main Street, P.O. Box 299, Savannah, MO 64485",savrep.com,print native,CherryRoad Media,yes,active,48,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
-Lawson Review,Lawson,"Andrew County, DeKalb County, Gentry",29177,"405 N. Pennsylvania Ave., P.O. Box 125, Lawson, MO 64062",facebook.com,print native,Anita Duncan,no,,0,no,no web edition,yes,yes,yes,bluebook;lni;mpa
+Tri-County Ledger,King City,"Andrew County, DeKalb County, Gentry",29075,"110 East Vermont Street, P.O. Box 498, King City, MO 64463",facebook.com,print native,Matthew Pearl,no,,0,no,unknown,yes,yes,yes,bluebook;lni;mpa
 Atchinson County Mail,Rock Port,Atchison,29005,"300 South Main Street, P.O. Box 40, Rock Port, MO 64482",farmerpublishing.com,print native,Farmer W C & Mike,yes,active,232,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
 The Mexico Ledger,Mexico,Audrain,29007,"P.O. Box 8, Mexico, MO 65265",mexicoledger.com,print native,Westplex Media Group,yes,active,142,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
 Vandalia Leader,Vandalia,Audrain,29007,"106 Main Street, P.O. Box 110, Bowling Green, MO 63334",vandalialeader.com,print native,CherryRoad Media,yes,active,32,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
@@ -11,7 +11,9 @@ Barry County Advertiser,Cassville,Barry,,"904 West Street, P.O. Box 488, Cassvil
 Cassville Democrat,Cassville,Barry,29009,"P.O. Box 486, 600 Main St., Cassville, MO 65625",cassville-democrat.com,print native,Troutman Media LLC,yes,active,147,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
 Lamar Democrat,Lamar,Barton,29011,"100 East 11th St., P.O. Box 12, Lamar, MO 64759",lamardemocrat.com,print native,Reaves & Williams Publishing Group,yes,active,15,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
 Rich Hill Mining Review,Rich Hill,Bates,29013,"P.O. Box 580, Osceola, MO 64779",richhillminingreview.com,print native,Trevor Vernon,no,,0,no,website gone,yes,yes,yes,bluebook;lni;mpa
-Benton County Enterprise,Warsaw,Benton,29015,"107 E. Main St., PO Box 128, Warsaw 65355",bentoncountyenterprise.com,print native,James Mahlon White,yes,active,91,yes,collected,no,yes,yes,bluebook;lni;ours
+Benton County Enterprise,Warsaw,Benton,29015,"107 E. Main St., PO Box 128, Warsaw 63555",bentoncountyenterprise.com,print native,James Mahlon White,yes,active,91,yes,collected,no,yes,yes,bluebook;lni;ours
+Cole Camp Courier,Cole Camp,Benton,,"107 E. Main St., PO Box 128, Warsaw 65355",bentoncountyenterprise.com,,James Mahlon White,yes,active,91,yes,not yet reviewed,no,yes,no,bluebook;ours
+Lincoln New Era,Lincoln,Benton,,"107 E. Main St., PO Box 128 Warsaw 63555",bentoncountyenterprise.com,,James Mahlon White,yes,active,91,yes,not yet reviewed,no,yes,no,bluebook;ours
 The Banner Press,Marble Hill,Bollinger,29017,", P.O. Box 699, Cape Girardeau, MO 63702",thebannerpress.com,print native,Rust Communications,yes,active,30,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
 ABC 17 KMIZ News,Columbia,Boone,,,abc17news.com,video broadcast,News-Press & Gazette Co.,yes,paused,1404,yes,collected,no,no,no,ours
 Boone County Journal,Ashland,Boone,29019,"201 South Henry Clay Blvd., P.O. Box 197, Ashland, MO 65010",columbiamissourian.com/boonecountyjournal,print native,Missourian Publishing Association,yes,active,243,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
@@ -32,7 +34,8 @@ The Caldwell County News,Hamilton,Caldwell,29025,"101 South Davis, P.O. Box 218,
 KRCG,New Bloomfield,Callaway,,,krcgtv.com,video_broadcast,"Sinclair Broadcast Group, Inc.",yes,active,539,yes,collected,no,no,no,ours
 The Fulton Sun,Fulton,Callaway,29027,"115 East 5th Street, Fulton, MO 65251",fultonsun.com,print native,"Faughn Media, LLC",yes,active,316,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
 Lake Expo,Osage Beach,Camden,29029,"2820 Bagnell Dm Blvd. Suite B5, P.O. Box 1805, Osage Beach, MO 65049",lakeexpo.com,print native,Brent Simpson,no,,0,no,not local news,yes,yes,yes,bluebook;lni;mpa
-Lake Sun Leader/Lake News Online,Osage Beach,Camden,29029,"4075 Osage Beach Parkway, Suite 100, Osage Beach, MO 65065",lakenewsonline.com,print native,Vernon Publishing,yes,active,93,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
+Lake Sun,Camdenton,Camden,29029,"4075 Osage Beach Pkwy., Ste. 100, Camdenton 65020",lakenewsonline.com,,Vernon Publishing,yes,active,93,yes,not yet reviewed,no,yes,yes,bluebook;lni;ours
+Lake Sun Leader/Lake News Online,Osage Beach,Camden,,"4075 Osage Beach Parkway, Suite 100, Osage Beach, MO 65065",lakenewsonline.com,print native,Vernon Publishing,yes,active,93,yes,collected,yes,no,no,mpa;ours
 The Reporter,Camdenton,Camden,29029,"P.O. Box 1265, Camdenton, MO 65020",theccreporter.com,print native,Reporter Publishing LLC/Dale Johnson,yes,active,0,no,never collected,yes,yes,yes,bluebook;lni;mpa;ours
 KBSI Fox,Cape Girardeau,Cape Girardeau,,,kbsi23.com,video broadcast,Paducah Television Operations LLC,yes,active,42,yes,collected,no,no,no,ours
 KFVS 12,Cape Girardeau,Cape Girardeau,,,kfvs12.com,video broadcast,Gray Television,yes,active,671,yes,collected,no,no,no,ours
@@ -60,6 +63,7 @@ Courier Tribune/Gladstone Dispatch,Liberty,Clay,,,,print native,Jeremy Gulban,no
 Excelsior Citizen,Excelsior Springs,Clay,29047,"518 Elms Blvd., Excelsior Springs, MO 64024",excelsiorcitizen.com,print native,"Sticky Wicket Media, LLC",yes,active,33,yes,collected,yes,no,yes,lni;mpa;ours
 Excelsior Springs Standard,Excelsior Springs,Clay,29047,"118 Spring St., Ste. B, PO Box 70, Excelsior Springs 64024",excelsiorspringsstandard.com,print native,Excelsior Publishing co.,yes,active,127,yes,collected,no,yes,yes,bluebook;lni;ours
 Gladstone Dispatch,Gladstone,Clay,29047,"mycouriertribune.com, 104 N. Main St., Liberty 64068",gladstonedispatch.com,print native,CherryRoad Media,yes,active,6,yes,collected,no,yes,yes,bluebook;lni;ours
+Lawson Review,Lawson,"Clay County, Ray",29177,"405 N. Pennsylvania Ave., P.O. Box 125, Lawson, MO 64062",facebook.com,print native,Anita Duncan,no,,0,no,no web edition,yes,yes,yes,bluebook;lni;mpa
 Citizen Observer,Cameron,Clinton,29049,"403 East Evergreen Hwy. BB, P.O. Box 498, Cameron, MO 64429",mycameronnews.com,print native,Smith Newspapers,yes,active,34,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
 "Clinton County Leader, Plattsburg",Plattsburg,Clinton,29049,"102 East Maple Street, Plattsburg, MO 64477",clintoncountyleader.com,print native,Steve and Sue Tinnen,yes,active,0,no,never collected,yes,yes,yes,bluebook;lni;mpa;ours
 Jefferson City News Tribune/News Tribune,Jefferson City,Cole,29051,"326 E. Capitol Ave., P.O. Box 420, Jefferson City, MO 65101",newstribune.com,print native,"Faughn Media, LLC",yes,active,1053,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
@@ -69,8 +73,10 @@ The Missouri Independent,Jefferson City,Cole,,", P.O. Box 2255, Jefferson City, 
 The Missouri Times,Jefferson City,Cole,,,themissouritimes.com,print native,"Faughn Media, LLC",yes,active,50,yes,collected,no,no,no,ours
 The Pathway,Jefferson City,Cole,,,mbcpathway.com,print native,Missouri Baptist Convention,yes,retired,0,no,collected,no,no,no,ours
 Booneville Daily News,Boonville,Cooper,29053,"302 First Street, Suite B, Boonvile, MO 65233",boonvilledailynews.com,print native,CherryRoad Media,yes,active,107,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
-Steelville Star-Crawford Mirror,Steelville,Crawford,29055,,,,Dennis Warden,no,,0,no,not yet reviewed,no,no,yes,lni
-Three Rivers Publishing,Cuba,Crawford,,"1110 Hwy. 28, Unit B, Belle, MO 65013",threeriverspublishing.com,print native,Three Rivers Publishing,yes,active,25,yes,collected,yes,yes,no,bluebook;mpa;ours
+Cuba Free Press,Belle,Crawford,,"1110 Hwy. 28, Unit B, Belle, MO 65013",threeriverspublishing.com,,Three Rivers Publishing,yes,active,25,yes,not yet reviewed,yes,no,no,mpa;ours
+Saint James Press,Saint James,Crawford,29161,"120 S. Jefferson, Ste. 107, PO Box 428, St. James 65559",threeriverspublishing.com,,Three Rivers Publishing,yes,active,25,yes,not yet reviewed,no,yes,yes,bluebook;lni;ours
+Steelville Star-Crawford Mirror,Steelville,Crawford,29055,"115 E. Main St., PO Box BG, Steelville 65565",threeriverspublishing.com,,Three Rivers Publishing,yes,active,25,yes,not yet reviewed,no,yes,yes,bluebook;lni;ours
+Three Rivers Publishing,Cuba,Crawford,,,threeriverspublishing.com,print native,Three Rivers Publishing,yes,active,25,yes,collected,no,no,no,ours
 Greenfield Vedette,Greenfield,Dade,29057,"7 North Main, P.O. Box 216, Greenfield, MO 65661",greenfieldvedette.com,print native,Marlene DeClue and Krista Guy,yes,active,18,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
 Buffalo Reflex,Buffalo,Dallas,29059,"114 East Lincoln St., P.O. Box 770, Buffalo, MO 65622",buffaloreflex.com,print native,Carpenter Media Group,yes,active,4,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
 Tri-County Weekly,Jamesport,Daviess,29061,"103 South Broadway, P.O. Box 137, Jamesport, MO 64648",jamesporttricountyweekly.com,print native,Natha McAllister,yes,active,3,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
@@ -82,7 +88,6 @@ Missourian,Washington,Franklin,29071,"6321 Bluff Rd., Washington, MO 63090",miss
 Sullivan Independent News,Sullivan,Franklin,29071,"411 Scottsdale Dr., P.O. Box 268, Sullivan, MO 63080",mysullivannews.com,print native,Manion Kathleen,yes,retired,0,no,collected,yes,yes,yes,bluebook;lni;mpa;ours
 Gasconade County Republican,Owensville,Gasconade,29073,"106 East Washington Ave, P.O. Box 540, Owensville, MO 65066",gasconadecountyrepublican.com,print native,Warden Publishing Group,yes,active,101,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
 The Hermann Advertiser Courier,Hermann,Gasconade,29073,"136 East 4th Street, P.O. Box 350, Hermann, MO 65041",hermannadvertisercourier.com,print native,CherryRoad Media,yes,active,28,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
-Tri-County Ledger,King City,Gentry,29075,"110 E. Vermont St., PO Box 498, King City 64463",,print native,Matthew Pearl,no,,0,no,unknown,no,yes,yes,bluebook;lni
 417 Magazine,Springfield,Greene,,,417mag.com,print native,Whitaker Publishing,yes,active,1,yes,collected,no,no,no,ours
 Drury Mirror,Springfield,Greene,,,drurymirror.org,print native,Drury University,yes,active,4,yes,collected,no,no,no,ours
 KOLR,Springfield,Greene,,,ozarksfirst.com,video broadcast,Nexstar Media Group,yes,active,259,yes,collected,no,no,no,ours
@@ -105,6 +110,7 @@ Trenton Telegraph,Trenton,Grundy,29079,,trentontelegraph.com,print native,Cherry
 Bethany Republican Clipper,Bethany,Harrison,29081,"202 North 16th Street, P.O. Box 351, Bethany, MO 64424",bethanyclipper.com,print native,Bethany Printing Company,yes,active,76,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
 Northwest Mo Media,Bethany,Harrison,,,northwestmoinfo.com,audio broadcast,Carter Media Group,yes,active,193,yes,collected,no,no,no,ours
 Clinton Daily Democrat,Clinton,Henry,29083,"212 S. Washington St., PO Box 586, Clinton 64735",clintondailydemocrat.com,print native,James Mahlon White,yes,active,68,yes,collected,no,yes,yes,bluebook;lni;ours
+Windsor Review,Windsor,Henry,,"212 S. Washington St., PO Box 586, Clinton 64735",clintondailydemocrat.com,,James Mahlon White,yes,active,68,yes,not yet reviewed,no,yes,no,bluebook;ours
 Hermitage Index,Hermitage,Hickory,29085,"109 W. Polk Street, P.O. Box 127, Hermitage, MO 65668",hermitageindex.com,print native,Trevor Vernon,yes,active,0,no,never collected,yes,yes,yes,bluebook;lni;mpa;ours
 Mound City News,Mound City,Holt,29087,"18121 Hwy. 59, P.O. Box 175, Mound City, MO 64470-0175",moundcitynews.com,print native,Adam Johnson,no,,0,no,print or replica only,yes,yes,yes,bluebook;lni;mpa
 Fayette Advertiser,Fayette,Howard,29089,"P.O. Box 32, Fayette, MO 65248",fayettenewspapers.com,print native,"JSA Media, LLC",yes,active,94,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
@@ -182,7 +188,7 @@ Hannibal Courier-Post,Hannibal,Marion,29127,"130 St. 5th St., P.O. Box A, Quincy
 KHQA 7,Hannibal,Marion,,,khqa.com,video broadcast,Rincon Broadcasting Quincy LLC,yes,active,82,yes,collected,no,no,no,ours
 Palmyra Spectator,Palmyra,Marion,29127,"P.O. Box 230, Kahoka, MO 63445-0230",palmyra-spectator.com,print native,"NEMOnews Media Group, LLC.",yes,active,58,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
 McDonald County Press,Pineville,McDonald,29119,"212 Northeast Avenue, P.O. Box 266, Pineville, MO 64856",mdcp.nwaonline.com,print native,Wehco Media,yes,active,75,yes,collected,yes,no,yes,lni;mpa;ours
-Princeton Post-Telegraph,Princeton,Mercer,29129,"111 South 16th Street, P.O. Box 365, Unionville, MO 63565",northmissouriannews.com,print native,Preston Cole,no,,0,no,website gone,yes,yes,yes,bluebook;lni;mpa
+Princeton Post-Telegraph,Princeton,Mercer,29129,"704 Main Street, P.O. Box 286, Princeton, MO 64673",northmissouriannews.com,print native,Preston Cole,no,,0,no,website gone,yes,yes,yes,bluebook;lni;mpa
 Eldon Advertiser,Eldon,Miller,29131,"415 South Maple Street, P.O. Box 315, Eldon, MO 65026",eldonadvertiser.com,print native,"Vernon Publishing, Inc.",yes,active,0,no,unknown,yes,yes,yes,bluebook;lni;mpa;ours
 East Prairie Eagle,East Prairie,Mississippi,29133,"101 East Main Street, East Prairie, MO 63845",enterprisecourier.com,print native,Carlin Bennett,no,,0,no,print or replica only,yes,yes,yes,bluebook;lni;mpa
 California Democrat,California,Moniteau,29135,", P.O. Box 126, California, MO 65018",californiademocrat.com,print native,"Faughn Media, LLC",yes,active,60,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
@@ -195,6 +201,7 @@ Morgan County Statesman,Versailles,Morgan,29141,"615 W. Newton, Versailles, MO 6
 Neosho Daily News,Neosho,Newton,29145,"212 E. Main St., Neosho, MO 64850",neoshodailynews.com,print native,Sexton Media Group Inc.,yes,paused,25,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
 "Newton County News, Neosho",Neosho,Newton,29145,"15647 Hammer Rd., Neosho 64850",,print native,Chad Hayworth,no,,0,no,unknown,no,yes,yes,bluebook;lni
 Seneca News Dispatch,Neosho,Newton,,,thenewsdispatch.net,print native,Sexton Media Group Inc.,yes,retired,0,no,never collected,no,no,no,ours
+Grant City Times Tribune,Grant City,Nodaway,29227,"1 E. Third St., PO Box 130, Grant City 64456",maryvilleforum.com,,"Garner Media Holdings, LLC",yes,active,1003,yes,not yet reviewed,no,yes,yes,bluebook;lni;ours
 KXCV,Maryville,Nodaway,,,kxcv.org,audio broadcast,Northwest Missouri State University,yes,active,283,yes,collected,no,no,no,ours
 "Nodaway News Leader, Maryville",Maryville,Nodaway,29147,"116 E. Third, PO Box 373, Maryville 64468",nodawaynews.com,print native,Kay Wilson,no,,0,no,website gone,no,yes,yes,bluebook;lni
 North West Missourian,Maryville,Nodaway,,,nwmissourinews.com,print native,Northwest Missouri State University,yes,active,69,yes,collected,no,no,no,ours
@@ -208,7 +215,6 @@ Perryville Republic Monitor,Republic,Perry,29157,"11 W St. Joseph St., Perryvill
 The Sedalia Democrat,Sedalia,Pettis,29159,"111 W. Fourth Street, Sedalia, MO 65301",sedaliademocrat.com,print native,Carpenter Media Group,yes,active,281,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
 Phelps County Focus,Rolla,Phelps,29161,"101 West 7th Street, P.O. Box 1128, Rolla, MO 65401",phelpscountyfocus.com,print native,Carpenter Media Group,yes,active,151,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
 Pulaski County Weekly,Rolla,Phelps,29169,,pulaskicountyweekly.com,print native,Carpenter Media Group,yes,active,61,yes,collected,no,no,yes,lni;ours
-St. James Press,St. James,Phelps,29161,,,,Dennis Warden,no,,0,no,not yet reviewed,no,no,yes,lni
 Pike County News/Bowling Green Times,Bowling Green,Pike,29163,MO,pikecountynews.com,print native,CherryRoad Media,yes,active,35,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
 The People's Tribune,Bowling Green,Pike,29163,,,,Jerry Hickerson,no,,0,no,not yet reviewed,no,no,yes,lni
 The Landmark,Platte City,Platte,29165,"212 Marshall Road, Suite C, P.O. Box 410, Platte City, MO 64079",plattecountylandmark.com,print native,Foley Newspapers,yes,active,95,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
@@ -218,7 +224,7 @@ Bolivar Herald Free Press,Bolivar,Polk,29167,"335 South Springfield Avenue, P.O.
 Pulaski County Mirror/Daily News,St. Robert,Pulaski,,,pulaskicountydaily.com,print native,Lebanon Publishing Co,yes,retired,0,no,never collected,no,no,no,ours
 The Dixon Pilot,Dixon,Pulaski,29169,MO,dixonpilot.com,print native,Blackburn Rick,yes,retired,27,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
 North Missouri News,Unionville,Putnam,,,northmissourinews.com,,North Missouri News,yes,active,0,no,never collected,no,no,no,ours
-Unionville Republican,Unionville,Putnam,29171,"northmissourinews.com, 111 S. 16th St., PO Box 365, Unionville 63565",,print native,Ron Kinzler,no,,0,no,unknown,no,yes,yes,bluebook;lni
+Unionville Republican,Unionville,Putnam,29171,"111 South 16th Street, P.O. Box 365, Unionville, MO 63565",northmissouriannews.com,print native,Ron Kinzler,no,,0,no,unknown,yes,yes,yes,bluebook;lni;mpa
 Monroe | Ralls,Paris,Ralls,29173,"221 North Main Street, P.O. Box 207, Paris, MO 65275",monroecountyappeal.com,,Reaves & Williams Publishing Group,no,,0,no,not yet reviewed,yes,no,yes,lni;mpa
 Moberly Monitor,Moberly,Randolph,29175,MO,moberlymonitor.com,print native,CherryRoad Media,yes,active,53,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
 Richmond Daily News,Richmond,Ray,29177,"204 West North Main, P.O. Box 128, Richmond, MO 64085",richmond-dailynews.com,print native,Excelsior Publishing co.,yes,active,141,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
@@ -229,6 +235,7 @@ Sweet Springs Herald,Sweet Springs,Saline,29195,"238 Main Street, Sweet Springs,
 The Marshall Democrat-News,Marshall,Saline,29195,"28 N. Jefferson Ave., Marshall, MO 65340",marshallnews.com,print native,CherryRoad Media,yes,active,78,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
 Schuyler County Times,Lancaster,Schuyler,29197,"PO Box 230, Kahoka, MO 63445",schuylercountytimes.com,print native,"NEMOnews Media Group, LLC.",yes,active,13,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
 Memphis Democrat,Memphis,Scotland,29199,"PO Box 230, Kahoka, MO 63445",memphisdemocrat.com,print native,"NEMOnews Media Group, LLC.",yes,active,26,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
+New Madrid Weekly Record,New Madrid,Scott,,"205 S. New Madrid, Sikeston 63801",standard-democrat.com,,Rust Communications,yes,active,175,yes,not yet reviewed,no,yes,no,bluebook;ours
 Sikeston Standard Democrat,Sikeston,Scott,29201,"205 South New Madrid, Sikeston, MO 63801",standard-democrat.com,print native,Rust Communications,yes,active,175,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
 Shannon County Current Wave,Eminence,Shannon,29203,"102 Plum Street, P.O. Box 728, Eminence, MO 65466",currentwave.news,print native,Valerie and Roger Dillon,yes,active,0,no,collected,yes,yes,yes,bluebook;lni;mpa;ours
 Independent Courier | Clarence,,Shelby,,MO,theindependentcourier.com,,Independently Owned Newspaper,no,,0,no,not yet reviewed,yes,no,no,mpa
@@ -248,6 +255,7 @@ Farmington Press,Farmington,St. Francois,29187,,,,Paxton Media Group,no,,0,no,no
 My Mo info,Farmington,St. Francois,,,mymoinfo.com,audio broadcast,GoodRadio.TV,yes,active,193,yes,collected,no,no,no,ours
 40 South News,Brentwood,St. Louis,29189,,40southnews.com,,Doug Miner,no,,0,no,not yet reviewed,no,no,yes,lni
 ABC 30,St Louis,St. Louis,,,abcstlouis.com,broadcast,"Sinclair Broadcast Group, Inc.",yes,active,0,no,collected,no,no,no,ours
+"Countian St. Louis, The",Clayton,St. Louis,,"7777 Bonhomme Ave., Ste. 1205, St. Louis 63105",molawyersmedia.com,,BridgeTower Media,yes,active,9,yes,not yet reviewed,no,yes,no,bluebook;ours
 KFTK,St. Louis,St. Louis,,,audacy.com/971talk,audio broadcast,Audacy Inc,yes,retired,0,no,collected,no,no,no,ours
 KMOV CBS,St. Louis,St. Louis,,,firstalert4.com,video broadcast,Gray Television,yes,active,658,yes,collected,no,no,no,ours
 KPLR11/Fox 2 Now,St. Louis,St. Louis,,,fox2now.com,video broadcast,Nexstar Media Group,yes,active,606,yes,collected,no,no,no,ours
@@ -287,7 +295,6 @@ Reynolds County Courier/WayNe County Journal Banner,Ellington,Wayne,29223,"121 N
 Marshfield Mail,Marshfield,Webster,29225,"225 North Clay, P.O. Box A, Marshfield, MO 65706",marshfieldmail.com,print native,Carpenter Media Group,yes,active,22,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
 Webster County Citizen,Seymour,Webster,29225,"221 South Commercial St., P.O. Box 190, Seymour, MO 65746",webstercountycitizen.com,print native,Dan Wehmer,yes,active,90,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
 Sheridan Express,Sheridan,Worth,29227,"205 North 4th #8, Sheridan, MO 64486",sheridanexpress.blogspot.com,print native,Sheridan Express Newspaper Cooperative,yes,active,101,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
-Times Tribune,Grant City,Worth,29227,,,,Garner Media Holdings LLC,no,,0,no,not yet reviewed,no,no,yes,lni
 Wright County Journal,Mountain Grove,Wright,29229,"150 East 1st Street, P.O. Box 530, Mountain Grove, MO 65711",wrightcountyjournal.com,print native,"Wright County Media, LLC",yes,active,40,yes,collected,yes,yes,yes,bluebook;lni;mpa;ours
 Dos Mundos Bilingual Newspaper,Kansas City,Wyandotte,,,dosmundos.com,print native,Clara Reyes,yes,active,23,yes,collected,no,no,no,ours
 Charleston Enterprise-Courier,Charleston,,,"101 E. Main St., East Prairie 63845",enterprisecourier.com,print native,Carlin Bennett,no,,0,no,print or replica only,no,yes,no,bluebook

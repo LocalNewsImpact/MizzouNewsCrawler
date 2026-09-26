@@ -175,7 +175,20 @@ def match(entry, outlets, unique_hosts):
             entry["name"]
         )
         s = 0.0
-        if entry["host"] and entry["host"] == o["host"] and entry["host"] in unique_hosts:
+        # A shared website is not a shared newsroom: Cole Camp Courier and
+        # Lincoln New Era are two nameplates on one publisher's site, and
+        # matching on the site alone folded both into the paper beside
+        # them. The site counts with the town or a similar name.
+        if (
+            entry["host"]
+            and entry["host"] == o["host"]
+            and entry["host"] in unique_hosts
+            and (
+                same_city
+                or SequenceMatcher(None, " ".join(mine), " ".join(theirs)).ratio()
+                >= 0.6
+            )
+        ):
             s = 0.97
         elif (same_city or names_town) and mine and theirs and (
             set(mine) <= set(theirs) or set(theirs) <= set(mine)
