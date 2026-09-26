@@ -43,7 +43,7 @@ import re
 import unicodedata
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import lru_cache
 from typing import Iterable
 
@@ -801,30 +801,81 @@ _SHARED_SQL = """
 """
 
 
-def uncredited_wire_names(session, dataset_id: str, period=CREDIT_PERIOD) -> set[str]:
+def uncredited_wire_names(
+    session, dataset_id: str, period=CREDIT_PERIOD, answered=None
+) -> set[str]:
     """Every NAME with a wire copy in `period` that credits no home newsroom.
 
     Names, not byline strings: the queue is one row per name, and a wire copy
     captured as "Steph Quinn - MISSOURI INDEPENDENT" is Steph Quinn's. The same
     `split_names` that builds the queue reads these, so the two agree on who a
     string names.
+
+    ASKED ONCE. `answered` is `{name: decided_at}`, and a name decided after
+    its newest uncredited copy arrived has been asked: the reviewer saw those
+    copies and answered. Without this the question never ended for a reporter
+    whose home is not a newsroom we crawl -- Sherman Smith's is the Kansas
+    Reflector, an AP reporter's is the AP -- because there is nothing to
+    credit, so the copies stay uncredited and the name came back on every
+    refresh. A copy arriving after the answer asks again.
     """
     from sqlalchemy import text
 
     result = session.execute(
         text(
-            "SELECT DISTINCT a.author FROM articles a"
+            "SELECT a.author, max(a.extracted_at) FROM articles a"
             " WHERE a.dataset_id = :d AND a.status = 'wire'"
             "   AND a.syndicated_from_source_id IS NULL"
             "   AND coalesce(trim(a.author), '') <> ''"
             "   AND a.publish_date >= :start AND a.publish_date < :end"
+            " GROUP BY a.author"
         ),
         {"d": dataset_id, "start": period[0], "end": period[1]},
     )
-    names: set[str] = set()
-    for (author,) in result:
-        names.update(split_names(author) or [])
-    return names
+    newest: dict[str, datetime | None] = {}
+    for author, extracted in result:
+        at = _as_naive(extracted)
+        for name in split_names(author) or []:
+            seen = newest.get(name)
+            if name not in newest or (at is not None and (seen is None or at > seen)):
+                newest[name] = at
+    answered = {name: _as_naive(at) for name, at in (answered or {}).items()}
+    return {
+        name
+        for name, at in newest.items()
+        if not (answered.get(name) and (at is None or answered[name] >= at))
+    }
+
+
+def _as_naive(value):
+    """A timestamp as naive UTC, whether the driver gave a string or a datetime."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value)
+        except ValueError:
+            return None
+    if value.tzinfo is not None:
+        value = value.astimezone(timezone.utc).replace(tzinfo=None)
+    return value
+
+
+def decision_times(session, dataset_id: str) -> dict:
+    """`{raw_byline: decided_at}` for this dataset's standing decisions."""
+    from sqlalchemy import text
+
+    try:
+        rows = session.execute(
+            text(
+                "SELECT raw_byline, decided_at FROM byline_normalizations"
+                " WHERE dataset_id = :d AND stale_at IS NULL"
+            ),
+            {"d": dataset_id},
+        ).fetchall()
+    except Exception:  # pragma: no cover - table absent on an old database
+        return {}
+    return {raw: at for raw, at in rows if at is not None}
 
 
 def dataset_rows(session, dataset_id: str, statuses=LOCAL_STATUSES):
@@ -1267,7 +1318,9 @@ def refresh_candidates(
     # The wire copies owing a home newsroom. Read separately because they are
     # not local stories -- `rows` holds only those -- and the name reaches the
     # queue through its local work, carrying this as one of its questions.
-    owed = uncredited_wire_names(session, dataset_id)
+    owed = uncredited_wire_names(
+        session, dataset_id, answered=decision_times(session, dataset_id)
+    )
     found = candidates(rows, groups, decided, owed)
 
     # WHICH OF THESE NEWSROOMS IS WRONG, where the page answers it. Computed for
