@@ -35,7 +35,18 @@ what it does not: addresses, and outlets we do not hold.
 
 Every row is mappable today by its town: `lat`/`lon` are the Census place
 centroid, and `location_basis` says so. `address_basis` records where a street
-address came from (`mpa`, `bluebook`) or `missing`. A street address replaces
+address came from: `sources`, `mpa`, `bluebook`, or `missing`.
+
+**Our sources table's address is never replaced.** Where `sources.metadata`
+holds one (`address1`/`address2`/`zip`, or `address`/`zip_code`), it is the
+address, whatever a list says. The lists fill a gap; nothing here writes to
+`sources`.
+
+**The FCC is not a newsroom address.** Its facility records carry the
+licensee's mailing address, which for a group-owned station is the group's
+headquarters -- Sinclair's in Maryland, Audacy's in Pennsylvania. Those are
+left out; a station without a stored address stays at its town of license
+until its studio address is found. A street address replaces
 a town point when one is found; `county_basis` does the same for county
 (`listed`, `town`, `missing`).
 

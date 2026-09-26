@@ -161,7 +161,8 @@ def load_ours(conn):
                count(a.id) FILTER (
                    WHERE a.publish_date >= %s AND a.publish_date < %s
                ) AS march,
-               max(a.publish_date)::date AS newest
+               max(a.publish_date)::date AS newest,
+               s.metadata::jsonb AS meta
           FROM sources s
           JOIN dataset_sources ds ON ds.source_id = s.id
           JOIN datasets d ON d.id = ds.dataset_id AND d.slug = %s
@@ -173,8 +174,28 @@ def load_ours(conn):
         (MARCH[0], MARCH[1], DATASET),
     )
     cols = ["id", "host", "name", "city", "county", "owner", "status", "state",
-            "march", "newest"]
-    return [dict(zip(cols, row, strict=True)) for row in cur.fetchall()]
+            "march", "newest", "meta"]
+    rows = [dict(zip(cols, row, strict=True)) for row in cur.fetchall()]
+    for r in rows:
+        r["address"] = _stored_address(r.pop("meta") or {}, r["city"])
+    return rows
+
+
+def _stored_address(meta, city):
+    """The street address our sources table already holds, as one line.
+
+    TRUSTED OVER EVERY LIST. Two spellings are in use: `address1`/`address2`
+    with `zip`, and a single `address` with `zip_code`."""
+    street = ", ".join(
+        p.strip()
+        for p in (meta.get("address1"), meta.get("address2"), meta.get("address"))
+        if p and str(p).strip()
+    )
+    if not street:
+        return ""
+    zipcode = (meta.get("zip") or meta.get("zip_code") or "").strip()
+    place = (meta.get("city") or city or "").strip()
+    return ", ".join(p for p in (street, place, f"MO {zipcode}".strip()) if p)
 
 
 def load_lists(mpa_path: Path):
@@ -330,6 +351,8 @@ def main():
             o["owner"] = s["owner"] or o["owner"]
             o["county"] = s["county"] or o["county"]
             o["lists"].add("ours")
+            if s["address"]:
+                o["address"], o["_address_from"] = s["address"], "sources"
     for s in ours:
         if s["id"] in matched_ours:
             continue
@@ -337,11 +360,13 @@ def main():
             "outlet": s["name"], "city": s["city"], "county": s["county"],
             "host": host_of(s["host"]), "type": "", "owner": s["owner"] or "",
             "web_access": "collected" if s["march"] else "never collected",
-            "lists": {"ours"}, "_cities": set(), "address": "", "fips": "",
+            "lists": {"ours"}, "_cities": set(), "fips": "",
             "in_sources": True, "source_status": s["status"] or "",
             "march_articles": int(s["march"] or 0),
             "source_id": s["id"], "newest": s.get("newest") or "",
             "_source_name": s["name"] or "",
+            "address": s["address"],
+            "_address_from": "sources" if s["address"] else "",
         })
 
     hosts = [o["host"] for o in outlets if o["host"]]
@@ -360,7 +385,10 @@ def main():
             unmatched.append(entry)
         o["lists"].add(entry["list"])
         o["_cities"].add(city_key(entry["city"]))
-        if entry["list"] == "mpa" and entry["address"]:
+        # Our table's address is never replaced; the lists fill a gap only.
+        if o.get("_address_from") == "sources":
+            pass
+        elif entry["list"] == "mpa" and entry["address"]:
             o["address"] = entry["address"]
             o["_address_from"] = "mpa"
         elif not o["address"] and entry["address"]:
