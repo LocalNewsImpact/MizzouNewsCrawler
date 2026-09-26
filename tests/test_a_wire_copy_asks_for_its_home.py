@@ -116,7 +116,7 @@ def session():
         yield s
 
 
-def _wire(session, source, author, day, credited_to=None):
+def _wire(session, source, author, day, credited_to=None, extracted=None):
     link = CandidateLink(
         id=str(uuid.uuid4()),
         source_id=source.id,
@@ -138,6 +138,7 @@ def _wire(session, source, author, day, credited_to=None):
                 datetime.datetime(2026, 3, day) if isinstance(day, int) else day
             ),
             syndicated_from_source_id=credited_to,
+            extracted_at=extracted,
         )
     )
     session.flush()
@@ -182,3 +183,74 @@ class TestFindingTheNamesThatOwe:
         _wire(session, carrier, "Steph Quinn", 10)
         session.commit()
         assert br.uncredited_wire_names(session, "some-other-dataset") == set()
+
+
+class TestTheQuestionIsAskedOnce:
+    """Sherman Smith's home is the Kansas Reflector, which we do not crawl, so
+    his copies can never be credited. Asked on every refresh, the question
+    never ended: decided rows were back in the queue the next morning."""
+
+    def _source(self, session, host):
+        row = Source(id=str(uuid.uuid4()), host=host, host_norm=host)
+        session.add(row)
+        session.flush()
+        return row
+
+    def test_a_name_answered_after_its_copies_is_not_asked_again(self, session):
+        carrier = self._source(session, "dexterstatesman.com")
+        _wire(
+            session,
+            carrier,
+            "Sherman Smith",
+            10,
+            extracted=datetime.datetime(2026, 3, 11),
+        )
+        session.commit()
+        answered = {"Sherman Smith": datetime.datetime(2026, 9, 25, 16, 0)}
+        assert "Sherman Smith" not in br.uncredited_wire_names(
+            session, "d-mo", answered=answered
+        )
+
+    def test_a_copy_arriving_after_the_answer_asks_again(self, session):
+        carrier = self._source(session, "dexterstatesman.com")
+        _wire(
+            session,
+            carrier,
+            "Sherman Smith",
+            10,
+            extracted=datetime.datetime(2026, 9, 27),
+        )
+        session.commit()
+        answered = {"Sherman Smith": datetime.datetime(2026, 9, 25, 16, 0)}
+        assert "Sherman Smith" in br.uncredited_wire_names(
+            session, "d-mo", answered=answered
+        )
+
+    def test_an_unanswered_name_is_asked(self, session):
+        carrier = self._source(session, "dexterstatesman.com")
+        _wire(
+            session,
+            carrier,
+            "Sherman Smith",
+            10,
+            extracted=datetime.datetime(2026, 3, 11),
+        )
+        session.commit()
+        assert "Sherman Smith" in br.uncredited_wire_names(session, "d-mo", answered={})
+
+    def test_an_aware_answer_compares_with_a_naive_copy(self, session):
+        """datadesk writes decided_at from an aware clock; the extractor
+        writes extracted_at naive. Both are UTC."""
+        carrier = self._source(session, "dexterstatesman.com")
+        _wire(
+            session,
+            carrier,
+            "Sherman Smith",
+            10,
+            extracted=datetime.datetime(2026, 3, 11),
+        )
+        session.commit()
+        aware = datetime.datetime(2026, 9, 25, 16, 0, tzinfo=datetime.timezone.utc)
+        assert "Sherman Smith" not in br.uncredited_wire_names(
+            session, "d-mo", answered={"Sherman Smith": aware}
+        )
