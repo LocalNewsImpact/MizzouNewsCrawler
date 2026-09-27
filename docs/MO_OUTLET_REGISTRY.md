@@ -112,3 +112,20 @@ so it is evidence for a reviewer, not a status.
 To review: filter `signals` non-empty, decide each row, fill the five review
 columns, commit the CSV. A decision about an outlet we hold is then applied to
 `sources` in its own change; the registry records it, it does not write it.
+
+## Mapping
+
+Two derived columns, recomputed every run, say what a map draws.
+
+`map` is `yes` for one point per surviving outlet and `no` for a row whose
+status is `merged`, `duplicate`, `closed` or `not_local_news` (or marked not
+local news): a merged or duplicate row's work is counted at the outlet it
+points to. An also-known-as name is already the same row.
+
+`map_category` colours the points:
+
+| Category | Means |
+| --- | --- |
+| `digital, collected` | we collected articles from it in March 2026 |
+| `digital, not collected` | it publishes on a website, and nothing was collected in March |
+| `print, replica or social, not collected` | nothing collected, and it publishes in print or as a replica e-edition, or only on social media (Facebook, Instagram, X, YouTube, Linktree) |
