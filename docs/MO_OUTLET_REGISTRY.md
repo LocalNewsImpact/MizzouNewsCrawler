@@ -86,9 +86,14 @@ person's answer**, and a rebuild never overwrites them. Where we hold an
 outlet and nobody has reviewed it, `status` starts as the sources table's own
 status.
 
-`status` values: `active`, `print_only`, `closed`, `merged` (with
-`merged_into` naming the surviving outlet's `outlet_id`), `duplicate` (with
-`merged_into` naming the row it duplicates), `not_local_news`.
+`status` values: `active`, `print_only`, `closed`, `merged`, `duplicate`,
+`not_local_news`.
+
+For `merged`, `merged_into` is the **website the outlet's work now appears
+on** -- the Cole Camp Courier on bentoncountyenterprise.com -- and
+`status_basis` names the surviving outlet and its `outlet_id`, with any date
+known ("merged into the Maryville Times, January 2026"). For `duplicate`,
+`merged_into` is the `outlet_id` of the row it duplicates.
 
 To review: filter `signals` non-empty, decide each row, fill the five review
 columns, commit the CSV. A decision about an outlet we hold is then applied to
