@@ -164,12 +164,13 @@ schools_*.csv
 # so the enrichment tests failed in CI on FileNotFoundError while passing
 # on any machine holding a copy.
 !src/enrichment/reference/*.csv
-# Reference listings the crawler reads and nobody generates: the Missouri Blue
-# Book newspaper directory, the comparison of it against the dataset, and the
-# extracts that feed the datadesk visuals builder. Named rather than
-# force-added, so the next edition does not need `git add -f`.
-!src/lookups/mo_*.csv
-!src/lookups/mo_*.json
+# Missouri outlet research stays local. The Blue Book, LNI, the Missouri Press
+# directory and public-notice list, the 2025 working sheet, and a reviewer's
+# corrections are other people's data or working notes, and this repository
+# is public. The registry derived from them (scripts/build_mo_outlet_registry.py)
+# is the one file tracked: it is what datadesk imports.
+src/lookups/mo_*
+!src/lookups/mo_outlet_registry.csv
 
 # EXCEPT the DMA crosswalk, which stays local and never reaches origin.
 #

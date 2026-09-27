@@ -15,6 +15,13 @@ sources table changes.
 | Northwestern LNI 2025 | `src/lookups/mo_lni_*_2025.csv` | county and FIPS, no address |
 | 2025 working sheet | `src/lookups/mo_working_urls_2025.csv` | closure and e-edition notes only |
 
+**Only the registry is in this repository**, which is public. Every input
+above, and a reviewer's corrections and additions below, stays local
+(git-ignored under `src/lookups/mo_*`): they are other people's data or working
+notes. The builder reads them from a working copy that holds them; the
+registry it writes is the one file committed, and it is what datadesk
+imports.
+
 **Our sources table is canonical** for any outlet it holds. The lists supply
 what it does not: addresses, and outlets we do not hold.
 
