@@ -232,14 +232,44 @@ def _address_town(address: str) -> str:
     return last.strip(" .")
 
 
+def load_county_fips():
+    """{(state, county name key): 5-digit FIPS}, every state.
+
+    Keyed by state because a county name is not unique: Johnson County is in
+    Missouri and in Kansas, and KMBZ is in the Kansas one."""
+    out = {}
+    for r in csv.DictReader(open(ROOT / "src/enrichment/reference/census_counties.csv")):
+        key = "st louis city" if r["GEOID"] == "29510" else _county_key(r["NAME"])
+        out[(r["USPS"], key)] = r["GEOID"]
+    return out
+
+
+def _county_key(name: str) -> str:
+    name = re.sub(r"(?i)\s+county$", "", (name or "").strip())
+    name = re.sub(r"(?i)^saint\b", "St", name)
+    return re.sub(r"[^a-z ]", "", name.lower().replace("ste.", "ste ")).strip()
+
+
+def county_fips(county: str, city: str, fips: dict, state: str = "MO") -> str:
+    """A county's FIPS. St. Louis city is its own county-equivalent: an
+    outlet in the city whose county reads "St. Louis" is 29510, not the
+    county's 29189."""
+    # A service area lists several ("Clay County, Ray"): the first is home.
+    key = _county_key((county or "").split(",")[0])
+    if state == "MO" and (
+        key in ("st louis city", "city of st louis")
+        or (key == "st louis" and city_key(city) == "stlouis")
+    ):
+        return fips.get(("MO", "st louis city"), "")
+    return fips.get((state, key), "")
+
+
 def load_places():
     """Missouri town centroids, keyed by town."""
     places = {}
     for r in csv.DictReader(open(ROOT / "src/enrichment/reference/census_places.csv")):
-        if r["USPS"] != "MO":
-            continue
         town = re.sub(r"\s+(city|town|village|CDP)$", "", r["NAME"], flags=re.I)
-        places.setdefault(city_key(town), (r["INTPTLAT"], r["INTPTLONG"]))
+        places.setdefault((r["USPS"], city_key(town)), (r["INTPTLAT"], r["INTPTLONG"]))
     return places
 
 
@@ -303,8 +333,11 @@ def _stored_address(meta, city):
     if not street:
         return ""
     zipcode = (meta.get("zip") or meta.get("zip_code") or "").strip()
-    place = (meta.get("city") or city or "").strip()
-    return ", ".join(p for p in (street, place, f"MO {zipcode}".strip()) if p)
+    # The source's own town field first: metadata can hold an older one
+    # (KMBZ's said Kansas City; its street is in Mission).
+    place = (city or meta.get("city") or "").strip()
+    state = (meta.get("state") or "MO").strip()
+    return ", ".join(p for p in (street, place, f"{state} {zipcode}".strip()) if p)
 
 
 def load_lists(mpa_path: Path):
@@ -485,6 +518,7 @@ def main():
         if s:
             matched_ours.add(s["id"])
             o["owner"] = s["owner"] or o["owner"]
+            o["state"] = (s.get("state") or "MO").strip() or "MO"
             o["county"] = s["county"] or o["county"]
             o["lists"].add("ours")
             if s["address"]:
@@ -500,6 +534,7 @@ def main():
             "in_sources": True, "source_status": s["status"] or "",
             "march_articles": int(s["march"] or 0),
             "source_id": s["id"], "newest": s.get("newest") or "",
+            "state": (s.get("state") or "MO").strip() or "MO",
             "_source_name": s["name"] or "",
             "address": s["address"],
             "_address_from": "sources" if s["address"] else "",
@@ -569,6 +604,7 @@ def main():
 
     previous_by_source, previous_by_name = load_previous(args.out)
     places = load_places()
+    fips_of = load_county_fips()
     facilities = load_facilities()
     sheet = load_sheet_notes(args.sheet_2025)
     host_count = {}
@@ -637,8 +673,9 @@ def main():
         else:
             o["county_basis"] = "missing"
         o["address_basis"] = o.pop("_address_from", "") or ("missing" if not o["address"] else "list")
-        lat, lon = places.get(city_key(o["city"]), ("", ""))
+        lat, lon = places.get((o.get("state") or "MO", city_key(o["city"])), ("", ""))
         o["lat"], o["lon"] = lat, lon
+        o["county_fips"] = county_fips(o["county"], o["city"], fips_of, o.get("state") or "MO")
         o["location_basis"] = "town centroid" if lat else "missing"
         fac = facilities.get(o["host"]) or {}
         primary = fac.get("primary") or {}
@@ -678,22 +715,26 @@ def main():
         # A reviewer's status wins over the 2026-09-24 web-access note.
         off = status in OFF_MAP or (not status and o["web_access"] == "not local news")
         o["map"] = "no" if off else "yes"
+        # FIVE POINT COLOURS. A reviewer's word first -- print, replica,
+        # social -- then what we collected, then what the lists say.
         if status in ("legal", "shopper", "business", "magazine"):
             o["map_category"] = status
         elif off:
             o["map_category"] = ""
-        elif status in PRINT_LIKE or (
-            not o["march_articles"]
-            and (
-                o["web_access"] in ("print or replica only", "no web edition")
-                or is_social(o["host"])
-            )
+        elif status in ("print", "print_only"):
+            o["map_category"] = "print"
+        elif status == "replica":
+            o["map_category"] = "replica"
+        elif status in ("facebook", "social") or (
+            not o["march_articles"] and is_social(o["host"])
         ):
-            o["map_category"] = "print, replica or social, not collected"
+            o["map_category"] = "social"
         elif o["march_articles"]:
-            o["map_category"] = "digital, collected"
+            o["map_category"] = "collected"
+        elif o["web_access"] in ("print or replica only", "no web edition"):
+            o["map_category"] = "print"
         else:
-            o["map_category"] = "digital, not collected"
+            o["map_category"] = "not collected"
     del today
 
     overrides = load_overrides()
@@ -704,14 +745,26 @@ def main():
                 o["address_basis"] = "reviewer"
             if field == "county":
                 o["county_basis"] = "reviewer"
+            if field == "city":
+                # The town's point follows a corrected town.
+                lat, lon = places.get((o.get("state") or "MO", city_key(value)), ("", ""))
+                o["lat"], o["lon"] = lat, lon
+                o["location_basis"] = "town centroid" if lat else "missing"
 
-    fields = ["outlet_id", "source_id", "outlet", "city", "county", "county_basis",
+    for o in outlets:
+        # An override can move an outlet's county; its FIPS follows.
+        o["county_fips"] = county_fips(o["county"], o["city"], fips_of, o.get("state") or "MO")
+
+    for o in outlets:
+        o["state"] = o.get("state") or "MO"
+
+    fields = ["outlet_id", "source_id", "outlet", "state", "city", "county", "county_basis",
               "fips", "address", "address_basis", "lat", "lon", "location_basis",
               "fcc_call_signs", "fcc_facility_id", "fcc_community", "tx_lat", "tx_lon",
               "host", "type", "owner", "in_sources", "source_status",
               "march_articles", "collected_in_march", "newest", "web_access",
               "in_mpa", "in_bluebook", "in_lni", "lists", "signals", *REVIEW,
-              "map", "map_category"]
+              "map", "map_category", "county_fips"]
     with open(args.out, "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=fields)
         w.writeheader()
