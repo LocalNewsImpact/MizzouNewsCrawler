@@ -89,6 +89,17 @@ PLATFORM_HOSTS = (
 )
 
 
+#: Platforms that are social media: an outlet whose only web presence is one
+#: of these publishes there rather than on a site we can collect from.
+SOCIAL_HOSTS = ("facebook.com", "instagram.com", "twitter.com", "x.com",
+                "youtube.com", "linktr.ee")
+
+
+def is_social(host: str) -> bool:
+    domain = (host or "").split("/")[0]
+    return any(domain == p or domain.endswith("." + p) for p in SOCIAL_HOSTS)
+
+
 def is_platform(host: str) -> bool:
     domain = (host or "").split("/")[0]
     return any(domain == p or domain.endswith("." + p) for p in PLATFORM_HOSTS)
@@ -589,6 +600,26 @@ def main():
         if o["web_access"] in ("website gone", "print or replica only", "no web edition"):
             signals.append(o["web_access"])
         o["signals"] = "; ".join(signals)
+        # WHAT A MAP DRAWS. One point per surviving outlet: a merged or
+        # duplicate row's work is counted at the outlet it points to, a
+        # closed one is gone, and not-local-news is not a newsroom. An
+        # also-known-as name is already the same row.
+        off = o["status"] in ("merged", "duplicate", "closed", "not_local_news") or (
+            o["web_access"] == "not local news"
+        )
+        o["map"] = "no" if off else "yes"
+        if off:
+            o["map_category"] = ""
+        elif not o["march_articles"] and (
+            o["status"] == "print_only"
+            or o["web_access"] in ("print or replica only", "no web edition")
+            or is_social(o["host"])
+        ):
+            o["map_category"] = "print, replica or social, not collected"
+        elif o["march_articles"]:
+            o["map_category"] = "digital, collected"
+        else:
+            o["map_category"] = "digital, not collected"
     del today
 
     fields = ["outlet_id", "source_id", "outlet", "city", "county", "county_basis",
@@ -596,7 +627,8 @@ def main():
               "fcc_call_signs", "fcc_facility_id", "fcc_community", "tx_lat", "tx_lon",
               "host", "type", "owner", "in_sources", "source_status",
               "march_articles", "collected_in_march", "newest", "web_access",
-              "in_mpa", "in_bluebook", "in_lni", "lists", "signals", *REVIEW]
+              "in_mpa", "in_bluebook", "in_lni", "lists", "signals", *REVIEW,
+              "map", "map_category"]
     with open(args.out, "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=fields)
         w.writeheader()
