@@ -126,14 +126,22 @@ status is `merged`, `duplicate`, `closed` or `not_local_news` (or marked not
 local news): a merged or duplicate row's work is counted at the outlet it
 points to. An also-known-as name is already the same row.
 
-`map_category` colours the points:
+`map_category` colours the points, in this order of precedence:
 
 | Category | Means |
 | --- | --- |
-| `digital, collected` | we collected articles from it in March 2026 |
-| `digital, not collected` | it publishes on a website, and nothing was collected in March |
-| `print, replica or social, not collected` | nothing collected, and it publishes in print or as a replica e-edition, or only on social media (Facebook, Instagram, X, YouTube, Linktree) |
-| `legal` | a legal-notice publication (status `legal`): never mapped |
+| `print` | reviewer status `print`/`print_only`, or listed print or replica only / no web edition |
+| `replica` | reviewer status `replica`: a page-image e-edition |
+| `social` | reviewer status `facebook`/`social`, or only a social-media page and nothing collected |
+| `collected` | we collected articles from it in March 2026 |
+| `not collected` | anything else on the map |
+| `legal`, `shopper`, `business`, `magazine` | off the map, named for the reason |
+
+`county_fips` is the point's county: the first county of a service area
+("Clay County, Ray" is Clay), St. Louis city as 29510, and looked up in the
+outlet's own `state` -- the county name alone is not unique (Johnson County is
+in Missouri and Kansas; KMBZ is in the Kansas one). An outlet's `state` is our
+sources table's; the lists' outlets are Missouri.
 
 ## Corrections and additions
 
