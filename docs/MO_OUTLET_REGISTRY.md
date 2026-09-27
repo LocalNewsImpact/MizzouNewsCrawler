@@ -86,8 +86,12 @@ person's answer**, and a rebuild never overwrites them. Where we hold an
 outlet and nobody has reviewed it, `status` starts as the sources table's own
 status.
 
-`status` values: `active`, `print_only`, `closed`, `merged`, `duplicate`,
-`not_local_news`, `legal`.
+`status` values, lower case: `active`; `print`, `replica`, `facebook`,
+`social` (mapped as print, replica or social); `closed`, `merged`,
+`duplicate`, `legal`, `shopper`, `business`, `magazine`, `not_local_news`
+(not mapped). A closure date goes in `status_basis` ("closed June 2025"), not
+in `merged_into`. A reviewer's status wins over the 2026-09-24 web-access
+note.
 
 For `merged`, `merged_into` is the **website the outlet's work now appears
 on** -- the Cole Camp Courier on bentoncountyenterprise.com -- and
@@ -130,3 +134,23 @@ points to. An also-known-as name is already the same row.
 | `digital, not collected` | it publishes on a website, and nothing was collected in March |
 | `print, replica or social, not collected` | nothing collected, and it publishes in print or as a replica e-edition, or only on social media (Facebook, Instagram, X, YouTube, Linktree) |
 | `legal` | a legal-notice publication (status `legal`): never mapped |
+
+## Corrections and additions
+
+Two more files, both a reviewer's, both applied on every rebuild:
+
+- `src/lookups/mo_outlet_overrides.csv` -- `outlet_id, field, value, was, by,
+  at`: a correction to a field the builder would otherwise recompute
+  (`outlet`, `city`, `county`, `host`, `owner`, `address`), applied last. `was`
+  is the value it replaced, and is how the builder recognises the row on the
+  next rebuild: a renamed row is looked up under its original name, so it
+  keeps its `outlet_id` and its review. An outlet we hold is corrected in
+  `sources`, not here.
+- `src/lookups/mo_outlets_added.csv` -- an outlet no list holds, with its own
+  `outlet_id` minted once, joined before the lists are matched. StoneCounty.news
+  (Crane, operated by Crane.news, launched August 2026) is the first.
+
+A reviewer's spreadsheet comes back through these: the review columns into
+the registry, the corrected fields into the overrides file. Dates Excel
+reformats (`7/28/26`) are read back to ISO; derived columns are recomputed,
+never imported.

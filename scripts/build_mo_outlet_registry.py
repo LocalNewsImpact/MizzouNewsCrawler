@@ -124,6 +124,15 @@ def similar(a: str, b: str) -> float:
 
 
 
+#: Statuses that take an outlet off the map: its work is counted elsewhere,
+#: it has stopped, or it is not a local newsroom.
+OFF_MAP = ("merged", "duplicate", "closed", "not_local_news", "legal", "shopper",
+           "business", "magazine")
+
+#: Statuses that map as print, replica or social: a reviewer's word for an
+#: outlet whose readers get it on paper, as a page image, or on Facebook.
+PRINT_LIKE = ("print_only", "print", "replica", "facebook", "social")
+
 #: Reviewer columns: a person's answer, carried across rebuilds untouched.
 REVIEW = ["status", "merged_into", "status_basis", "reviewed_by", "reviewed_at", "aka"]
 
@@ -139,15 +148,55 @@ SHEET_SIGNAL = re.compile(
 
 
 def load_previous(path: Path):
-    """The last build's rows, so identity and review survive a rebuild."""
+    """The last build's rows, so identity and review survive a rebuild.
+
+    Keyed by what the builder computes, not by what the file shows: a row a
+    reviewer renamed ("Newton County News, Neosho" to "Newton County News")
+    is written under its corrected name and looked up under the one the
+    lists give it. Reading the corrected name back lost the row's UUID and
+    its review on the next rebuild."""
     if not path.exists():
         return {}, {}
+    was = {}
+    over = LOOKUPS / "mo_outlet_overrides.csv"
+    if over.exists():
+        for o in csv.DictReader(open(over)):
+            was.setdefault(o["outlet_id"], {})[o["field"]] = o.get("was", "")
     by_source, by_name = {}, {}
     for r in csv.DictReader(open(path)):
+        for field, value in was.get(r["outlet_id"], {}).items():
+            if field in ("outlet", "city"):
+                r = {**r, field: value}
         if r.get("source_id"):
             by_source[r["source_id"]] = r
         by_name[(name_key(r["outlet"]), city_key(r["city"]), r.get("source_id", ""))] = r
     return by_source, by_name
+
+
+#: Fields a reviewer may correct on an outlet the builder would otherwise
+#: recompute from our sources or the lists. Applied last, so a rebuild keeps
+#: them. An outlet we hold is corrected in `sources`, not here.
+OVERRIDABLE = ("outlet", "city", "county", "host", "owner", "address")
+
+
+def load_overrides():
+    """{outlet_id: {field: value}} from mo_outlet_overrides.csv."""
+    path = LOOKUPS / "mo_outlet_overrides.csv"
+    out = {}
+    if path.exists():
+        for r in csv.DictReader(open(path)):
+            if r["field"] in OVERRIDABLE:
+                out.setdefault(r["outlet_id"], {})[r["field"]] = r["value"]
+    return out
+
+
+def load_added():
+    """Outlets a reviewer added that no list holds: mo_outlets_added.csv.
+
+    Each carries its own outlet_id, minted once, and joins the outlet set
+    before the lists are matched, like one of our own."""
+    path = LOOKUPS / "mo_outlets_added.csv"
+    return list(csv.DictReader(open(path))) if path.exists() else []
 
 
 def load_facilities():
@@ -456,6 +505,19 @@ def main():
             "_address_from": "sources" if s["address"] else "",
         })
 
+    for a in load_added():
+        outlets.append({
+            "outlet": a["outlet"], "city": a["city"], "county": a["county"],
+            "host": host_of(a["host"]), "type": a.get("type", ""),
+            "owner": a.get("owner", ""), "web_access": a.get("web_access", ""),
+            "lists": {"added"}, "_cities": set(), "fips": "",
+            "address": a.get("address", ""),
+            "_address_from": "added" if a.get("address") else "",
+            "_added_id": a["outlet_id"],
+            "_added_status": a.get("status", ""),
+            "_added_basis": a.get("status_basis", ""),
+        })
+
     # Aliases a reviewer recorded, attached before any list is matched.
     early_by_source, early_by_name = load_previous(args.out)
     for o in outlets:
@@ -547,12 +609,17 @@ def main():
         if holds:
             before = previous_by_source.get(o["source_id"]) or before
         o["outlet_id"] = (
-            o["source_id"] if holds else (before or {}).get("outlet_id") or str(uuid.uuid4())
+            o["source_id"]
+            if holds
+            else o.get("_added_id") or (before or {}).get("outlet_id") or str(uuid.uuid4())
         )
         if (before or {}).get("outlet_id") == o["source_id"] and not holds:
             o["outlet_id"] = str(uuid.uuid4())
         for k in REVIEW:
             o[k] = (before or {}).get(k, "")
+        # An added outlet starts with the status it was added under.
+        if not o["status"] and o.get("_added_status"):
+            o["status"], o["status_basis"] = o["_added_status"], o.get("_added_basis", "")
         # Where we hold the outlet, our table's status is the standing answer
         # until somebody reviews it.
         if not o["status"] and o["source_status"]:
@@ -607,22 +674,20 @@ def main():
         # A legal-notice publication is its own category, and never mapped:
         # the Daily Records, the Countians, a legal ledger carry notices,
         # not local reporting.
-        off = o["status"] in (
-            "merged",
-            "duplicate",
-            "closed",
-            "not_local_news",
-            "legal",
-        ) or (o["web_access"] == "not local news")
+        status = (o["status"] or "").strip().lower()
+        # A reviewer's status wins over the 2026-09-24 web-access note.
+        off = status in OFF_MAP or (not status and o["web_access"] == "not local news")
         o["map"] = "no" if off else "yes"
-        if o["status"] == "legal":
-            o["map_category"] = "legal"
+        if status in ("legal", "shopper", "business", "magazine"):
+            o["map_category"] = status
         elif off:
             o["map_category"] = ""
-        elif not o["march_articles"] and (
-            o["status"] == "print_only"
-            or o["web_access"] in ("print or replica only", "no web edition")
-            or is_social(o["host"])
+        elif status in PRINT_LIKE or (
+            not o["march_articles"]
+            and (
+                o["web_access"] in ("print or replica only", "no web edition")
+                or is_social(o["host"])
+            )
         ):
             o["map_category"] = "print, replica or social, not collected"
         elif o["march_articles"]:
@@ -630,6 +695,15 @@ def main():
         else:
             o["map_category"] = "digital, not collected"
     del today
+
+    overrides = load_overrides()
+    for o in outlets:
+        for field, value in overrides.get(o["outlet_id"], {}).items():
+            o[field] = value
+            if field == "address":
+                o["address_basis"] = "reviewer"
+            if field == "county":
+                o["county_basis"] = "reviewer"
 
     fields = ["outlet_id", "source_id", "outlet", "city", "county", "county_basis",
               "fips", "address", "address_basis", "lat", "lon", "location_basis",
