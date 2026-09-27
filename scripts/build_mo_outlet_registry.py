@@ -114,7 +114,7 @@ def similar(a: str, b: str) -> float:
 
 
 #: Reviewer columns: a person's answer, carried across rebuilds untouched.
-REVIEW = ["status", "merged_into", "status_basis", "reviewed_by", "reviewed_at"]
+REVIEW = ["status", "merged_into", "status_basis", "reviewed_by", "reviewed_at", "aka"]
 
 #: Towns the lists name without a county.
 TOWN_COUNTY = {"charleston": "Mississippi", "carljunction": "Jasper", "albany": "Gentry"}
@@ -318,6 +318,13 @@ def match(entry, outlets, unique_hosts):
         names_town = city_key(o["city"]) and city_key(o["city"]) in city_key(
             entry["name"]
         )
+        # A name the outlet is also known as -- recorded on its own row, so a
+        # list using an old name ("Moberly Monitor-Index") finds the paper
+        # rather than making a second row for it.
+        if any(similar(entry["name"], a) >= 0.85 for a in o.get("_aka", ())):
+            if 0.96 > score:
+                best, score = o, 0.96
+            continue
         s = 0.0
         # A shared website is not a shared newsroom: Cole Camp Courier and
         # Lincoln New Era are two nameplates on one publisher's site, and
@@ -437,6 +444,14 @@ def main():
             "address": s["address"],
             "_address_from": "sources" if s["address"] else "",
         })
+
+    # Aliases a reviewer recorded, attached before any list is matched.
+    early_by_source, early_by_name = load_previous(args.out)
+    for o in outlets:
+        before = early_by_source.get(o.get("source_id") or "") or early_by_name.get(
+            (name_key(o["outlet"]), city_key(o["city"]), o.get("source_id") or "")
+        )
+        o["_aka"] = [a.strip() for a in ((before or {}).get("aka") or "").split(";") if a.strip()]
 
     hosts = [o["host"] for o in outlets if o["host"] and not is_platform(o["host"])]
     unique_hosts = {h for h in hosts if hosts.count(h) == 1}

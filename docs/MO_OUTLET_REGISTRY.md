@@ -95,6 +95,20 @@ on** -- the Cole Camp Courier on bentoncountyenterprise.com -- and
 known ("merged into the Maryville Times, January 2026"). For `duplicate`,
 `merged_into` is the `outlet_id` of the row it duplicates.
 
+**A name change is not a merger.** `aka` (the last column, also a reviewer's)
+lists the other names an outlet is known by, separated by `;`: "Moberly
+Monitor-Index" on the Moberly Monitor, the five Call editions on St. Louis
+Call Newspapers. It sits on the canonical row -- the one holding the
+`sources.id` -- and never becomes a row of its own. The builder reads it
+before matching any list, so a list using an old name attaches to that row
+instead of adding a second one. The outlet keeps its status.
+
+`src/lookups/mo_public_notices_publications_2026.csv` is the Missouri Press
+public-notice list of legal publications, with its ceased flags. "Ceased"
+there can mean a paper stopped being a legal publication rather than stopped
+publishing -- the St. Louis Business Journal is marked ceased and is active --
+so it is evidence for a reviewer, not a status.
+
 To review: filter `signals` non-empty, decide each row, fill the five review
 columns, commit the CSV. A decision about an outlet we hold is then applied to
 `sources` in its own change; the registry records it, it does not write it.
