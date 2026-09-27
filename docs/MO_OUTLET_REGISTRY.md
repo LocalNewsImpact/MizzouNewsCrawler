@@ -55,8 +55,15 @@ station it is the group's headquarters -- Sinclair's in Maryland, Audacy's in
 Pennsylvania. AM stations have a facility and community but no transmitter
 point, because the FCC's AM text query no longer answers; they come from the
 CDBS facility file instead. A street address replaces
-a town point when one is found; `county_basis` does the same for county
-(`listed`, `town`, `missing`).
+a town point when one is found; `county_basis` does the same for county:
+`listed` by a list or our table, `town` from the outlet's town, or `address`
+from the town in its street address -- which is the publisher's office, not
+always the paper's own town (New Madrid Weekly Record's office is in
+Sikeston).
+
+A platform host -- Facebook, Instagram, X, YouTube, Wix, an e-edition viewer
+-- is not a publisher's website. Two outlets on Facebook do not share a site,
+and a platform host never matches one outlet to another.
 
 ## Mergers, closures and duplicates
 
