@@ -604,11 +604,20 @@ def main():
         # duplicate row's work is counted at the outlet it points to, a
         # closed one is gone, and not-local-news is not a newsroom. An
         # also-known-as name is already the same row.
-        off = o["status"] in ("merged", "duplicate", "closed", "not_local_news") or (
-            o["web_access"] == "not local news"
-        )
+        # A legal-notice publication is its own category, and never mapped:
+        # the Daily Records, the Countians, a legal ledger carry notices,
+        # not local reporting.
+        off = o["status"] in (
+            "merged",
+            "duplicate",
+            "closed",
+            "not_local_news",
+            "legal",
+        ) or (o["web_access"] == "not local news")
         o["map"] = "no" if off else "yes"
-        if off:
+        if o["status"] == "legal":
+            o["map_category"] = "legal"
+        elif off:
             o["map_category"] = ""
         elif not o["march_articles"] and (
             o["status"] == "print_only"
