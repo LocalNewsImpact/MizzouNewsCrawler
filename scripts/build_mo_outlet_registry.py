@@ -1,0 +1,545 @@
+"""Every Missouri news outlet any list knows about, with where it is.
+
+Four lists, one row per outlet:
+
+  ours       the production `sources` table -- CANONICAL for any outlet it
+             holds: name, owner, county and state come from here
+  MPA        Missouri Press Association directory (datadesk data/sources)
+  Blue Book  Secretary of State Official Manual, newspapers 2025-2026
+  LNI        Northwestern Local News Initiative, newspapers + digital 2025
+
+The outlet set starts from `src/lookups/mo_all_news_outlets.csv`, the
+deduplicated union built on 2026-09-24, which also carries what is known
+about outlets we do not crawl (print or replica only, website gone, not
+local news). Each list is matched onto it by domain within a city, else by
+name within a city; an entry that matches nothing is added as a new outlet.
+
+The address is the MPA's (street, city, zip), else the Blue Book's. LNI
+carries no street address.
+
+Output: src/lookups/mo_outlet_registry.csv, one row per outlet, with the
+lists it appears in and its March 2026 article count.
+
+IDENTITY. `outlet_id` is the outlet's `sources.id` where we hold it. An
+outlet we do not hold is given a new UUID the first time it appears and
+keeps it on every rebuild, read back from the previous file; if it is added
+to `sources` later, that UUID is the id it takes.
+
+REVIEW IS KEPT, EVIDENCE IS DERIVED. `status`, `merged_into`,
+`status_basis`, `reviewed_by` and `reviewed_at` are a person's answer and
+are carried across rebuilds untouched. `signals` is recomputed every run:
+the evidence that an outlet may have closed, merged or moved -- no recent
+articles, retired in our sources, a website shared with other nameplates,
+a closure note in the 2025 working sheet. A signal is a question, never a
+status. See docs/MO_OUTLET_REGISTRY.md.
+
+LOCATION. `address_basis` says where the street address came from (mpa,
+bluebook) or that there is none yet; `lat`/`lon` are the town's centroid
+from the Census places file, so every outlet can be mapped while street
+addresses are still being filled.
+
+    DATABASE_HOST=127.0.0.1 DATABASE_PORT=5439 DATABASE_NAME=mizzou \\
+    DATABASE_USER=mizzou_user PGPASSWORD=... \\
+    python scripts/build_mo_outlet_registry.py \\
+        --mpa ../../datadesk/data/sources/mopress-2026-08-22.json
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import json
+import os
+import re
+from difflib import SequenceMatcher
+from pathlib import Path
+
+import psycopg2
+
+ROOT = Path(__file__).resolve().parent.parent
+LOOKUPS = ROOT / "src" / "lookups"
+DATASET = "Mizzou-Missouri-State"
+MARCH = ("2026-03-01", "2026-04-01")
+
+#: MPA contact types that are publications. 2-4 are people and associations.
+MPA_PUBLICATIONS = {1, 5, 6, 7}
+
+_STOP = {"the", "and", "of", "a", "online", "member", "news"}
+
+
+def host_of(url: str | None) -> str:
+    """`http://www.myleaderpaper.com/` -> `myleaderpaper.com`, path kept
+    where it names a nameplate (`columbiamissourian.com/boonecountyjournal`)."""
+    if not url or url.strip().lower() in {"none", "n/a", ""}:
+        return ""
+    text = re.sub(r"^[a-z]+://", "", url.strip().lower())
+    text = text.split("?")[0].split("#")[0].rstrip("/")
+    text = re.sub(r"^www\.", "", text)
+    return text
+
+
+def name_key(name: str | None) -> str:
+    text = re.sub(r"\bsaint\b", "st", (name or "").lower())
+    words = re.sub(r"[^a-z0-9 ]+", " ", text).split()
+    return " ".join(w for w in words if w not in _STOP)
+
+
+def city_key(city: str | None) -> str:
+    return re.sub(r"[^a-z]+", "", (city or "").lower().replace("saint", "st"))
+
+
+def county_key(county: str | None) -> str:
+    return re.sub(r"\s+county$", "", (county or "").strip(), flags=re.I)
+
+
+def similar(a: str, b: str) -> float:
+    return SequenceMatcher(None, name_key(a), name_key(b)).ratio()
+
+
+
+#: Reviewer columns: a person's answer, carried across rebuilds untouched.
+REVIEW = ["status", "merged_into", "status_basis", "reviewed_by", "reviewed_at"]
+
+#: Towns the lists name without a county.
+TOWN_COUNTY = {"charleston": "Mississippi", "carljunction": "Jasper", "albany": "Gentry"}
+
+#: A 2025 working-sheet note that says an outlet may be gone or print-only.
+SHEET_SIGNAL = re.compile(
+    r"no longer publish|closed|site not live|no longer active|e-edition only|"
+    r"pdf only|print only|no news content|different website",
+    re.I,
+)
+
+
+def load_previous(path: Path):
+    """The last build's rows, so identity and review survive a rebuild."""
+    if not path.exists():
+        return {}, {}
+    by_source, by_name = {}, {}
+    for r in csv.DictReader(open(path)):
+        if r.get("source_id"):
+            by_source[r["source_id"]] = r
+        by_name[(name_key(r["outlet"]), city_key(r["city"]), r.get("source_id", ""))] = r
+    return by_source, by_name
+
+
+def load_facilities():
+    """{website: primary FCC facility} from mo_broadcast_facilities.csv.
+
+    Where a broadcaster is licensed to transmit -- the FCC's point, not a
+    studio and not the licensee's office, which for a group-owned station is
+    its headquarters out of state. Kept in columns of its own beside the
+    street address and the town."""
+    path = LOOKUPS / "mo_broadcast_facilities.csv"
+    if not path.exists():
+        return {}
+    out = {}
+    for r in csv.DictReader(open(path)):
+        entry = out.setdefault(r["host"], {"calls": [], "primary": None})
+        entry["calls"].append(r["call_sign"])
+        if r["primary"] == "yes":
+            entry["primary"] = r
+    return out
+
+
+def load_places():
+    """Missouri town centroids, keyed by town."""
+    places = {}
+    for r in csv.DictReader(open(ROOT / "src/enrichment/reference/census_places.csv")):
+        if r["USPS"] != "MO":
+            continue
+        town = re.sub(r"\s+(city|town|village|CDP)$", "", r["NAME"], flags=re.I)
+        places.setdefault(city_key(town), (r["INTPTLAT"], r["INTPTLONG"]))
+    return places
+
+
+def load_sheet_notes(path: Path | None):
+    """{host or name key: note} from the 2025 working sheet's notes."""
+    notes = {}
+    if not path or not path.exists():
+        return notes
+    for r in csv.DictReader(open(path)):
+        note = " ".join(
+            r.get(k) or "" for k in ("working", "developer_notes", "journalism_notes")
+        ).strip()
+        if not SHEET_SIGNAL.search(note):
+            continue
+        if r.get("host"):
+            notes[host_of(r["host"])] = note
+        notes[name_key(r["name"])] = note
+    return notes
+
+
+def load_ours(conn):
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT s.id, s.host, s.canonical_name, s.city, s.county,
+               coalesce(nullif(trim(s.operator), ''), s.owner) AS owner,
+               s.status, s.metadata::jsonb ->> 'state',
+               count(a.id) FILTER (
+                   WHERE a.publish_date >= %s AND a.publish_date < %s
+               ) AS march,
+               max(a.publish_date)::date AS newest,
+               s.metadata::jsonb AS meta
+          FROM sources s
+          JOIN dataset_sources ds ON ds.source_id = s.id
+          JOIN datasets d ON d.id = ds.dataset_id AND d.slug = %s
+          LEFT JOIN candidate_links cl ON cl.source_id = s.id
+               AND cl.dataset_id = d.id
+          LEFT JOIN articles a ON a.candidate_link_id = cl.id
+         GROUP BY s.id
+        """,
+        (MARCH[0], MARCH[1], DATASET),
+    )
+    cols = ["id", "host", "name", "city", "county", "owner", "status", "state",
+            "march", "newest", "meta"]
+    rows = [dict(zip(cols, row, strict=True)) for row in cur.fetchall()]
+    for r in rows:
+        r["address"] = _stored_address(r.pop("meta") or {}, r["city"])
+    return rows
+
+
+def _stored_address(meta, city):
+    """The street address our sources table already holds, as one line.
+
+    TRUSTED OVER EVERY LIST. Two spellings are in use: `address1`/`address2`
+    with `zip`, and a single `address` with `zip_code`."""
+    street = ", ".join(
+        p.strip()
+        for p in (meta.get("address1"), meta.get("address2"), meta.get("address"))
+        if p and str(p).strip()
+    )
+    if not street:
+        return ""
+    zipcode = (meta.get("zip") or meta.get("zip_code") or "").strip()
+    place = (meta.get("city") or city or "").strip()
+    return ", ".join(p for p in (street, place, f"MO {zipcode}".strip()) if p)
+
+
+def load_lists(mpa_path: Path):
+    lists = []
+    mpa = json.load(open(mpa_path))["records"]
+    for r in mpa:
+        if r.get("contact_type") not in MPA_PUBLICATIONS:
+            continue
+        if r["name"].strip().lower() == "test organization":
+            continue
+        lists.append({
+            "list": "mpa", "name": re.sub(r"\s*\(Online Member\)", "", r["name"]),
+            "city": r.get("city"), "county": county_key(r.get("county")),
+            "host": host_of(r.get("website")), "owner": r.get("owner") or "",
+            "address": ", ".join(
+                p for p in (r.get("address"), r.get("city"),
+                            f"MO {r.get('zip') or ''}".strip()) if p),
+        })
+    for r in csv.DictReader(open(LOOKUPS / "mo_bluebook_newspapers_2025_2026.csv")):
+        lists.append({
+            "list": "bluebook", "name": r["name"].title(), "city": r["city"],
+            "county": "", "host": host_of(r["host"] or r["url"]),
+            "owner": r.get("publisher") or "", "address": r.get("address") or "",
+        })
+    for r in csv.DictReader(open(LOOKUPS / "mo_lni_newspapers_2025.csv")):
+        lists.append({
+            "list": "lni", "name": r["newspaperName"], "city": r["city"],
+            "county": county_key(r["county"]), "host": "",
+            "owner": r.get("ownerName") or "", "address": "",
+            "fips": r.get("fips") or "",
+        })
+    for r in csv.DictReader(open(LOOKUPS / "mo_lni_digital_sites_2025.csv")):
+        lists.append({
+            "list": "lni", "name": r["organization"], "city": r["city"],
+            "county": county_key(r["county"]), "host": host_of(r["website"]),
+            "owner": r.get("publisher") or "", "address": "",
+            "fips": r.get("fips") or "",
+        })
+    return lists
+
+
+def _tokens(name, *cities):
+    """Name words without the town's own: "Greenfield Vedette" is "vedette"."""
+    drop = set()
+    for city in cities:
+        drop.update(re.sub(r"[^a-z0-9 ]+", " ", (city or "").lower()).split())
+    return [w for w in name_key(name).split() if w not in drop]
+
+
+def _same_city(a, b):
+    a, b = city_key(a), city_key(b)
+    return bool(a and b) and (a == b or SequenceMatcher(None, a, b).ratio() >= 0.85)
+
+
+def match(entry, outlets, unique_hosts):
+    """The outlet a list entry names, or None.
+
+    In order of confidence: a website no other outlet shares; the same name
+    in the same town, where one name may add or drop the town ("Vedette",
+    "Greenfield Vedette") or be contained in the other; a close name in the
+    same town; the same distinctive name with the list's office town named
+    inside it ("Marble Hill Banner Press", listed at Cape Girardeau).
+    """
+    best, score = None, 0.0
+    for o in outlets:
+        cities = [entry["city"], o["city"]]
+        mine, theirs = _tokens(entry["name"], *cities), _tokens(o["outlet"], *cities)
+        same_city = _same_city(entry["city"], o["city"]) or any(
+            _same_city(entry["city"], c) for c in o["_cities"]
+        )
+        names_town = city_key(o["city"]) and city_key(o["city"]) in city_key(
+            entry["name"]
+        )
+        s = 0.0
+        # A shared website is not a shared newsroom: Cole Camp Courier and
+        # Lincoln New Era are two nameplates on one publisher's site, and
+        # matching on the site alone folded both into the paper beside
+        # them. The site counts with the town or a similar name.
+        if (
+            entry["host"]
+            and entry["host"] == o["host"]
+            and entry["host"] in unique_hosts
+            and (
+                same_city
+                or SequenceMatcher(None, " ".join(mine), " ".join(theirs)).ratio()
+                >= 0.6
+            )
+        ):
+            s = 0.97
+        elif (same_city or names_town) and mine and theirs and (
+            set(mine) <= set(theirs) or set(theirs) <= set(mine)
+        ):
+            s = 0.9
+        elif same_city:
+            r = SequenceMatcher(None, " ".join(mine), " ".join(theirs)).ratio()
+            s = r if r >= 0.75 else 0.0
+        if entry["host"] and entry["host"] == o["host"] and same_city:
+            s = max(s, 0.95)
+        # The same distinctive name in two towns is one paper listed at its
+        # office in one list and its town in another: Morgan County Statesman
+        # at Versailles and at Stover.
+        if len(mine) >= 2 and mine == theirs:
+            s = max(s, 0.85)
+        if s > score:
+            best, score = o, s
+    return best
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--mpa", type=Path, required=True)
+    ap.add_argument("--out", type=Path, default=LOOKUPS / "mo_outlet_registry.csv")
+    ap.add_argument(
+        "--sheet-2025",
+        type=Path,
+        default=LOOKUPS / "mo_working_urls_2025.csv",
+        help="the 2025 working sheet's Working URLs tab, for closure notes",
+    )
+    args = ap.parse_args()
+
+    conn = psycopg2.connect(
+        host=os.environ.get("DATABASE_HOST", "127.0.0.1"),
+        port=int(os.environ.get("DATABASE_PORT", "5439")),
+        dbname=os.environ.get("DATABASE_NAME", "mizzou"),
+        user=os.environ.get("DATABASE_USER", "mizzou_user"),
+        password=os.environ["PGPASSWORD"],
+    )
+    ours = load_ours(conn)
+    ours_by_host = {host_of(s["host"]): s for s in ours}
+
+    outlets = []
+    for r in csv.DictReader(open(LOOKUPS / "mo_all_news_outlets.csv")):
+        o = {
+            "outlet": r["outlet"], "city": r["city"], "county": r["county"],
+            "host": host_of(r["host"]), "type": r["type"], "owner": r["owner"],
+            "web_access": r["web_access"], "lists": set(),
+            "_cities": set(), "address": "", "fips": "",
+        }
+        outlets.append(o)
+
+    # OURS IS CANONICAL for an outlet it holds: name, owner, county, status.
+    matched_ours = set()
+    for o in outlets:
+        s = ours_by_host.get(o["host"]) if o["host"] else None
+        o["in_sources"] = bool(s)
+        o["source_id"] = (s or {}).get("id") or ""
+        o["_source_name"] = (s or {}).get("name") or ""
+        o["source_status"] = (s or {}).get("status") or ""
+        o["march_articles"] = int((s or {}).get("march") or 0)
+        o["newest"] = (s or {}).get("newest") or ""
+        if s:
+            matched_ours.add(s["id"])
+            o["owner"] = s["owner"] or o["owner"]
+            o["county"] = s["county"] or o["county"]
+            o["lists"].add("ours")
+            if s["address"]:
+                o["address"], o["_address_from"] = s["address"], "sources"
+    for s in ours:
+        if s["id"] in matched_ours:
+            continue
+        outlets.append({
+            "outlet": s["name"], "city": s["city"], "county": s["county"],
+            "host": host_of(s["host"]), "type": "", "owner": s["owner"] or "",
+            "web_access": "collected" if s["march"] else "never collected",
+            "lists": {"ours"}, "_cities": set(), "fips": "",
+            "in_sources": True, "source_status": s["status"] or "",
+            "march_articles": int(s["march"] or 0),
+            "source_id": s["id"], "newest": s.get("newest") or "",
+            "_source_name": s["name"] or "",
+            "address": s["address"],
+            "_address_from": "sources" if s["address"] else "",
+        })
+
+    hosts = [o["host"] for o in outlets if o["host"]]
+    unique_hosts = {h for h in hosts if hosts.count(h) == 1}
+    unmatched = []
+    for entry in load_lists(args.mpa):
+        o = match(entry, outlets, unique_hosts)
+        if o is None:
+            o = {
+                "outlet": entry["name"], "city": entry["city"],
+                "county": entry["county"], "host": entry["host"], "type": "",
+                "owner": entry["owner"], "web_access": "not yet reviewed",
+                "lists": set(), "_cities": set(), "address": "", "fips": "",
+            }
+            outlets.append(o)
+            unmatched.append(entry)
+        o["lists"].add(entry["list"])
+        o["_cities"].add(city_key(entry["city"]))
+        # Our table's address is never replaced; the lists fill a gap only.
+        if o.get("_address_from") == "sources":
+            pass
+        elif entry["list"] == "mpa" and entry["address"]:
+            o["address"] = entry["address"]
+            o["_address_from"] = "mpa"
+        elif not o["address"] and entry["address"]:
+            o["address"] = entry["address"]
+            o["_address_from"] = entry["list"]
+        o["county"] = o["county"] or entry["county"]
+        o["fips"] = o["fips"] or entry.get("fips", "")
+        o["host"] = o["host"] or entry["host"]
+        o["owner"] = o["owner"] or entry["owner"]
+
+    # Blue Book-only outlets have no county: take it from any list that
+    # placed the same city.
+    city_county = {}
+    for o in outlets:
+        if o["county"]:
+            city_county.setdefault(city_key(o["city"]), county_key(o["county"]))
+    for o in outlets:
+        o["county"] = county_key(o["county"]) or city_county.get(city_key(o["city"]), "")
+
+    import uuid
+
+    previous_by_source, previous_by_name = load_previous(args.out)
+    places = load_places()
+    facilities = load_facilities()
+    sheet = load_sheet_notes(args.sheet_2025)
+    host_count = {}
+    for o in outlets:
+        if o["host"]:
+            host_count[o["host"]] = host_count.get(o["host"], 0) + 1
+    same_name = {}
+    for o in outlets:
+        key = (name_key(o["outlet"]), city_key(o["city"]))
+        same_name[key] = same_name.get(key, 0) + 1
+    today = str(__import__("datetime").date.today())
+    stale_before = str(
+        __import__("datetime").date.today() - __import__("datetime").timedelta(days=90)
+    )
+    # ONE ROW PER UUID. Several nameplates can share one of our sources --
+    # one website, several papers -- and each carries that source as
+    # `source_id`. The source's own UUID goes to the nameplate its name
+    # matches best; the rest are outlets of their own and get their own.
+    holder = {}
+    for o in outlets:
+        # An outlet first seen in a list holds none of our fields.
+        o.setdefault("source_id", "")
+        o.setdefault("newest", "")
+        o.setdefault("in_sources", False)
+        o.setdefault("source_status", "")
+        o.setdefault("march_articles", 0)
+        sid = o["source_id"]
+        if not sid:
+            continue
+        score = similar(o["outlet"], o.get("_source_name", ""))
+        if sid not in holder or score > holder[sid][0]:
+            holder[sid] = (score, id(o))
+    for o in outlets:
+        holds = o["source_id"] and holder[o["source_id"]][1] == id(o)
+        before = previous_by_name.get(
+            (name_key(o["outlet"]), city_key(o["city"]), o["source_id"])
+        )
+        if holds:
+            before = previous_by_source.get(o["source_id"]) or before
+        o["outlet_id"] = (
+            o["source_id"] if holds else (before or {}).get("outlet_id") or str(uuid.uuid4())
+        )
+        if (before or {}).get("outlet_id") == o["source_id"] and not holds:
+            o["outlet_id"] = str(uuid.uuid4())
+        for k in REVIEW:
+            o[k] = (before or {}).get(k, "")
+        # Where we hold the outlet, our table's status is the standing answer
+        # until somebody reviews it.
+        if not o["status"] and o["source_status"]:
+            o["status"] = o["source_status"]
+            o["status_basis"] = o["status_basis"] or "sources table"
+        o["county"] = o["county"] or TOWN_COUNTY.get(city_key(o["city"]), "")
+        o["county_basis"] = "town" if city_key(o["city"]) in TOWN_COUNTY and o["county"] else (
+            "listed" if o["county"] else "missing"
+        )
+        o["address_basis"] = o.pop("_address_from", "") or ("missing" if not o["address"] else "list")
+        lat, lon = places.get(city_key(o["city"]), ("", ""))
+        o["lat"], o["lon"] = lat, lon
+        o["location_basis"] = "town centroid" if lat else "missing"
+        fac = facilities.get(o["host"]) or {}
+        primary = fac.get("primary") or {}
+        o["fcc_call_signs"] = ";".join(fac.get("calls") or [])
+        o["fcc_facility_id"] = primary.get("facility_id", "")
+        o["fcc_community"] = (
+            f"{primary.get('community', '')}, {primary.get('state', '')}" if primary else ""
+        )
+        o["tx_lat"] = primary.get("tx_lat", "")
+        o["tx_lon"] = primary.get("tx_lon", "")
+        signals = []
+        if o["in_sources"] and o["source_status"] == "active" and not o["newest"]:
+            signals.append("active but never collected")
+        elif o["in_sources"] and o["newest"] and str(o["newest"]) < stale_before:
+            signals.append(f"no articles since {o['newest']}")
+        if o["source_status"] in ("retired", "paused"):
+            signals.append(f"{o['source_status']} in sources")
+        twins = same_name.get((name_key(o["outlet"]), city_key(o["city"])), 0)
+        if twins > 1:
+            signals.append(f"possible duplicate: {twins} rows with this name here")
+        if o["host"] and host_count.get(o["host"], 0) > 1:
+            signals.append(f"website shared with {host_count[o['host']] - 1} other outlet(s)")
+        note = sheet.get(o["host"]) or sheet.get(name_key(o["outlet"]))
+        if note:
+            signals.append(f"2025 sheet: {note[:120]}")
+        if o["web_access"] in ("website gone", "print or replica only", "no web edition"):
+            signals.append(o["web_access"])
+        o["signals"] = "; ".join(signals)
+    del today
+
+    fields = ["outlet_id", "source_id", "outlet", "city", "county", "county_basis",
+              "fips", "address", "address_basis", "lat", "lon", "location_basis",
+              "fcc_call_signs", "fcc_facility_id", "fcc_community", "tx_lat", "tx_lon",
+              "host", "type", "owner", "in_sources", "source_status",
+              "march_articles", "collected_in_march", "newest", "web_access",
+              "in_mpa", "in_bluebook", "in_lni", "lists", "signals", *REVIEW]
+    with open(args.out, "w", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=fields)
+        w.writeheader()
+        for o in sorted(outlets, key=lambda o: (o["county"] or "~", o["outlet"])):
+            w.writerow({
+                **{k: o.get(k, "") for k in fields},
+                "in_sources": "yes" if o["in_sources"] else "no",
+                "collected_in_march": "yes" if o["march_articles"] else "no",
+                "in_mpa": "yes" if "mpa" in o["lists"] else "no",
+                "in_bluebook": "yes" if "bluebook" in o["lists"] else "no",
+                "in_lni": "yes" if "lni" in o["lists"] else "no",
+                "lists": ";".join(sorted(o["lists"])),
+            })
+    print(f"outlets {len(outlets)}  new from the lists {len(unmatched)}  -> {args.out}")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,41 @@
+host,call_sign,primary,service,facility_id,community,state,tx_lat,tx_lon,licensee,status,source_url,fetched
+ktvo.com,KTVO,yes,DTV,0000158746,KIRKSVILLE,MO,40.529722,-92.441667,RINCON BROADCASTING OTTUMWA LLC,LIC,https://transition.fcc.gov/fcc-bin/tvq?call=KTVO&list=4,2026-09-26
+abc17news.com,KMIZ,yes,DTV,0000274164,COLUMBIA,MO,38.775583,-92.556917,"NPG OF MISSOURI, LLC",LIC,https://transition.fcc.gov/fcc-bin/tvq?call=KMIZ&list=4,2026-09-26
+kbia.org,KBIA,yes,FM,0000211860,COLUMBIA,MO,38.889167,-92.262,THE CURATORS OF THE UNIVERSITY OF MISSOURI,LIC,https://transition.fcc.gov/fcc-bin/fmq?call=KBIA&list=4,2026-09-26
+komu.com,KOMU-TV,yes,DTV,0000207157,COLUMBIA,MO,38.889167,-92.262,THE CURATORS OF THE UNIVERSITY OF MISSOURI,LIC,https://transition.fcc.gov/fcc-bin/tvq?call=KOMU&list=4,2026-09-26
+kq2.com,KQTV,yes,DTV,20427,ST. JOSEPH,MO,39.77,-94.798333,"ST. JOSEPH TV LICENSE COMPANY, LLC",LIC,https://transition.fcc.gov/fcc-bin/tvq?call=KQTV&list=4,2026-09-26
+krcgtv.com,KRCG,yes,DTV,0000194198,JEFFERSON CITY,MO,38.691667,-92.095833,"KRCG LICENSEE, LLC",LIC,https://transition.fcc.gov/fcc-bin/tvq?call=KRCG&list=4,2026-09-26
+kbsi23.com,KBSI,yes,DTV,0000115700,CAPE GIRARDEAU,MO,37.406389,-89.562222,PADUCAH TELEVISION LICENSE LLC,LIC,https://transition.fcc.gov/fcc-bin/tvq?call=KBSI&list=4,2026-09-26
+kfvs12.com,KFVS-TV,yes,DTV,0000262412,CAPE GIRARDEAU,MO,37.429083,-89.503944,"GRAY TELEVISION LICENSEE, LLC",LIC,https://transition.fcc.gov/fcc-bin/tvq?call=KFVS&list=4,2026-09-26
+krcu.org,KRCU,yes,FM,61212,CAPE GIRARDEAU,MO,37.404778,-89.568417,"BOARD OF GOVERNORS, SOUTHEAST MISSOURI STATE UNIVERSITY",LIC,https://transition.fcc.gov/fcc-bin/fmq?call=KRCU&list=4,2026-09-26
+ozarksfirst.com,KOLR,yes,DTV,0000172573,SPRINGFIELD,MO,37.219278,-92.949278,"MISSION BROADCASTING, INC.",LIC,https://transition.fcc.gov/fcc-bin/tvq?call=KOLR&list=4,2026-09-26
+929thebeat.com,KOSP,yes,FM,79138,BROOKLINE,MO,37.210889,-93.228528,"MW SPRINGMO, INC.",LIC,https://transition.fcc.gov/fcc-bin/fmq?call=KOSP&list=4,2026-09-26
+ksmu.org,KSMU,yes,FM,4210,SPRINGFIELD,MO,37.170583,-93.323778,BOARD OF GOVERNORS OF MISSOURI STATE UNIVERSITY,LIC,https://transition.fcc.gov/fcc-bin/fmq?call=KSMU&list=4,2026-09-26
+ky3.com,KYTV,yes,DTV,0000172336,SPRINGFIELD,MO,37.173889,-92.941139,"GRAY TELEVISION LICENSEE, LLC",LIC,https://transition.fcc.gov/fcc-bin/tvq?call=KYTV&list=4,2026-09-26
+ky3.com,KSPR-LD,no,LPD,0000108532,SPRINGFIELD,MO,37.173889,-92.941139,"GRAY TELEVISION LICENSEE, LLC",LIC,https://transition.fcc.gov/fcc-bin/tvq?call=KSPR&list=4,2026-09-26
+ktts.com,KTTS-FM,yes,FM,62023,SPRINGFIELD,MO,37.175028,-93.043222,"SM-KTTS, LLC",LIC,https://transition.fcc.gov/fcc-bin/fmq?call=KTTS&list=4,2026-09-26
+northwestmoinfo.com,KAAN-FM,yes,FM,31005,BETHANY,MO,40.256361,-94.156611,"CARTER MEDIA TOO, LLC",LIC,https://transition.fcc.gov/fcc-bin/fmq?call=KAAN&list=4,2026-09-26
+northwestmoinfo.com,KAAN,no,FM,31005,BETHANY,MO,40.256361,-94.156611,"CARTER MEDIA TOO, LLC",LIC,https://transition.fcc.gov/fcc-bin/fmq?call=KAAN&list=4,2026-09-26
+kprs.com,KPRS,yes,FM,35495,KANSAS CITY,MO,39.015833,-94.506889,"CARTER BROADCAST GROUP, INC.",LIC,https://transition.fcc.gov/fcc-bin/fmq?call=KPRS&list=4,2026-09-26
+kprs.com,KPRT,no,AM,9168,KANSAS CITY,MO,,,,LIC,https://transition.fcc.gov/Bureaus/MB/Databases/cdbs/facility.zip,2026-09-26
+fox4kc.com,WDAF-TV,yes,DTV,0000155694,KANSAS CITY,MO,39.0725,-94.596111,"WDAF LICENSE, INC.",LIC,https://transition.fcc.gov/fcc-bin/tvq?call=WDAF&list=4,2026-09-26
+kctv5.com,KCTV,yes,DTV,0000153301,KANSAS CITY,MO,39.070667,-94.582639,"GRAY TELEVISION LICENSEE, LLC",LIC,https://transition.fcc.gov/fcc-bin/tvq?call=KCTV&list=4,2026-09-26
+kcur.org,KCUR-FM,yes,FM,14738,KANSAS CITY,MO,39.083056,-94.4805,THE CURATORS OF THE UNIVERSITY OF MISSOURI,LIC,https://transition.fcc.gov/fcc-bin/fmq?call=KCUR&list=4,2026-09-26
+kmbc.com,KMBC-TV,yes,DTV,0000153380,KANSAS CITY,MO,39.084167,-94.515833,HEARST STATIONS INC.,LIC,https://transition.fcc.gov/fcc-bin/tvq?call=KMBC&list=4,2026-09-26
+kshb.com,KSHB-TV,yes,DTV,0000153577,KANSAS CITY,MO,38.978333,-94.533833,SCRIPPS BROADCASTING HOLDINGS LLC,LIC,https://transition.fcc.gov/fcc-bin/tvq?call=KSHB&list=4,2026-09-26
+koamnewsnow.com,KOAM-TV,yes,DTV,0000194752,PITTSBURG,KS,37.220833,-94.707222,"QUEENB TELEVISION OF KANSAS/MISSOURI, LLC",LIC,https://transition.fcc.gov/fcc-bin/tvq?call=KOAM&list=4,2026-09-26
+fourstateshomepage.com,KODE-TV,yes,DTV,0000071606,JOPLIN,MO,37.075833,-94.554722,"MISSION BROADCASTING, INC.",LIC,https://transition.fcc.gov/fcc-bin/tvq?call=KODE&list=4,2026-09-26
+newstalkkzrg.com,KZRG,yes,AM,71605,JOPLIN,MO,,,,LIC,https://transition.fcc.gov/Bureaus/MB/Databases/cdbs/facility.zip,2026-09-26
+949kcmo.com,KCMO-FM,yes,FM,6385,SHAWNEE,KS,39.090556,-94.471889,"CMP HOUSTON-KC, LLC",LIC,https://transition.fcc.gov/fcc-bin/fmq?call=KCMO&list=4,2026-09-26
+audacy.com,KMBZ-FM,yes,FM,2449,KANSAS CITY,KS,39.022222,-94.513833,"AUDACY LICENSE, LLC",LIC,https://transition.fcc.gov/fcc-bin/fmq?call=KMBZ&list=4,2026-09-26
+khqa.com,KHQA-TV,yes,DTV,0000247491,HANNIBAL,MO,39.972778,-91.331944,RINCON BROADCASTING QUINCY LLC,LIC,https://transition.fcc.gov/fcc-bin/tvq?call=KHQA&list=4,2026-09-26
+kxcv.org,KXCV,yes,FM,49746,MARYVILLE,MO,40.4025,-94.888028,NORTHWEST MISSOURI STATE UNIV.,LIC,https://transition.fcc.gov/fcc-bin/fmq?call=KXCV&list=4,2026-09-26
+mymoinfo.com,KREI,yes,AM,35531,FARMINGTON,MO,,,,LIC,https://transition.fcc.gov/Bureaus/MB/Databases/cdbs/facility.zip,2026-09-26
+abcstlouis.com,KDNL-TV,yes,DTV,0000158069,ST. LOUIS,MO,38.580556,-90.329167,"KDNL LICENSEE, LLC",LIC,https://transition.fcc.gov/fcc-bin/tvq?call=KDNL&list=4,2026-09-26
+audacy.com/971talk,KFTK-FM,yes,FM,73890,FLORISSANT,MO,38.779194,-90.728722,"AUDACY LICENSE, LLC",LIC,https://transition.fcc.gov/fcc-bin/fmq?call=KFTK&list=4,2026-09-26
+firstalert4.com,KMOV,yes,DTV,0000157749,ST. LOUIS,MO,38.529722,-90.299444,"GRAY TELEVISION LICENSEE, LLC",LIC,https://transition.fcc.gov/fcc-bin/tvq?call=KMOV&list=4,2026-09-26
+fox2now.com,KTVI,yes,DTV,0000158068,ST. LOUIS,MO,38.535278,-90.373056,TRIBUNE BROADCASTING COMPANY II LLC,LIC,https://transition.fcc.gov/fcc-bin/tvq?call=KTVI&list=4,2026-09-26
+fox2now.com,KPLR-TV,no,DTV,0000227916,ST. LOUIS,MO,38.535278,-90.373056,"KPLR, INC.",LIC,https://transition.fcc.gov/fcc-bin/tvq?call=KPLR&list=4,2026-09-26
+ksdk.com,KSDK,yes,DTV,0000158259,ST. LOUIS,MO,38.568056,-90.331944,"MULTIMEDIA KSDK, LLC",LIC,https://transition.fcc.gov/fcc-bin/tvq?call=KSDK&list=4,2026-09-26
+stlpr.org,KWMU,yes,FM,65585,ST. LOUIS,MO,38.580611,-90.329278,THE CURATORS OF THE UNIVERSITY OF MISSOURI,LIC,https://transition.fcc.gov/fcc-bin/fmq?call=KWMU&list=4,2026-09-26
+legends1063.fm,KRZK,yes,FM,68416,BRANSON,MO,36.731167,-93.167389,"OZARK MOUNTAIN MEDIA GROUP, LLC",LIC,https://transition.fcc.gov/fcc-bin/fmq?call=KRZK&list=4,2026-09-26

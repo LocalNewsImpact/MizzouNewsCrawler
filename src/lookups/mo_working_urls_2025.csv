@@ -1,0 +1,260 @@
+name,host_id,host,owner,medium,working,updated_url,developer_notes,journalism_notes
+Carthage Press,111.0,https://carthagenewsonline.com/,RH Media Group,Newspaper,Working,,,
+Alton Advertiser,112.0,https://www.altonadvertiser.com/,Lenape Tribe,Newspaper,Not viable,,pdf only,No longer publishing. Last published 12/22/2021
+California Democrat,113.0,https://www.californiademocrat.com/,WEHCO Media,Newspaper,Working,,,
+Appleton City Journal,114.0,https://www.iclassifiedsnetwork.com/editionviewer/default.aspx?Edition=e290a4d5-86de-47e2-b220-a78aa4d15c13,Sac Osage Publishing (or Crawford Michael?),Newspaper,Not viable,,e-edition only,Unable to view articles or headlines
+Aurora Advertiser,115.0,https://www.auroraadvertiser.net/,Gannett/Gatehouse,Newspaper,Scraping Issues,,,
+Bethany Republican Clipper,116.0,https://www.bethanyclipper.com/,Bethany Printing Co,Newspaper,Working,,,
+Bolivar Herald Free Press,117.0,https://bolivarmonews.com/,Community Publishers Inc,Newspaper,Paywall Issues,,Can only get first part of some of the articles,
+Boone County Journal,118.0,https://bocojo.com/,Bruce Wallace,Newspaper,Working,,,
+Booneville Daily News,119.0,https://www.boonvilledailynews.com/,Gannett,Newspaper,Paywall Issues,,Can only get first part of most or all articles,
+Branson Tri-Lakes News,120.0,https://www.bransontrilakesnews.com/,Lancaster Management Inc,Newspaper,Scraping Issues,,"headline' is working properly, but 'text' might not be scraping properly - flagging as faulty.  –y",
+Buffalo Reflex,121.0,https://buffaloreflex.com/,Community Publishers Inc,Newspaper,Paywall Issues,,Can only get first part of some of the articles,
+Carrollton Democrat,122.0,http://www.carolnet.com/CDN/,Landmark Community Newspapers,Newspaper,Not viable,,site not live,No digital edition
+Cassville Democrat,123.0,https://www.cassville-democrat.com/,Rust Communications,Newspaper,Working,,,
+Cedar County Republican & Stockton Journal,124.0,http://cedarrepublican.com/,Community Publishers,Newspaper,Working,,,
+Christian County Headliner,125.0,http://ccheadliner.com/,Community Publishers Inc,Newspaper,Working,,,
+Citizen Observer,126.0,http://mycameronnews.com/,Smith Newspapers,Newspaper,Working,,,
+Clinton County Leader/The Leader,127.0,https://www.clintoncountyleader.com/news,Honeycutt Media,Newspaper,Not viable,,no longer publishing,No longer publishing. Last article 5/26/2022
+Columbia Daily Tribune,128.0,https://www.columbiatribune.com/,Gannett,Newspaper,Working,,,
+Columbia Missourian,129.0,https://www.columbiamissourian.com/,Missourian Publishing Association,Newspaper,Working,,,
+Constitution-Tribune,130.0,https://www.chillicothenews.com/,Gannett,Newspaper,Paywall Issues,,Can only get first part of most or all articles,
+Courier Tribune,131.0,https://www.mycouriertribune.com/,Gatehouse Media,Newspaper,Working,checked,,
+Daily American Republic,132.0,https://www.darnews.com/,Rust Communications,Newspaper,Paywall Issues,,Can only get first part of most or all articles,
+"Daily Journal, Park Hills",133.0,https://dailyjournalonline.com/,Lee Enterprises,Newspaper,Working,,,
+Delta Dunklin Democrat,134.0,https://www.dddnews.com/,Rust Communications,Newspaper,Paywall Issues,,,
+Dos Mundos Bilingual Newspaper,135.0,https://dosmundos.com/,Clara Reyes,Newspaper,Working,,,
+Douglas County Herald,136.0,https://www.douglascountyherald.com/,Better Newspapers Inc,Newspaper,Working,,,
+Emissourian,137.0,http://emissourian.com/,The Missourian Publishing Company,Newspaper,Working,,,
+Gasconade County Republican,138.0,http://gasconadecountyrepublican.com/,Warden Publishing Group,Newspaper,Working,,,
+Greene County Commonwealth,139.0,http://www.greenecountycommonwealth.com/,Squibb Media,Newspaper,Working,,,
+Hannibal Courier-Post,140.0,https://www.hannibal.net/,Phillips Media Group,Newspaper,Working,,,
+Harrison County Advisor Inc,141.0,https://harrisoncountyadvisor.com/,Deborah Machesny,Newspaper,Not viable,,no news content,Print advertisement only
+Houston Herald,142.0,http://houstonherald.com/,Houston Newspapers Inc,Newspaper,Working,,,
+Jefferson City News Tribune/News Tribune,143.0,https://www.newstribune.com/,WEHCO Media,Newspaper,Working,,,
+Jefferson County Leader,144.0,http://myleaderpaper.com/,Leader Publications,Newspaper,Paywall Issues,,Problems retrieving most news articles,Not seeing a paywall
+Kansas City Call,145.0,https://aahtkc.org/kansascitycall,Chester A. Franklin,Newspaper,Not viable,,no news content,Seems to be at different website https://kccallnews.pressreader.com/ e-edition available with subscription
+Kansas City Hispanic News,146.0,https://www.kchispanicnews.com/,Joe Arce,Newspaper,Scraping Issues,,,
+Kirksville Daily Express,147.0,https://www.kirksvilledailyexpress.com/,Gannett,Newspaper,Working,,,
+Lake Sun Leader/Lake News Online,148.0,https://www.lakenewsonline.com/,Gate House Media,Newspaper,Working,,,
+Lee's Summit Missouri Journal News,149.0,http://www.lsjournal.com/#spider,McClatchy,Newspaper,Scraping Issues,,,
+Lee's Summit Tribune,150.0,https://lstribune.net/,Linda Ahern,Newspaper,Working,,,
+Lincoln News Now,151.0,https://www.lincolnnewsnow.com/,Lincoln County Journal Inc,Newspaper,Working,,,
+Memphis Democrat,152.0,http://memphisdemocrat.com/,Feeney Chris,Newspaper,Working,,,
+Missouri Lawyers,153.0,https://molawyersmedia.com/,Bridgetower Media,Newspaper,Paywall Issues,,Can only get first part of most or all articles,
+Moberly Monitor,154.0,http://moberlymonitor.com/,Gannett,Newspaper,Working,,,
+Neosho Daily News,155.0,https://www.neoshodailynews.com/,Sexton Media Group,Newspaper,Scraping Issues,,,
+News Press Now,156.0,http://newspressnow.com/,Newspress and Gazette Company,Newspaper,Scraping Issues,,,
+Pike County News/Bowling Green Times,157.0,https://www.pikecountynews.com/,Lakeway Publishers,Newspaper,Working,,,
+Press News Journal,158.0,https://lewispnj.com/,Lewis County Press,Newspaper,Working,,Some author issues,
+Rolla Daily News,159.0,https://www.therolladailynews.com/,Gannett,Newspaper,Scraping Issues,,,
+Salem News Online,160.0,http://thesalemnewsonline.com/,Dodd Donald,Newspaper,Working,,,
+Sedalia News Journal/Sedalia Weekly Observes,161.0,http://sedalianewsjournal.com/,Greg Melton,Newspaper,Not viable,,no longer publishing,No longer publishing. Last article date unknown
+SGF Neighborhood News,162.0,https://sgfneighborhoodnews.com/#/?playlistId=0&videoId=0,,Newspaper,Working,,,
+Sikeston Standard Democrat,163.0,https://standard-democrat.com/,American Publishing Co.,Newspaper,Paywall Issues,,Can only get first part of most or all articles,
+South County Times,164.0,https://www.timesnewspapers.com/southcountytimes/,Webster Kirkwood Times Inc,Newspaper,Not viable,,no longer publishing,
+Southeast Missourian,165.0,https://www.semissourian.com/,Rust Communications,Newspaper,Paywall Issues,,"Most articles fully functional; a few, can only access first paragraph of article",
+Springfield News-Leader,166.0,https://www.news-leader.com/,Gannett,Newspaper,Working,,,
+St. Charles County Business Record,167.0,https://mlmcounties.com/news/st-charles/,Missouri Lawyers Media,Newspaper,Paywall Issues,,can't access articles,
+St. Louis American,168.0,http://stlamerican.com/,Donald M. Suggs,Newspaper,Working,,,
+St. Louis Business Journal,169.0,http://stlouis.bizjournals.com/stlouis/,ACBJ,Newspaper,Scraping Issues,,,
+St. Louis Call Newspapers,170.0,https://callnewspapers.com/,Bill Milligan,Newspaper,Working,,,
+St. Louis Jewish Light,171.0,https://stljewishlight.org/,Jewish Federation of St. Louis,Newspaper,Working,,,
+St. Louis Post-Dispatch,172.0,https://www.stltoday.com/,Lee Enterprises (Lee/Bh Media?),Newspaper,Working,,,
+St. Louis Review,173.0,https://www.archstl.org/st-louis-review,Archdiocese of St. Louis,Newspaper,Working,checked,,
+St. Louis Riverfront Times,174.0,http://www.riverfronttimes.com/,Euclid Media Group,Newspaper,Working,,,
+Student Life,175.0,https://www.studlife.com/#spider,Washington University,Newspaper,Working,,,
+Suburban Journals of Greater St. Louis,176.0,http://www.stltoday.com/suburban-journals/,Lee Enterprises,Newspaper,Not viable,,no longer publishing,Publishing. Has paywall
+Sullivan Independent News,177.0,https://www.mysullivannews.com/,Manion Kathleen,Newspaper,Working,,,
+The Arrow,178.0,https://www.southeastarrow.com/,South East Missouri State University,Newspaper,Working,,,
+The Cabool Enterprise,179.0,https://www.caboolenterprise.com/,Whittaker Tom,Newspaper,Not viable,,site not live,Seems to be at different websitehttps://caboolenterprise.centurylinksite.net/ no articles on website
+The Daily Star-Journal,180.0,https://www.warrensburgstarjournal.com/,Star-Journal Publishing Company,Newspaper,Paywall Issues,,Can only get first part of some of the articles,
+The Daily/Dexter Statesman,181.0,https://www.dexterstatesman.com/,Rust Communications,Newspaper,Paywall Issues,,Problems retrieving most news articles,
+The Examiner / Examiner Weekend,182.0,https://www.examiner.net/,Gate House Media,Newspaper,Paywall Issues,,Can only get first part of most or all articles,
+The Fulton Sun,183.0,https://www.fultonsun.com/,WEHCO Media,Newspaper,Working,,,
+The Joplin Globe,184.0,https://www.joplinglobe.com/,CNHI,Newspaper,Working,,,
+The Journal/The Webster Journal,185.0,http://websterjournal.com/,Webster University,Newspaper,Working,,,
+The Kansas City Globe,186.0,https://www.thekansascityglobe.com/,Jordon Communications,Newspaper,Paywall Issues,,Can only get first part of most or all articles,
+The Kansas City Star,187.0,https://www.kansascity.com/,McClatchy,Newspaper,Working,,,
+The Landmark,188.0,http://plattecountylandmark.com/,Foley Newspapers,Newspaper,Working,,,
+The Lebanon/LaClede Daily Record,189.0,https://www.laclederecord.com/,Lebanon Publishing Co,Newspaper,Working,,,
+The Maneater,190.0,http://themaneater.com/,University of Missouri,Newspaper,Working,,,
+The Marshall Democrat-News,191.0,https://www.marshallnews.com/,Rust Communications,Newspaper,Working,,,
+The Maryville Daily Forum,192.0,https://www.maryvilleforum.com/,"Garner Media Holdings, LLE",Newspaper,Working,,,
+The Mexico Ledger,193.0,https://mexicoledger.com/,Westplex Media Group,Newspaper,Working,,,
+The Missouri Times,194.0,http://themissouritimes.com/#spider,Scott Faughn,Newspaper,Working,,,
+The Monett Times,195.0,https://www.monett-times.com/,Rust Communications,Newspaper,Working,,,
+The Nevada Daily Mail,196.0,https://www.nevadadailymail.com/,Rust Communications,Newspaper,Working,,,
+The New Shopper,197.0,http://thenewshopper.net/,Jim and Phyllis Williamson,Newspaper,Not viable,,e-edition only,e-edition only
+The Odessan / Focus on Oak Grove,198.0,https://www.theodessan.net/,Spaar family,Newspaper,Not viable,,no news content,2 e-editions available for subscribers
+The Pathway,199.0,http://mbcpathway.com/,Missouri Baptist Convention,Newspaper,Working,,,
+The People's Tribune,200.0,http://thepeoplestribune.com/,People's Tribune Inc,Newspaper,Not viable,,pdf only,pdf only
+The Pitch/Kansas City Pitch,201.0,https://www.thepitchkc.com/,Carey Media,Newspaper,Working,,,
+The Platte County Citizen,202.0,http://www.plattecountycitizen.com/,Stubs Lee,Newspaper,Working,,,
+The Reporter,203.0,http://www.theccreporter.com/,Reporter Publishing LLC/Dale Johnson,Newspaper,Working,,,
+The Savannah Reporter/Andrew County Democrat,204.0,https://www.savrep.com/,Ken and Brent Rosenauer,Newspaper,Not viable,,e-edition only,e-edition available with subscription
+The Sedalia Democrat,205.0,https://www.sedaliademocrat.com/,Phillips Media Group,Newspaper,Paywall Issues,,Can only get first part of some of the articles,
+The Standard,206.0,http://the-standard.org/,Missouri State University,Newspaper,Working,,,
+The University News,207.0,http://unewsonline.com/,University of St. Louis,Newspaper,Working,,,
+Three Rivers Publishing,208.0,https://www.threeriverspublishing.com/TRP3/,The Crown Publishing Group,Newspaper,Scraping Issues,,,
+Trenton Republican-Times,209.0,https://republican-times.com/,Rogers W B,Newspaper,Not viable,,no longer publishing,Publishing. Has Paywall
+Webster Kirkwood News,210.0,https://www.timesnewspapers.com/webster-kirkwoodtimes/,WK Times LLC,Newspaper,Working,,,
+West End Word,211.0,https://www.timesnewspapers.com/westendword/news/,Webster-Kirkwood Times Inc,Newspaper,Not viable,,no longer publishing,No longer publishing. Last article 12/3/2020
+West Plains Daily Quill,212.0,https://www.westplainsdailyquill.net/,"Phillips Media Group, LLC",Newspaper,Paywall Issues,,Can only get first part of most or all articles,
+Atchinson County Mail,213.0,https://farmerpublishing.com/,Farmer W C & Mike,Newspaper,Working,,,
+Banner Press,214.0,https://www.thebannerpress.com/,Rust Communications,Newspaper,Not viable,,e-edition only,e-edition available with subscription
+Barry County Advertiser,215.0,http://www.4bcaonline.com/,Melton Publishing Inc,Newspaper,Working,,,
+Benton County Enterprise,216.0,http://www.bentoncountyenterprise.com/,Benton County Enterprise,Newspaper,Paywall Issues,,Most articles fully functional; can't access a few,
+Canton Press-News Journal,217.0,https://lewispnj.com/,Lewis County Press,Newspaper,Working,checked,,
+The Cash-Book Journal,218.0,https://www.thecash-book.com/,Jackson Publishing,Newspaper,Working,,,
+Centralia Fireside Guard,219.0,https://www.firesideguard.com/,Lakeway Publishers,Newspaper,Working,,,
+Clinton Daily Democrat,220.0,https://www.clintondailydemocrat.com/,Clinton Daily Democrat,Newspaper,Working,,,
+Community News,221.0,https://mycnews.com/,Huneke Publications Inc,Newspaper,Not viable,,pdf only,pdf only
+Crane Chronicle/Stone County Republican,222.0,https://www.ccscrnews.com/,Stone County Publishing Co Inc,Newspaper,Working,,,
+Current Local,223.0,https://www.currentlocal.com/,Turley Allen,Newspaper,Not viable,,e-edition only,e-edition available with subscription
+Democrat News/Daily Journal Online,224.0,https://dailyjournalonline.com/community/democrat-news/,Lee/Bh Media,Newspaper,Working,,,
+The Dixon Pilot,225.0,https://www.dixonpilot.com/,Blackburn Rick,Newspaper,Working,,,
+East Prairie Eagle and Enterprise Courier,226.0,https://www.enterprisecourier.com/,Bennett Carlin,Newspaper,Not viable,,e-edition only,e-edition available with subscription
+The Edina Sentinel,227.0,https://www.edinasentinel.com/,Sentinel Printing Company,Newspaper,Working,,,
+El Dorado Springs Sun,228.0,https://eldoradospringsmo.com/,Long Kenny,Newspaper,Working,,,
+Excelsior Springs Standard,229.0,https://www.excelsiorspringsstandard.com/,Excelsior publishing co.,Newspaper,Paywall Issues,,Can only get first part of most or all articles,
+Fayette Advertiser,230.0,https://www.fayettenewspapers.com/,Wood Creek Media,Newspaper,Paywall Issues,,Can only get first part of most or all articles,
+Glasgow Missourian,231.0,https://www.mainstreetnewsgroup.com/theglasgowmissourian/,Standard Herald Inc.,Newspaper,Not viable,,e-edition only,e-edition available with subscription
+The Caldwell County News,232.0,http://www.mycaldwellcounty.com/,L & L publications Inc.,Newspaper,Working,,,
+The Hermann Advertiser Courier,233.0,https://www.hermannadvertisercourier.com/,Lakeway Publishers,Newspaper,Working,,,
+Higginsville Advance,234.0,https://www.mainstreetnewsgroup.com/higginsvilleadvance/,Standard Herald Inc.,Newspaper,Not viable,,e-edition only,e-edition available with subscription
+The Macon County Home Press,235.0,https://maconhomepress.com/,Jeffcoat Becky,Newspaper,Working,,,
+Il Pensiero,236.0,https://ilpensiero.net/,Lombardo Tony,Newspaper,Not viable,,e-edition only,e-edition only
+Independent News,237.0,https://flovalleynews.com/,Two Rivers Publishing,Newspaper,Not viable,,inactive links,Site appears active
+Independent-Journal,238.0,https://www.theijnews.com/,Richards Neil,Newspaper,Working,,,
+Jackson County Advocate,239.0,http://www.jcadvocate.com/,Davis Mike & Becky,Newspaper,Not viable,,site not live,No longer publishing. date unknown
+Lake Gazette,240.0,https://www.lakegazette.net/,Lakeway Publishers,Newspaper,Working,,,
+Lamar Democrat,241.0,https://www.lamardemocrat.com/,Lewis County Press,Newspaper,Paywall Issues,,"only title, nothing else",
+Lawrence County Record,242.0,http://www.lawrencecountyrecord.com/,Squibb Media,Newspaper,Working,,,
+The Licking News,243.0,https://www.thelickingnews.com/,Salem Publishing,Newspaper,Working,,,
+Lincoln New Era,244.0,https://www.iclassifiedsnetwork.com/editionviewer/default.aspx?Edition=d2a60313-61f6-4c0b-9c7e-25d27cdf2653,Osage Valley Publishing Inc,Newspaper,Not viable,,e-edition only,e-edition available with subscription
+Linn County Leader,245.0,https://www.linncountyleader.com/,Gannett/Gatehouse,Newspaper,Paywall Issues,,Can only get first part of most or all articles,
+The Mansfield News Mirror/Fort Worth Star Telegram,246.0,https://www.star-telegram.com/news/local/community/mansfield-news-mirror/,Lebanon Publishing Co,Newspaper,Not viable,,not in Missouri,Not a Missouri paper
+Maries County Advocate,247.0,https://mariescountyadvocate.com/,Tri-County Newspapers Inc,Newspaper,Working,,,
+Marshfield Mail,248.0,http://marshfieldmail.com/,Community Publishers Inc,Newspaper,Working,,,
+McDonald County Press,249.0,https://mdcp.nwaonline.com/,Wehco Media,Newspaper,Working,,,
+The Media,250.0,https://www.kahokamedia.com/,Sentinel Printing Company,Newspaper,Working,,,
+The Milan Standard,251.0,https://www.themilanstandard.com/,Wilson Robert,Newspaper,Working,,,
+Monroe County Appeal/Ralls County Herald-Enterprise,254.0,https://monroecountyappeal.com/,Lewis County Press,Newspaper,Paywall Issues,,"only title, nothing else",
+Montgomery Standard,255.0,https://www.mystandardnews.com/,Tim Schmidt,Newspaper,Working,,,
+Morgan County Press,256.0,https://morgancountypress.com/,Vernon Publishing Inc.,Newspaper,Working,,,
+Mound City News,257.0,http://www.moundcitynews.com/,Mound City News Inc,Newspaper,Not viable,,e-edition only,e-edition only
+Newton County News,258.0,https://www.newtoncountynews.net/,Bowman Jennifer,Newspaper,Not viable,,not in Missouri,Not a Missouri paper
+Cass County News/The North Cass Herald,259.0,https://www.northcassherald.com/,Laurie Bassett Edmonds and Allen Edmonds,Newspaper,Working,,,
+North East News,260.0,http://northeastnews.net/pages/,"Collins, Leslie",Newspaper,Working,,,
+Ozark County Times,261.0,http://www.ozarkcountytimes.com/,Lebanon Publishing Co,Newspaper,Working,,,
+Palmyra Spectator,262.0,https://www.palmyra-spectator.com/,Cheffey Mark & Patty,Newspaper,Working,,,
+Phelps County Focus,263.0,https://www.phelpscountyfocus.com/,Salem Publishing,Newspaper,Working,,,
+Pleasant Hill Times,264.0,https://www.pleasanthillview.com/,Powell Kirk F,Newspaper,Not viable,,site not live,
+The Prospect News,265.0,https://www.theprospectnews.com/,Rust Communications,Newspaper,Working,,,
+Pulaski County Mirror/Daily News,266.0,http://www.pulaskicountydaily.com/,Lebanon Publishing Co,Newspaper,Working,,,
+Perryville Republic Monitor,267.0,https://republicmonitor.com/,Community Publishers Inc,Newspaper,Working,,,
+Reynolds County Courier/WayNe County Journal Banner,268.0,https://www.waynecojournalbanner.com/,Ellinghouse Publishing Co. Inc.,Newspaper,Working,,,
+Richmond Daily News,269.0,https://www.richmond-dailynews.com/,Fackleman Newspapers,Newspaper,Paywall Issues,,,
+Salt River Journal,270.0,https://www.hannibal.net/salt-river-journal/,"Whitaker, Jack",Newspaper,Not viable,,no longer publishing,No longer publishing. Last article 12/13/2021
+Seneca News Dispatch,271.0,https://www.thenewsdispatch.net/seneca-2/,Sexton Media Group,Newspaper,Not viable,,site not live,Site not active
+Shelby County Herald,272.0,https://www.shelbycountyherald.com/,Williams Communications Group Inc.,Newspaper,Working,,,
+South Missourian News,273.0,https://www.southmissouriannews.com/,Rust Communications,Newspaper,Working,checked,,
+St. Clair Co. Courier,274.0,https://www.iclassifiedsnetwork.com/editionviewer/default.aspx?Edition=5012afec-19c1-45bd-8394-ac2171ba13c8,Crawford Michael,Newspaper,Not viable,,e-edition only,e-edition available with subscription
+The New Evening Whirl,276.0,https://onewhirl.wixsite.com/thewhirlonline,Thomas Publishing,Newspaper,Not viable,,site not live,Site not active. Designing new website.
+The Star,277.0,https://thestarmo.com/,Brownlee Pat,Newspaper,Not viable,,no news content,No digital edition
+Ste. Genevieve Herald,278.0,https://www.stegenherald.com/,Saint Genevieve Media LLC,Newspaper,Working,,,
+Tri-County Weekly,280.0,https://www.jamesporttricountyweekly.com/,K-K Printing,Newspaper,Paywall Issues,,"only title, nothing else",
+Unionville Republican,281.0,https://www.unionvillerepublicanonline.com/,Kinzler Ron,Newspaper,Not viable,,e-edition only,e-edition available with subscription
+The Unterrified Democrat,282.0,https://www.unterrifieddemocrat.com/,"Voss, Jerrilynn",Newspaper,Working,,,
+Vandalia Leader,283.0,https://www.vandalialeader.com/,Lakeway Publishers,Newspaper,Working,,,
+Greenfield Vedette,284.0,https://www.greenfieldvedette.com/,Gannett/Gatehouse,Newspaper,Paywall Issues,,"only title, nothing else",
+Versailles Leader-Statesman,285.0,https://leader-statesman.com/,Vernon Publishing Inc.,Newspaper,Working,,,
+Warren County Record,286.0,https://www.warrencountyrecord.com/,Missourian Publishing Co.,Newspaper,Working,,,
+Webster County Citizen,287.0,https://www.webstercountycitizen.com/,Lebanon Publishing Co,Newspaper,Working,,,
+Weston Chronicle,288.0,http://www.plattechronicle.com/,McPherson Beth,Newspaper,Working,,,
+The Chart,289.0,http://www.thechartonline.com/,Missouri Southern State University,Newspaper,Scraping Issues,,,
+The Daily Events,290.0,http://www.thedailyevents.com/,,Newspaper,Not viable,,online edition completely behind paywall,Publishing. has paywall
+Drury Mirror,292.0,http://www.drurymirror.org/,Drury University,Newspaper,Working,,,
+Gallatin North Missourian,293.0,https://gallatinnorthmissourian.com/,Darryl and Liz Wilkinson,Newspaper,Not viable,,no longer publishing,No longer publishing. Last article 10/31/2021
+Gladstone Dispatch,294.0,http://www.gladstonedispatch.com/,NPG Newspapers,Newspaper,Working,,,
+Griffon News,295.0,http://www.thegriffonnews.com/,Missouri Western State University,Newspaper,Working,,,
+Fort Leonard Wood Guidon,296.0,https://www.myguidon.com/,Springfield News Leader,Newspaper,Not viable,,site not live,Seems to be at different website https://home.army.mil/wood/index.php/Garrison/pao/eguidon e-edition only
+Howell County News,297.0,https://www.howellcountynews.com/,Missouri Press Association,Newspaper,Working,,,
+Mountain Grove News Journal/Wright County Journal,298.0,http://news-journal.net/,Lebanon Publishing Co,Newspaper,Not viable,,no longer publishing,Site appears active
+Newstime,299.0,https://www.newstime-mo.com/,Lakeway Publishers,Newspaper,Working,,,
+North West Missourian,300.0,https://www.nwmissourinews.com/,Northwest Missouri State University,Newspaper,Working,,,
+The Pulse,301.0,http://www.pulselegal.com/,Pamela Wingo,Newspaper,Not viable,,no news content,Publishing. has paywall
+Shelbina Weekly,303.0,https://www.shelbinaweekly.com/,Thad Requet,Newspaper,Paywall Issues,,"only title, nothing else",
+Sheridan Express,304.0,http://www.sheridanexpress.blogspot.com/,,Newspaper,Scraping Issues,,,
+St. Louis Chinese American News,305.0,http://www.scanews.com/,,Newspaper,Scraping Issues,,,
+St. Louis Chinese Journal,306.0,https://www.stlouischinesejournal.com/,Wen Hwang Hsia,Newspaper,Scraping Issues,,,
+UMKC Roo News,307.0,https://kcroonews.com/,Sosland publishing company,Newspaper,Working,checked,,
+Newz Group,308.0,https://www.newzgroup.com/,GeoTel Coporations,Newspaper,Not viable,,no news content,No news content
+Metro Voice Christian Newspaper,309.0,https://metrovoicenews.com/,Dwight and Anita Widaman,Newspaper,Working,,,
+The Santa Fe Times,310.0,https://santafetimes.com/,Main Street Media,Newspaper,Not viable,,not in Missouri,Not a Missouri paper
+KRZK,312.0,https://www.legends1063.fm/news/local-news/,,Radio,Working,,,
+KCUR,313.0,https://www.kcur.org/,,Radio,Working,,,
+STL Public Radio,314.0,https://news.stlpublicradio.org/,,Radio,Working,,,
+Fox 26 KNPN,315.0,https://www.newspressnow.com/knpn/about_fox26_knpn/,,Radio,Not viable,checked,site not live,
+KTTS,316.0,https://www.ktts.com/,,Radio,Working,,,
+KSMU Ozarks Public Radio,317.0,http://ksmu.org/,,Radio,Working,,,
+Radio Red Latina,318.0,http://redlatinastl.com/,,Radio,Working,,,
+KZRG,319.0,http://newstalkkzrg.com/,,Radio,Working,,,
+Carter Broadcast Group (KPRS/KPRT),320.0,http://kprs.com/,,Radio,Working,,,
+My Mo info,321.0,http://www.mymoinfo.com/,,Radio,Working,,,
+KRCU,322.0,https://www.krcu.org/,,Radio,Working,checked,,
+KBIA,323.0,https://www.kbia.org/,,Radio,Working,,,
+KOPN,324.0,https://www.kopn.org/,New Wave Corporation,Radio,Not viable,,pdf only,pdf only
+KKTR,325.0,https://mytuner-radio.com/radio/kktr-public-radio-897-fm-435089/,University of Missouri,Radio,Not viable,,no news content,No news content
+KXCV,326.0,https://www.kxcv.org/,,Radio,Working,,,
+KTBG,327.0,https://bridge909.org/,"Public Television 19, nc",Radio,Scraping Issues,,,
+KCPT,329.0,https://www.kansascitypbs.org/,KCPT- Kansas City PBS,Radio,Not viable,,links to external content only,No original content
+KOZK,330.0,https://www.optv.org/,Ozarks Public Television,Radio,Not viable,,no news content,No news content
+KKOZ,332.0,https://www.kkoz.com/,Corum Industries Inc,Radio,Not viable,,no news content,No news content
+KKFI,333.0,https://kkfi.org/?%2Fkkfi&gclid=Cj0KCQjwm9yJBhDTARIsABKIcGZuuPu3n1e4PoUrVN-IpOi6v0r8zgOKNvyjt69qofDLewGI2SBn1CsaAhRDEALw_wcB,Mid Coast Radio Project Inc,Radio,Not viable,,no news content,No news content
+KYGV,334.0,https://www.radiolineup.com/stations/KYGV-LP,Audacy Inc,Radio,Not viable,,no news content,No news content
+KZGM,335.0,http://www.kz88.org/,Real Comunity Radio Network,Radio,Not viable,,site not live,Site not active
+KFTK,336.0,https://www.audacy.com/971talk,,Radio,Working,,,
+KMBZ,337.0,http://www.kmbz.com/#spider,,Radio,Working,,,
+KSMO,338.0,http://radioksmo.com/,KSMO Enterprises,Radio,Scraping Issues,,,
+KCMO,339.0,https://www.949kcmo.com/,,Radio,Working,,,
+The Beat Radio/KATZ,340.0,http://www.digitalburg.com/thebeat/,,Radio,Working,,,
+KOSP/The Beat,341.0,https://www.929thebeat.com/,,Radio,Working,,,
+The Catholic Key,342.0,http://catholickey.org/,,Magazine,Scraping Issues,,,
+The Vital Voice,343.0,http://thevitalvoice.com/,,Magazine,Scraping Issues,,,
+417 Magazine,344.0,http://www.417mag.com/,,Magazine,Working,,,
+KC Magazine,345.0,https://www.kansascitymag.com/,,Magazine,Scraping Issues,,,
+The Daily BURG,347.0,http://www.digitalburg.com/,,Magazine,Scraping Issues,,,
+Today's Farmer Magazine,348.0,https://todaysfarmermagazine.com/,,Magazine,Working,,,
+Today's Farmer Magazine,348.0,https://todaysfarmermagazine.com/,,Magazine,Scraping Issues,,,
+Ozarks Independent,349.0,https://ozarksindependent.com/,Daleli Media LLC,Digital,Not viable,,no longer publishing,No Longer Publishing. Closed 5/24/2021
+The Missouri Independent,350.0,https://missouriindependent.com/,,Digital,Working,,,
+Infozine,351.0,http://www.infozine.com,,Digital,Not viable,,no longer publishing,No longer publishing. Closed 2019
+CFP Midweek,352.0,http://www.cfpmidweek.com/,,Digital,Not viable,,no longer publishing,Website no longer active
+Missouri Scout,353.0,http://moscout.com/,,Digital,Working,,,
+What's Up Kansas City,354.0,http://whatsupkansascity.net/,,Digital,Working,,,
+Missouri Net,355.0,https://www.missourinet.com/,,Digital,Working,,,
+Wheels N' Deals,356.0,https://maximummediainc.com/wheels-n-deals,Maximum Media Inc,Digital,Not viable,,no news content,Print only
+KMOV CBS,357.0,http://www.kmov.com,Meredith Local Media,TV,Working,,,
+KSDK NBC,358.0,http://www.ksdk.com,Tegna Inc,TV,Working,,,
+KCTV5,359.0,http://www.kctv5.com,Meredith Corportation,TV,Working,,,
+KPLR11/Fox 2 Now,360.0,https://fox2now.com/kplr/,Nexstar Media Group,TV,Working,,,
+KSPR/KY3,361.0,http://www.kspr.com/,Gray Television,TV,Working,,,
+KMBC News 9,362.0,http://www.kmbc.com,Hearst Television,TV,Working,,,
+KOAM,363.0,https://www.koamnewsnow.com/,Morgan Murphy Media,TV,Working,,,
+KFVS 12,364.0,http://www.kfvs12.com/#spider,Gray Television,TV,Working,,,
+FOX4KC WDAF TV,365.0,http://fox4kc.com/#spider,Nexstar Media Group,TV,Working,,,
+KOLR,366.0,http://www.ozarksfirst.com/#spider,Mission Broadcasting Inc,TV,Working,,,
+ABC 17 KMIZ News,367.0,http://abc17news.com/,The St. News-Press & Gazette Company,TV,Working,,,
+KRCG,368.0,https://krcgtv.com/,Sinclair Broadcast Group,TV,Scraping Issues,,,
+KTVO,369.0,https://ktvo.com/,Sinclair Broadcast Group,TV,Scraping Issues,,,
+KSN/KODE TV,370.0,http://fourstateshomepage.com/,Mission Broadcasting Inc,TV,Working,,,
+KQTV,371.0,http://www.kq2.com/,Heartland Media,TV,Working,,,
+KOMU TV,372.0,https://www.komu.com/,University of Missouri,TV,Working,,,
+This Week In Missouri Politics,373.0,http://thisweekinmissouripolitics.com/,,TV,Not viable,,no longer broadcasting,No longer publishing. last story 6/23/2019
+Falcon Broadcasting,374.0,http://auroramochambermo.chambermaster.com/list/member/falcon-broadcasting-inc-aurora-38,,TV,Not viable,,site not live,Website no longer active
+Metrosentinel Journal,376.0,http://www.metrosentinel.net/home.html,,Newspaper,Not viable,,site not live,Website no longer active
+The Concordian Online,377.0,http://theconcordianonline.com/,,Newspaper,Not viable,,site not live,Website no longer active
+Cuba Free Press,382.0,https://www.threeriverspublishing.com/TRP3/index.php?option=com_content&view=category&layout=blog&id=27,,Newspaper,Scraping Issues,,,
+Northwest Mo Media,384.0,https://www.northwestmoinfo.com/,Alpha Media,Radio,Working,,,
