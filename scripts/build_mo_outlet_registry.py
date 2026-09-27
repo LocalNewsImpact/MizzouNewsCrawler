@@ -348,6 +348,19 @@ def match(entry, outlets, unique_hosts):
             and same_city
         ):
             s = max(s, 0.95)
+        # The same website and one name inside the other is one paper, whatever
+        # town each list files it under: the Blue Book's "Lake Sun" at
+        # Camdenton is our "Lake Sun Leader/Lake News Online" at Osage Beach,
+        # both on lakenewsonline.com.
+        if (
+            entry["host"]
+            and not is_platform(entry["host"])
+            and entry["host"] == o["host"]
+            and mine
+            and theirs
+            and (set(mine) <= set(theirs) or set(theirs) <= set(mine))
+        ):
+            s = max(s, 0.93)
         # The same distinctive name in two towns is one paper listed at its
         # office in one list and its town in another: Morgan County Statesman
         # at Versailles and at Stover.
