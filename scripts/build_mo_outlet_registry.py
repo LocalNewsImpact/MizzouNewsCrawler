@@ -78,6 +78,22 @@ def host_of(url: str | None) -> str:
     return text
 
 
+#: Hosts that belong to a platform, not a publisher. Two outlets whose only
+#: web presence is a Facebook page do not share a website, and a host like
+#: this can never match one outlet to another.
+PLATFORM_HOSTS = (
+    "facebook.com", "instagram.com", "twitter.com", "x.com", "youtube.com",
+    "linktr.ee", "sites.google.com", "google.com", "wixsite.com", "blogspot.com",
+    "wordpress.com", "pressreader.com", "issuu.com", "iclassifiedsnetwork.com",
+    "audacy.com", "mytuner-radio.com", "radiolineup.com", "chambermaster.com",
+)
+
+
+def is_platform(host: str) -> bool:
+    domain = (host or "").split("/")[0]
+    return any(domain == p or domain.endswith("." + p) for p in PLATFORM_HOSTS)
+
+
 def name_key(name: str | None) -> str:
     text = re.sub(r"\bsaint\b", "st", (name or "").lower())
     words = re.sub(r"[^a-z0-9 ]+", " ", text).split()
@@ -140,6 +156,20 @@ def load_facilities():
         if r["primary"] == "yes":
             entry["primary"] = r
     return out
+
+
+def _address_town(address: str) -> str:
+    """The town in a one-line address: the last part, with the state and ZIP off.
+
+    "7777 Bonhomme Ave., Ste. 1205, St. Louis 63105" -> "St. Louis"."""
+    if not address:
+        return ""
+    last = address.split(",")[-1]
+    # "PO Box 128 Warsaw 63555" -- a box written into the town's part.
+    last = re.sub(r"(?i)\bp\.?\s*o\.?\s*box\s+\d+", "", last)
+    last = re.sub(r"\b(MO|Missouri)\b", "", last)
+    last = re.sub(r"\d{5}(-\d{4})?", "", last)
+    return last.strip(" .")
 
 
 def load_places():
@@ -311,7 +341,12 @@ def match(entry, outlets, unique_hosts):
         elif same_city:
             r = SequenceMatcher(None, " ".join(mine), " ".join(theirs)).ratio()
             s = r if r >= 0.75 else 0.0
-        if entry["host"] and entry["host"] == o["host"] and same_city:
+        if (
+            entry["host"]
+            and not is_platform(entry["host"])
+            and entry["host"] == o["host"]
+            and same_city
+        ):
             s = max(s, 0.95)
         # The same distinctive name in two towns is one paper listed at its
         # office in one list and its town in another: Morgan County Statesman
@@ -343,6 +378,8 @@ def main():
         password=os.environ["PGPASSWORD"],
     )
     ours = load_ours(conn)
+    # Exact host strings, platforms included: our own rows carry these, and
+    # "audacy.com" against "audacy.com/971talk" is already two stations.
     ours_by_host = {host_of(s["host"]): s for s in ours}
 
     outlets = []
@@ -388,7 +425,7 @@ def main():
             "_address_from": "sources" if s["address"] else "",
         })
 
-    hosts = [o["host"] for o in outlets if o["host"]]
+    hosts = [o["host"] for o in outlets if o["host"] and not is_platform(o["host"])]
     unique_hosts = {h for h in hosts if hosts.count(h) == 1}
     unmatched = []
     for entry in load_lists(args.mpa):
@@ -435,7 +472,7 @@ def main():
     sheet = load_sheet_notes(args.sheet_2025)
     host_count = {}
     for o in outlets:
-        if o["host"]:
+        if o["host"] and not is_platform(o["host"]):
             host_count[o["host"]] = host_count.get(o["host"], 0) + 1
     same_name = {}
     for o in outlets:
@@ -482,10 +519,17 @@ def main():
         if not o["status"] and o["source_status"]:
             o["status"] = o["source_status"]
             o["status_basis"] = o["status_basis"] or "sources table"
-        o["county"] = o["county"] or TOWN_COUNTY.get(city_key(o["city"]), "")
-        o["county_basis"] = "town" if city_key(o["city"]) in TOWN_COUNTY and o["county"] else (
-            "listed" if o["county"] else "missing"
-        )
+        if o["county"]:
+            o["county_basis"] = "listed"
+        elif city_key(o["city"]) in TOWN_COUNTY:
+            o["county"], o["county_basis"] = TOWN_COUNTY[city_key(o["city"])], "town"
+        elif (town := _address_town(o["address"])) and city_county.get(city_key(town)):
+            # The office's town, from the street address: "107 E. Main St.,
+            # PO Box 128, Warsaw 65355" is Benton County. The office is the
+            # publisher's, not always in the paper's own town.
+            o["county"], o["county_basis"] = city_county[city_key(town)], "address"
+        else:
+            o["county_basis"] = "missing"
         o["address_basis"] = o.pop("_address_from", "") or ("missing" if not o["address"] else "list")
         lat, lon = places.get(city_key(o["city"]), ("", ""))
         o["lat"], o["lon"] = lat, lon
