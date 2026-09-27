@@ -87,7 +87,7 @@ outlet and nobody has reviewed it, `status` starts as the sources table's own
 status.
 
 `status` values: `active`, `print_only`, `closed`, `merged`, `duplicate`,
-`not_local_news`.
+`not_local_news`, `legal`.
 
 For `merged`, `merged_into` is the **website the outlet's work now appears
 on** -- the Cole Camp Courier on bentoncountyenterprise.com -- and
@@ -129,3 +129,4 @@ points to. An also-known-as name is already the same row.
 | `digital, collected` | we collected articles from it in March 2026 |
 | `digital, not collected` | it publishes on a website, and nothing was collected in March |
 | `print, replica or social, not collected` | nothing collected, and it publishes in print or as a replica e-edition, or only on social media (Facebook, Instagram, X, YouTube, Linktree) |
+| `legal` | a legal-notice publication (status `legal`): never mapped |
