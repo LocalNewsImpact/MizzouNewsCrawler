@@ -64,6 +64,16 @@ MARCH = ("2026-03-01", "2026-04-01")
 #: MPA contact types that are publications. 2-4 are people and associations.
 MPA_PUBLICATIONS = {1, 5, 6, 7}
 
+#: What the MPA directory writes where it has no owner. 82 of its records say
+#: "Independently Owned Newspaper", which is a description, not a name; read
+#: as an owner it outranks the Blue Book publisher that does name one.
+NOT_AN_OWNER = {"independently owned newspaper", "ownership information not listed"}
+
+
+def owner_of(value: str | None) -> str:
+    value = (value or "").strip()
+    return "" if value.lower() in NOT_AN_OWNER else value
+
 _STOP = {"the", "and", "of", "a", "online", "member", "news"}
 
 
@@ -351,10 +361,13 @@ def load_lists(mpa_path: Path):
         lists.append({
             "list": "mpa", "name": re.sub(r"\s*\(Online Member\)", "", r["name"]),
             "city": r.get("city"), "county": county_key(r.get("county")),
-            "host": host_of(r.get("website")), "owner": r.get("owner") or "",
+            "host": host_of(r.get("website")), "owner": owner_of(r.get("owner")),
+            # A record with no street and no town has no address: "MO" alone
+            # is not one, and it blocked the Blue Book's from filling the gap.
             "address": ", ".join(
                 p for p in (r.get("address"), r.get("city"),
-                            f"MO {r.get('zip') or ''}".strip()) if p),
+                            f"MO {r.get('zip') or ''}".strip()) if p)
+            if (r.get("address") or r.get("city")) else "",
         })
     for r in csv.DictReader(open(LOOKUPS / "mo_bluebook_newspapers_2025_2026.csv")):
         lists.append({
