@@ -113,3 +113,60 @@ def test_the_production_record_names_and_places_its_outlet():
     src = SCRIPT.read_text()
     assert 'o["outlet"] = o.get("_source_name") or o["outlet"]' in src
     assert 'o["city"] = o.get("_source_city") or o["city"]' in src
+
+
+def _source_outlet(source_id, host):
+    return {"source_id": source_id, "host": host, "lists": {"ours"}, "outlet": "Held"}
+
+
+def _added(host, **extra):
+    return {
+        "outlet_id": "added-1",
+        "outlet": "Added",
+        "city": "Crane",
+        "county": "Stone",
+        "host": host,
+        "status": "active",
+        "status_basis": "launched August 2026",
+        **extra,
+    }
+
+
+def test_an_added_outlet_held_by_a_source_is_that_source(builder):
+    """StoneCounty.news was added to the registry, then to `sources` for
+    crawling, and the registry drew it twice."""
+    outlets = [_source_outlet("src-1", "stonecounty.news")]
+    ours = {"stonecounty.news": {"id": "src-1"}}
+    builder.attach_added(outlets, [_added("https://stonecounty.news/")], ours)
+    assert len(outlets) == 1
+    held = outlets[0]
+    assert held["source_id"] == "src-1"
+    assert "added" in held["lists"]
+    assert held["_added_status"] == "active"
+    assert held["_added_basis"] == "launched August 2026"
+
+
+def test_an_added_outlet_nobody_holds_is_its_own(builder):
+    outlets = [_source_outlet("src-1", "stonecountyrepublican.com")]
+    ours = {"stonecountyrepublican.com": {"id": "src-1"}}
+    builder.attach_added(outlets, [_added("stonecounty.news")], ours)
+    assert len(outlets) == 2
+    assert outlets[1]["_added_id"] == "added-1"
+    assert outlets[1]["host"] == "stonecounty.news"
+
+
+def test_an_added_outlet_without_a_host_is_its_own(builder):
+    outlets = []
+    builder.attach_added(outlets, [_added("")], {"": {"id": "src-1"}})
+    assert len(outlets) == 1
+    assert outlets[0]["_added_id"] == "added-1"
+
+
+def test_a_reviewed_status_on_the_source_is_not_replaced(builder):
+    outlets = [
+        {**_source_outlet("src-1", "stonecounty.news"), "_added_status": "closed"}
+    ]
+    builder.attach_added(
+        outlets, [_added("stonecounty.news")], {"stonecounty.news": {"id": "src-1"}}
+    )
+    assert outlets[0]["_added_status"] == "closed"
