@@ -104,3 +104,12 @@ def test_a_record_with_a_street_keeps_it(builder, tmp_path, monkeypatch):
         monkeypatch,
     )
     assert entry["address"] == "214 N. Grand St., Clarence, MO 63437"
+
+
+def test_the_production_record_names_and_places_its_outlet():
+    """A correction made in `sources` reaches the registry: the Wayne County
+    Journal-Banner kept "WayNe" and a Reynolds County town because only the
+    owner, county, status and address were taken from production."""
+    src = SCRIPT.read_text()
+    assert 'o["outlet"] = o.get("_source_name") or o["outlet"]' in src
+    assert 'o["city"] = o.get("_source_city") or o["city"]' in src

@@ -533,6 +533,7 @@ def main():
             o["owner"] = s["owner"] or o["owner"]
             o["state"] = (s.get("state") or "MO").strip() or "MO"
             o["county"] = s["county"] or o["county"]
+            o["_source_city"] = s["city"] or ""
             o["lists"].add("ours")
             if s["address"]:
                 o["address"], o["_address_from"] = s["address"], "sources"
@@ -652,6 +653,15 @@ def main():
             holder[sid] = (score, id(o))
     for o in outlets:
         holds = o["source_id"] and holder[o["source_id"]][1] == id(o)
+        # THE PRODUCTION RECORD NAMES AND PLACES THE OUTLET IT IS. The list
+        # this starts from is a snapshot, and a correction made in `sources`
+        # never reached a row it seeded: the Wayne County Journal-Banner kept
+        # "WayNe" and a town in Reynolds County, so its dot sat in the wrong
+        # county (2026-09-28). Only for the nameplate holding the source: the
+        # others sharing its website keep their own names and towns.
+        if holds:
+            o["outlet"] = o.get("_source_name") or o["outlet"]
+            o["city"] = o.get("_source_city") or o["city"]
         before = previous_by_name.get(
             (name_key(o["outlet"]), city_key(o["city"]), o["source_id"])
         )
