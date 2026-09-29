@@ -60,6 +60,10 @@ ROOT = Path(__file__).resolve().parent.parent
 LOOKUPS = ROOT / "src" / "lookups"
 DATASET = "Mizzou-Missouri-State"
 MARCH = ("2026-03-01", "2026-04-01")
+#: Where datadesk imports each rebuild from. A rebuild is data: a newly tagged
+#: link or a renamed source reaches the map without a pull request. A
+#: reviewer's word on an outlet is an outlet event in datadesk, laid over it.
+PUBLISH_TO = "gs://mizzou-news-maps-data/registry/mo_outlet_registry.csv"
 
 #: MPA contact types that are publications. 2-4 are people and associations.
 MPA_PUBLICATIONS = {1, 5, 6, 7}
@@ -526,6 +530,11 @@ def main():
         default=LOOKUPS / "mo_working_urls_2025.csv",
         help="the 2025 working sheet's Working URLs tab, for closure notes",
     )
+    ap.add_argument(
+        "--publish",
+        action="store_true",
+        help=f"upload the registry to {PUBLISH_TO} for datadesk to import",
+    )
     args = ap.parse_args()
 
     conn = psycopg2.connect(
@@ -823,6 +832,19 @@ def main():
                 "lists": ";".join(sorted(o["lists"])),
             })
     print(f"outlets {len(outlets)}  new from the lists {len(unmatched)}  -> {args.out}")
+    if args.publish:
+        print(f"published -> {publish(args.out)}")
+
+
+def publish(path, to=PUBLISH_TO):
+    """Upload the registry where datadesk's import reads it. Returns `to`."""
+    from google.cloud import storage
+
+    bucket, _, blob = to[5:].partition("/")
+    storage.Client().bucket(bucket).blob(blob).upload_from_filename(
+        str(path), content_type="text/csv"
+    )
+    return to
 
 
 if __name__ == "__main__":

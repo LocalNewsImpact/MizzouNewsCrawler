@@ -19,8 +19,15 @@ sources table changes.
 above, and a reviewer's corrections and additions below, stays local
 (git-ignored under `src/lookups/mo_*`): they are other people's data or working
 notes. The builder reads them from a working copy that holds them; the
-registry it writes is the one file committed, and it is what datadesk
-imports.
+registry it writes is the one file committed.
+
+**Datadesk imports it from a bucket, not from this repository.** `--publish`
+uploads each rebuild to
+`gs://mizzou-news-maps-data/registry/mo_outlet_registry.csv`, and datadesk's
+`manage.py import_outlet_registry` reads it from there, so a rebuild reaches
+the map without a pull request. A reviewer's word on what an outlet is --
+replica, print, merged, a duplicate -- is a `status` event on the outlet's
+page in datadesk, laid over every import (datadesk `docs/OUTLET_EVENTS.md`).
 
 **Our sources table is canonical** for any outlet it holds. The lists supply
 what it does not: addresses, and outlets we do not hold.

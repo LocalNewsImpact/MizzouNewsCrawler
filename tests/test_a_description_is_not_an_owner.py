@@ -170,3 +170,45 @@ def test_a_reviewed_status_on_the_source_is_not_replaced(builder):
         outlets, [_added("stonecounty.news")], {"stonecounty.news": {"id": "src-1"}}
     )
     assert outlets[0]["_added_status"] == "closed"
+
+
+def test_a_rebuild_is_published_where_datadesk_reads_it(builder, tmp_path, monkeypatch):
+    """A rebuild is data: it reaches datadesk through a bucket, not a pull
+    request."""
+    import sys
+    import types
+
+    import google.cloud
+
+    sent = {}
+
+    class Blob:
+        def upload_from_filename(self, path, content_type=None):
+            sent["path"], sent["type"] = path, content_type
+
+    class Bucket:
+        def blob(self, name):
+            sent["blob"] = name
+            return Blob()
+
+    class Client:
+        def bucket(self, name):
+            sent["bucket"] = name
+            return Bucket()
+
+    # A stub module, never the real one: importing google.cloud.storage here
+    # sets it on the package and defeats the sys.modules stub other tests
+    # (test_raw_html_archive) rely on.
+    stub = types.ModuleType("google.cloud.storage")
+    stub.Client = Client
+    monkeypatch.setitem(sys.modules, "google.cloud.storage", stub)
+    monkeypatch.setattr(google.cloud, "storage", stub, raising=False)
+    out = tmp_path / "mo_outlet_registry.csv"
+    out.write_text("outlet_id\n")
+    assert builder.publish(out) == builder.PUBLISH_TO
+    assert sent == {
+        "bucket": "mizzou-news-maps-data",
+        "blob": "registry/mo_outlet_registry.csv",
+        "path": str(out),
+        "type": "text/csv",
+    }
