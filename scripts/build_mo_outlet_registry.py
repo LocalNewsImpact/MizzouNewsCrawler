@@ -60,6 +60,10 @@ ROOT = Path(__file__).resolve().parent.parent
 LOOKUPS = ROOT / "src" / "lookups"
 DATASET = "Mizzou-Missouri-State"
 MARCH = ("2026-03-01", "2026-04-01")
+#: Where datadesk imports each rebuild from. A rebuild is data: a newly tagged
+#: link or a renamed source reaches the map without a pull request. A
+#: reviewer's word on an outlet is an outlet event in datadesk, laid over it.
+PUBLISH_TO = "gs://mizzou-news-maps-data/registry/mo_outlet_registry.csv"
 
 #: MPA contact types that are publications. 2-4 are people and associations.
 MPA_PUBLICATIONS = {1, 5, 6, 7}
@@ -207,6 +211,38 @@ def load_added():
     before the lists are matched, like one of our own."""
     path = LOOKUPS / "mo_outlets_added.csv"
     return list(csv.DictReader(open(path))) if path.exists() else []
+
+
+def attach_added(outlets, added, ours_by_host):
+    """Join each reviewer-added outlet to the outlet set.
+
+    An added outlet whose website is now one of our sources is that source,
+    not a second outlet beside it: an outlet with a live website is added to
+    `sources` for crawling, and the registry then drew it twice (StoneCounty
+    .news, 2026-09-28). It joins the source's row instead, which keeps the
+    source's id, and hands over the status its reviewer gave it.
+    """
+    by_source = {o.get("source_id"): o for o in outlets if o.get("source_id")}
+    for a in added:
+        s = ours_by_host.get(host_of(a["host"])) if a.get("host") else None
+        held = by_source.get(s["id"]) if s else None
+        if held is not None:
+            held["lists"].add("added")
+            if a.get("status") and not held.get("_added_status"):
+                held["_added_status"] = a["status"]
+                held["_added_basis"] = a.get("status_basis", "")
+            continue
+        outlets.append({
+            "outlet": a["outlet"], "city": a["city"], "county": a["county"],
+            "host": host_of(a["host"]), "type": a.get("type", ""),
+            "owner": a.get("owner", ""), "web_access": a.get("web_access", ""),
+            "lists": {"added"}, "_cities": set(), "fips": "",
+            "address": a.get("address", ""),
+            "_address_from": "added" if a.get("address") else "",
+            "_added_id": a["outlet_id"],
+            "_added_status": a.get("status", ""),
+            "_added_basis": a.get("status_basis", ""),
+        })
 
 
 def load_facilities():
@@ -494,6 +530,11 @@ def main():
         default=LOOKUPS / "mo_working_urls_2025.csv",
         help="the 2025 working sheet's Working URLs tab, for closure notes",
     )
+    ap.add_argument(
+        "--publish",
+        action="store_true",
+        help=f"upload the registry to {PUBLISH_TO} for datadesk to import",
+    )
     args = ap.parse_args()
 
     conn = psycopg2.connect(
@@ -554,18 +595,7 @@ def main():
             "_address_from": "sources" if s["address"] else "",
         })
 
-    for a in load_added():
-        outlets.append({
-            "outlet": a["outlet"], "city": a["city"], "county": a["county"],
-            "host": host_of(a["host"]), "type": a.get("type", ""),
-            "owner": a.get("owner", ""), "web_access": a.get("web_access", ""),
-            "lists": {"added"}, "_cities": set(), "fips": "",
-            "address": a.get("address", ""),
-            "_address_from": "added" if a.get("address") else "",
-            "_added_id": a["outlet_id"],
-            "_added_status": a.get("status", ""),
-            "_added_basis": a.get("status_basis", ""),
-        })
+    attach_added(outlets, load_added(), ours_by_host)
 
     # Aliases a reviewer recorded, attached before any list is matched.
     early_by_source, early_by_name = load_previous(args.out)
@@ -802,6 +832,19 @@ def main():
                 "lists": ";".join(sorted(o["lists"])),
             })
     print(f"outlets {len(outlets)}  new from the lists {len(unmatched)}  -> {args.out}")
+    if args.publish:
+        print(f"published -> {publish(args.out)}")
+
+
+def publish(path, to=PUBLISH_TO):
+    """Upload the registry where datadesk's import reads it. Returns `to`."""
+    from google.cloud import storage
+
+    bucket, _, blob = to[5:].partition("/")
+    storage.Client().bucket(bucket).blob(blob).upload_from_filename(
+        str(path), content_type="text/csv"
+    )
+    return to
 
 
 if __name__ == "__main__":
