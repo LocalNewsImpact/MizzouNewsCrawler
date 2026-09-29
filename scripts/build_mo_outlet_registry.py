@@ -216,6 +216,24 @@ def load_added():
     return list(csv.DictReader(open(path))) if path.exists() else []
 
 
+def hosts_of_ours(ours):
+    """{host: source} for every website a source of ours is known by.
+
+    Its own, and those it moved from: a paper that changes domain is the
+    same paper, and the lists still name it at the old one. The Licking
+    News moved to thelickingnews.net in 2025 and the lists' .com entry
+    came back as a second outlet (2026-09-29). A host a source holds now
+    wins over one another source has left.
+    """
+    found = {}
+    for s in ours:
+        for old in s.get("previous_hosts") or ():
+            found.setdefault(host_of(old), s)
+    for s in ours:
+        found[host_of(s["host"])] = s
+    return found
+
+
 def standing_status(o):
     """Take the status `sources` gives an outlet we hold, unless reviewed.
 
@@ -378,7 +396,9 @@ def load_ours(conn):
             "march", "newest", "meta"]
     rows = [dict(zip(cols, row, strict=True)) for row in cur.fetchall()]
     for r in rows:
-        r["address"] = _stored_address(r.pop("meta") or {}, r["city"])
+        meta = r.pop("meta") or {}
+        r["address"] = _stored_address(meta, r["city"])
+        r["previous_hosts"] = list(meta.get("previous_hosts") or [])
     return rows
 
 
@@ -563,7 +583,7 @@ def main():
     ours = load_ours(conn)
     # Exact host strings, platforms included: our own rows carry these, and
     # "audacy.com" against "audacy.com/971talk" is already two stations.
-    ours_by_host = {host_of(s["host"]): s for s in ours}
+    ours_by_host = hosts_of_ours(ours)
 
     outlets = []
     for r in csv.DictReader(open(LOOKUPS / "mo_all_news_outlets.csv")):
@@ -591,6 +611,7 @@ def main():
             o["state"] = (s.get("state") or "MO").strip() or "MO"
             o["county"] = s["county"] or o["county"]
             o["_source_city"] = s["city"] or ""
+            o["_source_host"] = host_of(s["host"])
             o["lists"].add("ours")
             if s["address"]:
                 o["address"], o["_address_from"] = s["address"], "sources"
@@ -708,6 +729,8 @@ def main():
         if holds:
             o["outlet"] = o.get("_source_name") or o["outlet"]
             o["city"] = o.get("_source_city") or o["city"]
+            # And its website: a list may still name a domain it has left.
+            o["host"] = o.get("_source_host") or o["host"]
         before = previous_by_name.get(
             (name_key(o["outlet"]), city_key(o["city"]), o["source_id"])
         )

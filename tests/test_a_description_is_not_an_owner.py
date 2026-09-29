@@ -247,3 +247,28 @@ def test_an_unreviewed_outlet_takes_the_sources_status(builder):
 def test_an_outlet_we_do_not_hold_keeps_its_status(builder):
     o = {"source_status": "", "status": "legal", "status_basis": ""}
     assert builder.standing_status(o)["status"] == "legal"
+
+
+def test_a_source_is_found_at_the_domain_it_moved_from(builder):
+    """The Licking News moved to thelickingnews.net; the lists still say .com."""
+    licking = {
+        "id": "s1",
+        "host": "www.thelickingnews.net",
+        "previous_hosts": ["www.thelickingnews.com"],
+    }
+    found = builder.hosts_of_ours([licking])
+    assert found["thelickingnews.net"] is licking
+    assert found["thelickingnews.com"] is licking
+
+
+def test_a_domain_held_now_wins_over_one_left_behind(builder):
+    left = {"id": "s1", "host": "new.example", "previous_hosts": ["old.example"]}
+    holder = {"id": "s2", "host": "old.example", "previous_hosts": []}
+    assert builder.hosts_of_ours([left, holder])["old.example"] is holder
+
+
+def test_the_production_record_gives_its_outlet_its_website():
+    """A list naming a paper at a domain it has left must not put that
+    domain back on the registry row the source holds."""
+    src = SCRIPT.read_text()
+    assert 'o["host"] = o.get("_source_host") or o["host"]' in src
