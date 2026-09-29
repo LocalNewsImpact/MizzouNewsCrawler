@@ -145,6 +145,9 @@ OFF_MAP = ("merged", "duplicate", "closed", "not_local_news", "legal", "shopper"
 
 #: Statuses that map as print, replica or social: a reviewer's word for an
 #: outlet whose readers get it on paper, as a page image, or on Facebook.
+#: The basis of a status copied from our sources table rather than reviewed.
+SOURCES_BASIS = "sources table"
+
 PRINT_LIKE = ("print_only", "print", "replica", "facebook", "social")
 
 #: Reviewer columns: a person's answer, carried across rebuilds untouched.
@@ -211,6 +214,19 @@ def load_added():
     before the lists are matched, like one of our own."""
     path = LOOKUPS / "mo_outlets_added.csv"
     return list(csv.DictReader(open(path))) if path.exists() else []
+
+
+def standing_status(o):
+    """Take the status `sources` gives an outlet we hold, unless reviewed.
+
+    A status copied from `sources` last time is a copy, not a review, so it
+    is copied again: the table may have changed since.
+    """
+    copied = o.get("status_basis", "") in ("", SOURCES_BASIS)
+    if o.get("source_status") and (not o.get("status") or copied):
+        o["status"] = o["source_status"]
+        o["status_basis"] = SOURCES_BASIS
+    return o
 
 
 def attach_added(outlets, added, ours_by_host):
@@ -710,10 +726,12 @@ def main():
         if not o["status"] and o.get("_added_status"):
             o["status"], o["status_basis"] = o["_added_status"], o.get("_added_basis", "")
         # Where we hold the outlet, our table's status is the standing answer
-        # until somebody reviews it.
-        if not o["status"] and o["source_status"]:
-            o["status"] = o["source_status"]
-            o["status_basis"] = o["status_basis"] or "sources table"
+        # until somebody reviews it -- and it stays the answer: a status the
+        # last build copied from `sources` follows `sources`, not the last
+        # build. Carried forward as if a reviewer had said it, five radio
+        # stations ruled "not local news" in `sources` stayed "retired" here
+        # (2026-09-29). A reviewer's status has a basis of its own and wins.
+        standing_status(o)
         if o["county"]:
             o["county_basis"] = "listed"
         elif city_key(o["city"]) in TOWN_COUNTY:
