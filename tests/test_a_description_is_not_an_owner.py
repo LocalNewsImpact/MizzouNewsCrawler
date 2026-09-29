@@ -212,3 +212,63 @@ def test_a_rebuild_is_published_where_datadesk_reads_it(builder, tmp_path, monke
         "path": str(out),
         "type": "text/csv",
     }
+
+
+def test_a_status_copied_from_sources_follows_sources(builder):
+    """Five radio stations ruled "not local news" in `sources` stayed
+    "retired" in the registry: the last build's copy was carried forward as
+    though a reviewer had said it."""
+    o = {
+        "source_status": "not_local_news",
+        "status": "retired",
+        "status_basis": "sources table",
+    }
+    assert builder.standing_status(o)["status"] == "not_local_news"
+
+
+def test_a_reviewed_status_is_not_overwritten(builder):
+    o = {
+        "source_status": "retired",
+        "status": "replica",
+        "status_basis": "replica edition; not an active digital source",
+    }
+    assert builder.standing_status(o)["status"] == "replica"
+
+
+def test_an_unreviewed_outlet_takes_the_sources_status(builder):
+    o = {"source_status": "active", "status": "", "status_basis": ""}
+    assert builder.standing_status(o) == {
+        "source_status": "active",
+        "status": "active",
+        "status_basis": "sources table",
+    }
+
+
+def test_an_outlet_we_do_not_hold_keeps_its_status(builder):
+    o = {"source_status": "", "status": "legal", "status_basis": ""}
+    assert builder.standing_status(o)["status"] == "legal"
+
+
+def test_a_source_is_found_at_the_domain_it_moved_from(builder):
+    """The Licking News moved to thelickingnews.net; the lists still say .com."""
+    licking = {
+        "id": "s1",
+        "host": "www.thelickingnews.net",
+        "previous_hosts": ["www.thelickingnews.com"],
+    }
+    found = builder.hosts_of_ours([licking])
+    assert found["thelickingnews.net"] is licking
+    assert found["thelickingnews.com"] is licking
+
+
+def test_a_domain_held_now_wins_over_one_left_behind(builder):
+    left = {"id": "s1", "host": "new.example", "previous_hosts": ["old.example"]}
+    holder = {"id": "s2", "host": "old.example", "previous_hosts": []}
+    assert builder.hosts_of_ours([left, holder])["old.example"] is holder
+
+
+def test_the_production_record_gives_its_outlet_its_website():
+    """A list naming a paper at a domain it has left must not put that
+    domain back on the registry row the source holds."""
+    src = SCRIPT.read_text()
+    assert 'o["host"] = o.get("_source_host") or o["host"]' in src

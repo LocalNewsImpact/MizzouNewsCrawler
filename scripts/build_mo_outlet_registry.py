@@ -145,6 +145,9 @@ OFF_MAP = ("merged", "duplicate", "closed", "not_local_news", "legal", "shopper"
 
 #: Statuses that map as print, replica or social: a reviewer's word for an
 #: outlet whose readers get it on paper, as a page image, or on Facebook.
+#: The basis of a status copied from our sources table rather than reviewed.
+SOURCES_BASIS = "sources table"
+
 PRINT_LIKE = ("print_only", "print", "replica", "facebook", "social")
 
 #: Reviewer columns: a person's answer, carried across rebuilds untouched.
@@ -211,6 +214,37 @@ def load_added():
     before the lists are matched, like one of our own."""
     path = LOOKUPS / "mo_outlets_added.csv"
     return list(csv.DictReader(open(path))) if path.exists() else []
+
+
+def hosts_of_ours(ours):
+    """{host: source} for every website a source of ours is known by.
+
+    Its own, and those it moved from: a paper that changes domain is the
+    same paper, and the lists still name it at the old one. The Licking
+    News moved to thelickingnews.net in 2025 and the lists' .com entry
+    came back as a second outlet (2026-09-29). A host a source holds now
+    wins over one another source has left.
+    """
+    found = {}
+    for s in ours:
+        for old in s.get("previous_hosts") or ():
+            found.setdefault(host_of(old), s)
+    for s in ours:
+        found[host_of(s["host"])] = s
+    return found
+
+
+def standing_status(o):
+    """Take the status `sources` gives an outlet we hold, unless reviewed.
+
+    A status copied from `sources` last time is a copy, not a review, so it
+    is copied again: the table may have changed since.
+    """
+    copied = o.get("status_basis", "") in ("", SOURCES_BASIS)
+    if o.get("source_status") and (not o.get("status") or copied):
+        o["status"] = o["source_status"]
+        o["status_basis"] = SOURCES_BASIS
+    return o
 
 
 def attach_added(outlets, added, ours_by_host):
@@ -362,7 +396,9 @@ def load_ours(conn):
             "march", "newest", "meta"]
     rows = [dict(zip(cols, row, strict=True)) for row in cur.fetchall()]
     for r in rows:
-        r["address"] = _stored_address(r.pop("meta") or {}, r["city"])
+        meta = r.pop("meta") or {}
+        r["address"] = _stored_address(meta, r["city"])
+        r["previous_hosts"] = list(meta.get("previous_hosts") or [])
     return rows
 
 
@@ -547,7 +583,7 @@ def main():
     ours = load_ours(conn)
     # Exact host strings, platforms included: our own rows carry these, and
     # "audacy.com" against "audacy.com/971talk" is already two stations.
-    ours_by_host = {host_of(s["host"]): s for s in ours}
+    ours_by_host = hosts_of_ours(ours)
 
     outlets = []
     for r in csv.DictReader(open(LOOKUPS / "mo_all_news_outlets.csv")):
@@ -575,6 +611,7 @@ def main():
             o["state"] = (s.get("state") or "MO").strip() or "MO"
             o["county"] = s["county"] or o["county"]
             o["_source_city"] = s["city"] or ""
+            o["_source_host"] = host_of(s["host"])
             o["lists"].add("ours")
             if s["address"]:
                 o["address"], o["_address_from"] = s["address"], "sources"
@@ -692,6 +729,8 @@ def main():
         if holds:
             o["outlet"] = o.get("_source_name") or o["outlet"]
             o["city"] = o.get("_source_city") or o["city"]
+            # And its website: a list may still name a domain it has left.
+            o["host"] = o.get("_source_host") or o["host"]
         before = previous_by_name.get(
             (name_key(o["outlet"]), city_key(o["city"]), o["source_id"])
         )
@@ -710,10 +749,12 @@ def main():
         if not o["status"] and o.get("_added_status"):
             o["status"], o["status_basis"] = o["_added_status"], o.get("_added_basis", "")
         # Where we hold the outlet, our table's status is the standing answer
-        # until somebody reviews it.
-        if not o["status"] and o["source_status"]:
-            o["status"] = o["source_status"]
-            o["status_basis"] = o["status_basis"] or "sources table"
+        # until somebody reviews it -- and it stays the answer: a status the
+        # last build copied from `sources` follows `sources`, not the last
+        # build. Carried forward as if a reviewer had said it, five radio
+        # stations ruled "not local news" in `sources` stayed "retired" here
+        # (2026-09-29). A reviewer's status has a basis of its own and wins.
+        standing_status(o)
         if o["county"]:
             o["county_basis"] = "listed"
         elif city_key(o["city"]) in TOWN_COUNTY:
