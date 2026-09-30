@@ -216,11 +216,19 @@ def load_added():
     return list(csv.DictReader(open(path))) if path.exists() else []
 
 
-#: Street-address points from the Census geocoder, cached so that a rebuild
-#: without --geocode never touches the network (the pre-push hook runs one).
+#: Street-address points, cached so that a rebuild without --geocode never
+#: touches the network (the pre-push hook runs one). The Census batch
+#: geocoder answers first; what it cannot place is asked again of its
+#: one-line geocoder, then of OpenStreetMap.
 GEOCODES = LOOKUPS / "mo_outlet_geocodes.csv"
-GEOCODE_COLUMNS = ("address", "lat", "lon", "county_fips", "matched")
-CENSUS_BATCH = "https://geocoding.geo.census.gov/geocoder/geographies/addressbatch"
+GEOCODE_COLUMNS = ("address", "lat", "lon", "county_fips", "town", "matched", "by")
+CENSUS = "https://geocoding.geo.census.gov/geocoder/geographies"
+CENSUS_PARAMS = {"benchmark": "Public_AR_Current", "vintage": "Current_Current"}
+NOMINATIM = "https://nominatim.openstreetmap.org/search"
+NOMINATIM_AGENT = "LNIC-outlet-registry/1.0 (chair@localnewsimpact.org)"
+#: An OpenStreetMap answer is a point only at a building; a road's answer
+#: is the middle of the road, which on a highway is miles from the office.
+OSM_PRECISE = {"house", "building", "place", "office", "amenity", "shop", "commercial"}
 
 _PO_BOX = re.compile(r"\b(p\.?\s*o\.?\s*box|box)\s*\d+\b", re.I)
 _STATE_ZIP = re.compile(r"^([A-Z]{2})\s*(\d{5})?(?:-\d{4})?$")
@@ -253,11 +261,91 @@ def load_geocodes(path: Path = GEOCODES) -> dict:
     return {r["address"]: r for r in csv.DictReader(open(path))}
 
 
+def save_geocodes(cache: dict, path: Path = GEOCODES) -> None:
+    with open(path, "w", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=GEOCODE_COLUMNS, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows({c: cache[a].get(c, "") for c in GEOCODE_COLUMNS} for a in sorted(cache))
+
+
+def _hit(address, lat="", lon="", county="", town="", by=""):
+    return {"address": address, "lat": lat, "lon": lon, "county_fips": county,
+            "town": town, "matched": "yes" if lat else "no", "by": by}
+
+
+def _census_batch(body: str) -> str:
+    import requests
+
+    resp = requests.post(
+        f"{CENSUS}/addressbatch", data=CENSUS_PARAMS,
+        files={"addressFile": ("addresses.csv", body, "text/csv")}, timeout=600,
+    )
+    resp.raise_for_status()
+    return resp.text
+
+
+def _census_oneline(address: str) -> list:
+    import requests
+
+    resp = requests.get(f"{CENSUS}/onelineaddress", timeout=60,
+                        params={**CENSUS_PARAMS, "address": address, "format": "json"})
+    resp.raise_for_status()
+    return resp.json()["result"]["addressMatches"]
+
+
+def _nominatim(params: dict) -> list:
+    import time
+
+    import requests
+
+    time.sleep(1.1)  # the service's limit is one request a second
+    resp = requests.get(NOMINATIM, timeout=60, headers={"User-Agent": NOMINATIM_AGENT},
+                        params={**params, "countrycodes": "us", "format": "jsonv2",
+                                "addressdetails": 1, "limit": 1})
+    resp.raise_for_status()
+    return resp.json()
+
+
+def _from_census(address: str, matches: list) -> dict:
+    """One-line matches, taken when they agree on the county.
+
+    "370 Main St, Piedmont" is a tie between North and South Main; the
+    batch geocoder refuses a tie, but both are in Wayne County and a few
+    blocks apart, which is all a map of newsrooms needs.
+    """
+    counties = {m["geographies"]["Counties"][0]["GEOID"] for m in matches}
+    if len(counties) != 1:
+        return _hit(address)
+    m = matches[0]
+    town = m["matchedAddress"].split(",")[-3] if m["matchedAddress"].count(",") >= 3 else ""
+    return _hit(address, str(m["coordinates"]["y"]), str(m["coordinates"]["x"]),
+                counties.pop(), town.strip(), "census")
+
+
+def _from_osm(address: str, found: list, name: str = "") -> dict:
+    """An OpenStreetMap answer, taken only at a building.
+
+    Looked up by name, the building must carry the outlet's name: "The
+    Reporter, Camdenton" must not land on some other reporter.
+    """
+    if not found or found[0].get("addresstype") not in OSM_PRECISE:
+        return _hit(address)
+    f, place = found[0], found[0].get("address", {})
+    if name:
+        theirs, ours = name_key(f.get("name") or ""), name_key(name)
+        if len(theirs) < 4 or (theirs not in ours and ours not in theirs):
+            return _hit(address)
+    if place.get("country_code") != "us" or not place.get("ISO3166-2-lvl4", "").startswith("US-"):
+        return _hit(address)
+    town = place.get("city") or place.get("town") or place.get("village") or ""
+    return _hit(address, f["lat"], f["lon"], "", town, "osm")
+
+
 def geocode(addresses, cache: dict, path: Path = GEOCODES, post=None) -> dict:
     """Geocode the addresses the cache lacks, in one Census batch request.
 
     Every address sent is written to the cache, matched or not, so an
-    address the Census cannot place is asked about once.
+    address nobody can place is asked about once.
     """
     todo = [a for a in dict.fromkeys(addresses) if a and a not in cache and split_address(a)]
     if not todo:
@@ -268,54 +356,103 @@ def geocode(addresses, cache: dict, path: Path = GEOCODES, post=None) -> dict:
     w = csv.writer(buf)
     for i, a in enumerate(todo):
         w.writerow([i, *split_address(a)])
-    if post is None:
-        import requests
-
-        def post(body):
-            resp = requests.post(
-                CENSUS_BATCH,
-                data={"benchmark": "Public_AR_Current", "vintage": "Current_Current"},
-                files={"addressFile": ("addresses.csv", body, "text/csv")},
-                timeout=600,
-            )
-            resp.raise_for_status()
-            return resp.text
-
-    for row in csv.reader(io.StringIO(post(buf.getvalue()))):
+    try:
+        reply = (post or _census_batch)(buf.getvalue())
+    except Exception as exc:  # noqa: BLE001 -- any failure: ask one at a time
+        # The batch service can sit for ten minutes and time out
+        # (2026-09-29). Nothing is cached, so each address is asked of the
+        # one-line geocoder instead.
+        print(f"Census batch geocoder failed ({exc}); asking one address at a time")
+        return cache
+    for row in csv.reader(io.StringIO(reply)):
         if not row or not row[0].isdigit():
             continue
         address = todo[int(row[0])]
-        matched = len(row) > 5 and row[2] == "Match"
-        lon, lat = (row[5].split(",") + ["", ""])[:2] if matched else ("", "")
-        county = (row[8] + row[9]) if matched and len(row) > 9 else ""
-        cache[address] = {"address": address, "lat": lat, "lon": lon,
-                          "county_fips": county, "matched": "yes" if matched else "no"}
+        if len(row) > 9 and row[2] == "Match":
+            lon, lat = (row[5].split(",") + ["", ""])[:2]
+            town = row[4].split(",")[-3].strip() if row[4].count(",") >= 3 else ""
+            cache[address] = _hit(address, lat, lon, row[8] + row[9], town, "census")
     for a in todo:
-        cache.setdefault(a, {"address": a, "lat": "", "lon": "", "county_fips": "", "matched": "no"})
-    with open(path, "w", newline="") as fh:
-        writer = csv.DictWriter(fh, fieldnames=GEOCODE_COLUMNS)
-        writer.writeheader()
-        writer.writerows(cache[a] for a in sorted(cache))
+        cache.setdefault(a, _hit(a))
+    save_geocodes(cache, path)
     return cache
 
 
-def place_at_address(o: dict, cache: dict) -> dict:
-    """Put an outlet at its street address where the Census placed it.
+def geocode_again(outlets, cache: dict, path: Path = GEOCODES, oneline=None, osm=None) -> dict:
+    """Ask again for what the batch could not place, one at a time.
+
+    The batch refuses ties and knows only TIGER's address ranges, which
+    miss much of small-town Missouri: "118 N. Main St, Marceline" and
+    "1110 Hwy 28 W, Belle" are not in them. The Census one-line geocoder
+    is asked first, then OpenStreetMap by street, then by the outlet's
+    name -- which also places an outlet whose only address is a PO box.
+    Each answer, found or not, is cached under what was asked.
+    """
+    oneline, osm = oneline or _census_oneline, osm or _nominatim
+    for o in outlets:
+        address = o.get("address") or ""
+        parts = split_address(address)
+        if parts and cache.get(address, {}).get("matched") != "yes" and not cache.get(address, {}).get("by"):
+            street, city, state, zip_ = parts
+            hit = _from_census(address, oneline(f"{street}, {city}, {state} {zip_}".strip()))
+            if hit["matched"] != "yes":
+                hit = _from_osm(address, osm({"street": street, "city": city, "state": state}))
+            cache[address] = {**hit, "by": hit["by"] or "none"}
+        if parts and cache.get(address, {}).get("matched") == "yes":
+            continue
+        key = _by_name(o)
+        if key not in cache and o.get("city"):
+            hit = _from_osm(key, osm({"q": key[len("name: "):]}), o["outlet"])
+            cache[key] = {**hit, "by": hit["by"] or "none"}
+    save_geocodes(cache, path)
+    return cache
+
+
+def _by_name(o: dict) -> str:
+    """The cache key for an outlet looked up by its name in its town."""
+    return f"name: {o.get('outlet') or ''}, {o.get('city') or ''}, {o.get('state') or 'MO'}"
+
+
+def place_at_address(o: dict, cache: dict, fips_of: dict | None = None) -> dict:
+    """Put an outlet at its street address, and in the county there.
 
     Outlets in one town all sat on the town's centre -- 236 on the map drew
-    as 160 points, and Joplin's five newsrooms as one dot. Where the address
-    lands in another county than the one recorded, that is said, not
-    silently believed: an office is sometimes in the next county over.
+    as 160 points, and Joplin's five newsrooms as one dot. An address in the
+    outlet's own town is its newsroom, and its county is the county: KPLR
+    on Ball Drive is in St. Louis County, not the city the name "St. Louis"
+    reads as. An address in another town and another county is an owner's
+    or a mailing office -- the Aurora Advertiser's is in Neosho, KCTV5's in
+    Fairway, Kan. -- and is said, not drawn. In another town of the same
+    county it is drawn and said: the Leader's office is in Festus, not
+    Arnold, and that moves no county. A reviewer's county is not moved.
     """
-    hit = cache.get(o.get("address") or "")
+    hit, basis = cache.get(o.get("address") or ""), "address"
+    if not hit or hit.get("matched") != "yes":
+        hit, basis = cache.get(_by_name(o)), "named building"
     if not hit or hit.get("matched") != "yes" or not hit.get("lat"):
         return o
+    theirs = hit.get("county_fips") or ""
+    elsewhere = hit.get("town") and o.get("city") and city_key(hit["town"]) != city_key(o["city"])
+    if elsewhere:
+        o = _signal(o, f"address is in {hit['town'].title()}, not {o['city']}")
+        if theirs != o.get("county_fips"):
+            return o
     o["lat"], o["lon"] = hit["lat"], hit["lon"]
-    o["location_basis"] = "address"
-    if hit.get("county_fips") and o.get("county_fips") and hit["county_fips"] != o["county_fips"]:
-        o["signals"] = "; ".join(
-            s for s in (o.get("signals"), f"address is in county {hit['county_fips']}") if s
-        )
+    o["location_basis"] = basis
+    if not theirs or not o.get("county_fips") or theirs == o["county_fips"]:
+        return o
+    if o.get("county_basis") == "reviewer" or not theirs.startswith("29"):
+        return _signal(o, f"address is in county {theirs}")
+    names = {v: k for k, v in (fips_of or {}).items()}
+    was = o["county"]
+    o["county_fips"] = theirs
+    o["county"] = names.get(theirs, ("", o["county"]))[1].title().replace("St ", "St. ")
+    o["county_basis"] = "address"
+    return _signal(o, f"county moved from {was} by its address")
+
+
+def _signal(o: dict, said: str) -> dict:
+    o["signals"] = "; ".join(s for s in (o.get("signals"), said) if s)
     return o
 
 
@@ -964,8 +1101,9 @@ def main():
     geocodes = load_geocodes()
     if args.geocode:
         geocodes = geocode([o.get("address") for o in outlets], geocodes)
+        geocodes = geocode_again(outlets, geocodes)
     for o in outlets:
-        place_at_address(o, geocodes)
+        place_at_address(o, geocodes, fips_of)
 
     fields = ["outlet_id", "source_id", "outlet", "state", "city", "county", "county_basis",
               "fips", "address", "address_basis", "lat", "lon", "location_basis",
