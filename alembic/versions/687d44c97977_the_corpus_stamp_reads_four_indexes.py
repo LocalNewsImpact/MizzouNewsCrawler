@@ -27,18 +27,25 @@ clock rather than on a change. Datadesk's review of 2026-09-30, item 6,
 asked for the first two; the other two are the same question one table
 over.
 
-PRODUCTION FIRST, CONCURRENTLY. As with `u6v7w8x9y0z1`, the indexes are
-built in production by hand with CREATE INDEX CONCURRENTLY before this
-merges, and this migration is the same indexes for a database built from
-scratch: plain, because Alembic runs inside a transaction and a fresh
-database has no concurrent writer, and IF NOT EXISTS, so it is a no-op
-where they already stand.
+CONCURRENTLY, IN THE MIGRATION. `u6v7w8x9y0z1` and `c4e8a1f52b7d` had
+their indexes built in production by hand first and are plain DDL for a
+fresh database. That relies on the hand build happening before the merge,
+and a merge to main runs this against production on its own
+(`run-migrations`), where a plain CREATE INDEX holds off every write to
+`articles` while it reads the table. So on Postgres this builds
+CONCURRENTLY, outside the migration's transaction, and needs no step
+before it.
+
+A CONCURRENTLY build that fails leaves an INVALID index behind, which
+IF NOT EXISTS would then treat as done. An invalid one is dropped and
+built again.
 
 Revision ID: 687d44c97977
 Revises: f4a5b6c7d8e9
 Create Date: 2026-09-30 18:00:00.000000
 """
 
+import sqlalchemy as sa
 from alembic import op
 
 revision = "687d44c97977"
@@ -57,8 +64,25 @@ INDEXES = (
 
 
 def upgrade() -> None:
-    for name, table, column in INDEXES:
-        op.execute(f"CREATE INDEX IF NOT EXISTS {name} ON {table} ({column})")
+    bind = op.get_bind()
+    if bind.dialect.name != "postgresql":
+        for name, table, column in INDEXES:
+            op.execute(f"CREATE INDEX IF NOT EXISTS {name} ON {table} ({column})")
+        return
+    with op.get_context().autocommit_block():
+        for name, table, column in INDEXES:
+            valid = bind.execute(
+                sa.text(
+                    "SELECT i.indisvalid FROM pg_index i "
+                    "JOIN pg_class c ON c.oid = i.indexrelid WHERE c.relname = :n"
+                ),
+                {"n": name},
+            ).scalar()
+            if valid is False:
+                op.execute(f"DROP INDEX CONCURRENTLY IF EXISTS {name}")
+            op.execute(
+                f"CREATE INDEX CONCURRENTLY IF NOT EXISTS {name} ON {table} ({column})"
+            )
 
 
 def downgrade() -> None:

@@ -10,8 +10,11 @@ their own index.
 
 Run against a stub `op`, for the reason `test_the_blocked_page_indexes`
 gives: `tests/alembic` shadows the installed library once it is imported.
+The connection is in autocommit, which is what Alembic's
+`autocommit_block` hands the migration, so CONCURRENTLY runs for real.
 """
 
+import contextlib
 import importlib.util
 import os
 import sys
@@ -20,6 +23,7 @@ from pathlib import Path
 
 import pytest
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import ProgrammingError
 
 POSTGRES_TEST_URL = os.getenv("TEST_DATABASE_URL")
 HAS_POSTGRES = POSTGRES_TEST_URL and "postgres" in POSTGRES_TEST_URL
@@ -51,7 +55,7 @@ STAMP_QUERIES = {
 
 
 class _RecordingOp:
-    """The one member of `op` this migration uses. Every statement runs."""
+    """The members of `op` this migration uses. Every statement runs."""
 
     def __init__(self, conn):
         self._conn = conn
@@ -60,6 +64,14 @@ class _RecordingOp:
     def execute(self, sql):
         self.statements.append(sql)
         self._conn.execute(text(sql))
+
+    def get_bind(self):
+        return self._conn
+
+    def get_context(self):
+        # The connection is already in autocommit; the block is the
+        # migration's statement that it needs one.
+        return types.SimpleNamespace(autocommit_block=contextlib.nullcontext)
 
 
 def _load(stub):
@@ -92,7 +104,7 @@ def _load(stub):
 def migrated():
     if not HAS_POSTGRES:
         pytest.skip("TEST_DATABASE_URL is not Postgres")
-    engine = create_engine(POSTGRES_TEST_URL)
+    engine = create_engine(POSTGRES_TEST_URL, isolation_level="AUTOCOMMIT")
     with engine.connect() as conn:
         conn.execute(
             text(
@@ -122,7 +134,6 @@ def migrated():
         conn.stub = stub
         conn.module = module
         yield conn
-        conn.rollback()
 
 
 def _definition(conn, name):
@@ -163,9 +174,43 @@ def test_the_planner_reads_each_max_from_its_index(migrated, table):
     assert "Seq Scan" not in plan, f"{sql} still scans:\n{plan}"
 
 
+def test_it_builds_concurrently(migrated):
+    """A merge runs this against production, where a plain CREATE INDEX
+    would hold off every write to `articles` while it read the table."""
+    creates = [s for s in migrated.stub.statements if s.startswith("CREATE INDEX")]
+    assert len(creates) == 4
+    assert all("CONCURRENTLY" in s for s in creates), creates
+
+
+def test_an_invalid_index_is_built_again(migrated):
+    """A CONCURRENTLY build that fails leaves an INVALID index, which IF
+    NOT EXISTS alone would count as done and the planner never use."""
+    name = "ix_articles_created_at"
+    try:
+        migrated.execute(
+            text(
+                "UPDATE pg_index SET indisvalid = false WHERE indexrelid = "
+                "(SELECT oid FROM pg_class WHERE relname = :n)"
+            ),
+            {"n": name},
+        )
+    except ProgrammingError:
+        pytest.skip("marking an index invalid needs a superuser")
+    migrated.module.upgrade()
+    valid = migrated.execute(
+        text(
+            "SELECT i.indisvalid FROM pg_index i "
+            "JOIN pg_class c ON c.oid = i.indexrelid WHERE c.relname = :n"
+        ),
+        {"n": name},
+    ).scalar()
+    assert valid is True
+    assert f"DROP INDEX CONCURRENTLY IF EXISTS {name}" in migrated.stub.statements
+
+
 def test_running_it_twice_is_harmless(migrated):
-    """Production carries these first, built CONCURRENTLY by hand; the
-    migration has to be a no-op there, not a failure."""
+    """A retried deploy runs it again over indexes that already stand; it
+    has to be a no-op there, not a failure."""
     for statement in list(migrated.stub.statements):
         migrated.execute(text(statement))
     migrated.commit()
