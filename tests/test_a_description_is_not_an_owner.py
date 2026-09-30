@@ -115,6 +115,14 @@ def test_the_production_record_names_and_places_its_outlet():
     assert 'o["city"] = o.get("_source_city") or o["city"]' in src
 
 
+def test_the_production_record_says_what_its_outlet_is():
+    """Carthage News Online kept the base list's "print native" after
+    `sources` said it is a digital native site (2026-09-30)."""
+    src = SCRIPT.read_text()
+    assert "coalesce(nullif(trim(s.operator), ''), s.owner) AS owner, s.type," in src
+    assert 'o["type"] = s.get("type") or o.get("type", "")' in src
+
+
 def _source_outlet(source_id, host):
     return {"source_id": source_id, "host": host, "lists": {"ours"}, "outlet": "Held"}
 

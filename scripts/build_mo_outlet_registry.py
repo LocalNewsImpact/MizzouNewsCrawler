@@ -615,7 +615,7 @@ def load_ours(conn):
     cur.execute(
         """
         SELECT s.id, s.host, s.canonical_name, s.city, s.county,
-               coalesce(nullif(trim(s.operator), ''), s.owner) AS owner,
+               coalesce(nullif(trim(s.operator), ''), s.owner) AS owner, s.type,
                s.status, s.metadata::jsonb ->> 'state',
                count(a.id) FILTER (
                    WHERE a.publish_date >= %s AND a.publish_date < %s
@@ -632,7 +632,7 @@ def load_ours(conn):
         """,
         (MARCH[0], MARCH[1], DATASET),
     )
-    cols = ["id", "host", "name", "city", "county", "owner", "status", "state",
+    cols = ["id", "host", "name", "city", "county", "owner", "type", "status", "state",
             "march", "newest", "meta"]
     rows = [dict(zip(cols, row, strict=True)) for row in cur.fetchall()]
     for r in rows:
@@ -854,6 +854,10 @@ def main():
         if s:
             matched_ours.add(s["id"])
             o["owner"] = s["owner"] or o["owner"]
+            # What the outlet is follows the source too: Carthage News Online
+            # kept the base list's "print native" after `sources` said it is
+            # digital (2026-09-30).
+            o["type"] = s.get("type") or o.get("type", "")
             o["state"] = (s.get("state") or "MO").strip() or "MO"
             o["county"] = s["county"] or o["county"]
             o["_source_city"] = s["city"] or ""
@@ -866,7 +870,7 @@ def main():
             continue
         outlets.append({
             "outlet": s["name"], "city": s["city"], "county": s["county"],
-            "host": host_of(s["host"]), "type": "", "owner": s["owner"] or "",
+            "host": host_of(s["host"]), "type": s.get("type") or "", "owner": s["owner"] or "",
             "web_access": "collected" if s["march"] else "never collected",
             "lists": {"ours"}, "_cities": set(), "fips": "",
             "in_sources": True, "source_status": s["status"] or "",
