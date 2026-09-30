@@ -216,6 +216,109 @@ def load_added():
     return list(csv.DictReader(open(path))) if path.exists() else []
 
 
+#: Street-address points from the Census geocoder, cached so that a rebuild
+#: without --geocode never touches the network (the pre-push hook runs one).
+GEOCODES = LOOKUPS / "mo_outlet_geocodes.csv"
+GEOCODE_COLUMNS = ("address", "lat", "lon", "county_fips", "matched")
+CENSUS_BATCH = "https://geocoding.geo.census.gov/geocoder/geographies/addressbatch"
+
+_PO_BOX = re.compile(r"\b(p\.?\s*o\.?\s*box|box)\s*\d+\b", re.I)
+_STATE_ZIP = re.compile(r"^([A-Z]{2})\s*(\d{5})?(?:-\d{4})?$")
+
+
+def split_address(address: str):
+    """(street, city, state, zip) from a one-line address, or None.
+
+    The registry's addresses read "427 West Main Street, P.O. Box 299,
+    Savannah, MO 64485": a post-office box is not a place, so it is dropped,
+    and an address with no street number is not geocoded at all -- the town
+    centre is as good as a guess at one.
+    """
+    parts = [p.strip() for p in (address or "").split(",") if p.strip()]
+    parts = [p for p in parts if not _PO_BOX.fullmatch(p) and not _PO_BOX.match(p)]
+    if len(parts) < 3:
+        return None
+    m = _STATE_ZIP.match(parts[-1].upper())
+    if not m:
+        return None
+    street, city = parts[0], parts[-2]
+    if not re.match(r"^\d", street):
+        return None
+    return street, city, m.group(1), m.group(2) or ""
+
+
+def load_geocodes(path: Path = GEOCODES) -> dict:
+    if not path.exists():
+        return {}
+    return {r["address"]: r for r in csv.DictReader(open(path))}
+
+
+def geocode(addresses, cache: dict, path: Path = GEOCODES, post=None) -> dict:
+    """Geocode the addresses the cache lacks, in one Census batch request.
+
+    Every address sent is written to the cache, matched or not, so an
+    address the Census cannot place is asked about once.
+    """
+    todo = [a for a in dict.fromkeys(addresses) if a and a not in cache and split_address(a)]
+    if not todo:
+        return cache
+    import io
+
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    for i, a in enumerate(todo):
+        w.writerow([i, *split_address(a)])
+    if post is None:
+        import requests
+
+        def post(body):
+            resp = requests.post(
+                CENSUS_BATCH,
+                data={"benchmark": "Public_AR_Current", "vintage": "Current_Current"},
+                files={"addressFile": ("addresses.csv", body, "text/csv")},
+                timeout=600,
+            )
+            resp.raise_for_status()
+            return resp.text
+
+    for row in csv.reader(io.StringIO(post(buf.getvalue()))):
+        if not row or not row[0].isdigit():
+            continue
+        address = todo[int(row[0])]
+        matched = len(row) > 5 and row[2] == "Match"
+        lon, lat = (row[5].split(",") + ["", ""])[:2] if matched else ("", "")
+        county = (row[8] + row[9]) if matched and len(row) > 9 else ""
+        cache[address] = {"address": address, "lat": lat, "lon": lon,
+                          "county_fips": county, "matched": "yes" if matched else "no"}
+    for a in todo:
+        cache.setdefault(a, {"address": a, "lat": "", "lon": "", "county_fips": "", "matched": "no"})
+    with open(path, "w", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=GEOCODE_COLUMNS)
+        writer.writeheader()
+        writer.writerows(cache[a] for a in sorted(cache))
+    return cache
+
+
+def place_at_address(o: dict, cache: dict) -> dict:
+    """Put an outlet at its street address where the Census placed it.
+
+    Outlets in one town all sat on the town's centre -- 236 on the map drew
+    as 160 points, and Joplin's five newsrooms as one dot. Where the address
+    lands in another county than the one recorded, that is said, not
+    silently believed: an office is sometimes in the next county over.
+    """
+    hit = cache.get(o.get("address") or "")
+    if not hit or hit.get("matched") != "yes" or not hit.get("lat"):
+        return o
+    o["lat"], o["lon"] = hit["lat"], hit["lon"]
+    o["location_basis"] = "address"
+    if hit.get("county_fips") and o.get("county_fips") and hit["county_fips"] != o["county_fips"]:
+        o["signals"] = "; ".join(
+            s for s in (o.get("signals"), f"address is in county {hit['county_fips']}") if s
+        )
+    return o
+
+
 def hosts_of_ours(ours):
     """{host: source} for every website a source of ours is known by.
 
@@ -567,6 +670,12 @@ def main():
         help="the 2025 working sheet's Working URLs tab, for closure notes",
     )
     ap.add_argument(
+        "--geocode",
+        action="store_true",
+        help="place outlets at their street addresses with the Census geocoder "
+        "(only addresses not already in the cache are sent)",
+    )
+    ap.add_argument(
         "--publish",
         action="store_true",
         help=f"upload the registry to {PUBLISH_TO} for datadesk to import",
@@ -851,6 +960,12 @@ def main():
 
     for o in outlets:
         o["state"] = o.get("state") or "MO"
+
+    geocodes = load_geocodes()
+    if args.geocode:
+        geocodes = geocode([o.get("address") for o in outlets], geocodes)
+    for o in outlets:
+        place_at_address(o, geocodes)
 
     fields = ["outlet_id", "source_id", "outlet", "state", "city", "county", "county_basis",
               "fips", "address", "address_basis", "lat", "lon", "location_basis",

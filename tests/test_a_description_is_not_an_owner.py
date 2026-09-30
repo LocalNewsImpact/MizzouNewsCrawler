@@ -272,3 +272,123 @@ def test_the_production_record_gives_its_outlet_its_website():
     domain back on the registry row the source holds."""
     src = SCRIPT.read_text()
     assert 'o["host"] = o.get("_source_host") or o["host"]' in src
+
+
+@pytest.mark.parametrize(
+    "address, parts",
+    [
+        (
+            "427 West Main Street, P.O. Box 299, Savannah, MO 64485",
+            ("427 West Main Street", "Savannah", "MO", "64485"),
+        ),
+        (
+            "110 E McPherson St, Kirksville, MO 63501",
+            ("110 E McPherson St", "Kirksville", "MO", "63501"),
+        ),
+        (
+            "300 S Main St #1534, Rock Port, MO 64482",
+            ("300 S Main St #1534", "Rock Port", "MO", "64482"),
+        ),
+        ("202 Courtney St, Branson, MO", ("202 Courtney St", "Branson", "MO", "")),
+    ],
+)
+def test_an_address_is_split_for_the_geocoder(builder, address, parts):
+    assert builder.split_address(address) == parts
+
+
+@pytest.mark.parametrize(
+    "address",
+    [
+        "",
+        "P.O. Box 218, Hamilton, MO 64644",
+        "Main Street, Hamilton, MO 64644",
+        "Hamilton MO",
+    ],
+)
+def test_an_address_without_a_street_number_is_not_geocoded(builder, address):
+    assert builder.split_address(address) is None
+
+
+CENSUS_REPLY = (
+    '"0","110 E McPherson St, Kirksville, MO, 63501","Match","Exact",'
+    '"110 E MCPHERSON ST, KIRKSVILLE, MO, 63501","-92.58,40.19","1","L","29","001","950100","1001"\n'
+    '"1","9 Nowhere Rd, Kirksville, MO, 63501","No_Match"\n'
+)
+
+
+def test_geocoding_asks_once_and_caches_every_answer(builder, tmp_path):
+    asked = []
+
+    def post(body):
+        asked.append(body)
+        return CENSUS_REPLY
+
+    path = tmp_path / "geocodes.csv"
+    addresses = [
+        "110 E McPherson St, Kirksville, MO 63501",
+        "9 Nowhere Rd, Kirksville, MO 63501",
+        "P.O. Box 5, Kirksville, MO 63501",
+    ]
+    cache = builder.geocode(addresses, {}, path, post=post)
+    assert len(asked) == 1 and "P.O. Box" not in asked[0]
+    assert (
+        cache[addresses[0]]["lat"] == "40.19"
+        and cache[addresses[0]]["county_fips"] == "29001"
+    )
+    assert cache[addresses[1]]["matched"] == "no"
+    # Asked again, nothing is sent: the cache answers, matched or not.
+    builder.geocode(addresses, builder.load_geocodes(path), path, post=post)
+    assert len(asked) == 1
+
+
+def test_an_outlet_is_placed_at_its_address(builder):
+    cache = {
+        "1 Main St, Joplin, MO 64801": {
+            "matched": "yes",
+            "lat": "37.08",
+            "lon": "-94.51",
+            "county_fips": "29097",
+        }
+    }
+    o = {
+        "address": "1 Main St, Joplin, MO 64801",
+        "lat": "37.0752",
+        "lon": "-94.5013",
+        "location_basis": "town centroid",
+        "county_fips": "29097",
+        "signals": "",
+    }
+    builder.place_at_address(o, cache)
+    assert (o["lat"], o["lon"], o["location_basis"]) == ("37.08", "-94.51", "address")
+    assert o["signals"] == ""
+
+
+def test_an_address_in_another_county_is_said(builder):
+    cache = {
+        "1 Main St, Seneca, MO 64865": {
+            "matched": "yes",
+            "lat": "36.84",
+            "lon": "-94.61",
+            "county_fips": "29145",
+        }
+    }
+    o = {
+        "address": "1 Main St, Seneca, MO 64865",
+        "county_fips": "29097",
+        "signals": "x",
+    }
+    builder.place_at_address(o, cache)
+    assert o["signals"] == "x; address is in county 29145"
+
+
+def test_an_unplaced_address_keeps_the_town_centre(builder):
+    o = {
+        "address": "9 Nowhere Rd, Joplin, MO",
+        "lat": "37.0752",
+        "lon": "-94.5013",
+        "location_basis": "town centroid",
+    }
+    builder.place_at_address(
+        o, {"9 Nowhere Rd, Joplin, MO": {"matched": "no", "lat": ""}}
+    )
+    assert o["location_basis"] == "town centroid"
