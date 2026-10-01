@@ -393,6 +393,41 @@ class BotSensitivityManager:
 
         return new_sensitivity
 
+    def get_last_bot_detection_at(
+        self, host: str, source_id: Optional[str] = None
+    ) -> Optional[datetime]:
+        """When a bot challenge was last recorded for the source, or None.
+
+        The persisted counterpart of the extractor's in-memory backoff: a
+        challenge met by another pod is visible here and nowhere else.
+        """
+        try:
+            with self.db.get_session() as session:
+                if source_id:
+                    result = safe_session_execute(
+                        session,
+                        text(
+                            "SELECT last_bot_detection_at FROM sources "
+                            "WHERE id = :source_id"
+                        ),
+                        {"source_id": source_id},
+                    )
+                else:
+                    lookup_sql, lookup_params = find_source_sql(
+                        host, select="last_bot_detection_at"
+                    )
+                    if not lookup_sql:
+                        return None
+                    result = safe_session_execute(
+                        session, text(lookup_sql), lookup_params
+                    )
+                row = result.fetchone()
+                if row and row[0]:
+                    return row[0]
+        except Exception as e:
+            logger.warning(f"Error reading last bot detection for {host}: {e}")
+        return None
+
     def _is_in_cooldown(self, host: str, cooldown_hours: float) -> bool:
         """Check if host is in cooldown period for sensitivity adjustments.
 

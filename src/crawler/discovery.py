@@ -30,6 +30,14 @@ from sqlalchemy.exc import IntegrityError
 # Suppress InsecureRequestWarning for proxies without SSL certs
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+from .discovery_render import (
+    RENDER_MISSES_KEY,
+    HomepageRenderer,
+    miss_update,
+    remember_update,
+    render_is_remembered,
+    signal_update,
+)
 from .scheduling import parse_frequency_to_publication_days
 
 # Using multiprocessing for build timeouts; no concurrent.futures needed here
@@ -362,6 +370,12 @@ class NewsDiscovery:
         )
         self._known_hosts_cache: set[str] | None = None
 
+        # Script-shell homepages are rendered in the extraction browser.
+        self._render_homepages = os.getenv(
+            "DISCOVERY_RENDER_HOMEPAGES", "true"
+        ).strip().lower() not in {"0", "false", "no", "off"}
+        self._homepage_renderer: HomepageRenderer | None = None
+
     @staticmethod
     def _resolve_database_url(candidate: str | None) -> str | None:
         if candidate:
@@ -590,7 +604,12 @@ class NewsDiscovery:
         """
         if response.status_code not in BLOCKED_STATUS_CODES:
             self._report_router_result(domain, router_proxy, success=True)
-            self._note_capture_diagnosis(url, getattr(response, "text", None))
+            # An error page has no links by nature: diagnosing a 404 from an
+            # RSS probe (/feed, /rss.xml) as "needs a browser" was 21 of the
+            # 22 such warnings on the 2026-08-11 batch.
+            status = response.status_code
+            if not (isinstance(status, int) and status >= 400):
+                self._note_capture_diagnosis(url, getattr(response, "text", None))
             return response
 
         reason = f"HTTP {response.status_code}"
@@ -657,6 +676,104 @@ class NewsDiscovery:
             return None, None
 
         return resolve(current, current_proxies)
+
+    def _get_homepage_renderer(self):
+        """The run's browser for script-shell homepages, or None if disabled.
+
+        Created on first use so a run that meets no shell starts no Chrome.
+        Test doubles built with ``__new__`` carry no flag and get None.
+        """
+        if not getattr(self, "_render_homepages", False):
+            return None
+        renderer = getattr(self, "_homepage_renderer", None)
+        if renderer is None:
+            renderer = HomepageRenderer()
+            self._homepage_renderer = renderer
+        return renderer
+
+    def _homepage_html(
+        self,
+        source_url: str,
+        source_id: str | None,
+        source_meta: dict | None,
+    ) -> tuple[str, int | None, bool]:
+        """The homepage's HTML, its status, and whether a browser rendered it.
+
+        A homepage that is only a script shell -- its links written in by
+        JavaScript -- answers a plain fetch with nothing to discover. When the
+        plain fetch looks like that, the verdict is stored on the source and
+        the page is rendered instead. A source already known to need this
+        goes to the browser first and skips the empty fetch.
+        """
+        renderer = self._get_homepage_renderer()
+        remembered = render_is_remembered(source_meta)
+
+        if renderer is not None and remembered:
+            outcome = renderer.render(source_url, source_id)
+            if outcome.rendered:
+                return outcome.html or "", None, True
+            logger.info(
+                "Remembered render of %s produced nothing (%s); "
+                "falling back to a plain fetch",
+                source_url,
+                outcome.skipped or "challenge",
+            )
+
+        resp = self._fetch_with_ssl_fallback(source_url, timeout=min(5, self.timeout))
+        status = getattr(resp, "status_code", None)
+        html = resp.text or ""
+
+        try:
+            if remembered or not isinstance(html, str):
+                return html, status, False
+            if isinstance(status, int) and status >= 400:
+                return html, status, False
+            from src.utils.capture_diagnosis import diagnose_capture
+
+            diagnosis = diagnose_capture(html)
+        except Exception:
+            logger.debug("homepage diagnosis failed for %s", source_url, exc_info=True)
+            return html, status, False
+
+        if diagnosis.reason != "render_required":
+            return html, status, False
+
+        logger.warning(
+            "Homepage %s is a script shell (anchors=%s, text_ratio=%s); "
+            "its links exist only after JavaScript runs",
+            source_url,
+            diagnosis.signals.get("anchors"),
+            diagnosis.signals.get("text_ratio"),
+        )
+        self._update_source_meta(source_id, signal_update(diagnosis.signals))
+
+        if renderer is None:
+            return html, status, False
+        outcome = renderer.render(source_url, source_id, just_fetched=True)
+        if outcome.rendered:
+            return outcome.html or "", status, True
+        return html, status, False
+
+    def _settle_render_memory(
+        self,
+        source_id: str | None,
+        source_meta: dict | None,
+        links_found: int,
+    ) -> None:
+        """Remember a homepage that needed a browser, or forget a stale one."""
+        remembered = render_is_remembered(source_meta)
+        if links_found:
+            misses = (source_meta or {}).get(RENDER_MISSES_KEY) if remembered else 0
+            if not remembered or misses:
+                self._update_source_meta(source_id, remember_update(links_found))
+        elif remembered:
+            self._update_source_meta(source_id, miss_update(source_meta))
+
+    def close_homepage_renderer(self) -> None:
+        renderer = getattr(self, "_homepage_renderer", None)
+        if renderer is not None:
+            renderer.close()
+            self._homepage_renderer = None
 
     def _note_capture_diagnosis(self, url: str, html: str | None) -> None:
         """Record WHY a capture might yield nothing, for this source.
@@ -2978,14 +3095,13 @@ class NewsDiscovery:
             # If the source metadata indicates `rss_missing` was recently
             # set, avoid probing for or following RSS/feed-like links here
             # to prevent unnecessary feed fetches that are known to fail.
+            rendered_homepage = False
             try:
                 homepage_request_start = time.time()
-                resp = self._fetch_with_ssl_fallback(
-                    source_url, timeout=min(5, self.timeout)
+                html, homepage_status_code, rendered_homepage = self._homepage_html(
+                    source_url, source_id, source_meta
                 )
-                homepage_status_code = getattr(resp, "status_code", None)
                 homepage_fetch_ms = (time.time() - homepage_request_start) * 1000
-                html = resp.text or ""
 
                 source_meta_dict = (
                     source_meta if isinstance(source_meta, dict) else None
@@ -3061,6 +3177,11 @@ class NewsDiscovery:
                 except Exception:
                     homepage_candidates = []
 
+                if rendered_homepage:
+                    self._settle_render_memory(
+                        source_id, source_meta, len(homepage_candidates)
+                    )
+
                 if homepage_candidates:
                     # Check if candidates are section/category URLs that should be crawled
                     # rather than used directly as articles
@@ -3101,9 +3222,16 @@ class NewsDiscovery:
                                 {
                                     "url": u,
                                     "source_url": source_url,
-                                    "discovery_method": "homepage_links",
+                                    "discovery_method": (
+                                        "homepage_rendered"
+                                        if rendered_homepage
+                                        else "homepage_links"
+                                    ),
                                     "discovered_at": discovered_at,
-                                    "metadata": {"homepage_sniff": True},
+                                    "metadata": {
+                                        "homepage_sniff": True,
+                                        "homepage_rendered": rendered_homepage,
+                                    },
                                 }
                             )
                             existing_urls.add(normalized_candidate)
@@ -3117,8 +3245,12 @@ class NewsDiscovery:
                                     else None
                                 ),
                                 notes=(
-                                    "homepage link-scan"
-                                    f" ({len(out)} candidates, "
+                                    (
+                                        "rendered homepage link-scan"
+                                        if rendered_homepage
+                                        else "homepage link-scan"
+                                    )
+                                    + f" ({len(out)} candidates, "
                                     f"fetch ~{homepage_fetch_ms:.0f}ms)"
                                 ),
                             )
@@ -3137,6 +3269,14 @@ class NewsDiscovery:
                 logger.info(
                     "newspaper4k full build disabled by caller; returning "
                     "homepage candidates only"
+                )
+                paper = None
+            elif rendered_homepage:
+                # newspaper.build fetches the homepage again without a
+                # browser, so it would read the same empty shell.
+                logger.info(
+                    "Homepage for %s needed a browser; skipping newspaper.build",
+                    source_url,
                 )
                 paper = None
             else:
@@ -4161,6 +4301,8 @@ class NewsDiscovery:
                         total=metrics.total_items,
                         message=(f"Failed: {source_row.get('name', 'Unknown')}"),
                     )
+
+            self.close_homepage_renderer()
 
             logger.info(
                 "Discovery complete. Processed %s sources, found %s candidate URLs",
