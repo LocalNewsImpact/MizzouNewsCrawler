@@ -40,6 +40,15 @@ A CONCURRENTLY build that fails leaves an INVALID index behind, which
 IF NOT EXISTS would then treat as done. An invalid one is dropped and
 built again.
 
+`autocommit_block` alone does not get it out of the transaction on
+pg8000, the driver the Cloud SQL connector uses. Alembic commits, then
+asks the connection its isolation level, and pg8000 -- not yet in
+autocommit -- opens a transaction to run that SHOW. Switching to
+autocommit afterwards leaves that transaction open, and the first
+CONCURRENTLY failed inside it on the deploy of 2026-09-30. So the
+block's first act is to commit at the driver. On psycopg2, which the
+integration tests use, that commit is a no-op.
+
 Revision ID: 687d44c97977
 Revises: f4a5b6c7d8e9
 Create Date: 2026-09-30 18:00:00.000000
@@ -70,6 +79,9 @@ def upgrade() -> None:
             op.execute(f"CREATE INDEX IF NOT EXISTS {name} ON {table} ({column})")
         return
     with op.get_context().autocommit_block():
+        # End the transaction pg8000 opened for Alembic's isolation-level
+        # read; see the module docstring.
+        bind.connection.dbapi_connection.commit()
         for name, table, column in INDEXES:
             valid = bind.execute(
                 sa.text(

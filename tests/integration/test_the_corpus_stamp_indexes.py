@@ -17,6 +17,7 @@ The connection is in autocommit, which is what Alembic's
 import contextlib
 import importlib.util
 import os
+import subprocess
 import sys
 import types
 from pathlib import Path
@@ -226,3 +227,50 @@ def test_downgrade_removes_exactly_these(migrated):
     # Put them back for whatever runs next against the shared database.
     migrated.module.upgrade()
     migrated.commit()
+
+
+#: Runs the migration the way the deploy does: Alembic's own
+#: `autocommit_block`, inside env.py's transaction, over pg8000. In a
+#: child process, so the installed `alembic` is the one imported.
+_THROUGH_ALEMBIC = """
+import importlib.util, sys
+from alembic.operations import Operations
+from alembic.runtime.migration import MigrationContext
+from sqlalchemy import create_engine
+
+url, path = sys.argv[1], sys.argv[2]
+with create_engine(url).connect() as conn:
+    context = MigrationContext.configure(conn)
+    with Operations.context(context), context.begin_transaction():
+        spec = importlib.util.spec_from_file_location("stamp_idx", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        module.upgrade()
+"""
+
+
+def test_it_runs_through_alembic_on_pg8000(migrated, tmp_path):
+    """The stub above hands the migration a connection already in
+    autocommit, which is not what production does. Production migrates
+    over pg8000, where Alembic's `autocommit_block` leaves a transaction
+    open and CONCURRENTLY fails inside it -- the deploy of 2026-09-30."""
+    pytest.importorskip("pg8000")
+    url = migrated.engine.url.set(drivername="postgresql+pg8000")
+    for name, _table, _column in migrated.module.INDEXES:
+        migrated.execute(text(f"DROP INDEX IF EXISTS {name}"))
+    migrated.commit()
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            _THROUGH_ALEMBIC,
+            url.render_as_string(hide_password=False),
+            str(MIGRATION),
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr[-2000:]
+    for name, _table, _column in migrated.module.INDEXES:
+        assert _definition(migrated, name) is not None, f"{name} was not created"
