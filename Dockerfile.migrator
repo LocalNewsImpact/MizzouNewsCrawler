@@ -2,7 +2,7 @@
 # This image contains only what's needed to run Alembic migrations
 # It's small, fast to build, and includes safety checks
 
-FROM python:3.14-slim-bookworm AS migrator
+FROM python:3.11-slim-bookworm AS migrator
 
 # Install minimal system dependencies for PostgreSQL
 RUN apt-get update \
