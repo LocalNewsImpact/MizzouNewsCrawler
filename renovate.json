@@ -1,4 +1,12 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["local>LocalNewsImpact/lnic-contracts"]
+  "extends": ["local>LocalNewsImpact/lnic-contracts"],
+  "packageRules": [
+    {
+      "description": "The Python runtime moves as one planned change, not in a dependency batch: the images copy python3.11/site-packages by path, pre-commit pins python3.11, and pyproject targets 3.11. Patch releases still flow.",
+      "matchDepNames": ["python"],
+      "matchUpdateTypes": ["major", "minor"],
+      "enabled": false
+    }
+  ]
 }
