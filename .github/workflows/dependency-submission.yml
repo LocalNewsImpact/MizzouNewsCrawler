@@ -29,7 +29,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          python-version: '3.11'
+          python-version: '3.14'
           # No cache. This job is the only thing in the repository that
           # pip-installs on a runner, and what it downloads is 2.9 GB --
           # a third of the repository's 10 GB cache budget, held for a
@@ -49,4 +49,4 @@ jobs:
           pip list --format=freeze > installed-dependencies.txt
 
       - name: Submit dependencies to GitHub
-        uses: advanced-security/component-detection-dependency-submission-action@v0.1.4
+        uses: advanced-security/component-detection-dependency-submission-action@v0.1.6

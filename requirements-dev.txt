@@ -18,7 +18,7 @@ sphinx-rtd-theme>=3.1.0
 # local black 26.1 disagreed on ~100 files). If something passes locally it
 # must pass in CI and vice-versa; bump these deliberately, in lockstep with a
 # ci-base rebuild.
-ruff==0.16.5  # Fast Python linter
+ruff==0.16.9  # Fast Python linter
 black==26.5.1  # Code formatter
 isort==9.0.1  # Import sorter
 mypy==2.3.1  # Type checker
