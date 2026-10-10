@@ -78,6 +78,7 @@ def owner_of(value: str | None) -> str:
     value = (value or "").strip()
     return "" if value.lower() in NOT_AN_OWNER else value
 
+
 _STOP = {"the", "and", "of", "a", "online", "member", "news"}
 
 
@@ -96,17 +97,37 @@ def host_of(url: str | None) -> str:
 #: web presence is a Facebook page do not share a website, and a host like
 #: this can never match one outlet to another.
 PLATFORM_HOSTS = (
-    "facebook.com", "instagram.com", "twitter.com", "x.com", "youtube.com",
-    "linktr.ee", "sites.google.com", "google.com", "wixsite.com", "blogspot.com",
-    "wordpress.com", "pressreader.com", "issuu.com", "iclassifiedsnetwork.com",
-    "audacy.com", "mytuner-radio.com", "radiolineup.com", "chambermaster.com",
+    "facebook.com",
+    "instagram.com",
+    "twitter.com",
+    "x.com",
+    "youtube.com",
+    "linktr.ee",
+    "sites.google.com",
+    "google.com",
+    "wixsite.com",
+    "blogspot.com",
+    "wordpress.com",
+    "pressreader.com",
+    "issuu.com",
+    "iclassifiedsnetwork.com",
+    "audacy.com",
+    "mytuner-radio.com",
+    "radiolineup.com",
+    "chambermaster.com",
 )
 
 
 #: Platforms that are social media: an outlet whose only web presence is one
 #: of these publishes there rather than on a site we can collect from.
-SOCIAL_HOSTS = ("facebook.com", "instagram.com", "twitter.com", "x.com",
-                "youtube.com", "linktr.ee")
+SOCIAL_HOSTS = (
+    "facebook.com",
+    "instagram.com",
+    "twitter.com",
+    "x.com",
+    "youtube.com",
+    "linktr.ee",
+)
 
 
 def is_social(host: str) -> bool:
@@ -137,11 +158,18 @@ def similar(a: str, b: str) -> float:
     return SequenceMatcher(None, name_key(a), name_key(b)).ratio()
 
 
-
 #: Statuses that take an outlet off the map: its work is counted elsewhere,
 #: it has stopped, or it is not a local newsroom.
-OFF_MAP = ("merged", "duplicate", "closed", "not_local_news", "legal", "shopper",
-           "business", "magazine")
+OFF_MAP = (
+    "merged",
+    "duplicate",
+    "closed",
+    "not_local_news",
+    "legal",
+    "shopper",
+    "business",
+    "magazine",
+)
 
 #: Statuses that map as print, replica or social: a reviewer's word for an
 #: outlet whose readers get it on paper, as a page image, or on Facebook.
@@ -154,7 +182,11 @@ PRINT_LIKE = ("print_only", "print", "replica", "facebook", "social")
 REVIEW = ["status", "merged_into", "status_basis", "reviewed_by", "reviewed_at", "aka"]
 
 #: Towns the lists name without a county.
-TOWN_COUNTY = {"charleston": "Mississippi", "carljunction": "Jasper", "albany": "Gentry"}
+TOWN_COUNTY = {
+    "charleston": "Mississippi",
+    "carljunction": "Jasper",
+    "albany": "Gentry",
+}
 
 #: A 2025 working-sheet note that says an outlet may be gone or print-only.
 SHEET_SIGNAL = re.compile(
@@ -186,7 +218,9 @@ def load_previous(path: Path):
                 r = {**r, field: value}
         if r.get("source_id"):
             by_source[r["source_id"]] = r
-        by_name[(name_key(r["outlet"]), city_key(r["city"]), r.get("source_id", ""))] = r
+        by_name[
+            (name_key(r["outlet"]), city_key(r["city"]), r.get("source_id", ""))
+        ] = r
     return by_source, by_name
 
 
@@ -265,20 +299,31 @@ def save_geocodes(cache: dict, path: Path = GEOCODES) -> None:
     with open(path, "w", newline="") as fh:
         writer = csv.DictWriter(fh, fieldnames=GEOCODE_COLUMNS, extrasaction="ignore")
         writer.writeheader()
-        writer.writerows({c: cache[a].get(c, "") for c in GEOCODE_COLUMNS} for a in sorted(cache))
+        writer.writerows(
+            {c: cache[a].get(c, "") for c in GEOCODE_COLUMNS} for a in sorted(cache)
+        )
 
 
 def _hit(address, lat="", lon="", county="", town="", by=""):
-    return {"address": address, "lat": lat, "lon": lon, "county_fips": county,
-            "town": town, "matched": "yes" if lat else "no", "by": by}
+    return {
+        "address": address,
+        "lat": lat,
+        "lon": lon,
+        "county_fips": county,
+        "town": town,
+        "matched": "yes" if lat else "no",
+        "by": by,
+    }
 
 
 def _census_batch(body: str) -> str:
     import requests
 
     resp = requests.post(
-        f"{CENSUS}/addressbatch", data=CENSUS_PARAMS,
-        files={"addressFile": ("addresses.csv", body, "text/csv")}, timeout=600,
+        f"{CENSUS}/addressbatch",
+        data=CENSUS_PARAMS,
+        files={"addressFile": ("addresses.csv", body, "text/csv")},
+        timeout=600,
     )
     resp.raise_for_status()
     return resp.text
@@ -287,8 +332,11 @@ def _census_batch(body: str) -> str:
 def _census_oneline(address: str) -> list:
     import requests
 
-    resp = requests.get(f"{CENSUS}/onelineaddress", timeout=60,
-                        params={**CENSUS_PARAMS, "address": address, "format": "json"})
+    resp = requests.get(
+        f"{CENSUS}/onelineaddress",
+        timeout=60,
+        params={**CENSUS_PARAMS, "address": address, "format": "json"},
+    )
     resp.raise_for_status()
     return resp.json()["result"]["addressMatches"]
 
@@ -299,9 +347,18 @@ def _nominatim(params: dict) -> list:
     import requests
 
     time.sleep(1.1)  # the service's limit is one request a second
-    resp = requests.get(NOMINATIM, timeout=60, headers={"User-Agent": NOMINATIM_AGENT},
-                        params={**params, "countrycodes": "us", "format": "jsonv2",
-                                "addressdetails": 1, "limit": 1})
+    resp = requests.get(
+        NOMINATIM,
+        timeout=60,
+        headers={"User-Agent": NOMINATIM_AGENT},
+        params={
+            **params,
+            "countrycodes": "us",
+            "format": "jsonv2",
+            "addressdetails": 1,
+            "limit": 1,
+        },
+    )
     resp.raise_for_status()
     return resp.json()
 
@@ -317,9 +374,19 @@ def _from_census(address: str, matches: list) -> dict:
     if len(counties) != 1:
         return _hit(address)
     m = matches[0]
-    town = m["matchedAddress"].split(",")[-3] if m["matchedAddress"].count(",") >= 3 else ""
-    return _hit(address, str(m["coordinates"]["y"]), str(m["coordinates"]["x"]),
-                counties.pop(), town.strip(), "census")
+    town = (
+        m["matchedAddress"].split(",")[-3]
+        if m["matchedAddress"].count(",") >= 3
+        else ""
+    )
+    return _hit(
+        address,
+        str(m["coordinates"]["y"]),
+        str(m["coordinates"]["x"]),
+        counties.pop(),
+        town.strip(),
+        "census",
+    )
 
 
 def _from_osm(address: str, found: list, name: str = "") -> dict:
@@ -335,7 +402,9 @@ def _from_osm(address: str, found: list, name: str = "") -> dict:
         theirs, ours = name_key(f.get("name") or ""), name_key(name)
         if len(theirs) < 4 or (theirs not in ours and ours not in theirs):
             return _hit(address)
-    if place.get("country_code") != "us" or not place.get("ISO3166-2-lvl4", "").startswith("US-"):
+    if place.get("country_code") != "us" or not place.get(
+        "ISO3166-2-lvl4", ""
+    ).startswith("US-"):
         return _hit(address)
     town = place.get("city") or place.get("town") or place.get("village") or ""
     return _hit(address, f["lat"], f["lon"], "", town, "osm")
@@ -347,7 +416,9 @@ def geocode(addresses, cache: dict, path: Path = GEOCODES, post=None) -> dict:
     Every address sent is written to the cache, matched or not, so an
     address nobody can place is asked about once.
     """
-    todo = [a for a in dict.fromkeys(addresses) if a and a not in cache and split_address(a)]
+    todo = [
+        a for a in dict.fromkeys(addresses) if a and a not in cache and split_address(a)
+    ]
     if not todo:
         return cache
     import io
@@ -378,7 +449,9 @@ def geocode(addresses, cache: dict, path: Path = GEOCODES, post=None) -> dict:
     return cache
 
 
-def geocode_again(outlets, cache: dict, path: Path = GEOCODES, oneline=None, osm=None) -> dict:
+def geocode_again(
+    outlets, cache: dict, path: Path = GEOCODES, oneline=None, osm=None
+) -> dict:
     """Ask again for what the batch could not place, one at a time.
 
     The batch refuses ties and knows only TIGER's address ranges, which
@@ -392,17 +465,25 @@ def geocode_again(outlets, cache: dict, path: Path = GEOCODES, oneline=None, osm
     for o in outlets:
         address = o.get("address") or ""
         parts = split_address(address)
-        if parts and cache.get(address, {}).get("matched") != "yes" and not cache.get(address, {}).get("by"):
+        if (
+            parts
+            and cache.get(address, {}).get("matched") != "yes"
+            and not cache.get(address, {}).get("by")
+        ):
             street, city, state, zip_ = parts
-            hit = _from_census(address, oneline(f"{street}, {city}, {state} {zip_}".strip()))
+            hit = _from_census(
+                address, oneline(f"{street}, {city}, {state} {zip_}".strip())
+            )
             if hit["matched"] != "yes":
-                hit = _from_osm(address, osm({"street": street, "city": city, "state": state}))
+                hit = _from_osm(
+                    address, osm({"street": street, "city": city, "state": state})
+                )
             cache[address] = {**hit, "by": hit["by"] or "none"}
         if parts and cache.get(address, {}).get("matched") == "yes":
             continue
         key = _by_name(o)
         if key not in cache and o.get("city"):
-            hit = _from_osm(key, osm({"q": key[len("name: "):]}), o["outlet"])
+            hit = _from_osm(key, osm({"q": key[len("name: ") :]}), o["outlet"])
             cache[key] = {**hit, "by": hit["by"] or "none"}
     save_geocodes(cache, path)
     return cache
@@ -432,7 +513,11 @@ def place_at_address(o: dict, cache: dict, fips_of: dict | None = None) -> dict:
     if not hit or hit.get("matched") != "yes" or not hit.get("lat"):
         return o
     theirs = hit.get("county_fips") or ""
-    elsewhere = hit.get("town") and o.get("city") and city_key(hit["town"]) != city_key(o["city"])
+    elsewhere = (
+        hit.get("town")
+        and o.get("city")
+        and city_key(hit["town"]) != city_key(o["city"])
+    )
     if elsewhere:
         o = _signal(o, f"address is in {hit['town'].title()}, not {o['city']}")
         if theirs != o.get("county_fips"):
@@ -482,7 +567,11 @@ def standing_status(o):
     """
     copied = o.get("status_basis", "") in ("", SOURCES_BASIS)
     if o.get("source_status") and (not o.get("status") or copied):
-        o["status"] = o["source_status"]
+        # "paused" is the crawler's state -- collection stopped -- and says
+        # nothing about the outlet: it is still publishing. (The Neosho Daily
+        # News fell out of every count of papers publishing today, 2026-10-10.)
+        status = o["source_status"]
+        o["status"] = "active" if status == "paused" else status
         o["status_basis"] = SOURCES_BASIS
     return o
 
@@ -506,17 +595,25 @@ def attach_added(outlets, added, ours_by_host):
                 held["_added_status"] = a["status"]
                 held["_added_basis"] = a.get("status_basis", "")
             continue
-        outlets.append({
-            "outlet": a["outlet"], "city": a["city"], "county": a["county"],
-            "host": host_of(a["host"]), "type": a.get("type", ""),
-            "owner": a.get("owner", ""), "web_access": a.get("web_access", ""),
-            "lists": {"added"}, "_cities": set(), "fips": "",
-            "address": a.get("address", ""),
-            "_address_from": "added" if a.get("address") else "",
-            "_added_id": a["outlet_id"],
-            "_added_status": a.get("status", ""),
-            "_added_basis": a.get("status_basis", ""),
-        })
+        outlets.append(
+            {
+                "outlet": a["outlet"],
+                "city": a["city"],
+                "county": a["county"],
+                "host": host_of(a["host"]),
+                "type": a.get("type", ""),
+                "owner": a.get("owner", ""),
+                "web_access": a.get("web_access", ""),
+                "lists": {"added"},
+                "_cities": set(),
+                "fips": "",
+                "address": a.get("address", ""),
+                "_address_from": "added" if a.get("address") else "",
+                "_added_id": a["outlet_id"],
+                "_added_status": a.get("status", ""),
+                "_added_basis": a.get("status_basis", ""),
+            }
+        )
 
 
 def load_facilities():
@@ -558,7 +655,9 @@ def load_county_fips():
     Keyed by state because a county name is not unique: Johnson County is in
     Missouri and in Kansas, and KMBZ is in the Kansas one."""
     out = {}
-    for r in csv.DictReader(open(ROOT / "src/enrichment/reference/census_counties.csv")):
+    for r in csv.DictReader(
+        open(ROOT / "src/enrichment/reference/census_counties.csv")
+    ):
         key = "st louis city" if r["GEOID"] == "29510" else _county_key(r["NAME"])
         out[(r["USPS"], key)] = r["GEOID"]
     return out
@@ -632,8 +731,20 @@ def load_ours(conn):
         """,
         (MARCH[0], MARCH[1], DATASET),
     )
-    cols = ["id", "host", "name", "city", "county", "owner", "type", "status", "state",
-            "march", "newest", "meta"]
+    cols = [
+        "id",
+        "host",
+        "name",
+        "city",
+        "county",
+        "owner",
+        "type",
+        "status",
+        "state",
+        "march",
+        "newest",
+        "meta",
+    ]
     rows = [dict(zip(cols, row, strict=True)) for row in cur.fetchall()]
     for r in rows:
         meta = r.pop("meta") or {}
@@ -670,37 +781,69 @@ def load_lists(mpa_path: Path):
             continue
         if r["name"].strip().lower() == "test organization":
             continue
-        lists.append({
-            "list": "mpa", "name": re.sub(r"\s*\(Online Member\)", "", r["name"]),
-            "city": r.get("city"), "county": county_key(r.get("county")),
-            "host": host_of(r.get("website")), "owner": owner_of(r.get("owner")),
-            # A record with no street and no town has no address: "MO" alone
-            # is not one, and it blocked the Blue Book's from filling the gap.
-            "address": ", ".join(
-                p for p in (r.get("address"), r.get("city"),
-                            f"MO {r.get('zip') or ''}".strip()) if p)
-            if (r.get("address") or r.get("city")) else "",
-        })
+        lists.append(
+            {
+                "list": "mpa",
+                "name": re.sub(r"\s*\(Online Member\)", "", r["name"]),
+                "city": r.get("city"),
+                "county": county_key(r.get("county")),
+                "host": host_of(r.get("website")),
+                "owner": owner_of(r.get("owner")),
+                # A record with no street and no town has no address: "MO" alone
+                # is not one, and it blocked the Blue Book's from filling the gap.
+                "address": (
+                    ", ".join(
+                        p
+                        for p in (
+                            r.get("address"),
+                            r.get("city"),
+                            f"MO {r.get('zip') or ''}".strip(),
+                        )
+                        if p
+                    )
+                    if (r.get("address") or r.get("city"))
+                    else ""
+                ),
+            }
+        )
     for r in csv.DictReader(open(LOOKUPS / "mo_bluebook_newspapers_2025_2026.csv")):
-        lists.append({
-            "list": "bluebook", "name": r["name"].title(), "city": r["city"],
-            "county": "", "host": host_of(r["host"] or r["url"]),
-            "owner": r.get("publisher") or "", "address": r.get("address") or "",
-        })
+        lists.append(
+            {
+                "list": "bluebook",
+                "name": r["name"].title(),
+                "city": r["city"],
+                "county": "",
+                "host": host_of(r["host"] or r["url"]),
+                "owner": r.get("publisher") or "",
+                "address": r.get("address") or "",
+            }
+        )
     for r in csv.DictReader(open(LOOKUPS / "mo_lni_newspapers_2025.csv")):
-        lists.append({
-            "list": "lni", "name": r["newspaperName"], "city": r["city"],
-            "county": county_key(r["county"]), "host": "",
-            "owner": r.get("ownerName") or "", "address": "",
-            "fips": r.get("fips") or "",
-        })
+        lists.append(
+            {
+                "list": "lni",
+                "name": r["newspaperName"],
+                "city": r["city"],
+                "county": county_key(r["county"]),
+                "host": "",
+                "owner": r.get("ownerName") or "",
+                "address": "",
+                "fips": r.get("fips") or "",
+            }
+        )
     for r in csv.DictReader(open(LOOKUPS / "mo_lni_digital_sites_2025.csv")):
-        lists.append({
-            "list": "lni", "name": r["organization"], "city": r["city"],
-            "county": county_key(r["county"]), "host": host_of(r["website"]),
-            "owner": r.get("publisher") or "", "address": "",
-            "fips": r.get("fips") or "",
-        })
+        lists.append(
+            {
+                "list": "lni",
+                "name": r["organization"],
+                "city": r["city"],
+                "county": county_key(r["county"]),
+                "host": host_of(r["website"]),
+                "owner": r.get("publisher") or "",
+                "address": "",
+                "fips": r.get("fips") or "",
+            }
+        )
     return lists
 
 
@@ -759,8 +902,11 @@ def match(entry, outlets, unique_hosts):
             )
         ):
             s = 0.97
-        elif (same_city or names_town) and mine and theirs and (
-            set(mine) <= set(theirs) or set(theirs) <= set(mine)
+        elif (
+            (same_city or names_town)
+            and mine
+            and theirs
+            and (set(mine) <= set(theirs) or set(theirs) <= set(mine))
         ):
             s = 0.9
         elif same_city:
@@ -834,10 +980,17 @@ def main():
     outlets = []
     for r in csv.DictReader(open(LOOKUPS / "mo_all_news_outlets.csv")):
         o = {
-            "outlet": r["outlet"], "city": r["city"], "county": r["county"],
-            "host": host_of(r["host"]), "type": r["type"], "owner": r["owner"],
-            "web_access": r["web_access"], "lists": set(),
-            "_cities": set(), "address": "", "fips": "",
+            "outlet": r["outlet"],
+            "city": r["city"],
+            "county": r["county"],
+            "host": host_of(r["host"]),
+            "type": r["type"],
+            "owner": r["owner"],
+            "web_access": r["web_access"],
+            "lists": set(),
+            "_cities": set(),
+            "address": "",
+            "fips": "",
         }
         outlets.append(o)
 
@@ -868,19 +1021,29 @@ def main():
     for s in ours:
         if s["id"] in matched_ours:
             continue
-        outlets.append({
-            "outlet": s["name"], "city": s["city"], "county": s["county"],
-            "host": host_of(s["host"]), "type": s.get("type") or "", "owner": s["owner"] or "",
-            "web_access": "collected" if s["march"] else "never collected",
-            "lists": {"ours"}, "_cities": set(), "fips": "",
-            "in_sources": True, "source_status": s["status"] or "",
-            "march_articles": int(s["march"] or 0),
-            "source_id": s["id"], "newest": s.get("newest") or "",
-            "state": (s.get("state") or "MO").strip() or "MO",
-            "_source_name": s["name"] or "",
-            "address": s["address"],
-            "_address_from": "sources" if s["address"] else "",
-        })
+        outlets.append(
+            {
+                "outlet": s["name"],
+                "city": s["city"],
+                "county": s["county"],
+                "host": host_of(s["host"]),
+                "type": s.get("type") or "",
+                "owner": s["owner"] or "",
+                "web_access": "collected" if s["march"] else "never collected",
+                "lists": {"ours"},
+                "_cities": set(),
+                "fips": "",
+                "in_sources": True,
+                "source_status": s["status"] or "",
+                "march_articles": int(s["march"] or 0),
+                "source_id": s["id"],
+                "newest": s.get("newest") or "",
+                "state": (s.get("state") or "MO").strip() or "MO",
+                "_source_name": s["name"] or "",
+                "address": s["address"],
+                "_address_from": "sources" if s["address"] else "",
+            }
+        )
 
     attach_added(outlets, load_added(), ours_by_host)
 
@@ -890,7 +1053,9 @@ def main():
         before = early_by_source.get(o.get("source_id") or "") or early_by_name.get(
             (name_key(o["outlet"]), city_key(o["city"]), o.get("source_id") or "")
         )
-        o["_aka"] = [a.strip() for a in ((before or {}).get("aka") or "").split(";") if a.strip()]
+        o["_aka"] = [
+            a.strip() for a in ((before or {}).get("aka") or "").split(";") if a.strip()
+        ]
 
     hosts = [o["host"] for o in outlets if o["host"] and not is_platform(o["host"])]
     unique_hosts = {h for h in hosts if hosts.count(h) == 1}
@@ -899,10 +1064,17 @@ def main():
         o = match(entry, outlets, unique_hosts)
         if o is None:
             o = {
-                "outlet": entry["name"], "city": entry["city"],
-                "county": entry["county"], "host": entry["host"], "type": "",
-                "owner": entry["owner"], "web_access": "not yet reviewed",
-                "lists": set(), "_cities": set(), "address": "", "fips": "",
+                "outlet": entry["name"],
+                "city": entry["city"],
+                "county": entry["county"],
+                "host": entry["host"],
+                "type": "",
+                "owner": entry["owner"],
+                "web_access": "not yet reviewed",
+                "lists": set(),
+                "_cities": set(),
+                "address": "",
+                "fips": "",
             }
             outlets.append(o)
             unmatched.append(entry)
@@ -929,7 +1101,9 @@ def main():
         if o["county"]:
             city_county.setdefault(city_key(o["city"]), county_key(o["county"]))
     for o in outlets:
-        o["county"] = county_key(o["county"]) or city_county.get(city_key(o["city"]), "")
+        o["county"] = county_key(o["county"]) or city_county.get(
+            city_key(o["city"]), ""
+        )
 
     import uuid
 
@@ -989,7 +1163,9 @@ def main():
         o["outlet_id"] = (
             o["source_id"]
             if holds
-            else o.get("_added_id") or (before or {}).get("outlet_id") or str(uuid.uuid4())
+            else o.get("_added_id")
+            or (before or {}).get("outlet_id")
+            or str(uuid.uuid4())
         )
         if (before or {}).get("outlet_id") == o["source_id"] and not holds:
             o["outlet_id"] = str(uuid.uuid4())
@@ -997,7 +1173,9 @@ def main():
             o[k] = (before or {}).get(k, "")
         # An added outlet starts with the status it was added under.
         if not o["status"] and o.get("_added_status"):
-            o["status"], o["status_basis"] = o["_added_status"], o.get("_added_basis", "")
+            o["status"], o["status_basis"] = o["_added_status"], o.get(
+                "_added_basis", ""
+            )
         # Where we hold the outlet, our table's status is the standing answer
         # until somebody reviews it -- and it stays the answer: a status the
         # last build copied from `sources` follows `sources`, not the last
@@ -1016,17 +1194,23 @@ def main():
             o["county"], o["county_basis"] = city_county[city_key(town)], "address"
         else:
             o["county_basis"] = "missing"
-        o["address_basis"] = o.pop("_address_from", "") or ("missing" if not o["address"] else "list")
+        o["address_basis"] = o.pop("_address_from", "") or (
+            "missing" if not o["address"] else "list"
+        )
         lat, lon = places.get((o.get("state") or "MO", city_key(o["city"])), ("", ""))
         o["lat"], o["lon"] = lat, lon
-        o["county_fips"] = county_fips(o["county"], o["city"], fips_of, o.get("state") or "MO")
+        o["county_fips"] = county_fips(
+            o["county"], o["city"], fips_of, o.get("state") or "MO"
+        )
         o["location_basis"] = "town centroid" if lat else "missing"
         fac = facilities.get(o["host"]) or {}
         primary = fac.get("primary") or {}
         o["fcc_call_signs"] = ";".join(fac.get("calls") or [])
         o["fcc_facility_id"] = primary.get("facility_id", "")
         o["fcc_community"] = (
-            f"{primary.get('community', '')}, {primary.get('state', '')}" if primary else ""
+            f"{primary.get('community', '')}, {primary.get('state', '')}"
+            if primary
+            else ""
         )
         o["tx_lat"] = primary.get("tx_lat", "")
         o["tx_lon"] = primary.get("tx_lon", "")
@@ -1041,11 +1225,17 @@ def main():
         if twins > 1:
             signals.append(f"possible duplicate: {twins} rows with this name here")
         if o["host"] and host_count.get(o["host"], 0) > 1:
-            signals.append(f"website shared with {host_count[o['host']] - 1} other outlet(s)")
+            signals.append(
+                f"website shared with {host_count[o['host']] - 1} other outlet(s)"
+            )
         note = sheet.get(o["host"]) or sheet.get(name_key(o["outlet"]))
         if note:
             signals.append(f"2025 sheet: {note[:120]}")
-        if o["web_access"] in ("website gone", "print or replica only", "no web edition"):
+        if o["web_access"] in (
+            "website gone",
+            "print or replica only",
+            "no web edition",
+        ):
             signals.append(o["web_access"])
         o["signals"] = "; ".join(signals)
         # WHAT A MAP DRAWS. One point per surviving outlet: a merged or
@@ -1091,13 +1281,17 @@ def main():
                 o["county_basis"] = "reviewer"
             if field == "city":
                 # The town's point follows a corrected town.
-                lat, lon = places.get((o.get("state") or "MO", city_key(value)), ("", ""))
+                lat, lon = places.get(
+                    (o.get("state") or "MO", city_key(value)), ("", "")
+                )
                 o["lat"], o["lon"] = lat, lon
                 o["location_basis"] = "town centroid" if lat else "missing"
 
     for o in outlets:
         # An override can move an outlet's county; its FIPS follows.
-        o["county_fips"] = county_fips(o["county"], o["city"], fips_of, o.get("state") or "MO")
+        o["county_fips"] = county_fips(
+            o["county"], o["city"], fips_of, o.get("state") or "MO"
+        )
 
     for o in outlets:
         o["state"] = o.get("state") or "MO"
@@ -1109,26 +1303,59 @@ def main():
     for o in outlets:
         place_at_address(o, geocodes, fips_of)
 
-    fields = ["outlet_id", "source_id", "outlet", "state", "city", "county", "county_basis",
-              "fips", "address", "address_basis", "lat", "lon", "location_basis",
-              "fcc_call_signs", "fcc_facility_id", "fcc_community", "tx_lat", "tx_lon",
-              "host", "type", "owner", "in_sources", "source_status",
-              "march_articles", "collected_in_march", "newest", "web_access",
-              "in_mpa", "in_bluebook", "in_lni", "lists", "signals", *REVIEW,
-              "map", "map_category", "county_fips"]
+    fields = [
+        "outlet_id",
+        "source_id",
+        "outlet",
+        "state",
+        "city",
+        "county",
+        "county_basis",
+        "fips",
+        "address",
+        "address_basis",
+        "lat",
+        "lon",
+        "location_basis",
+        "fcc_call_signs",
+        "fcc_facility_id",
+        "fcc_community",
+        "tx_lat",
+        "tx_lon",
+        "host",
+        "type",
+        "owner",
+        "in_sources",
+        "source_status",
+        "march_articles",
+        "collected_in_march",
+        "newest",
+        "web_access",
+        "in_mpa",
+        "in_bluebook",
+        "in_lni",
+        "lists",
+        "signals",
+        *REVIEW,
+        "map",
+        "map_category",
+        "county_fips",
+    ]
     with open(args.out, "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=fields)
         w.writeheader()
         for o in sorted(outlets, key=lambda o: (o["county"] or "~", o["outlet"])):
-            w.writerow({
-                **{k: o.get(k, "") for k in fields},
-                "in_sources": "yes" if o["in_sources"] else "no",
-                "collected_in_march": "yes" if o["march_articles"] else "no",
-                "in_mpa": "yes" if "mpa" in o["lists"] else "no",
-                "in_bluebook": "yes" if "bluebook" in o["lists"] else "no",
-                "in_lni": "yes" if "lni" in o["lists"] else "no",
-                "lists": ";".join(sorted(o["lists"])),
-            })
+            w.writerow(
+                {
+                    **{k: o.get(k, "") for k in fields},
+                    "in_sources": "yes" if o["in_sources"] else "no",
+                    "collected_in_march": "yes" if o["march_articles"] else "no",
+                    "in_mpa": "yes" if "mpa" in o["lists"] else "no",
+                    "in_bluebook": "yes" if "bluebook" in o["lists"] else "no",
+                    "in_lni": "yes" if "lni" in o["lists"] else "no",
+                    "lists": ";".join(sorted(o["lists"])),
+                }
+            )
     print(f"outlets {len(outlets)}  new from the lists {len(unmatched)}  -> {args.out}")
     if args.publish:
         print(f"published -> {publish(args.out)}")

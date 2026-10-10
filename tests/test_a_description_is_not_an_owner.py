@@ -234,6 +234,16 @@ def test_a_status_copied_from_sources_follows_sources(builder):
     assert builder.standing_status(o)["status"] == "not_local_news"
 
 
+def test_a_paused_crawl_is_not_a_paused_paper(builder):
+    """`paused` in `sources` stops collection; the outlet is still publishing.
+    The Neosho Daily News dropped out of every count of papers publishing
+    today because the registry copied the crawler's word."""
+    o = {"source_status": "paused", "status": "", "status_basis": ""}
+    assert builder.standing_status(o)["status"] == "active"
+    o = {"source_status": "paused", "status": "paused", "status_basis": "sources table"}
+    assert builder.standing_status(o)["status"] == "active"
+
+
 def test_a_reviewed_status_is_not_overwritten(builder):
     o = {
         "source_status": "retired",
