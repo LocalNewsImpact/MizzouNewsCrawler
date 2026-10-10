@@ -619,6 +619,92 @@ print("unlinked continuations added:", len(continuations))
     print("  CONT", d.at[a, "title"], "->", d.at[b, "title"], d.at[a, "town"])
     for a, b in continuations
 ]
+
+
+# A catalogue link from a title in one town to a title in another joins them as one paper (it MOVED) only on
+# evidence: a Library of Congress record of either title that places it in both towns; or towns within 40 miles
+# with film that runs on (the new town's first issue within a year of the old town's last, overlapping by no more
+# than three months) or a name in common. A link across 200 miles, or years apart under a common name ("The
+# Rambler", Linneus 1954, linked to the Fair Play Advocate, Polk County, 1943) is not evidence of one paper, and
+# the two are separate papers. The same test holds for a split or a merger between towns: three "Rambler"
+# entries (Linneus, Trenton, Fair Play) all name the Fair Play Advocate before and after them, and only the Fair
+# Play one is near it. Links the Library of Congress or a reviewer states are kept without this test.
+import geo as _geo
+
+_LOC_PLACES = collections.defaultdict(
+    set
+)  # normalised title -> towns LOC records it published in
+for _r in json.load(open(IN / "loc_newspaper_directory.json")):
+    _t = n(re.sub(r"\s*\(.*$", "", _r.get("title") or ""))
+    for _c in _r.get("location_city") or []:
+        _LOC_PLACES[_t].add(_geo.norm(_c))
+
+
+def _loc_places_both(a, b):
+    ta, tb = _geo.norm(d.at[a, "town"]), _geo.norm(d.at[b, "town"])
+    return any({ta, tb} <= _LOC_PLACES.get(n(d.at[i, "title"]), set()) for i in (a, b))
+
+
+def _continuous(a, b):
+    la, fb = d.at[a, "held_last"], d.at[b, "held_first"]
+    if pd.notna(la) and pd.notna(fb):
+        return -0.25 <= (fb - la).days / 365.25 <= 1
+    ea, sb = d.at[a, "end_year"], d.at[b, "start_year"]
+    return pd.notna(ea) and pd.notna(sb) and 0 <= sb - ea <= 1
+
+
+def _near(a, b, limit=40):
+    pa = _geo.point(d.at[a, "town"], d.at[a, "county"])
+    pb = _geo.point(d.at[b, "town"], d.at[b, "county"])
+    return pa is not None and pb is not None and _geo.miles(pa, pb) <= limit
+
+
+def _shares_name(a, b):
+    return bool(
+        cont_words(d.at[a, "title"], d.at[a, "town"])
+        & cont_words(d.at[b, "title"], d.at[b, "town"])
+    )
+
+
+def _evidence(a, b):
+    if _loc_places_both(a, b):
+        return "LOC places it in both towns"
+    if _near(a, b) and (_continuous(a, b) or _shares_name(a, b)):
+        return "nearby, " + ("film runs on" if _continuous(a, b) else "name in common")
+    return None
+
+
+unproven = [
+    (a, b)
+    for a, bs in succ.items()
+    for b in list(bs)
+    if (a, b) not in PROV
+    and pd.notna(d.at[a, "town"])
+    and pd.notna(d.at[b, "town"])
+    and d.at[a, "town"] != d.at[b, "town"]
+    and _evidence(a, b) is None
+]
+for a, b in unproven:
+    succ[a].discard(b)
+    pred[b].discard(a)
+print(
+    f"catalogue links to another town without evidence, not followed: {len(unproven)}"
+)
+pd.DataFrame(
+    [
+        dict(
+            title=d.at[a, "title"],
+            town=d.at[a, "town"],
+            county=d.at[a, "county"],
+            last_film=d.at[a, "held_last"],
+            next_title=d.at[b, "title"],
+            next_town=d.at[b, "town"],
+            next_county=d.at[b, "county"],
+            next_first_film=d.at[b, "held_first"],
+        )
+        for a, b in unproven
+    ]
+).to_csv(OUT / "links_to_another_town_not_followed.csv", index=False)
 # union-find over continuity edges
 par = list(range(len(d)))
 
@@ -632,6 +718,8 @@ def f(x):
 
 merged_out = set()
 for b, ps in pred.items():
+    if not ps:
+        continue  # its only link was one not followed
     ps = sorted(ps, key=lambda a: (d.at[a, "start_year"], a))
     keep = ps[0]
     par[f(keep)] = f(b)
