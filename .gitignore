@@ -171,6 +171,9 @@ schools_*.csv
 # is the one file tracked: it is what datadesk imports.
 src/lookups/mo_*
 !src/lookups/mo_outlet_registry.csv
+# The newspaper-history pipeline's inputs: other people's data (the SHSMO catalogue, the Library of Congress
+# directory) and a reviewer's notes. They live in a private bucket (scripts/newspaper_history/README.md).
+src/lookups/newspaper_history/
 
 # EXCEPT the DMA crosswalk, which stays local and never reaches origin.
 #

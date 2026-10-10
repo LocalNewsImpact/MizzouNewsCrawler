@@ -156,11 +156,31 @@ for x in L.itertuples():
         ["start_year", "_k"]
     )
     prev = None
-    for _, b in ts.iterrows():
-        if prev is not None and b.town != prev.town and b.start_year >= prev.start_year:
+    for i, b in ts.iterrows():
+        # A title several papers combined into is a merger, not a move -- nor is any change of town by a title
+        # that went into one (the Laddonia Herald, into the Vandalia Press and Laddonia Herald, 1945). A move is dated when the old title stopped -- its catalogued end or its last filmed
+        # issue, whichever is earlier -- not by the new title's catalogued start: the three Rambler entries
+        # are all catalogued 1945-1965, and their film runs Linneus 1954-56, Trenton 1956-57, Fair Play 1957-65.
+        if (
+            prev is not None
+            and b.town != prev.town
+            and b.start_year >= prev.start_year
+            and nin[i] < 2
+            and not any(nin[s] >= 2 for s in E.succ[E.pred == prev.name])
+        ):
+            stops = [
+                v
+                for v in (prev.end_year, str(prev.held_last)[:4])
+                if pd.notna(v) and str(v)[:4].isdigit()
+            ]
+            when = (
+                max(b.start_year, min(float(v) for v in stops))
+                if stops
+                else b.start_year
+            )
             events.append(
                 dict(
-                    year=yr(b.start_year),
+                    year=yr(when),
                     event="moved",
                     paper=prev.title,
                     town=s(prev.town),
