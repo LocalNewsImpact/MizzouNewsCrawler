@@ -88,6 +88,8 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+# Analysis scripts, run top to bottom: short names and one-line lambdas are the idiom there.
+"scripts/newspaper_history/*.py" = ["E731", "E741", "B905"]
 "__init__.py" = ["F401", "E402"]  # Allow unused imports and non-top imports in __init__.py
 "tests/**/*.py" = [
     "E402",  # Allow imports not at top in tests (for sys.path manipulation)
