@@ -44,6 +44,20 @@ for _town, _filed, _county in (
     _m = (d.town == _town) & (d.county == _filed)
     assert _m.any(), f"the {_town} county correction no longer matches"
     d.loc[_m, "county"] = _county
+# The Western Messenger's Cole County entry sits under SHSMO's "Eugene" heading; LOC's record places it in Jefferson
+# City (sn 92059017: "The Western Messenger (Jefferson City, Mo.)").
+_m = (
+    (d.county == "Cole")
+    & (d.town == "Eugene")
+    & (d.title.str.lower() == "western messenger")
+)
+assert _m.sum() == 1, "the Western Messenger town correction no longer matches"
+d.loc[_m, "town"] = "Jefferson City"
+# Its St. Louis entry carries film from 1882, a reel of an earlier paper: LOC has it in St. Louis Dec. 16, 1916-1917.
+_m = (d.county == "St. Louis") & (d.title.str.lower() == "western messenger")
+assert _m.sum() == 1, "the Western Messenger St. Louis correction no longer matches"
+d.loc[_m, "held_first"] = pd.Timestamp("1916-12-16")
+d.loc[_m, "start_year"] = 1916
 # "18??", "19??": the catalogue does not know the year; the first issue held is the better date
 fuzzy = d.start.fillna("").str.contains(r"\?") | (d.start_year < 1800)
 d.loc[fuzzy & d.held_first.notna(), "start_year"] = d.loc[
@@ -540,6 +554,28 @@ EXTRA_LINKS = [  # (title, county) -> (title, county): evidence
         ("Vandalia Leader", "Audrain"),
         "SHSMO Audrain directory: preceding title of the Vandalia Leader, 1945-1961",
     ),
+    # One paper, four SHSMO entries: the catalogue links the first two straight to the Baptist Record as well,
+    # which read as a three-way merger (CHAIN_REPLACES drops those).
+    (
+        ("Western Messenger", "Cole"),
+        ("Western Messenger", "St. Louis"),
+        "The Western Messenger, organ of the Missouri Negro Baptist Convention, moved Jefferson City -> St. Louis (Dec. 16, 1916) -> Kansas City (1917 or 1918) and was renamed the Baptist Record (reviewer, 2026-10-10; LOC sn 92059017)",
+    ),
+    (
+        ("Western Messenger", "St. Louis"),
+        ("Western Messenger", "Jackson"),
+        "The Western Messenger, organ of the Missouri Negro Baptist Convention, moved Jefferson City -> St. Louis (Dec. 16, 1916) -> Kansas City (1917 or 1918) and was renamed the Baptist Record (reviewer, 2026-10-10; LOC sn 92059017)",
+    ),
+    (
+        ("Western Messenger", "Jackson"),
+        ("Baptist Record", "Jackson"),
+        "The Western Messenger, organ of the Missouri Negro Baptist Convention, moved Jefferson City -> St. Louis (Dec. 16, 1916) -> Kansas City (1917 or 1918) and was renamed the Baptist Record (reviewer, 2026-10-10; LOC sn 92059017)",
+    ),
+]
+# Catalogue links a reviewer's chain replaces: the title did not go straight to that successor.
+CHAIN_REPLACES = [
+    (("Western Messenger", "Cole"), ("Baptist Record", "Jackson")),
+    (("Western Messenger", "St. Louis"), ("Baptist Record", "Jackson")),
 ]
 
 
@@ -560,6 +596,13 @@ def find_title(t, c):
     )
 
 
+for pa, pb in CHAIN_REPLACES:
+    a, b = find_title(*pa), find_title(*pb)
+    assert (
+        a is not None and b is not None
+    ), f"chain correction no longer matches: {pa} -> {pb}"
+    succ[a].discard(b)
+    pred[b].discard(a)
 for pa, pb, ev in EXTRA_LINKS:
     a = find_title(*pa)
     b = find_title(*pb)
