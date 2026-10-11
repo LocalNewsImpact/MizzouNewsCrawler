@@ -1,7 +1,8 @@
 """Where the newspaper-history pipeline reads and writes.
 
-IN holds the inputs a person curates (the parsed SHSMO catalogue, Library of
-Congress links, founding dates, datadesk merger events). OUT is the build: the
+IN holds the inputs: the parsed catalogues (SHSMO, Library of Congress,
+newspapers.com) and the reviewer's facts written from datadesk's tables before
+each build. OUT is the build: the
 lineages and the feeds for the river, the county family trees and the event
 map. GEO is datadesk's Census geometry, the same files the map draws, so a
 county or town the feed names is one the page can find.
