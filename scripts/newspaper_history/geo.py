@@ -61,6 +61,44 @@ with open(GEO / "counties-10m.json") as f:
     }
 
 
+with open(GEO / "counties-10m.json") as f:
+    _topo = json.load(f)
+_rings = {}
+_arcs_all = _arcs(_topo)
+for _g in _topo["objects"]["counties"]["geometries"]:
+    if not str(_g["id"]).startswith("29"):
+        continue
+    _polys = _g["arcs"] if _g["type"] == "MultiPolygon" else [_g["arcs"]]
+    _rs = []
+    for _poly in _polys:
+        for _ring in _poly:
+            _pts = []
+            for _i in _ring:
+                _pts += _arcs_all[_i] if _i >= 0 else _arcs_all[~_i][::-1]
+            _rs.append(_pts)
+    _rings[(_g["id"], _g["properties"]["name"])] = _rs
+
+
+def county_of(pt):
+    """The Missouri county (its name; "St. Louis" for the city too) a (lon, lat) point lies in, or None."""
+    x, y = pt
+    for (gid, name), rs in _rings.items():
+        inside = False
+        for r in rs:
+            for i in range(len(r)):
+                (x1, y1), (x2, y2) = r[i], r[i - 1]
+                if (y1 > y) != (y2 > y) and x < (x2 - x1) * (y - y1) / (y2 - y1) + x1:
+                    inside = not inside
+        if inside:
+            return name
+    return None
+
+
+def place(town):
+    """(lon, lat) of a Census place by name, or None."""
+    return _places.get(norm(town))
+
+
 def point(town, county):
     """(lon, lat) of a town: its Census place, else its county's centre, else None."""
     return _places.get(norm(town)) or _counties.get(norm(county))

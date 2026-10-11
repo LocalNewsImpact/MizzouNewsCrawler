@@ -61,6 +61,11 @@ for i, r in d.iterrows():
             live=live,
         )
     )
+# map-only papers (known only from surviving issues) have no dates: not in the county trees
+mapped_only = set(lin.lineage[lin.surviving_issues.fillna(False).astype(bool)])
+drop = {int(i) for i in d.index[d.lineage.isin(mapped_only)]}
+rows = [r for r in rows if r["id"] not in drop]
+links = [l for l in links if l["source"] not in drop and l["target"] not in drop]
 # a title with no links stood alone
 linked = {l["source"] for l in links} | {l["target"] for l in links}
 for t in rows:
