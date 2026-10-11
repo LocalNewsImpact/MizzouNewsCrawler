@@ -2,11 +2,16 @@
 
     python scripts/newspaper_history/build.py                # build + check
     python scripts/newspaper_history/build.py --publish      # ... then upload all three
-    python scripts/newspaper_history/build.py --push-inputs  # upload edited inputs
+    python scripts/newspaper_history/build.py --push-inputs  # upload re-parsed catalogues
 
-The inputs are other people's data and a reviewer's notes, and this repository
-is public: they live in a private bucket (INPUTS) and are fetched into
-paths.IN, which git ignores, when they are missing.
+Two kinds of input, neither in git (this repository is public):
+
+- The catalogues -- other people's data, parsed: they live in a private bucket
+  (INPUTS) and are fetched into paths.IN, which git ignores, when missing.
+- A reviewer's facts -- corrections, founding years, mergers: they live in
+  datadesk's database, and every build first writes them into paths.IN with
+  datadesk's `export_newspaper_history_inputs` (through dd-prod, DD_PROD to
+  point elsewhere). Those files are output; a fact is changed in datadesk.
 
 Each step reads what the one before wrote (paths.OUT). The order is fixed:
 exports.py rewrites the river and tree feeds as named tables, and the map is
@@ -19,6 +24,7 @@ newer history than the others.
 """
 
 import argparse
+import os
 import runpy
 import subprocess
 import sys
@@ -31,12 +37,10 @@ INPUTS = "gs://mizzou-news-maps-data/newspaper_history/inputs"
 INPUT_FILES = [
     "shsmo_missouri_titles.csv",
     "loc_links.csv",
-    "registry_founded.csv",
-    "datadesk_merged_events.csv",
     "loc_newspaper_directory.json",
     "newspapers_com_titles.csv",
-    "reviewer_corrections.csv",
 ]
+DD_PROD = os.environ.get("DD_PROD", str(Path.home() / ".config/datadesk/dd-prod"))
 FEEDS = [
     "missouri_newspaper_river.json",
     "missouri_newspaper_family_trees.json",
@@ -48,7 +52,9 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--publish", action="store_true", help="upload the three feeds")
     ap.add_argument(
-        "--push-inputs", action="store_true", help="upload the inputs after an edit"
+        "--push-inputs",
+        action="store_true",
+        help="upload the catalogues after a re-parse",
     )
     args = ap.parse_args()
     sys.path.insert(0, str(HERE))
@@ -68,6 +74,7 @@ def main():
                 ["gcloud", "storage", "cp", f"{INPUTS}/{name}", str(IN / name)],
                 check=True,
             )
+    subprocess.run([DD_PROD, "export_newspaper_history_inputs", str(IN)], check=True)
     for step in STEPS:
         print(f"== {step}", flush=True)
         runpy.run_path(str(HERE / step), run_name="__main__")

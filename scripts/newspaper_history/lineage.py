@@ -22,8 +22,9 @@ for c in ("held_first", "held_last"):
 d["start_year"] = pd.to_numeric(d.start_year)
 d["end_year"] = pd.to_numeric(d.end_year)
 # Reviewer corrections: every fact a reviewer adds to the catalogues -- a fixed field, a dropped entry, a move, a
-# link, a registry alias, an excluded outlet, a print ending -- is a row of reviewer_corrections.csv (its kind says
-# which, its evidence column says why). Each row must still match; a row that no longer finds its entry stops the build.
+# link, a registry alias, an excluded outlet, a print ending -- is a row of datadesk's newspaper_history_correction
+# table (its kind says which, its evidence why), exported to reviewer_corrections.csv before the build. Each row must
+# still match; a row that no longer finds its entry stops the build.
 FIX = pd.read_csv(IN / "reviewer_corrections.csv", dtype=str).fillna("")
 
 
@@ -189,7 +190,7 @@ d = d.drop(index=drop).reset_index(drop=True)
 print("same paper filed under two towns in one county, merged:", merged_dups)
 # Papers that moved between counties and kept their name: the same title and years, film resuming within 45
 # days, towns within 30 miles, a name of two or more significant words, or a paper the reviewer judged the same
-# further apart (reviewer_corrections.csv, kind "moved": the towns in the order the film runs). One entry, under
+# further apart (a correction of kind "moved": the towns in the order the film runs). One entry, under
 # its last town.
 MOVED = [(x.title, x.value.split(" > ")) for x in fixes("moved")]
 moved = 0
@@ -294,7 +295,7 @@ for x in LOC[LOC.kind == "move"].itertuples():
 d = d.drop(index=drop).reset_index(drop=True)
 print("LOC: papers that moved, entries merged:", loc_moved)
 # Newsrooms publishing today that SHSMO never filmed (founded since filming, or digital), with the founding year a
-# reviewer or the paper itself gives (registry_founded.csv).
+# reviewer or the paper itself gives (a `launched` outlet event in datadesk, exported to registry_founded.csv).
 # Each enters as a title of its own, founded that year, so publishing today counts it.
 _f = pd.read_csv(IN / "registry_founded.csv", dtype=str).fillna("")
 new = []
