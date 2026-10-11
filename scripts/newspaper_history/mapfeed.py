@@ -240,8 +240,54 @@ for x in Ls[Ls.end_type == "still publishing"].itertuples():
             y=round(a[1], 4),
         )
     )
+# ---- broadcast stations whose news we collect -----------------------------------------------------------------
+# From datadesk's broadcast_station table (broadcast_stations.csv). A station is on the air from its first air date
+# to today; it is not a paper, so it is not in the river, the county trees or the papers counted above -- the map
+# adds it to a county's shading and to what is active today. It sits at its city of license, or, licensed outside
+# Missouri (KOAM: Pittsburg, Kansas), at the registry newsroom whose site carries its news.
+import csv
+
+from geo import county_of, place
+from paths import IN, REGISTRY
+
+reg = {r["outlet_id"]: r for r in csv.DictReader(open(REGISTRY))}
+stations, undated = [], []
+for s in csv.DictReader(open(IN / "broadcast_stations.csv")):
+    calls = [c.strip().rsplit(" ", 1)[0] for c in s["call_signs"].split(";") if c.strip()]
+    if not s["first_air_date"]:
+        undated.append(calls[-1])
+        continue
+    at = place(s["city"]) if s["state"] == "MO" else None
+    town = s["city"]
+    if at is None:
+        o = reg[s["outlet_id"]]
+        at, town = (float(o["lon"]), float(o["lat"])), o["city"]
+    county = county_of(at)
+    stations.append(
+        dict(
+            call=calls[-1],
+            first_call=calls[0],
+            service="radio" if s["service"] in ("AM", "FM") else "TV",
+            town=town,
+            county=county,
+            fips=gid(county, town),
+            since=int(s["first_air_date"][:4]),
+            x=round(at[0], 4),
+            y=round(at[1], 4),
+        )
+    )
+stations.sort(key=lambda s: (s["since"], s["call"]))
+print("stations", len(stations), "| no first air date, not drawn:", undated)
 json.dump(
-    dict(events=rows, today=today, years=years, y0=Y0, counties=counts, now=now),
+    dict(
+        events=rows,
+        today=today,
+        years=years,
+        y0=Y0,
+        counties=counts,
+        now=now,
+        stations=stations,
+    ),
     open(OUT / "missouri_newspaper_event_map.json", "w"),
     separators=(",", ":"),
     ensure_ascii=False,

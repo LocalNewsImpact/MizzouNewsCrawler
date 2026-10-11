@@ -41,8 +41,14 @@ so no page shows a newer history than the others.
   datadesk, exported as `registry_founded.csv`); mergers (datadesk outlet
   events, exported as `datadesk_merged_events.csv`).
 
-The history counts local newsrooms of any medium, print or digital. It leaves
-out student papers, magazines and broadcasters.
+The river and the county trees count local newsrooms of any medium, print or
+digital. They leave out student papers, magazines and broadcasters.
+
+The event map also draws the radio and TV stations whose news we collect
+(datadesk's `broadcast_station` table, exported as `broadcast_stations.csv`):
+each from its first air date, at its city of license, added to its county's
+shading and to what is active today. They are a list of their own in the map's
+feed, never papers, so the river and the trees are unchanged.
 
 ## Steps
 
