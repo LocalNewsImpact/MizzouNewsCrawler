@@ -38,7 +38,7 @@ def main():
     def key(e):
         return (e["year"], e["event"], e["paper"], e["county"])
 
-    shown = [e for e in emap["events"] if e["event"] != "moved"]
+    shown = [e for e in emap["events"] if e["event"] not in ("moved", "issues survive")]
     if collections.Counter(map(key, kept)) != collections.Counter(map(key, shown)):
         bad.append(
             f"the map's events differ from the river's "

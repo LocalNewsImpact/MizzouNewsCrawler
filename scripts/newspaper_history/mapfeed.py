@@ -74,7 +74,7 @@ d = json.load(open(OUT / "missouri_newspaper_river.json"))
 towns = collections.Counter(
     (e["town"], e["county"])
     for e in d["events"]
-    if e["event"] in ("founded", "closed", "merged", "moved")
+    if e["event"] in ("founded", "closed", "merged", "moved", "issues survive")
 )
 # and where papers went: survivors' towns and new towns
 towns.update(
@@ -110,7 +110,10 @@ for p in d["papers"]:
 pt = lambda town, county: T.get(f"{town}|{county}")
 rows, unplaced = [], 0
 for e in d["events"]:
-    if e["event"] not in ("founded", "closed", "merged", "moved") or e["year"] == "":
+    if (
+        e["event"] not in ("founded", "closed", "merged", "moved", "issues survive")
+        or e["year"] == ""
+    ):
         continue
     a = pt(e["town"], e["county"])
     if not a:
