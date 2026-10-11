@@ -21,56 +21,50 @@ for c in ("held_first", "held_last"):
     d[c] = pd.to_datetime(d[c])
 d["start_year"] = pd.to_numeric(d.start_year)
 d["end_year"] = pd.to_numeric(d.end_year)
-# SHSMO's Texas County directory (p. 19) repeats Audrain's "Vandalia leader" entry with no town heading, and
-# files the Summersville Beacon's 2023 and 2024 reels under it. The entry is dropped; its reels are the Beacon's.
-_stray = (
-    (d.county == "Texas") & (d.town == "Summersville") & (d.title == "Vandalia leader")
-)
-_beacon = (
-    (d.county == "Texas") & (d.title == "Summersville Beacon") & (d.end_year == 2022)
-)
-assert (
-    _stray.sum() == 1 and _beacon.sum() == 1
-), "the Texas County Vandalia leader correction no longer matches"
-d.loc[_beacon, "held_last"] = d.loc[_stray, "held_last"].iloc[0]
-d.loc[_beacon, "end_year"] = 2024
-d = d[~_stray]
-# Two titles SHSMO files under the wrong county's directory: the town is not in that county. (Found by testing every
-# catalogued town against the county polygon it lies in; the other mismatches are towns that straddle a county line.)
-for _town, _filed, _county in (
-    ("Princeton", "Macon", "Mercer"),
-    ("El Dorado Springs", "Clay", "Cedar"),
-):
-    _m = (d.town == _town) & (d.county == _filed)
-    assert _m.any(), f"the {_town} county correction no longer matches"
-    d.loc[_m, "county"] = _county
-# The Wentzville Journal, a Suburban Journals paper, survives on SHSMO film for one quarter (Oct.-Dec. 1989) as the
-# "Wentzville Messenger Journal"; it was published until it was combined with the Warrenton paper in 2009 as the
-# Suburban Journal Wentzville/Warrenton Edition (Wikipedia, "Suburban Journals": the Wentzville Journal through the
-# 2005 Lee purchase and its 2006 move online; the combined title, SHSMO Warren County, 2009-2011).
-_m = (d.county == "St. Charles") & (d.title == "Wentzville Messenger Journal")
-assert _m.sum() == 1, "the Wentzville Journal correction no longer matches"
-d.loc[_m, "end_year"] = 2009
-# The Western Messenger's Cole County entry sits under SHSMO's "Eugene" heading; LOC's record places it in Jefferson
-# City (sn 92059017: "The Western Messenger (Jefferson City, Mo.)").
-_m = (
-    (d.county == "Cole")
-    & (d.town == "Eugene")
-    & (d.title.str.lower() == "western messenger")
-)
-assert _m.sum() == 1, "the Western Messenger town correction no longer matches"
-d.loc[_m, "town"] = "Jefferson City"
-# Its St. Louis entry carries film from 1882, a reel of an earlier paper: LOC has it in St. Louis Dec. 16, 1916-1917.
-_m = (d.county == "St. Louis") & (d.title.str.lower() == "western messenger")
-assert _m.sum() == 1, "the Western Messenger St. Louis correction no longer matches"
-d.loc[_m, "held_first"] = pd.Timestamp("1916-12-16")
-d.loc[_m, "start_year"] = 1916
+# Reviewer corrections: every fact a reviewer adds to the catalogues -- a fixed field, a dropped entry, a move, a
+# link, a registry alias, an excluded outlet, a print ending -- is a row of reviewer_corrections.csv (its kind says
+# which, its evidence column says why). Each row must still match; a row that no longer finds its entry stops the build.
+FIX = pd.read_csv(IN / "reviewer_corrections.csv", dtype=str).fillna("")
+
+
+def fixes(kind):
+    return FIX[FIX.kind == kind].itertuples()
+
+
+def fix_rows(x):
+    m = d.county == x.county
+    if x.title:
+        m &= d.title.str.lower() == x.title.lower()
+    if x.town:
+        m &= d.town == x.town
+    assert m.any(), f"reviewer correction no longer matches: {x.kind} {x.title} {x.county} {x.town}"
+    return m
+
+
+# an entry filed in the wrong place whose reels are another paper's: dropped, its last reel and end year moved over
+# (the other paper by the catalogue's exact spelling: Texas County holds "Summersville Beacon" and "Summersville beacon")
+for x in fixes("reels_belong_to"):
+    _stray = fix_rows(x)
+    _to = (d.county == x.other_county) & (d.title == x.other_title)
+    assert _stray.sum() == 1 and _to.sum() == 1, f"reviewer correction no longer matches: {x.title}"
+    d.loc[_to, "held_last"] = d.loc[_stray, "held_last"].iloc[0]
+    d.loc[_to, x.field] = pd.to_numeric(x.value)
+    d = d[~_stray]
 # "18??", "19??": the catalogue does not know the year; the first issue held is the better date
 fuzzy = d.start.fillna("").str.contains(r"\?") | (d.start_year < 1800)
 d.loc[fuzzy & d.held_first.notna(), "start_year"] = d.loc[
     fuzzy & d.held_first.notna(), "held_first"
 ].dt.year
 d = d[d.start_year.notna()].copy()
+# a catalogue field corrected: town, county, a start or end year, a first reel -- after the fuzzy-year rule, which a
+# reviewer's year outranks (the Daily Fort Gateway Guide's "197?" is 1971, not its first reel's 1973)
+for x in fixes("set"):
+    v = (
+        pd.Timestamp(x.value)
+        if x.field.startswith("held_")
+        else pd.to_numeric(x.value) if x.field.endswith("_year") else x.value
+    )
+    d.loc[fix_rows(x), x.field] = v
 # Editions and special issues are not newspapers of their own. The evidence is the catalogue title:
 # "... Edition", "(Supplement)", "... insert", "Souvenir", "Anniversary", "Centennial", "reprint", and
 # an "Extra" that ran a year or less (a one-off issue; an ongoing title called "Extra" is a paper).
@@ -112,11 +106,10 @@ d = (
     .drop_duplicates(["k_title", "k_town", "start_year"])
     .reset_index(drop=True)
 )
-# One paper catalogued twice under two counties: the County Herald-Enterprise (2020-) is filed under Paris (Monroe)
-# and Center (Ralls). The Paris entry stands; the Center entry is the same film.
-d = d[
-    ~((d.county == "Ralls") & (d.title.str.lower() == "county herald-enterprise"))
-].reset_index(drop=True)
+# One paper catalogued twice under two counties: the second entry is the same film (kind "drop").
+for x in fixes("drop"):
+    d = d[~fix_rows(x)]
+d = d.reset_index(drop=True)
 # Paper names are proper names: the catalogue's sentence case ("Weekly record") becomes title case. Small words
 # stay lower case inside a name; a word that already carries capitals (McDonald, St., KC) is left as it is.
 SMALL = {
@@ -195,38 +188,10 @@ for _, g in d.groupby([d.k_title, d.start_year, _end, d.county]):
 d = d.drop(index=drop).reset_index(drop=True)
 print("same paper filed under two towns in one county, merged:", merged_dups)
 # Papers that moved between counties and kept their name: the same title and years, film resuming within 45
-# days, towns within 30 miles, a name of two or more significant words -- plus two the reviewer judged the same
-# paper further apart (the Missouri Army Argus, a Confederate army paper that moved with the troops in 1861; the
-# World's Cresset). One entry, under its last town.
-MOVED = [  # title, the towns in the order the film runs
-    ("Post-Tribune", ["Parma", "Bernie"]),
-    ("Lake Sun", ["Camdenton", "Osage Beach"]),
-    ("Lake Sun-Leader", ["Osage Beach", "Camdenton"]),
-    ("Otter Ozark Outdoor News", ["Clinton", "Appleton City"]),
-    ("Missouri Intelligencer and Boon's Lick Advertiser", ["Fayette", "Columbia"]),
-    ("North Missouri Register", ["Brashear", "Macon"]),
-    (
-        "Missouri Army Argus",
-        ["Neosho", "Pineville", "Greenfield", "Osceola", "Springfield"],
-    ),
-    # Leroy Garrett's colony paper: one weekly, 1891 to Dec. 26, 1918, moving with the colony through Miller,
-    # Benton, Carter, Douglas, Howell, Texas and Wright counties without a break (LOC sn93060090 essay).
-    (
-        "World's Cresset",
-        [
-            "Fowler",
-            "Norwood",
-            "Pomona",
-            "Trask",
-            "Brushy Knob",
-            "Mountain Grove",
-            "Fremont",
-        ],
-    ),
-    # the Oakville Call (St. Louis Call Newspapers, callnewspapers.com/about-us): filed under St. Louis to Apr. 2015,
-    # under Oakville from May 2015
-    ("Oakville Call", ["St. Louis", "Oakville"]),
-]
+# days, towns within 30 miles, a name of two or more significant words, or a paper the reviewer judged the same
+# further apart (reviewer_corrections.csv, kind "moved": the towns in the order the film runs). One entry, under
+# its last town.
+MOVED = [(x.title, x.value.split(" > ")) for x in fixes("moved")]
 moved = 0
 drop = []
 for t, towns in MOVED:
@@ -329,25 +294,9 @@ for x in LOC[LOC.kind == "move"].itertuples():
 d = d.drop(index=drop).reset_index(drop=True)
 print("LOC: papers that moved, entries merged:", loc_moved)
 # Newsrooms publishing today that SHSMO never filmed (founded since filming, or digital), with the founding year a
-# reviewer or the paper itself gives (registry_founded.csv; Springfield Daily Citizen, 2022, from its own notes).
+# reviewer or the paper itself gives (registry_founded.csv).
 # Each enters as a title of its own, founded that year, so publishing today counts it.
 _f = pd.read_csv(IN / "registry_founded.csv", dtype=str).fillna("")
-_f = pd.concat(
-    [
-        _f,
-        pd.DataFrame(
-            [
-                dict(
-                    outlet="Springfield Daily Citizen",
-                    city="Springfield",
-                    county="Greene",
-                    founded_year="2022",
-                )
-            ]
-        ),
-    ],
-    ignore_index=True,
-)
 new = []
 for x in _f[_f.founded_year != ""].itertuples():
     c = str(x.county).replace(" County", "")
@@ -561,118 +510,15 @@ for (_c), g in held.groupby("county"):
                 PROV[(a, b)] = (
                     "continuation: later name contains the earlier one, film resumes within 31 days"
                 )
-# Named mergers the catalogue does not link, each with its evidence.
-# The SunCrest Call began in 1996 (callnewspapers.com/about-us); the catalogue's 1856 start is an error.
-d.loc[
-    (d.title.str.lower() == "suncrest call") & (d.county == "St. Louis"), "start_year"
-] = 1996
-# The Daily Guide (Pulaski County) was first published in July 1971, as the Daily Fort Gateway Guide (reviewer,
-# 2026-10-10); SHSMO's catalogue starts it in 1973, its first filmed issue.
-d.loc[
-    (d.title.str.lower() == "daily fort gateway guide") & (d.county == "Pulaski"),
-    "start_year",
-] = 1971
-EXTRA_LINKS = [  # (title, county) -> (title, county): evidence
-    # "As of 2020, we are the St. Louis Call, previously known as the Concord Call, Green Park Call, Mail Call,
-    # Oakville Call and SunCrest Call" (callnewspapers.com/about-us). SHSMO's film of the three editions ends 2004.
-    (
-        ("Concord Call", "St. Louis"),
-        ("Oakville Call", "St. Louis"),
-        "Call Newspapers About page: consolidated as the St. Louis Call",
-    ),
-    (
-        ("Green Park Call", "St. Louis"),
-        ("Oakville Call", "St. Louis"),
-        "Call Newspapers About page: consolidated as the St. Louis Call",
-    ),
-    (
-        ("Suncrest Call", "St. Louis"),
-        ("Oakville Call", "St. Louis"),
-        "Call Newspapers About page: consolidated as the St. Louis Call",
-    ),
-    (
-        ("Monroe County Appeal", "Monroe"),
-        ("County Herald-Enterprise", "Monroe"),
-        "SHSMO film: Appeal ends 2020-05-28, joint County Herald-Enterprise (Paris and Center) from 2020-06-04; today Monroe | Ralls",
-    ),
-    (
-        ("Ralls County Herald-Enterprise", "Ralls"),
-        ("County Herald-Enterprise", "Monroe"),
-        "SHSMO film: Herald-Enterprise ends 2020-05-28, joint paper from 2020-06-04",
-    ),
-    # The Leader began first (1895), so the catalogue's links from these two run backwards in time and are not
-    # placed; SHSMO's Audrain entry lists both among the Leader's preceding titles.
-    (
-        ("Vandalia Mail", "Audrain"),
-        ("Vandalia Leader", "Audrain"),
-        "SHSMO Audrain directory: preceding title of the Vandalia Leader, 1903-1945",
-    ),
-    (
-        ("Vandalia Press and Laddonia Herald", "Audrain"),
-        ("Vandalia Leader", "Audrain"),
-        "SHSMO Audrain directory: preceding title of the Vandalia Leader, 1945-1961",
-    ),
-    # One paper, four SHSMO entries: the catalogue links the first two straight to the Baptist Record as well,
-    # which read as a three-way merger (CHAIN_REPLACES drops those).
-    (
-        ("Western Messenger", "Cole"),
-        ("Western Messenger", "St. Louis"),
-        "The Western Messenger, organ of the Missouri Negro Baptist Convention, moved Jefferson City -> St. Louis (Dec. 16, 1916) -> Kansas City (1917 or 1918) and was renamed the Baptist Record (reviewer, 2026-10-10; LOC sn 92059017)",
-    ),
-    (
-        ("Western Messenger", "St. Louis"),
-        ("Western Messenger", "Jackson"),
-        "The Western Messenger, organ of the Missouri Negro Baptist Convention, moved Jefferson City -> St. Louis (Dec. 16, 1916) -> Kansas City (1917 or 1918) and was renamed the Baptist Record (reviewer, 2026-10-10; LOC sn 92059017)",
-    ),
-    (
-        ("Western Messenger", "Jackson"),
-        ("Baptist Record", "Jackson"),
-        "The Western Messenger, organ of the Missouri Negro Baptist Convention, moved Jefferson City -> St. Louis (Dec. 16, 1916) -> Kansas City (1917 or 1918) and was renamed the Baptist Record (reviewer, 2026-10-10; LOC sn 92059017)",
-    ),
+# Named mergers and renamings the catalogue does not link, each with its evidence (kind "link"), and catalogue
+# links a reviewer's chain replaces: the title did not go straight to that successor (kind "unlink").
+EXTRA_LINKS = [
+    ((x.title, x.county), (x.other_title, x.other_county), x.evidence)
+    for x in fixes("link")
 ]
-EXTRA_LINKS += [
-    (
-        ("Warrenton Journal", "Warren"),
-        ("Suburban Journal Warrenton Edition", "Warren"),
-        "Suburban Journals: the Wentzville and Warrenton papers combined in 2009 as the Suburban Journal Wentzville/Warrenton Edition (reviewer, 2026-10-10; Wikipedia, 'Suburban Journals'; SHSMO Warren County film)",
-    ),
-    (
-        ("Suburban Journal Warrenton Edition", "Warren"),
-        ("Suburban Journal Wentzville/Warrenton Edition", "Warren"),
-        "Suburban Journals: the Wentzville and Warrenton papers combined in 2009 as the Suburban Journal Wentzville/Warrenton Edition (reviewer, 2026-10-10; Wikipedia, 'Suburban Journals'; SHSMO Warren County film)",
-    ),
-    (
-        ("Wentzville Messenger Journal", "St. Charles"),
-        ("Suburban Journal Wentzville/Warrenton Edition", "Warren"),
-        "Suburban Journals: the Wentzville and Warrenton papers combined in 2009 as the Suburban Journal Wentzville/Warrenton Edition (reviewer, 2026-10-10; Wikipedia, 'Suburban Journals'; SHSMO Warren County film)",
-    ),
-]
-EXTRA_LINKS += [
-    (
-        ("Daily Standard", "Clay"),
-        ("Excelsior Springs Standard", "Clay"),
-        "newspapers.com groups these titles as The Daily Standard (Excelsior Springs), and the film runs on: Daily Standard to Mar. 31, 1998; Excelsior Springs Standard from Apr. 3, 1998 to Jan. 31, 2020; The Standard from Feb. 7, 2020",
-    ),
-    (
-        ("Excelsior Springs Standard", "Clay"),
-        ("The Standard", "Clay"),
-        "newspapers.com groups these titles as The Daily Standard (Excelsior Springs), and the film runs on: Daily Standard to Mar. 31, 1998; Excelsior Springs Standard from Apr. 3, 1998 to Jan. 31, 2020; The Standard from Feb. 7, 2020",
-    ),
-]
-EXTRA_LINKS += [
-    (
-        ("Columbia Missourian", "Boone"),
-        ("Missourian", "Boone"),
-        "The Columbia Missourian, renamed the Missourian in 2003: same town, film runs on (Columbia Missourian "
-        "to Jan. 20, 2003; Missourian from Jan. 22, 2003) (reviewer, 2026-10-10)",
-    ),
-]
-# Catalogue links a reviewer's chain replaces: the title did not go straight to that successor.
 CHAIN_REPLACES = [
-    (("Western Messenger", "Cole"), ("Baptist Record", "Jackson")),
-    (("Western Messenger", "St. Louis"), ("Baptist Record", "Jackson")),
+    ((x.title, x.county), (x.other_title, x.other_county)) for x in fixes("unlink")
 ]
-
 
 def find_title(t, c):
     # the catalogue can hold one name twice (Monroe County Appeal, 1875 and 1948): the entry with the latest film
@@ -910,6 +756,9 @@ recent = d.cur | (d.held_last.dt.year >= 2000)
 
 # The registry is the source of truth for which papers publish today: active print papers (and print-only and
 # replica rows), not student papers or magazines.
+NOT_A_NEWSROOM = {x.title for x in fixes("not_a_newsroom")}
+
+
 def reg_live(x):
     # local newsrooms, whatever they publish in -- print or digital -- not broadcasters
     alive = (
@@ -918,12 +767,8 @@ def reg_live(x):
     ) or x["status"] in ("print", "replica")
     student = bool(re.search(r"universit|college", x["owner"], re.I))
     magazine = bool(re.search(r"magazine", x["outlet"], re.I))
-    # not local news (reviewer, 2026-10-10); the registry carries it once sources.status is updated
-    not_local = x["outlet"] in ("Metro Voice Christian Newspaper", "Missouri Lawyers")
-    # a company site whose papers are registry rows of their own (northmissourinews.com: the Post-Telegraph,
-    # Unionville Republican, The Courier, Beachcomber and Amish Country) -- not a newsroom to count again
-    if x["outlet"] in ("North Missouri News",):
-        return False
+    # not a local newsroom to count: not local news, or a company site whose papers are registry rows of their own
+    not_local = x["outlet"] in NOT_A_NEWSROOM
     return (
         alive
         and x["county_fips"].startswith("29")
@@ -1004,21 +849,9 @@ print(
     "| plus older same-town titles:",
     older,
 )
-# Registry names that share no word with their SHSMO title: the registry's "Monroe | Ralls" is the County
-# Herald-Enterprise (Paris) under its current flag.
+# Registry names that share no word with their SHSMO title (kind "registry_alias": the registry's name and town).
 REG_ALIAS = {
-    ("County Herald-Enterprise", "Monroe"): ("Monroe | Ralls", "Paris"),
-    # fstop's print weekly (the Jasper County Citizen merged into it, Dec 2025) -- not Carthage News Online,
-    # Drop Cap Publishing's separate digital newsroom, which shares only the town's name
-    ("Carthage Chronicle", "Jasper"): ("Carthage Chronicle", "Sarcoxie"),
-    # the combined edition of the Ash Grove Commonwealth and the Republic Monitor (2016); the registry files it
-    # at Squibb Media's Mount Vernon office (Lawrence County), SHSMO at Republic (Greene)
-    ("Greene County Commonwealth", "Greene"): (
-        "Greene County Commonwealth",
-        "Mount Vernon",
-    ),
-    # the St. Louis Call (2020), formerly the Oakville Call and its sister editions
-    ("Oakville Call", "St. Louis"): ("St. Louis Call Newspapers", "St. Louis"),
+    (x.title, x.county): (x.other_title, x.other_town) for x in fixes("registry_alias")
 }
 for (t, c), (nm, town) in REG_ALIAS.items():
     i = find_title(t, c)
@@ -1072,9 +905,8 @@ for i in d.index:
 # Mid American News-Review).
 reg_matched = set(d.reg_name.dropna())
 third = 0
-NOT_THE_TOWNS_PAPER = {
-    "Pulaski County Weekly"
-}  # Salem bought it with the Rolla Daily News in 2021 and closed the RDN
+# a registry paper that is not its town's continuing paper, though the names match (kind "not_the_towns_paper")
+NOT_THE_TOWNS_PAPER = {x.title for x in fixes("not_the_towns_paper")}
 for nm, x in LIVE_REG.items():
     if nm in reg_matched or nm in NOT_THE_TOWNS_PAPER:
         continue
@@ -1250,41 +1082,13 @@ reg_by_id = {x["outlet_id"]: x for x in reg_rows}
 # its merged rows are papers still printing under a group's site (MPA, LNI, Blue Book). Only events with
 # evidence of the paper itself ending count here, at their own year; 2026 events end after the last
 # checkpoint, so the paper is still publishing in 2025 but not today.
-PRINT_EVENTS = {  # registry outlet -> (year, how it ended, evidence)
-    "The Monett Times": (
-        2024,
-        "merged",
-        "Lawrence County Record, 2024-06-26: part of the Record from the July 3, 2024 issue",
-    ),
-    "Jasper County Citizen": (
-        2025,
-        "merged",
-        "MPA February 2026 Notebook: combined with the Carthage Chronicle, Dec 2025",
-    ),
-    "Lee's Summit Missouri Journal News": (
-        2026,
-        "merged",
-        "datadesk event: merged into The Kansas City Star, March 2026",
-    ),
-    "Farmington Press": (
-        2026,
-        "merged",
-        "datadesk event: a section of the Daily Journal; a separate title as of Sept 2025",
-    ),
-    "Grant City Times Tribune": (
-        2026,
-        "closed",
-        "MPA 2026-04-03: closed Feb. 26, 2026",
-    ),
-    # final issue Jan 1, 2021; the name continues as pages of the Wednesday Standard Democrat (Sikeston, Scott
-    # County). The registry files the paper under Scott, its survivor's county; SHSMO files it in New Madrid.
-    "New Madrid Weekly Record": (
-        2021,
-        "merged",
-        "Standard Democrat 2021-01-19: final issue Jan 1, 2021; continues as pages of the Standard Democrat",
-        "New Madrid",
-        "Weekly record",
-    ),
+# kind "print_ended": registry outlet -> (year, how it ended, evidence[, SHSMO county[, SHSMO title]]) -- the
+# SHSMO county and title where the registry's name or county would not find the paper
+PRINT_EVENTS = {
+    x.title: (int(x.value), x.field, x.evidence)
+    + ((x.other_county,) if x.other_county else ())
+    + ((x.other_title,) if x.other_title else ())
+    for x in fixes("print_ended")
 }
 merges = [
     x

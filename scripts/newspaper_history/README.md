@@ -59,9 +59,29 @@ the feed names is one the page can draw.
 
 ## Corrections to the catalogue
 
-Each is in `lineage.py` with the record it answers and an assertion that fails
-if the catalogue changes under it: a stray Vandalia Leader entry in the Texas
-County directory, two titles filed under the wrong county (Princeton, El
-Dorado Springs), and links between titles that SHSMO states but the parser
-cannot place. A catalogue link is placed by the town it names, its county, or a
+A reviewer's correction is data, not code: one row of
+`reviewer_corrections.csv` in the inputs bucket. Adding one is an edit to that
+file, `build.py --push-inputs`, `build.py --publish` and a re-pin of the three
+visuals -- no pull request. Every row carries its evidence, and a row that no
+longer matches its entry stops the build.
+
+| kind | what the row says | columns used |
+|---|---|---|
+| `set` | a catalogue field is wrong: town, county, a start or end year, a first reel | title, county, town (to match); field, value |
+| `drop` | an entry is the same film as another | title, county |
+| `reels_belong_to` | an entry's reels are another paper's; the entry goes, its last reel moves over | title, county, town; other_title, other_county (exact spelling); field, value |
+| `moved` | one paper filmed under several towns | title; value = towns in film order, `" > "` between |
+| `link` | one title carried on as another (a renaming or merger the catalogue does not link) | title, county -> other_title, other_county |
+| `unlink` | a catalogue link a reviewer's chain replaces | title, county -> other_title, other_county |
+| `registry_alias` | the registry's name for a catalogue title that shares no word with it | title, county; other_title, other_town = the registry's name and town |
+| `not_a_newsroom` | a registry row not counted as a local newsroom | title = registry outlet |
+| `not_the_towns_paper` | a registry row that is not its town's continuing paper | title = registry outlet |
+| `print_ended` | a registry paper's print run ended, with its year | title = registry outlet; field = merged or closed; value = year; other_county, other_title = the SHSMO entry where the registry would not find it |
+
+Founding years of newsrooms SHSMO never filmed are rows of
+`registry_founded.csv`.
+
+The code holds only rules (thresholds, distances, name patterns).
+
+A catalogue link is placed by the town it names, its county, or a
 start year within four years -- never by a name alone.

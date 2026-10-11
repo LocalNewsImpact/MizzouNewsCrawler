@@ -35,6 +35,7 @@ INPUT_FILES = [
     "datadesk_merged_events.csv",
     "loc_newspaper_directory.json",
     "newspapers_com_titles.csv",
+    "reviewer_corrections.csv",
 ]
 FEEDS = [
     "missouri_newspaper_river.json",
