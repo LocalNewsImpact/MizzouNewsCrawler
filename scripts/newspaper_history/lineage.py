@@ -659,6 +659,14 @@ EXTRA_LINKS += [
         "newspapers.com groups these titles as The Daily Standard (Excelsior Springs), and the film runs on: Daily Standard to Mar. 31, 1998; Excelsior Springs Standard from Apr. 3, 1998 to Jan. 31, 2020; The Standard from Feb. 7, 2020",
     ),
 ]
+EXTRA_LINKS += [
+    (
+        ("Columbia Missourian", "Boone"),
+        ("Missourian", "Boone"),
+        "The Columbia Missourian, renamed the Missourian in 2003: same town, film runs on (Columbia Missourian "
+        "to Jan. 20, 2003; Missourian from Jan. 22, 2003) (reviewer, 2026-10-10)",
+    ),
+]
 # Catalogue links a reviewer's chain replaces: the title did not go straight to that successor.
 CHAIN_REPLACES = [
     (("Western Messenger", "Cole"), ("Baptist Record", "Jackson")),
