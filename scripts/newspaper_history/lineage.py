@@ -296,11 +296,19 @@ d = d.drop(index=drop).reset_index(drop=True)
 print("LOC: papers that moved, entries merged:", loc_moved)
 # Newsrooms publishing today that SHSMO never filmed (founded since filming, or digital), with the founding year a
 # reviewer or the paper itself gives (a `launched` outlet event in datadesk, exported to registry_founded.csv).
-# Each enters as a title of its own, founded that year, so publishing today counts it.
+# Each enters as a title of its own, founded that year, so publishing today counts it. A launch of a paper SHSMO
+# did film is already a catalogue title, and is not added twice: the same name in the same county, its film
+# beginning within a year of the launch (Phelps County Focus, 2017). A name alone is not that paper -- the
+# Missouri Times of 2012 is not Eugene's of 1979.
 _f = pd.read_csv(IN / "registry_founded.csv", dtype=str).fillna("")
+filmed = collections.defaultdict(set)
+for _c, _k, _y in zip(d.county, d.k_title, d.start_year):
+    filmed[(_c, _k)].add(int(_y))
 new = []
 for x in _f[_f.founded_year != ""].itertuples():
     c = str(x.county).replace(" County", "")
+    if any(abs(y - int(x.founded_year)) <= 1 for y in filmed[(c, n(x.outlet))]):
+        continue
     new.append(
         dict(
             county=c,
