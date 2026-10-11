@@ -2,7 +2,8 @@
 
 years  -- one row per year: what the river draws (counts, and the papers by name, "; "-separated)
 papers -- one row per newspaper: its whole history in a row
-events -- one row per paper founded, merged, moved or closed, and per title renamed, split or combined, with its
+events -- one row per paper founded, merged, moved or closed (or, known only from surviving issues, one row
+          when they begin), and per title renamed, split or combined, with its
           source; other_town/other_county are where the other paper (or the new town) was
 
 The river feed is {years, papers, events}; the county-tree feed is {titles, links, papers, events}. datadesk offers
@@ -76,6 +77,23 @@ for x in L.itertuples():
     t = d[d.lineage == x.lineage].sort_values("start_year")
     first = t.iloc[0]
     added = pd.isna(first.held_first) and first.in_registry
+    if x.surviving_issues:
+        # Known only from the issues that survive: one event in the year they begin -- neither a founding nor a
+        # closing, which the record does not show.
+        events.append(
+            dict(
+                year=yr(x.start),
+                event="issues survive",
+                paper=first.title,
+                town=s(first.town),
+                county=first.county,
+                other_paper="",
+                other_town="",
+                other_county="",
+                source="SHSMO film only: no dates catalogued",
+            )
+        )
+        continue
     events.append(
         dict(
             year=yr(x.start),
@@ -247,7 +265,7 @@ for x in L.itertuples():
             county=x.county,
             first_year=yr(x.start),
             last_year="" if x.end_type == "still publishing" else yr(x.end),
-            outcome=x.end_type,
+            outcome="known from surviving issues" if x.surviving_issues else x.end_type,
             merged_into=s(into),
             earlier_titles="; ".join(n for n in names if n != x.name),
             towns="; ".join(towns),

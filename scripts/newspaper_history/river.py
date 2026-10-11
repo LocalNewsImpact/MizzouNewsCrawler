@@ -39,6 +39,9 @@ rows = {
 # the last row is today: only the papers that have not ended (the registry's papers publishing now)
 rows[Y1]["publishing"] = int((L.end_type == "still publishing").sum())
 for _, r in L.iterrows():
+    # a paper known only from surviving issues was publishing then; when it began or ended is not known
+    if r.get("surviving_issues", False) is True:
+        continue
     if Y0 <= r.start <= Y1:
         rows[int(r.start)]["founded"].append(nm(r["name"], r.town))
     if r.end_type == "closed" and pd.notna(r.end) and Y0 <= r.end <= Y1:

@@ -44,6 +44,13 @@ for _town, _filed, _county in (
     _m = (d.town == _town) & (d.county == _filed)
     assert _m.any(), f"the {_town} county correction no longer matches"
     d.loc[_m, "county"] = _county
+# The Wentzville Journal, a Suburban Journals paper, survives on SHSMO film for one quarter (Oct.-Dec. 1989) as the
+# "Wentzville Messenger Journal"; it was published until it was combined with the Warrenton paper in 2009 as the
+# Suburban Journal Wentzville/Warrenton Edition (Wikipedia, "Suburban Journals": the Wentzville Journal through the
+# 2005 Lee purchase and its 2006 move online; the combined title, SHSMO Warren County, 2009-2011).
+_m = (d.county == "St. Charles") & (d.title == "Wentzville Messenger Journal")
+assert _m.sum() == 1, "the Wentzville Journal correction no longer matches"
+d.loc[_m, "end_year"] = 2009
 # The Western Messenger's Cole County entry sits under SHSMO's "Eugene" heading; LOC's record places it in Jefferson
 # City (sn 92059017: "The Western Messenger (Jefferson City, Mo.)").
 _m = (
@@ -73,7 +80,10 @@ EDITION = re.compile(
 )
 span = d.end_year.fillna(d.held_last.dt.year) - d.start_year
 extra = d.title.str.contains(r"\bextra\b", case=False, na=False) & (span.fillna(0) <= 1)
-d["edition"] = d.title.str.contains(EDITION, na=False) | extra
+# The Suburban Journals named their local papers "editions" ("Suburban Journal Wentzville/Warrenton Edition"): each
+# is a town's paper, not a special issue of another.
+suburban = d.title.str.match(r"(?i)suburban journal\b", na=False)
+d["edition"] = (d.title.str.contains(EDITION, na=False) & ~suburban) | extra
 d[d.edition].to_csv(OUT / "shsmo_editions_excluded.csv", index=False)
 print("editions and special issues excluded:", int(d.edition.sum()))
 d = d[~d.edition].copy()
@@ -570,6 +580,35 @@ EXTRA_LINKS = [  # (title, county) -> (title, county): evidence
         ("Western Messenger", "Jackson"),
         ("Baptist Record", "Jackson"),
         "The Western Messenger, organ of the Missouri Negro Baptist Convention, moved Jefferson City -> St. Louis (Dec. 16, 1916) -> Kansas City (1917 or 1918) and was renamed the Baptist Record (reviewer, 2026-10-10; LOC sn 92059017)",
+    ),
+]
+EXTRA_LINKS += [
+    (
+        ("Warrenton Journal", "Warren"),
+        ("Suburban Journal Warrenton Edition", "Warren"),
+        "Suburban Journals: the Wentzville and Warrenton papers combined in 2009 as the Suburban Journal Wentzville/Warrenton Edition (reviewer, 2026-10-10; Wikipedia, 'Suburban Journals'; SHSMO Warren County film)",
+    ),
+    (
+        ("Suburban Journal Warrenton Edition", "Warren"),
+        ("Suburban Journal Wentzville/Warrenton Edition", "Warren"),
+        "Suburban Journals: the Wentzville and Warrenton papers combined in 2009 as the Suburban Journal Wentzville/Warrenton Edition (reviewer, 2026-10-10; Wikipedia, 'Suburban Journals'; SHSMO Warren County film)",
+    ),
+    (
+        ("Wentzville Messenger Journal", "St. Charles"),
+        ("Suburban Journal Wentzville/Warrenton Edition", "Warren"),
+        "Suburban Journals: the Wentzville and Warrenton papers combined in 2009 as the Suburban Journal Wentzville/Warrenton Edition (reviewer, 2026-10-10; Wikipedia, 'Suburban Journals'; SHSMO Warren County film)",
+    ),
+]
+EXTRA_LINKS += [
+    (
+        ("Daily Standard", "Clay"),
+        ("Excelsior Springs Standard", "Clay"),
+        "newspapers.com groups these titles as The Daily Standard (Excelsior Springs), and the film runs on: Daily Standard to Mar. 31, 1998; Excelsior Springs Standard from Apr. 3, 1998 to Jan. 31, 2020; The Standard from Feb. 7, 2020",
+    ),
+    (
+        ("Excelsior Springs Standard", "Clay"),
+        ("The Standard", "Clay"),
+        "newspapers.com groups these titles as The Daily Standard (Excelsior Springs), and the film runs on: Daily Standard to Mar. 31, 1998; Excelsior Springs Standard from Apr. 3, 1998 to Jan. 31, 2020; The Standard from Feb. 7, 2020",
     ),
 ]
 # Catalogue links a reviewer's chain replaces: the title did not go straight to that successor.
@@ -1079,6 +1118,17 @@ for L, g in d.groupby("lineage"):
                 else d.at[last, "county"]
             ),
             registry=g.reg_name.dropna().iloc[0] if g.reg_name.notna().any() else "",
+            # Known only from surviving issues: no title dated in the catalogue, under a year of film, and no
+            # other record of it. When it began and ended is unknown, so it is shown as the issues that survive
+            # -- publishing in the years they cover, neither founded nor closed then (the Wentzville Messenger
+            # Journal was one, until Wikipedia and its 2009 title said otherwise).
+            surviving_issues=bool(
+                not active
+                and end_type == "closed"  # a merger is a record of how it ended
+                and g.pub_dates.isna().all()
+                and g.held_first.notna().all()
+                and (g.held_last.max() - g.held_first.min()).days < 366
+            ),
         )
     )
 lin = pd.DataFrame(rows)
