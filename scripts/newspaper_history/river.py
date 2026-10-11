@@ -24,6 +24,8 @@ nm = lambda name, town: (
     f"{name} ({town})" if isinstance(town, str) and town else str(name)
 )
 L["e"] = L.end.fillna(9999)  # still publishing: no end
+# map-only papers (known only from surviving issues) have no dates and are not counted here
+L = L[~L.surviving_issues.fillna(False).astype(bool)]
 rows = {
     y: dict(
         kind="year",

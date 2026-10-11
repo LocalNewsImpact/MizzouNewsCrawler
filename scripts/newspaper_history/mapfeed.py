@@ -129,6 +129,8 @@ for e in d["events"]:
         y=round(a[1], 4),
         approx=a[2] == "county",
     )
+    if e["event"] == "issues survive" and e.get("through"):
+        r["through"] = e["through"]
     if e["event"] in ("merged", "moved"):
         # where the paper went: the survivor's town at the time of the merger, or the new town of a move,
         # as the events table records it
@@ -189,6 +191,8 @@ Y0 = int(Ls.start.min())
 counts = collections.defaultdict(lambda: [0] * (Y1 - Y0 + 1))
 now = collections.Counter()
 for x in Ls.itertuples():
+    if x.surviving_issues:
+        continue  # map-only: a grey dot, no dates to shade a county with
     ts = Ts[Ts.lineage == x.lineage].sort_values("start_year")
     end = Y1 if x.end_type == "still publishing" else int(x.end)
     for y in range(int(x.start), end + 1):

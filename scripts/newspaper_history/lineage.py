@@ -87,10 +87,21 @@ d["edition"] = (d.title.str.contains(EDITION, na=False) & ~suburban) | extra
 d[d.edition].to_csv(OUT / "shsmo_editions_excluded.csv", index=False)
 print("editions and special issues excluded:", int(d.edition.sum()))
 d = d[~d.edition].copy()
+import unicodedata as _ud
+
+# accents folded first: "Mississippi Blätter" is SHSMO's "Mississippi Blatter"
 n = lambda s: re.sub(
     r"[^a-z0-9]",
     "",
-    re.sub(r"^the |&", " ", str(s).lower().replace("&", "and")).replace("the ", ""),
+    re.sub(
+        r"^the |&",
+        " ",
+        _ud.normalize("NFKD", str(s))
+        .encode("ascii", "ignore")
+        .decode()
+        .lower()
+        .replace("&", "and"),
+    ).replace("the ", ""),
 )
 place = lambda p: n(str(p).split(",")[0])
 d["k_title"] = d.title.map(n)
@@ -369,6 +380,43 @@ for x in _f[_f.founded_year != ""].itertuples():
 if new:
     d = pd.concat([d, pd.DataFrame(new)], ignore_index=True)
 print("newsrooms not on SHSMO film, added with their founding year:", len(new))
+# Papers SHSMO's directories do not list, known from the SHSMO Digital Newspaper Project on newspapers.com
+# (newspapers_com_titles.csv: title, town, its county by where the town lies, the years digitized). No
+# catalogue dates when they began or ended, so they are map-only: shown as their surviving issues, not
+# counted in the river or the county trees.
+d["digitized_only"] = False
+_nc = pd.read_csv(IN / "newspapers_com_titles.csv", dtype=str).fillna("")
+_nc_rows = [
+    dict(
+        county=x.county,
+        town=x.town,
+        title=x.title,
+        start=x.first_year,
+        end=x.last_year,
+        start_year=int(x.first_year),
+        end_year=int(x.last_year),
+        catalogue_current="False",
+        pub_dates=None,
+        frequency="",
+        preceding="",
+        succeeding="",
+        related="",
+        preceding_links="[]",
+        succeeding_links="[]",
+        related_links="[]",
+        held_first=pd.Timestamp(f"{x.first_year}-01-01"),
+        held_last=pd.Timestamp(f"{x.last_year}-12-31"),
+        reels=0,
+        edition=False,
+        k_title=n(x.title),
+        k_town=place(x.town),
+        digitized_only=True,
+    )
+    for x in _nc.itertuples()
+]
+if _nc_rows:
+    d = pd.concat([d, pd.DataFrame(_nc_rows)], ignore_index=True)
+print("papers known only from newspapers.com, map-only:", len(_nc_rows))
 d["cur"] = d.catalogue_current.eq("True")
 d["active"] = d.cur & (d.held_last.dt.year >= ACTIVE_FROM)
 # end year: catalogued, else last issue held; still-publishing titles have none
@@ -713,6 +761,7 @@ print("unlinked continuations added:", len(continuations))
 # Play one is near it. Links the Library of Congress or a reviewer states are kept without this test.
 import geo as _geo
 
+LOC_DATED = set()  # (title, town) with a dated LOC record: evidence of when it ran
 _LOC_PLACES = collections.defaultdict(
     set
 )  # normalised title -> towns LOC records it published in
@@ -720,6 +769,8 @@ for _r in json.load(open(IN / "loc_newspaper_directory.json")):
     _t = n(re.sub(r"\s*\(.*$", "", _r.get("title") or ""))
     for _c in _r.get("location_city") or []:
         _LOC_PLACES[_t].add(_geo.norm(_c))
+        if re.search(r"\b1[789]\d\d\b", _r.get("title") or ""):
+            LOC_DATED.add((_t, n(_c)))
 
 
 def _loc_places_both(a, b):
@@ -1122,12 +1173,19 @@ for L, g in d.groupby("lineage"):
             # other record of it. When it began and ended is unknown, so it is shown as the issues that survive
             # -- publishing in the years they cover, neither founded nor closed then (the Wentzville Messenger
             # Journal was one, until Wikipedia and its 2009 title said otherwise).
+            # Map-only: no record of when it opened or closed -- no catalogued dates for any of its titles, no
+            # dated Library of Congress record of them, not in the registry. Its film or digitized issues show
+            # only that issues survive, so it is not in the river or the county trees, and the map shows it as
+            # those issues (the reviewer: "we need evidence for open/close to be in the river or lineage").
             surviving_issues=bool(
                 not active
                 and end_type == "closed"  # a merger is a record of how it ended
                 and g.pub_dates.isna().all()
+                and not any(
+                    (d.at[i, "k_title"], d.at[i, "k_town"]) in LOC_DATED for i in idx
+                )
+                and not g.reg_name.notna().any()
                 and g.held_first.notna().all()
-                and (g.held_last.max() - g.held_first.min()).days < 366
             ),
         )
     )

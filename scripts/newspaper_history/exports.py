@@ -84,6 +84,7 @@ for x in L.itertuples():
             dict(
                 year=yr(x.start),
                 event="issues survive",
+                through=yr(x.end),
                 paper=first.title,
                 town=s(first.town),
                 county=first.county,
