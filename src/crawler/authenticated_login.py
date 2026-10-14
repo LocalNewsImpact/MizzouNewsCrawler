@@ -41,6 +41,7 @@ import re
 import secrets
 import time
 import urllib.parse
+from contextlib import contextmanager
 from typing import Optional
 
 from selenium.webdriver.common.by import By
@@ -444,6 +445,90 @@ def build_auth0_authorize_url(
 
 #: What a login allows a page to load, when the client allows it.
 LOGIN_PAGE_LOAD_TIMEOUT = 45.0
+
+#: Ad auction and ad serving networks, blocked while a login runs.
+#:
+#: The driver loads with page_load_strategy='eager', so `driver.get` returns at
+#: DOMContentLoaded and the page keeps loading. On a publisher homepage what it
+#: keeps loading is the ad auction: chinookobserver.com, measured 2026-10-14 in a
+#: production crawler pod, went from 69 to 366 proxy-relay connections in eight
+#: idle seconds, and the next chromedriver command -- a cookie read, a script --
+#: then waited out the 30s client timeout and reported DriverUnresponsive. The
+#: same driver loaded the page four times back to back in about a second each;
+#: only the wait a login has to make, for the login control to render, exposed
+#: it.
+#:
+#: Article extraction already stops the load the instant <body> exists. A login
+#: cannot: stopping it also stopped Connext before it revealed the login control
+#: (measured, same pod). Blocking the ad networks keeps the publisher's own
+#: scripts, the login vendor and the consent tool, and with them blocked the same
+#: page stayed responsive for 16 idle seconds at 11-35 connections, with the
+#: login control shown.
+#:
+#: Hosts, never the login vendors: nothing here may match Connext/MG2, Auth0,
+#: Piano/tinypass, Newzware, eType, SimpleCirc, WordPress or a consent tool.
+AD_NETWORK_PATTERNS = (
+    "*doubleclick.net*",
+    "*googlesyndication.com*",
+    "*googletagservices.com*",
+    "*amazon-adsystem.com*",
+    "*adnxs.com*",
+    "*rubiconproject.com*",
+    "*pubmatic.com*",
+    "*openx.net*",
+    "*casalemedia.com*",
+    "*indexww.com*",
+    "*criteo.com*",
+    "*criteo.net*",
+    "*adsrvr.org*",
+    "*.media.net/*",
+    "*3lift.com*",
+    "*triplelift.com*",
+    "*sharethrough.com*",
+    "*smartadserver.com*",
+    "*teads.tv*",
+    "*unrulymedia.com*",
+    "*cootlogix.com*",
+    "*richaudience.com*",
+    "*technoratimedia.com*",
+    "*yieldmo.com*",
+    "*33across.com*",
+    "*gumgum.com*",
+    "*sonobi.com*",
+    "*kargo.com*",
+    "*rlcdn.com*",
+    "*adlightning.com*",
+    "*prebid*",
+)
+
+
+def block_ad_traffic(driver, patterns=AD_NETWORK_PATTERNS) -> bool:
+    """Block the ad networks on this driver. Returns whether it took effect."""
+    try:
+        driver.execute_cdp_cmd("Network.enable", {})
+        driver.execute_cdp_cmd("Network.setBlockedURLs", {"urls": list(patterns)})
+        return True
+    except Exception as exc:
+        logger.debug("could not block ad traffic: %s", exc)
+        return False
+
+
+@contextmanager
+def ad_traffic_blocked(driver):
+    """Block the ad networks for a login, and lift the block afterwards.
+
+    Lifted because the driver goes on to extract, and an article page whose ads
+    are refused is a page a publisher's anti-adblock script may wall.
+    """
+    blocked = block_ad_traffic(driver)
+    try:
+        yield
+    finally:
+        if blocked:
+            try:
+                driver.execute_cdp_cmd("Network.setBlockedURLs", {"urls": []})
+            except Exception as exc:
+                logger.debug("could not lift the ad block: %s", exc)
 
 
 def bounded_page_load_timeout(driver, wanted: float = LOGIN_PAGE_LOAD_TIMEOUT) -> float:
@@ -1167,6 +1252,31 @@ def _login_etype(driver, cfg: dict, username: str, password: str) -> bool:
 
 
 def perform_login(
+    driver,
+    *,
+    auth_type: Optional[str],
+    auth_config: Optional[dict],
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+    credentials: Optional[dict] = None,
+) -> bool:
+    """Log into a publisher on ``driver``, with the ad networks blocked.
+
+    See `_perform_login` for the mechanisms and `AD_NETWORK_PATTERNS` for why
+    the ads are blocked here and the block lifted afterwards.
+    """
+    with ad_traffic_blocked(driver):
+        return _perform_login(
+            driver,
+            auth_type=auth_type,
+            auth_config=auth_config,
+            username=username,
+            password=password,
+            credentials=credentials,
+        )
+
+
+def _perform_login(
     driver,
     *,
     auth_type: Optional[str],

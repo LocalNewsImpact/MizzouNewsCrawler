@@ -201,6 +201,15 @@ def _visible(driver, selector: str | None) -> bool | None:
         return None
 
 
+def _step(name: str, since: float) -> None:
+    """Log how long one witness step took.
+
+    A failed login used to leave only its last exception. Which step froze, and
+    after how long, is what tells a slow page from a dialog from a flooded relay.
+    """
+    logger.info("witness step %s: %.1fs", name, time.time() - since)
+
+
 def arrive(driver, url: str) -> bool:
     """Navigate to `url`; True when the browser is standing on its host.
 
@@ -230,6 +239,7 @@ def arrive(driver, url: str) -> bool:
 def witness(extractor, host: str) -> dict:
     """Run the login and return the evidence. Writes nothing."""
     from src.crawler.authenticated_login import (
+        block_ad_traffic,
         bounded_page_load_timeout,
         perform_login,
         resolve_auth_credentials,
@@ -268,8 +278,15 @@ def witness(extractor, host: str) -> dict:
     # cookie only a document on `myaccount.spokesman.com` can read, which is
     # the proof that the snapshot origin, not the site, was the variable.
     origin = f"https://{host}/" if "." in host else f"https://{bare}/"
+    # Blocked for the whole witness, not just the login inside it: the origin
+    # snapshots sit on the same publisher homepage, and this driver is the
+    # witness's own, closed when it ends. See AD_NETWORK_PATTERNS.
+    block_ad_traffic(driver)
     bounded_page_load_timeout(driver)
-    if not arrive(driver, origin):
+    t0 = time.time()
+    arrived = arrive(driver, origin)
+    _step("open origin", t0)
+    if not arrived:
         return {"ok": False, "why": f"could not open {origin}"}
     cookies_before = first_party_cookies(_cookies(driver), bare)
     # The login control is read on the origin BOTH times too, for the same
@@ -279,10 +296,13 @@ def witness(extractor, host: str) -> dict:
 
     login_url = cfg.get("login_url")
     if login_url:
+        t0 = time.time()
         try:
             driver.get(login_url)
         except Exception as exc:
+            _step("open login page", t0)
             return {"ok": False, "why": f"could not open {login_url}: {exc}"}
+        _step("open login page", t0)
     time.sleep(float(cfg.get("modal_delay", 5)))
     try:
         driver.get_log("performance")  # drain what the page load produced
@@ -315,13 +335,16 @@ def witness(extractor, host: str) -> dict:
     # Cloudflare-fronted, the return navigation timed out, and the run reported
     # zero session cookies -- which reads as "no session" rather than "not
     # measured". Two more attempts cost seconds and save the observation.
+    _step("login", started)
     returned_to_origin = False
+    t0 = time.time()
     for attempt in range(1, 4):
         if arrive(driver, origin):
             returned_to_origin = True
             break
         logger.info("return to %s failed (attempt %s of 3)", origin, attempt)
         time.sleep(2)
+    _step("return to origin", t0)
     if not returned_to_origin:
         # Not fatal: report the evidence that was gathered and say the return
         # trip failed, rather than throwing away a login that may have worked.
