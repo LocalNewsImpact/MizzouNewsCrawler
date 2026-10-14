@@ -276,6 +276,22 @@ class ProxyAuthRelay:
 
         Any client-supplied Proxy-Authorization is dropped first so ours is
         authoritative and can't be duplicated.
+
+        A plain-HTTP request is also made the LAST on its connection. The
+        header is injected into the first request head only; everything after
+        it is piped through untouched. A CONNECT carries one request per
+        connection, so that is enough for HTTPS. Plain HTTP is kept alive, and
+        Chrome sends the next request down the same connection -- which then
+        reached Squid with no credentials. Measured 2026-10-14 from the api
+        pod, three GETs on one relay connection: 200, 407, 407.
+
+        A 407 makes Chrome open a proxy-login dialog, and a modal dialog
+        freezes chromedriver: every command, a cookie read included, waits out
+        the client timeout and reports `DriverUnresponsive`. That is what
+        stopped the logins at chinookobserver.com, www.wenatcheeworld.com and
+        both McClatchy homepages, all of them carrying `http://` ad and
+        tracker requests. `Connection: close` sends each plain-HTTP request on
+        a connection of its own, so every one passes through here.
         """
         auth = self._auth_header if auth is None else auth
         if not auth:
@@ -285,14 +301,20 @@ class ProxyAuthRelay:
             return head
         request_line = head[: line_end + 2]
         rest = head[line_end + 2 :]
+        plain_http = not request_line.upper().startswith(b"CONNECT ")
+        dropped: tuple[bytes, ...] = (b"proxy-authorization:",)
+        if plain_http:
+            dropped += (b"connection:", b"proxy-connection:")
         cleaned = b"".join(
             line + b"\r\n"
             for line in rest.split(b"\r\n")
-            if not line.lower().startswith(b"proxy-authorization:")
+            if not line.lower().startswith(dropped)
         )
         # split/rejoin leaves a trailing empty element -> normalise the
         # header/body separator back to exactly one blank line.
         cleaned = cleaned.rstrip(b"\r\n") + b"\r\n\r\n"
+        if plain_http:
+            cleaned = b"Connection: close\r\nProxy-Connection: close\r\n" + cleaned
         return request_line + auth + cleaned
 
 
