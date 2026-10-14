@@ -33,6 +33,7 @@ from src.utils.boilerplate import (
     MAX_UTILITY_WORD_RATE,
     MIN_PROSE_DENSITY,
     capitalization_ratio,
+    excise_furniture_lines,
     looks_like_article,
     looks_like_paywall,
     prose_density,
@@ -373,6 +374,30 @@ _GRAY_DATALAYER_RE = re.compile(
     r'dataLayer\.push\s*\(\s*(\{[^}]*"articleTitle"[^}]*\})\s*\)',
     re.IGNORECASE | re.DOTALL,
 )
+
+
+def consent_free_body(text: str) -> tuple[Optional[str], bool]:
+    """(body to store, whether consent furniture was found) for a parsed body.
+
+    strip_furniture DETECTS; its text is not a body. It rejoins with " " --
+    every paragraph break gone -- and its menu-run pass eats agate
+    (`boilerplate.excise_furniture_lines` says why). Storing its text flattened
+    236 of 2,515 WSU bodies, all 30 of Wenatchee World's, measured 2026-10-14:
+    their privacy opt-out notice is consent furniture, so every one took this
+    path.
+
+    The body is the line-level excision, layout byte-exact, whenever that
+    removes the consent text. Only a table buried inside one giant line --
+    kq2's 27,372 chars with no line breaks -- needs the segment-level text.
+    Returns None for the body when nothing but furniture was left.
+    """
+    stripped = strip_furniture(text)
+    if CONSENT not in stripped.kinds:
+        return text, False
+    excised, _kinds = excise_furniture_lines(text)
+    if excised and CONSENT not in strip_furniture(excised).kinds:
+        return excised, True
+    return (stripped.text or None), True
 
 
 def _enable_performance_log(options) -> bool:
@@ -4609,23 +4634,22 @@ class ContentExtractor:
         # AND a story lost the story too. strip_furniture removes the table and
         # returns the rest, so a real article below a banner survives intact.
         if text_content:
-            stripped = strip_furniture(text_content)
-            if CONSENT in stripped.kinds:
-                if stripped.text:
+            body, consent_found = consent_free_body(text_content)
+            if consent_found:
+                if body:
                     logger.warning(
                         "mcmetadata returned a consent-banner table for %s; "
                         "excised it and kept %d chars of article text",
                         url,
-                        len(stripped.text),
+                        len(body),
                     )
-                    text_content = stripped.text
                 else:
                     logger.warning(
                         "mcmetadata returned consent-banner text for %s; discarding "
                         "content so downstream extractors can provide it",
                         url,
                     )
-                    text_content = None
+                text_content = body
 
         article_title = mc_result.get("article_title")
 
