@@ -100,7 +100,7 @@ class TestBothSnapshotsAreTakenOnTheOrigin:
 
     def test_the_origin_is_visited_before_the_first_snapshot(self):
         body = self._body()
-        visit = body.index("driver.get(origin)")
+        visit = body.index("arrive(driver, origin)")
         before = body.index("cookies_before = first_party_cookies")
         assert visit < before
 
@@ -109,7 +109,7 @@ class TestBothSnapshotsAreTakenOnTheOrigin:
         after = body.index("cookies_after = first_party_cookies")
         # The second navigation sits between the login and the after-snapshot.
         login = body.index("ok = perform_login")
-        return_trip = body.index("driver.get(origin)", login)
+        return_trip = body.index("arrive(driver, origin)", login)
         assert login < return_trip < after
 
     def test_the_login_control_is_read_on_the_origin_both_times(self):
@@ -133,7 +133,7 @@ class TestBothSnapshotsAreTakenOnTheOrigin:
         body = self._body()
         login = body.index("ok = perform_login")
         drain = body.index('driver.get_log("performance")', login)
-        return_trip = body.index("driver.get(origin)", login)
+        return_trip = body.index("arrive(driver, origin)", login)
         assert drain < return_trip
 
     def test_a_failed_return_trip_is_reported_not_swallowed(self):

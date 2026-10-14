@@ -201,9 +201,36 @@ def _visible(driver, selector: str | None) -> bool | None:
         return None
 
 
+def arrive(driver, url: str) -> bool:
+    """Navigate to `url`; True when the browser is standing on its host.
+
+    A page-load timeout is not a failed arrival. An ad-heavy homepage often
+    has not finished loading when the timeout fires, but the document -- and
+    so the cookie jar `get_cookies()` reads -- is already that origin's. Only
+    a browser that stopped answering, or one left on another host, did not
+    arrive.
+    """
+    from src.crawler.authenticated_login import stop_loading
+    from src.crawler.driver_health import driver_unresponsive
+
+    try:
+        driver.get(url)
+        return True
+    except Exception as exc:
+        if driver_unresponsive(exc):
+            return False
+        stop_loading(driver)
+    try:
+        here = urllib.parse.urlparse(driver.current_url).netloc
+    except Exception:
+        return False
+    return here == urllib.parse.urlparse(url).netloc
+
+
 def witness(extractor, host: str) -> dict:
     """Run the login and return the evidence. Writes nothing."""
     from src.crawler.authenticated_login import (
+        bounded_page_load_timeout,
         perform_login,
         resolve_auth_credentials,
     )
@@ -241,10 +268,9 @@ def witness(extractor, host: str) -> dict:
     # cookie only a document on `myaccount.spokesman.com` can read, which is
     # the proof that the snapshot origin, not the site, was the variable.
     origin = f"https://{host}/" if "." in host else f"https://{bare}/"
-    try:
-        driver.get(origin)
-    except Exception as exc:
-        return {"ok": False, "why": f"could not open {origin}: {exc}"}
+    bounded_page_load_timeout(driver)
+    if not arrive(driver, origin):
+        return {"ok": False, "why": f"could not open {origin}"}
     cookies_before = first_party_cookies(_cookies(driver), bare)
     # The login control is read on the origin BOTH times too, for the same
     # reason: "the Log in link is gone" is only a signal if the two
@@ -291,15 +317,11 @@ def witness(extractor, host: str) -> dict:
     # measured". Two more attempts cost seconds and save the observation.
     returned_to_origin = False
     for attempt in range(1, 4):
-        try:
-            driver.get(origin)
+        if arrive(driver, origin):
             returned_to_origin = True
             break
-        except Exception as exc:
-            logger.info(
-                "return to %s failed (attempt %s of 3): %s", origin, attempt, exc
-            )
-            time.sleep(2)
+        logger.info("return to %s failed (attempt %s of 3)", origin, attempt)
+        time.sleep(2)
     if not returned_to_origin:
         # Not fatal: report the evidence that was gathered and say the return
         # trip failed, rather than throwing away a login that may have worked.

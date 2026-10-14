@@ -442,6 +442,43 @@ def build_auth0_authorize_url(
     return f"https://{domain}/authorize?" + urllib.parse.urlencode(params)
 
 
+#: What a login allows a page to load, when the client allows it.
+LOGIN_PAGE_LOAD_TIMEOUT = 45.0
+
+
+def bounded_page_load_timeout(driver, wanted: float = LOGIN_PAGE_LOAD_TIMEOUT) -> float:
+    """Set a page-load timeout the Selenium client can actually wait out.
+
+    The client gives up on chromedriver at `_client_config.timeout` -- 30s,
+    set last in driver construction -- and a page-load timeout longer than that
+    is never reached. The login used to ask for 45s: an ad-heavy homepage still
+    loading at 30s (chinookobserver.com, www.wenatcheeworld.com, 2026-10-14)
+    then surfaced as a client ReadTimeout, which `driver_unresponsive` reads,
+    correctly, as a dead browser. The browser was only slow.
+
+    Kept under the client timeout, the same slow page raises chromedriver's own
+    TimeoutException instead, which `_open` treats as a usable partial DOM.
+    """
+    try:
+        client = float(driver.command_executor._client_config.timeout)
+    except Exception:
+        client = None
+    timeout = wanted if not client else min(wanted, max(5.0, client - 5.0))
+    try:
+        driver.set_page_load_timeout(timeout)
+    except Exception:
+        pass
+    return timeout
+
+
+def stop_loading(driver) -> None:
+    """Stop a page that ran out its load timeout, so its DOM settles."""
+    try:
+        driver.execute_script("window.stop();")
+    except Exception:
+        pass
+
+
 def _open(driver, url: str, what: str) -> None:
     """Load a login page. A dead driver raises; anything else is logged.
 
@@ -456,6 +493,7 @@ def _open(driver, url: str, what: str) -> None:
         if driver_unresponsive(exc):
             raise DriverUnresponsive(f"{what}: the browser stopped answering") from exc
         logger.warning("%s: navigation to login URL failed: %s", what, exc)
+        stop_loading(driver)
 
 
 def _find_first(driver, selectors):
@@ -606,10 +644,7 @@ def _login_auth0(driver, cfg: dict, username: str, password: str) -> bool:
     authorize_url = build_auth0_authorize_url(
         domain, client_id, redirect_uri, cfg.get("scope", "openid profile email")
     )
-    try:
-        driver.set_page_load_timeout(45)
-    except Exception:
-        pass
+    bounded_page_load_timeout(driver)
     _open(driver, authorize_url, "auth0 login")
 
     if not _fill_and_submit(driver, cfg, username, password):
@@ -726,10 +761,7 @@ def _login_form(driver, cfg: dict, username: str, password: str) -> bool:
         return False
     trigger_sel = cfg.get("login_trigger_selector")
 
-    try:
-        driver.set_page_load_timeout(45)
-    except Exception:
-        pass
+    bounded_page_load_timeout(driver)
     _open(driver, login_url, "form login")
 
     # Some publishers (e.g., Connext) render login fields in a modal that opens
@@ -810,10 +842,7 @@ def _login_newzware(driver, cfg: dict, username: str, password: str) -> bool:
     failure_text = cfg.get("failure_text", "could not be validated")
     return_timeout = float(cfg.get("return_timeout", 30))
 
-    try:
-        driver.set_page_load_timeout(45)
-    except Exception:
-        pass
+    bounded_page_load_timeout(driver)
     _open(driver, login_url, "newzware login")
 
     # The Newzware form is rendered by JS after load; _fill_and_submit polls.
@@ -979,10 +1008,7 @@ def _login_simplecirc(driver, cfg: dict, creds: dict) -> bool:
     submit_sel = cfg.get("submit_selector") or SIMPLECIRC_SUBMIT_SELECTOR
     form_timeout = float(cfg.get("form_timeout", 20))
 
-    try:
-        driver.set_page_load_timeout(45)
-    except Exception:
-        pass
+    bounded_page_load_timeout(driver)
     _open(driver, login_url, "simplecirc login")
 
     email_el = None
@@ -1077,10 +1103,7 @@ def _login_etype(driver, cfg: dict, username: str, password: str) -> bool:
     form_timeout = float(cfg.get("form_timeout", 20))
     failure_text = cfg.get("failure_text", ETYPE_FAILURE_TEXT)
 
-    try:
-        driver.set_page_load_timeout(45)
-    except Exception:
-        pass
+    bounded_page_load_timeout(driver)
     _open(driver, login_url, "etype login")
 
     login_el = None
