@@ -106,6 +106,10 @@ apply_crawler() {
     # to nothing until this template runs -- which makes applying it part of
     # deploying, not an optional extra. Same templateRef ordering as above.
     apply_file k8s/argo/authenticated-extraction-workflow.yaml
+    # One witnessed publisher login. Every credentialed host is validated on
+    # arrival and again when its credentials change; without this template
+    # each validation meant a hand-built debug pod.
+    apply_file k8s/argo/validate-login-workflow.yaml
 }
 
 apply_all() {
