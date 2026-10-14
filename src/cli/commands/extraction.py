@@ -1068,7 +1068,10 @@ def add_extraction_parser(subparsers):
         dest="exhaust_queue",
         action="store_false",
         default=True,
-        help="Stop after --batches instead of processing all available articles",
+        help=(
+            "Kept for compatibility; has no effect. --batches is a ceiling "
+            "whenever it is given, and omitting it processes all available."
+        ),
     )
     extract_parser.add_argument(
         "--dump-sql",
@@ -1153,11 +1156,10 @@ def handle_extraction_command(args) -> int:
     )
     batches = getattr(args, "batches", None)  # None means "process all available"
     per_batch = getattr(args, "limit", 10)
-    exhaust_queue = getattr(args, "exhaust_queue", True)  # Default to exhausting queue
 
     # Print to stdout immediately for visibility
     print("🚀 Starting content extraction...")
-    if batches is None or exhaust_queue:
+    if batches is None:
         print("   Mode: Process ALL available articles")
     else:
         print(f"   Batches: {batches}")
@@ -1281,8 +1283,11 @@ def handle_extraction_command(args) -> int:
         while True:
             batch_num += 1
 
-            # If batches specified and exhaust_queue is False, respect the limit
-            if batches is not None and not exhaust_queue and batch_num > batches:
+            # --batches is a ceiling whenever it is given. It used to apply
+            # only with --no-exhaust-queue, which no manifest passes, so a
+            # `batches=1` test run on 2026-10-14 went on to batch 2 and took a
+            # credentialed host the test had not meant to touch.
+            if batches is not None and batch_num > batches:
                 break
 
             # Apply batch size jitter when configured
