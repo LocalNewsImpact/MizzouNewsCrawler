@@ -302,7 +302,7 @@ class ProxyAuthRelay:
         request_line = head[: line_end + 2]
         rest = head[line_end + 2 :]
         plain_http = not request_line.upper().startswith(b"CONNECT ")
-        dropped = (b"proxy-authorization:",)
+        dropped: tuple[bytes, ...] = (b"proxy-authorization:",)
         if plain_http:
             dropped += (b"connection:", b"proxy-connection:")
         cleaned = b"".join(
