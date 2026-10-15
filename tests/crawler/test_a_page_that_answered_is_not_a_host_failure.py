@@ -48,7 +48,7 @@ class TestAPdfIsRecognised:
 
     def test_the_loop_settles_the_link(self):
         flat = " ".join(inspect.getsource(extraction).split())
-        assert 'if getattr(extractor, "loaded_a_pdf", False):' in flat
+        assert 'if getattr(extractor, "loaded_a_pdf", False) is True:' in flat
         assert 'give_up(session, [str(url_id)], outcome="pdf_document")' in flat
         assert '{"status": "not_article", "id": str(url_id)}' in flat
 

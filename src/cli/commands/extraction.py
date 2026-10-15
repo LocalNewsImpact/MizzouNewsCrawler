@@ -3255,8 +3255,10 @@ def _process_batch(
                         processed,
                     )
                 else:
-                    if status == REFETCH and getattr(
-                        extractor, "refused_without_session", False
+                    # `is True`: test doubles answer any attribute with a truthy
+                    # mock, which would refund or settle a link nothing refused.
+                    if status == REFETCH and (
+                        getattr(extractor, "refused_without_session", False) is True
                     ):
                         from src.pipeline.refetch import refund_attempt
 
@@ -3266,7 +3268,7 @@ def _process_batch(
                     # left at `article` it is fetched again every batch. A
                     # rewound link gives up through the rewind's own outcome
                     # and keeps its article; a new link is not an article.
-                    if getattr(extractor, "loaded_a_pdf", False):
+                    if getattr(extractor, "loaded_a_pdf", False) is True:
                         if status == REFETCH:
                             from src.pipeline.refetch import give_up
 

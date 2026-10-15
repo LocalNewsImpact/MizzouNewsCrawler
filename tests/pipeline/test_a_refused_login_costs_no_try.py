@@ -58,7 +58,9 @@ class TestTheRefusalIsKnown:
     def test_the_extraction_loop_refunds_a_declined_rewound_link(self):
         source = " ".join(inspect.getsource(extraction).split())
         assert (
-            'if status == REFETCH and getattr( extractor, "refused_without_session", '
-            "False ): from src.pipeline.refetch import refund_attempt "
+            'getattr(extractor, "refused_without_session", False) is True'
+        ) in source
+        assert (
+            "from src.pipeline.refetch import refund_attempt "
             "refund_attempt(session, [str(url_id)])"
         ) in source
