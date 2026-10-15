@@ -163,7 +163,7 @@ def archive_html(
 
 
 def fetch_html(gcs_uri: str) -> str | None:
-    """Read back an archived page. Used by offline extractor A/B tooling."""
+    """Read back an archived page: offline A/B tooling, and a replayed refetch."""
     if not gcs_uri or not gcs_uri.startswith("gs://"):
         return None
 

@@ -122,6 +122,7 @@ class TestWhatARewindWrites:
             "already": 1,
             "missing": 0,
             "missing_ids": [],
+            "replay": 0,
         }
         assert not any(p and "note" in p for p in session.params)
 
