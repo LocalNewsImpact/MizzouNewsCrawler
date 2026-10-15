@@ -83,6 +83,8 @@ def _args(**kw):
         list=False,
         clear=False,
         dry_run=False,
+        replay=False,
+        archive_root=None,
     )
     base.update(kw)
     return Namespace(**base)
@@ -221,6 +223,46 @@ class TestTheNormalPath:
         )
         assert "nothing written" in capsys.readouterr().out
         assert session.commits == 0
+
+
+class TestAReplayRewind:
+    def test_it_names_the_retained_capture_and_counts_it(self, db, tmp_path, capsys):
+        path = tmp_path / "ids.txt"
+        path.write_text("a1\n")
+        row = {
+            "id": "a1",
+            "candidate_link_id": "l1",
+            "link_status": "extracted",
+            "url": "https://example.com/a1",
+            "raw_gcs_path": "gs://bucket/2026/09/19/example.com/a1.html.gz",
+            "authenticated_session": "true",
+        }
+        session = db(_Session(answers=[[row]]))
+        code = cmd.handle_refetch_command(
+            _args(
+                ids_file=str(path),
+                by="damon",
+                reason="flattened",
+                replay=True,
+                archive_root="retained/x",
+            )
+        )
+        assert code == 0
+        assert "replay:    1" in capsys.readouterr().out
+        note = next(p["note"] for p in session.params if p and "note" in p)
+        assert "gs://bucket/retained/x/2026/09/19/example.com/a1.html.gz" in note
+
+    def test_the_flags_are_offered(self):
+        import argparse
+
+        parser = argparse.ArgumentParser()
+        subs = parser.add_subparsers()
+        cmd.add_refetch_articles_parser(subs)
+        args = parser.parse_args(
+            ["refetch-articles", "--ids-file", "x", "--replay", "--archive-root", "r"]
+        )
+        assert args.replay is True
+        assert args.archive_root == "r"
 
 
 class TestTheParser:
