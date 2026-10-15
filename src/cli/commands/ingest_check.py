@@ -6,9 +6,11 @@ looked at it: KHQ's `/video_` pages came in through the WSU tracker and were
 fetched, stored and filed before anything read the URL.
 
 This records what the checks say, one `url_verifications` row per link with
-`verdict_kind: "ingested"`, and never writes `candidate_links.status`. A
-flagged link is for a person to judge in the discovery review queue; it is
-still fetched. The external wire check is not part of this.
+`verdict_kind: "ingested"`. A link flagged by a media rule (audio, video, a
+PDF or another file) is held -- set to `not_article` -- because nothing can be
+extracted or enriched from it; it runs before extraction for that reason. Any
+other flag is for a person to judge in the discovery review queue, and that
+link is still fetched. The external wire check is not part of this.
 
 storysniffer is local: no request, no proxy, cannot be blocked.
 """
@@ -54,6 +56,7 @@ def handle_ingest_check_command(args) -> int:
     )
     print(f"considered: {counts['considered']}")
     print(f"written:    {counts['written']}{' (dry run)' if args.dry_run else ''}")
-    print(f"flagged:    {counts['flagged']}  for review; still fetched")
+    print(f"flagged:    {counts['flagged']}  for review")
+    print(f"held:       {counts['held']}  media, set to not_article")
     print(f"errors:     {counts['errors']}")
     return 0

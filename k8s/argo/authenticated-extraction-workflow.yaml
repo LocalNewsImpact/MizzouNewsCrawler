@@ -127,6 +127,20 @@ spec:
           - name: captcha-backoff-max
           - name: log-level
       steps:
+        # Media URLs out first. A curated link to audio, video or a PDF is held
+        # at `not_article` by check-ingested before a worker can fetch it --
+        # nothing can be extracted or enriched from one. Scoped to this
+        # dataset; `continueOn` so a failed check cannot stop extraction.
+        - - name: check-ingested
+            templateRef:
+              name: housekeeping-template
+              template: check-ingested-step
+            arguments:
+              parameters:
+                - name: dataset
+                  value: "{{inputs.parameters.dataset}}"
+            continueOn:
+              failed: true
         # No withSequence. One worker -- see the header.
         - - name: extract
             templateRef:

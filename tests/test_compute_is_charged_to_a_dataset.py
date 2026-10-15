@@ -151,7 +151,7 @@ class TestTheExtractionOnlyTemplate:
 
     def test_it_runs_more_than_one_worker_on_the_queue(self, doc):
         tpl = doc["spec"]["templates"][0]
-        step = tpl["steps"][0][0]
+        (step,) = [st for g in tpl["steps"] for st in g if st["name"] == "extract"]
         assert "withSequence" in step, "one worker does not distribute domains"
         assert step["templateRef"]["template"] == "extraction-step"
 
