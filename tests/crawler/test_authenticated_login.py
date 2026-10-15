@@ -38,6 +38,16 @@ def test_build_auth0_authorize_url_contains_required_params():
     assert query["nonce"][0]
 
 
+def test_build_auth0_authorize_url_asks_for_the_form_even_with_a_session():
+    """thenewstribune.com and tri-cityherald.com share auth.mcclatchy.com. With
+    the tenant's session already on the driver, /authorize redirected straight
+    to the second site's callback and there was no form: every second McClatchy
+    login on one driver failed, 2026-10-14."""
+    url = al.build_auth0_authorize_url("auth.mcclatchy.com", "c", "r", "s")
+    query = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+    assert query["prompt"] == ["login"]
+
+
 def test_build_auth0_authorize_url_is_single_use_per_call():
     a = al.build_auth0_authorize_url("d", "c", "r", "s")
     b = al.build_auth0_authorize_url("d", "c", "r", "s")
