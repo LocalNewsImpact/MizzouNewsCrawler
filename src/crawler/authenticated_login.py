@@ -1234,6 +1234,54 @@ var waited = 0;
 """
 
 
+#: Post the form the way the page does -- jQuery Form's `ajaxSubmit`, JSON
+#: back -- without the button and its reCAPTCHA lock. The server answers
+#: `{redirect}` on success and `{status: 0, errors, message}` on failure; a
+#: full-page post gets only the re-rendered form, and the reason is lost.
+_ETYPE_AJAX_SUBMIT_SCRIPT = """
+var done = arguments[arguments.length - 1];
+var form = document.forms[arguments[0]];
+var $ = window.jQuery;
+if (!form || !$ || !$.fn || !$.fn.ajaxSubmit) { done(null); return; }
+$(form).ajaxSubmit({
+  dataType: 'json',
+  success: function (r) { done({answered: true, body: r || {}}); },
+  error: function (x) {
+    done({answered: false, status: x && x.status,
+          text: ((x && x.responseText) || '').slice(0, 300)});
+  }
+});
+"""
+
+
+def _etype_ajax_submit(driver, form_name: str, timeout: float = 30.0):
+    """The server's JSON answer to the login, or None where it cannot be asked.
+
+    None -- no jQuery Form on the page, or no async script support -- sends the
+    caller back to the full-page post.
+    """
+    run_async = getattr(driver, "execute_async_script", None)
+    if run_async is None:
+        return None
+    try:
+        driver.set_script_timeout(timeout)
+    except Exception:
+        pass
+    try:
+        return run_async(_ETYPE_AJAX_SUBMIT_SCRIPT, form_name)
+    except Exception as exc:
+        logger.warning("etype login: ajax submit failed: %s", exc)
+        return None
+
+
+def _plain(value) -> str:
+    """A server message for the log: tags off, short."""
+    text = re.sub(
+        r"<[^>]+>", " ", json.dumps(value) if not isinstance(value, str) else value
+    )
+    return re.sub(r"\s+", " ", text).strip()[:300]
+
+
 def _etype_recaptcha_token(driver, timeout: float = ETYPE_RECAPTCHA_TIMEOUT) -> bool:
     """Fill the login form's reCAPTCHA field the way the page itself does.
 
@@ -1322,9 +1370,34 @@ def _login_etype(driver, cfg: dict, username: str, password: str) -> bool:
 
     # The token the skipped submit handler would have fetched.
     _etype_recaptcha_token(driver)
-
-    # Submit the form element itself, not the button — see the docstring.
     form_name = cfg.get("form_name") or ETYPE_FORM_NAME
+
+    # Post the way the page does, and read the server's own answer.
+    answer = _etype_ajax_submit(driver, form_name)
+    if isinstance(answer, dict):
+        body = answer.get("body") if answer.get("answered") else None
+        if not isinstance(body, dict):
+            logger.warning(
+                "etype login: the login post failed (HTTP %s): %s",
+                answer.get("status"),
+                _plain(answer.get("text") or ""),
+            )
+            return False
+        if not body.get("redirect"):
+            logger.warning(
+                "etype login: refused -- message: %s; errors: %s",
+                _plain(body.get("message") or ""),
+                _plain(body.get("errors") or ""),
+            )
+            return False
+        _open(
+            driver,
+            urllib.parse.urljoin(driver.current_url, str(body["redirect"])),
+            "etype login redirect",
+        )
+        return _etype_landed(driver, cfg, login_url)
+
+    # No jQuery Form: submit the form element itself, not the button.
     try:
         submitted = driver.execute_script(
             "var f = document.forms[arguments[0]];"
@@ -1348,6 +1421,11 @@ def _login_etype(driver, cfg: dict, username: str, password: str) -> bool:
         logger.warning("etype login: credentials were rejected")
         return False
 
+    return _etype_landed(driver, cfg, login_url)
+
+
+def _etype_landed(driver, cfg: dict, login_url: str) -> bool:
+    """Whether the browser left the login page for a signed-in one."""
     # A rejected login re-renders the login form at the same path; a successful
     # one redirects to the site root (or to ``app_redirect`` when the login URL
     # carries one).

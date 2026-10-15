@@ -1079,35 +1079,98 @@ def test_etype_login_requires_login_url():
 # field empty, through 2026-10-15.
 
 
-def test_etype_login_fetches_the_recaptcha_token_before_submitting():
-    order = []
+def _etype_async(driver, *, answer, order):
+    """execute_async_script for the token request and the ajax post."""
 
-    def _logged_in(driver):
-        order.append("submit")
-        driver.current_url = "https://www.pendoreillerivervalley.com/"
+    def _run(script, *args):
+        if "grecaptcha.execute" in script:
+            order.append("token")
+            assert args[0] == al.ETYPE_RECAPTCHA_FIELD
+            return {"ok": True, "action": "etype_login"}
+        assert "ajaxSubmit" in script
+        assert args[0] == al.ETYPE_FORM_NAME
+        order.append("post")
+        return answer
 
-    driver, _login, _password = _etype_driver(on_submit=_logged_in)
-
-    def _token(script, field, timeout):
-        order.append("token")
-        assert "grecaptcha.execute" in script
-        assert field == al.ETYPE_RECAPTCHA_FIELD
-        return {"ok": True, "action": "etype_login"}
-
-    driver.execute_async_script = _token  # type: ignore[attr-defined]
+    driver.execute_async_script = _run  # type: ignore[attr-defined]
     driver.set_script_timeout = lambda s: None  # type: ignore[attr-defined]
 
-    assert (
-        al.perform_login(
-            driver,
-            auth_type="etype",
-            auth_config={"login_url": ETYPE_LOGIN_URL},
-            username="u",
-            password="pw",
-        )
-        is True
+
+def _login(driver):
+    return al.perform_login(
+        driver,
+        auth_type="etype",
+        auth_config={"login_url": ETYPE_LOGIN_URL},
+        username="u",
+        password="pw",
     )
-    assert order == ["token", "submit"]
+
+
+def test_etype_login_posts_the_way_the_page_does_and_follows_the_redirect():
+    order: list[str] = []
+    driver, _l, _p = _etype_driver(
+        on_submit=lambda d: (_ for _ in ()).throw(AssertionError("no full-page post"))
+    )
+    _etype_async(
+        driver,
+        answer={
+            "answered": True,
+            "body": {"redirect": "/account/etype-auth?app_redirect=/en"},
+        },
+        order=order,
+    )
+    assert _login(driver) is True
+    assert order == ["token", "post"]
+    assert driver.current_url == (
+        "https://www.pendoreillerivervalley.com/account/etype-auth?app_redirect=/en"
+    )
+
+
+def test_etype_login_logs_the_servers_reason(caplog):
+    order: list[str] = []
+    driver, _l, _p = _etype_driver(on_submit=lambda d: None)
+    _etype_async(
+        driver,
+        answer={
+            "answered": True,
+            "body": {
+                "status": 0,
+                "message": "<b>Your request was identified as likely spam.</b>",
+                "errors": {"[login]": ["Invalid login"]},
+            },
+        },
+        order=order,
+    )
+    with caplog.at_level("WARNING"):
+        assert _login(driver) is False
+    assert "identified as likely spam" in caplog.text
+    assert "<b>" not in caplog.text
+    assert "Invalid login" in caplog.text
+
+
+def test_etype_login_reports_a_failed_post(caplog):
+    driver, _l, _p = _etype_driver(on_submit=lambda d: None)
+    _etype_async(
+        driver,
+        answer={"answered": False, "status": 403, "text": "Forbidden"},
+        order=[],
+    )
+    with caplog.at_level("WARNING"):
+        assert _login(driver) is False
+    assert "HTTP 403" in caplog.text
+
+
+def test_etype_login_without_jquery_form_posts_the_full_page():
+    posted = []
+    driver, _l, _p = _etype_driver(
+        on_submit=lambda d: (
+            posted.append(True),
+            setattr(d, "current_url", "https://www.pendoreillerivervalley.com/"),
+        )
+    )
+    _etype_async(driver, answer=None, order=[])
+    assert _login(driver) is True
+    assert posted == [True]
 
 
 def test_etype_login_without_a_token_still_posts_and_reports_why(caplog):
@@ -1115,10 +1178,11 @@ def test_etype_login_without_a_token_still_posts_and_reports_why(caplog):
         driver.page_source = "<div>Your request was identified as likely spam.</div>"
 
     driver, _login, _password = _etype_driver(on_submit=_spam)
-    driver.execute_async_script = lambda *a: {  # type: ignore[attr-defined]
-        "ok": False,
-        "why": "reCAPTCHA script never loaded",
-    }
+    driver.execute_async_script = lambda script, *a: (  # type: ignore[attr-defined]
+        {"ok": False, "why": "reCAPTCHA script never loaded"}
+        if "grecaptcha.execute" in script
+        else None
+    )
     driver.set_script_timeout = lambda s: None  # type: ignore[attr-defined]
 
     with caplog.at_level("WARNING"):
