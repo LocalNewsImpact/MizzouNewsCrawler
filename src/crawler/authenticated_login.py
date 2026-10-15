@@ -439,6 +439,14 @@ def build_auth0_authorize_url(
         "nonce": secrets.token_urlsafe(16),
         "code_challenge": challenge,
         "code_challenge_method": "S256",
+        # THE FORM EVERY TIME. Without this an Auth0 tenant that already holds
+        # a session answers /authorize by redirecting straight to the callback,
+        # and there is no form to fill. thenewstribune.com and
+        # tri-cityherald.com share auth.mcclatchy.com: on 2026-10-14 every
+        # fresh driver signed in to either in ~33s, and every second McClatchy
+        # login on the same driver failed -- "username/email field not found",
+        # then a 25s renderer timeout loading the other site's callback.
+        "prompt": "login",
     }
     return f"https://{domain}/authorize?" + urllib.parse.urlencode(params)
 
