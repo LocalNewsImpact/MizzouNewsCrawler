@@ -106,6 +106,18 @@ LOGIN_COOLING_DOWN = (
 )
 
 
+#: A rewound link whose article names an archived page. Extraction parses that
+#: page and fetches nothing, so the link needs no login -- and a failed login
+#: on the host is no reason to hold it. 2026-10-15: 61 pendoreillerivervalley
+#: re-parses waited two hours behind a reCAPTCHA-refused login they did not
+#: need. `->`/`->>` on `json`, which Postgres and SQLite (3.38+) both read.
+IS_REPLAY = (
+    "(cl.status = 'refetch' AND EXISTS ("
+    "SELECT 1 FROM articles ra WHERE ra.candidate_link_id = cl.id "
+    "AND ra.metadata -> 'refetch' ->> 'replay' IS NOT NULL))"
+)
+
+
 def login_cooldown_cutoff() -> datetime:
     """Failures after this instant are still cooling down.
 
@@ -365,7 +377,7 @@ class WorkQueueCoordinator:
         # Every pool, not only the authenticated one: a `mixed` worker draws
         # credentialed hosts too, and on an anonymous host the column is NULL so
         # the clause is always true.
-        sql += f"            AND NOT {LOGIN_COOLING_DOWN}\n"
+        sql += f"            AND (NOT {LOGIN_COOLING_DOWN} OR {IS_REPLAY})\n"
         params: dict = {"login_cooldown_cutoff": login_cooldown_cutoff()}
         if dataset is not None:
             sql += "            AND cl.dataset_id = :dataset\n"
@@ -600,6 +612,7 @@ class WorkQueueCoordinator:
             WHERE {CLAIMABLE_STATUSES}
             AND cl.source = ANY(:domains){dataset_clause}{rework_clause}
             AND (cl.status = 'refetch' OR a.candidate_link_id IS NULL)
+            AND (NOT {LOGIN_COOLING_DOWN} OR {IS_REPLAY})
             ORDER BY RANDOM()
             LIMIT :limit
             FOR UPDATE OF cl SKIP LOCKED
@@ -617,6 +630,7 @@ class WorkQueueCoordinator:
             {
                 "domains": list(assigned_domains),
                 "limit": max_articles,
+                "login_cooldown_cutoff": login_cooldown_cutoff(),
                 # Mentioned once, and only when the clause above uses it.
                 **({"dataset": dataset} if dataset else {}),
             },

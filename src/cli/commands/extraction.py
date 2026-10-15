@@ -3262,6 +3262,23 @@ def _process_batch(
 
                         refund_attempt(session, [str(url_id)])
 
+                    # A PDF is settled, not retried: no parser reads it, and
+                    # left at `article` it is fetched again every batch. A
+                    # rewound link gives up through the rewind's own outcome
+                    # and keeps its article; a new link is not an article.
+                    if getattr(extractor, "loaded_a_pdf", False):
+                        if status == REFETCH:
+                            from src.pipeline.refetch import give_up
+
+                            give_up(session, [str(url_id)], outcome="pdf_document")
+                        else:
+                            safe_session_execute(
+                                session,
+                                CANDIDATE_STATUS_UPDATE_SQL,
+                                {"status": "not_article", "id": str(url_id)},
+                            )
+                        session.commit()
+
                     # Track failure for domain awareness
                     domain_failures[domain] = domain_failures.get(domain, 0) + 1
 

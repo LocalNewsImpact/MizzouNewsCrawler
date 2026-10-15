@@ -192,9 +192,10 @@ class TestARefusalIsNotABrowserFailure:
     def test_the_empty_result_increment_skips_refused_hosts(self):
         name = self._method_containing("Selenium returned empty result")
         body = self._source(name)
-        guard = body.index("not in ContentExtractor._auth_failed_domains")
+        guard = body.index("in ContentExtractor._auth_failed_domains")
         increment = body.index("self._selenium_failure_counts[dom] = (")
         assert guard < increment
+        assert "not refused_login" in body
 
     def test_the_guard_compares_bare_hosts(self):
         """`dom` is the netloc (www.union-bulletin.com); `_auth_failed_domains`
@@ -202,9 +203,8 @@ class TestARefusalIsNotABrowserFailure:
         match and the fix would do nothing."""
         name = self._method_containing("Selenium returned empty result")
         body = self._source(name)
-        assert (
-            "self._bare_host(dom) not in ContentExtractor._auth_failed_domains" in body
-        )
+        flat = " ".join(body.split())
+        assert "self._bare_host(dom) in ContentExtractor._auth_failed_domains" in flat
 
     def test_the_login_caches_are_still_reset_on_a_new_driver(self):
         """The half that already worked, pinned so the retry keeps working."""
