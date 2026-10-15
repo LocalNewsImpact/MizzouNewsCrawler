@@ -104,6 +104,39 @@ CURATED_WIRE_METADATA = {
     "mediacloud_lookup": False,
     "bypass_reason": "directly ingested URL set",
 }
+#: Statuses a detector may give that a curated URL does not take.
+#:
+#: A URL handed over as part of a chosen set is the curator's assertion that it
+#: is the reporter's story -- the reason the wire CHECK is bypassed. The
+#: detectors that set these statuses ran anyway: on 2026-10-15, 46 WSU stories
+#: sat outside the export, 33 as wire (a partner's canonical, a wire name in the
+#: lead), 8 as opinion and 5 as obituary, every one a WSU reporter's own work.
+CURATED_OVERRIDES_STATUSES = frozenset({"wire", "opinion", "obituary", "weather"})
+
+
+def _curated_keeps_its_status(
+    article_status: str,
+    wire_service_info: str | None,
+    metadata_value: dict,
+    *,
+    curated: bool,
+) -> tuple[str, str | None]:
+    """A curated story stays a story; what the detector said is kept beside it.
+
+    Returns ``(article_status, wire_service_info)``. The detection payload is
+    left in place and the call it would have made is recorded, so the row
+    still says what the detector saw.
+    """
+    if not curated or article_status not in CURATED_OVERRIDES_STATUSES:
+        return article_status, wire_service_info
+    metadata_value["curated_kept_status"] = {
+        "detected": article_status,
+        "wire": wire_service_info,
+        "authority": CURATED_WIRE_METADATA["authority"],
+    }
+    return "extracted", None
+
+
 WIRE_CHECK_INITIAL_PENDING_STATUSES = {"extracted"}
 WIRE_CHECK_QUEUE_STATUSES = {"cleaned", "local", "labeled"}
 
@@ -1702,6 +1735,12 @@ def handle_extract_url_command(args) -> int:
             if hint_services:
                 article_status = "wire"
                 wire_service_info = json.dumps(hint_services)
+        article_status, wire_service_info = _curated_keeps_its_status(
+            article_status,
+            wire_service_info,
+            metadata_value,
+            curated=bool(getattr(candidate, "is_curated", False)),
+        )
 
         # Content cleaning and text hash calculation
         domain = parsed.netloc
@@ -1890,6 +1929,13 @@ def _process_batch(
     # `session.execute.side_effect` for that query and an extra execute there
     # consumes the error it is injecting.
     curated_ids: set[str] | None = None
+
+    def link_is_curated(link_id) -> bool:
+        """Read the batch's curated links once, at the first article asking."""
+        nonlocal curated_ids
+        if curated_ids is None:
+            curated_ids = _curated_link_ids(session, [r[0] for r in rows])
+        return str(link_id) in curated_ids
 
     # Track domain failures and articles processed per domain in this batch
     domain_failures = {}  # domain -> consecutive_failures
@@ -2544,6 +2590,18 @@ def _process_batch(
                     # body -- a byline, a canonical pointing elsewhere --
                     # which is exactly what the reviewer could not see
                     # when they judged a bare URL.
+                    # A curated row overrides the detectors, before the shape
+                    # gate and the duplicate check -- both skipped for `wire` --
+                    # read their verdict. Asked only when a detector flagged
+                    # the row, so an ordinary capture makes no extra query.
+                    if article_status in CURATED_OVERRIDES_STATUSES:
+                        article_status, wire_service_info = _curated_keeps_its_status(
+                            article_status,
+                            wire_service_info,
+                            metadata_value,
+                            curated=link_is_curated(url_id),
+                        )
+
                     if article_status != "wire":
                         from lnic_contracts import discovery_verdict
 
@@ -2985,9 +3043,7 @@ def _process_batch(
                     except Exception:
                         dump_sql_flag = False
 
-                    if curated_ids is None:
-                        curated_ids = _curated_link_ids(session, [r[0] for r in rows])
-                    is_curated_link = str(url_id) in curated_ids
+                    is_curated_link = link_is_curated(url_id)
                     wire_check_status = _initial_wire_check_status(
                         article_status, curated=is_curated_link
                     )

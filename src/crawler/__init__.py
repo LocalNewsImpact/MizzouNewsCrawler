@@ -335,6 +335,40 @@ def _domain_base_label(domain: str) -> str:
     return parts[-2] if len(parts) >= 2 else domain
 
 
+#: A canonical that names a file or a delivery network is not a page another
+#: newsroom published. KHQ's `canonical` pointed at a CloudFront `.mp4` -- the
+#: story's video -- and two Kevin Teeter stories were filed as wire from
+#: "d3lkg5ifzdcnms.cloudfront.net".
+_MEDIA_PATH = re.compile(
+    r"\.(?:mp4|m4v|mov|webm|m3u8|mp3|m4a|wav|jpe?g|png|gif|webp|svg|pdf)$",
+    re.IGNORECASE,
+)
+_CDN_HOSTS = (
+    "cloudfront.net",
+    "akamaized.net",
+    "akamaihd.net",
+    "fastly.net",
+    "cloudinary.com",
+    "brightcove.net",
+    "jwplayer.com",
+    "jwpcdn.com",
+    "vimeocdn.com",
+    "googleusercontent.com",
+    "amazonaws.com",
+)
+
+
+def _canonical_names_no_publisher(canonical_domain: str, path: str) -> bool:
+    """A canonical on a CDN host or naming a media file says nothing of who
+    published the story."""
+    if _MEDIA_PATH.search(path or ""):
+        return True
+    return any(
+        canonical_domain == host or canonical_domain.endswith("." + host)
+        for host in _CDN_HOSTS
+    )
+
+
 def _is_same_site_domain_alias(article_domain: str, canonical_domain: str) -> bool:
     """Whether two cross-domain URLs are plausibly the SAME publisher.
 
@@ -8643,6 +8677,8 @@ class ContentExtractor:
                                 wire_services.append(normalized)
                         elif not _is_same_site_domain_alias(
                             article_domain, canonical_domain
+                        ) and not _canonical_names_no_publisher(
+                            canonical_domain, canonical_parsed.path
                         ):
                             # Unknown domain but cross-domain canonical indicates syndication
                             # (e.g., Hearst TV stations syndicating between each other).

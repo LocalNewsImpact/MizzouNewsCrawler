@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import html
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
+from urllib.parse import urlparse
 
 from .confidence import normalize_score, score_to_label
 from .wire_reporters import is_wire_reporter
@@ -215,6 +217,7 @@ class ContentTypeDetector:
         "guest commentary",
         "letter",
         "letters",
+        "letter to the editor",
         "perspective",
     )
     # `column`, `columns` and `columnists` are deliberately absent.
@@ -245,6 +248,7 @@ class ContentTypeDetector:
         "letters",
         "letters-to-the-editor",
         "perspective",
+        "perspectives",
     )
 
     # A weather BULLETIN announces itself: it is issued, it runs until a
@@ -1330,6 +1334,7 @@ class ContentTypeDetector:
         url_matches = self._find_segment_matches(
             url,
             self._OBITUARY_URL_SEGMENTS,
+            slug_words=True,
         )
         if url_matches:
             unique_url_matches = sorted(set(url_matches))
@@ -1386,7 +1391,20 @@ class ContentTypeDetector:
             if content_matches:
                 unique_content_matches = sorted(set(content_matches))
                 matches["content"] = unique_content_matches
-                if (
+                # A phrase in the body corroborates; it does not decide. "Passed
+                # away" alone filed "Replacement chosen for Washington state
+                # senator who died" and a Pierce County sales-tax story as
+                # obituaries, and "laid to rest" a Veterans Day events list --
+                # each at 0.17 confidence with nothing else agreeing.
+                corroborated = (
+                    any(
+                        key in matches
+                        for key in ("title", "url", "keywords", "meta_description")
+                    )
+                    or "title_patterns" in matches
+                    or self._title_reads_like_a_name(title)
+                )
+                if corroborated and (
                     set(unique_content_matches)
                     & self._OBITUARY_HIGH_SIGNAL_CONTENT_KEYWORDS
                 ):
@@ -1576,9 +1594,42 @@ class ContentTypeDetector:
     def _find_segment_matches(
         url: str,
         segments: Iterable[str],
+        *,
+        slug_words: bool = False,
     ) -> list[str]:
-        lower_url = url.lower()
-        return [segment for segment in segments if segment in lower_url]
+        """Section names found in the URL's sections, not in the story's slug.
+
+        A substring of the whole URL read the story's own slug as its section:
+        `/have-an-opinion-about-housing-.../` was filed under `/opinion/`, and
+        `/dueling-perspectives-on-display-.../` under `/perspective/` -- three
+        Edmonds, Lynnwood and Mountlake Terrace news items and a Cascadia Daily
+        hearing story, all WSU reporters' own work, excluded as opinion; so
+        were probate "Letters Granted" notices and a newsletter sign-up page.
+
+        A section segment may name it among other words
+        (`/local-news-opinions-guest-blogs/`, `/letters-editor/`), matched as
+        whole hyphenated words. The story's slug counts when it IS the name or
+        LEADS with it, a label the way a headline's "Opinion:" is
+        (`/opinion-putthoff-mushrooms-hide.../`); with `slug_words`, for
+        obituaries, anywhere in it (`john-doe-obituary`).
+        """
+        path = urlparse(url.lower()).path
+        parts = [part for part in path.split("/") if part]
+        sections, slug = parts[:-1], (parts[-1] if parts else "")
+        found = []
+        for segment in segments:
+            word = f"-{segment}-"
+            in_section = any(
+                part == segment or word in f"-{part}-" for part in sections
+            )
+            in_slug = (
+                slug == segment
+                or slug.startswith(f"{segment}-")
+                or (slug_words and word in f"-{slug}-")
+            )
+            if in_section or in_slug:
+                found.append(segment)
+        return found
 
     @staticmethod
     def _matches_from_iterable(
@@ -1637,6 +1688,33 @@ class ContentTypeDetector:
 
         return patterns
 
+    #: Lowercase words a name or an obituary headline may carry.
+    _NAME_PARTICLES = frozenset(
+        "a an the of and for to in on at by de del la van von jr sr ii iii".split()
+    )
+
+    def _title_reads_like_a_name(self, title: str | None) -> bool:
+        """Whether a headline is a name, the way an obituary's is.
+
+        "Rebecca John 1961-2025", "Dorothy H. Moll - Perryville Republic
+        Monitor", "Perry Smith – Service 02/17/2026": with the masthead or
+        service suffix off, no sentence words. A news story about a death
+        reads as a sentence -- "Replacement chosen for Washington state
+        senator who died", "Hollywood legend Robert Redford dies at age 89".
+
+        Measured 2026-10-15 on the 1,029 obituaries the detector filed on a
+        body phrase alone: 910 have a name-like title and stay obituaries; the
+        119 that do not are, almost all, news about a death.
+        """
+        if not title:
+            return False
+        head = re.split(r"\s+[-\u2013\u2014|\u2022]\s+", html.unescape(title))[0]
+        words = re.findall(r"[A-Za-z][A-Za-z'\u2019.]*", head)
+        sentence_words = [
+            w for w in words if w[0].islower() and w.lower() not in self._NAME_PARTICLES
+        ]
+        return bool(words) and len(sentence_words) <= 1
+
     def _find_opinion_title_matches(self, title: str | None) -> list[str]:
         if not title:
             return []
@@ -1657,9 +1735,21 @@ class ContentTypeDetector:
                 matches.append(prefix_lower)
                 continue
 
-            if (
-                prefix_lower in {"editorial", "opinion", "commentary"}
-                and prefix_lower in lower_title
+            # A label later in the headline still counts -- "Guest opinion:",
+            # "Our editorial |" -- but only as a label, followed by its
+            # separator. The bare word anywhere took "Have an opinion about
+            # housing in Washington state? Here's a…" and "Have an opinion on
+            # county's controversial homeless village?" -- news items telling
+            # readers how to comment -- as opinion pieces.
+            if prefix_lower in {
+                "editorial",
+                "opinion",
+                "commentary",
+            } and re.search(
+                # "Opinion:", "Guest opinion |", "Opinion Submission: ..."
+                rf"\b{re.escape(prefix_lower)}\b[\w ]{{0,20}}?"
+                rf"(?::|\s[|\u2013\u2014-]\s)",
+                lower_title[:60],
             ):
                 matches.append(prefix_lower)
         return matches

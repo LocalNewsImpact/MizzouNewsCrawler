@@ -151,7 +151,13 @@ class TestTheFlagIsReadPerBatch:
         """
         code = _code(extraction._process_batch)
         before_loop = code[: code.index("for row in rows:")]
-        assert "_curated_link_ids" not in before_loop
+        # Defined there, lazily, and never called there: the read happens at
+        # the first article that asks.
+        helper = before_loop[before_loop.index("def link_is_curated(") :]
+        helper = helper[: helper.index("return str(link_id) in curated_ids")]
+        outside = before_loop.replace(helper, "")
+        assert "_curated_link_ids" not in outside
+        assert "link_is_curated(url_id)" not in before_loop
 
 
 class TestUrlVerificationSkipsThem:
