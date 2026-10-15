@@ -58,6 +58,7 @@ from .fetch_plan import plan_fetch
 from .fingerprint_profile import (
     FingerprintProfile,
     load_fingerprint_profile,
+    matched_to_browser,
     prepare_user_data_dir,
 )
 from .headline import headline_from_title
@@ -5812,12 +5813,34 @@ class ContentExtractor:
         if not profile:
             return
 
+        # The version the browser really is. A profile pinned to an older
+        # Chrome reports one version in the UA and client hints and another in
+        # every feature a page can test.
+        try:
+            product = driver.execute_cdp_cmd("Browser.getVersion", {}).get("product")
+        except Exception as exc:  # noqa: BLE001 - a stub or old driver
+            logger.debug("Browser.getVersion failed: %s", exc)
+            product = None
+        profile = matched_to_browser(profile, product)
+
         # Prefer the consolidated helper which implements cross-CDP fallbacks
         if profile.user_agent:
             try:
-                self._set_user_agent_override(driver, profile.user_agent)
+                self._set_user_agent_override(
+                    driver, profile.user_agent, client_hints=profile.client_hints
+                )
             except Exception as exc:
                 logger.debug("CDP UA override failed in helper: %s", exc)
+
+        # The time zone the egress is in. Unset, the page read UTC beside a
+        # residential Missouri IP.
+        if profile.timezone:
+            try:
+                driver.execute_cdp_cmd(
+                    "Emulation.setTimezoneOverride", {"timezoneId": profile.timezone}
+                )
+            except Exception as exc:
+                logger.debug("Timezone override failed: %s", exc)
 
         if profile.accept_language:
             try:
@@ -5911,7 +5934,9 @@ class ContentExtractor:
         except Exception as exc:
             logger.debug("selenium-stealth application failed (non-fatal): %s", exc)
 
-    def _set_user_agent_override(self, driver, user_agent: str) -> None:
+    def _set_user_agent_override(
+        self, driver, user_agent: str, client_hints: dict | None = None
+    ) -> None:
         """Set User-Agent and client-hints with robust fallbacks across CDP versions.
 
         Some Chrome/ChromeDriver combinations reject the newer `userAgentMetadata`
@@ -5921,8 +5946,9 @@ class ContentExtractor:
         finally set explicit `sec-ch-*` headers via `Network.setExtraHTTPHeaders`.
         All failures are non-fatal and logged at debug level.
         """
-        client_hints = None
-        if self._fingerprint_profile and self._fingerprint_profile.client_hints:
+        if client_hints is not None:
+            client_hints = deepcopy(client_hints)
+        elif self._fingerprint_profile and self._fingerprint_profile.client_hints:
             client_hints = deepcopy(self._fingerprint_profile.client_hints)
 
         def _try_network(payload: dict):
@@ -5947,99 +5973,73 @@ class ContentExtractor:
         # payload attempt to avoid noisy failures. Also proactively check the
         # browser version once to opt-out of attempting a full payload for
         # Chrome builds known to reject the parameter (e.g., Chrome/143).
+        # NO VERSION GATE. A `major >= 143` check here (2026-01-08) turned the
+        # client hints off for every later Chrome, so production on Chrome 155
+        # sent a macOS UA with empty `navigator.userAgentData.brands` and
+        # platform -- an automation tell -- while Chrome 155 accepts the
+        # metadata. A browser that really rejects it is caught below by its
+        # "Invalid parameters" answer and remembered per driver.
         if getattr(driver, "_supports_user_agent_metadata", True) is True:
-            # Perform a one-time version check to avoid noisy 'Invalid parameters'
-            # errors on known-broken browser builds (Chrome 143 observed rejecting the field).
-            if not getattr(driver, "_user_agent_metadata_version_checked", False):
+            ok, net_exc = _try_network(full_payload)
+            if ok:
+                # Also set extra HTTP headers (sec-ch-ua*, Accept-Language) if available
                 try:
-                    ver = driver.execute_cdp_cmd("Browser.getVersion", {})
-                    prod = ver.get("product", "") if isinstance(ver, dict) else ""
-                    try:
-                        import re
-
-                        m = re.search(r"Chrome/(\d+)\.", prod)
-                        if m:
-                            major = int(m.group(1))
-                            # Chrome 143 was observed to reject any userAgentMetadata
-                            if major >= 143:
-                                try:
-                                    driver._supports_user_agent_metadata = False
-                                    logger.debug(
-                                        "Browser.getVersion indicates Chrome %s; skipping userAgentMetadata attempt",
-                                        major,
-                                    )
-                                except Exception:
-                                    pass
-                    except Exception:
-                        pass
-                except Exception:
-                    pass
-                try:
-                    driver._user_agent_metadata_version_checked = True
-                except Exception:
-                    pass
-
-            if getattr(driver, "_supports_user_agent_metadata", True) is True:
-                ok, net_exc = _try_network(full_payload)
-                if ok:
-                    # Also set extra HTTP headers (sec-ch-ua*, Accept-Language) if available
-                    try:
-                        extra_headers: dict[str, str] = {}
-                        if client_hints:
-                            if client_hints.get("acceptLanguage"):
-                                extra_headers["Accept-Language"] = client_hints[
-                                    "acceptLanguage"
-                                ]
-                            ua_meta = (
-                                client_hints.get("userAgentMetadata")
-                                if client_hints
-                                else None
-                            )
-                            if ua_meta:
-                                brands = ua_meta.get("brands", []) or []
-                                if brands:
-                                    extra_headers["sec-ch-ua"] = ", ".join(
-                                        f'"{b.get("brand")}";v="{b.get("version")}"'
-                                        for b in brands
-                                    )
-                                extra_headers["sec-ch-ua-mobile"] = (
-                                    "?1" if ua_meta.get("mobile") else "?0"
-                                )
-                                if client_hints.get("platform"):
-                                    extra_headers["sec-ch-ua-platform"] = (
-                                        f'"{client_hints["platform"]}"'
-                                    )
-                        if extra_headers:
-                            driver.execute_cdp_cmd(
-                                "Network.setExtraHTTPHeaders",
-                                {"headers": extra_headers},
-                            )
-                    except Exception as e:
-                        logger.debug(
-                            "Network.setExtraHTTPHeaders after full payload failed: %s",
-                            e,
+                    extra_headers: dict[str, str] = {}
+                    if client_hints:
+                        if client_hints.get("acceptLanguage"):
+                            extra_headers["Accept-Language"] = client_hints[
+                                "acceptLanguage"
+                            ]
+                        ua_meta = (
+                            client_hints.get("userAgentMetadata")
+                            if client_hints
+                            else None
                         )
-                    return
-                else:
-                    # If the failure indicates 'Invalid parameters', mark the driver so
-                    # we don't try the full payload again on subsequent calls.
-                    try:
-                        if net_exc and "invalid parameters" in str(net_exc).lower():
-                            try:
-                                driver._supports_user_agent_metadata = False
-                                logger.debug(
-                                    "Marked driver as not supporting userAgentMetadata"
+                        if ua_meta:
+                            brands = ua_meta.get("brands", []) or []
+                            if brands:
+                                extra_headers["sec-ch-ua"] = ", ".join(
+                                    f'"{b.get("brand")}";v="{b.get("version")}"'
+                                    for b in brands
                                 )
-                            except Exception:
-                                pass
-                            # Also log Browser.getVersion for easier debugging
-                            try:
-                                ver = driver.execute_cdp_cmd("Browser.getVersion", {})
-                                logger.debug("Browser.getVersion reported: %s", ver)
-                            except Exception:
-                                pass
-                    except Exception:
-                        pass
+                            extra_headers["sec-ch-ua-mobile"] = (
+                                "?1" if ua_meta.get("mobile") else "?0"
+                            )
+                            if client_hints.get("platform"):
+                                extra_headers["sec-ch-ua-platform"] = (
+                                    f'"{client_hints["platform"]}"'
+                                )
+                    if extra_headers:
+                        driver.execute_cdp_cmd(
+                            "Network.setExtraHTTPHeaders",
+                            {"headers": extra_headers},
+                        )
+                except Exception as e:
+                    logger.debug(
+                        "Network.setExtraHTTPHeaders after full payload failed: %s",
+                        e,
+                    )
+                return
+            else:
+                # If the failure indicates 'Invalid parameters', mark the driver so
+                # we don't try the full payload again on subsequent calls.
+                try:
+                    if net_exc and "invalid parameters" in str(net_exc).lower():
+                        try:
+                            driver._supports_user_agent_metadata = False
+                            logger.debug(
+                                "Marked driver as not supporting userAgentMetadata"
+                            )
+                        except Exception:
+                            pass
+                        # Also log Browser.getVersion for easier debugging
+                        try:
+                            ver = driver.execute_cdp_cmd("Browser.getVersion", {})
+                            logger.debug("Browser.getVersion reported: %s", ver)
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
         else:
             logger.debug(
                 "Skipping full Network.setUserAgentOverride because driver flagged no support for userAgentMetadata"

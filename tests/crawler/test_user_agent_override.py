@@ -149,7 +149,7 @@ def test_set_user_agent_override_marks_and_skips_full_payload_on_subsequent_call
     assert not any("userAgentMetadata" in c.get("params", {}) for c in fake.calls)
 
 
-def test_set_user_agent_override_skips_full_payload_on_chrome_143():
+def test_set_user_agent_override_sends_client_hints_on_chrome_143_and_later():
     extractor = ContentExtractor()
     fp = FingerprintProfile(
         source_path=Path("dummy"),
@@ -181,7 +181,8 @@ def test_set_user_agent_override_skips_full_payload_on_chrome_143():
 
     extractor._set_user_agent_override(fake, "Windows UA string")
 
-    # No call should include userAgentMetadata because version proactively disabled it
-    assert not any(
+    # The version gate is gone: the metadata is attempted, and only a real
+    # "Invalid parameters" rejection turns it off for the driver.
+    assert any(
         "userAgentMetadata" in c.get("params", {}) for c in fake.calls
     ), fake.calls
