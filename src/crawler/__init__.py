@@ -3342,7 +3342,7 @@ class ContentExtractor:
         # The browser's status for THIS article; None until it navigates. Reset
         # here as well as per navigation: an article that never reaches the
         # browser must not read the previous article's status.
-        self._last_navigation_status = None
+        self._last_navigation_status: int | None = None
 
         # Initialize result structure
         result: Dict[str, Any] = {
