@@ -116,10 +116,23 @@ def _pipe(src: socket.socket, dst: socket.socket) -> None:
 
 
 class PublisherRoute:
-    """The publisher the browser is reading, and the tunnels opened for it."""
+    """The publisher the browser is reading, the proxy chosen for it, and the
+    tunnels opened for it.
+
+    The router is the load balancer; the browser asks it once per publisher
+    and keeps the answer until the browser session ends (``end_session``).
+    Asked per connection, a backoff recorded mid-page moved the rest of that
+    page -- and a logged-in session's next article -- to the other Squid: a
+    second egress IP for one reader. The one exception is a 403 through the
+    chosen proxy (``fail_over``): the publisher moves to the other Squid for
+    the rest of the session, once.
+    """
 
     def __init__(self) -> None:
         self.publisher: Optional[str] = None
+        # publisher -> the upstream URL the router chose (None: the default)
+        self._upstreams: dict[str, Optional[str]] = {}
+        self._failed_over: set[str] = set()
         self._pinned = 0
         # client socket -> the routing key it was opened under
         self._live: dict[socket.socket, Optional[str]] = {}
@@ -166,6 +179,57 @@ class PublisherRoute:
         finally:
             with self._lock:
                 self._pinned -= 1
+
+    def upstream_for(
+        self, key: str, resolve: Callable[[str], Optional[str]]
+    ) -> Optional[str]:
+        """The upstream chosen for ``key`` this session; asked once."""
+        with self._lock:
+            if key in self._upstreams:
+                return self._upstreams[key]
+        try:
+            chosen = resolve(key)
+        except Exception as exc:
+            # Never fail a page load over a routing decision: the default
+            # upstream is always reachable.
+            logger.debug("relay upstream resolution failed: %s", exc)
+            chosen = None
+        with self._lock:
+            # Two first connections may race; the first answer is the session's.
+            return self._upstreams.setdefault(key, chosen)
+
+    def switch(self, key: str, upstream: str) -> bool:
+        """Move ``key`` to ``upstream`` for the rest of the session, once.
+
+        Its open tunnels are closed so Chrome reconnects through the new one.
+        False when ``key`` has already failed over this session: a 403 from
+        both Squids is the publisher's answer, not a proxy's.
+        """
+        with self._lock:
+            if key in self._failed_over:
+                return False
+            self._failed_over.add(key)
+            self._upstreams[key] = upstream
+            stale = [c for c, k in self._live.items() if k == key]
+        for client in stale:
+            try:
+                client.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+        return True
+
+    def end_session(self) -> None:
+        """The browser is gone: forget its publisher and every choice made."""
+        with self._lock:
+            self.publisher = None
+            self._upstreams.clear()
+            self._failed_over.clear()
+            stale = list(self._live)
+        for client in stale:
+            try:
+                client.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
 
     def opened(self, client: socket.socket, key: Optional[str]) -> None:
         with self._lock:
@@ -254,13 +318,7 @@ class ProxyAuthRelay:
         if self._resolve_upstream is not None:
             host = key if key is not None else self._routing_key(head)
             if host:
-                try:
-                    chosen = self._resolve_upstream(host)
-                except Exception as exc:
-                    # Never fail a page load over a routing decision: the
-                    # default upstream is always reachable.
-                    logger.debug("relay upstream resolution failed: %s", exc)
-                    chosen = None
+                chosen = self._route.upstream_for(host, self._resolve_upstream)
                 if chosen:
                     try:
                         h, p, u, pw = split_proxy_url(chosen)
@@ -434,6 +492,48 @@ _browser_route = PublisherRoute()
 def route_as(url_or_host: str) -> None:
     """Route the process's browser as ``url_or_host``'s publisher."""
     _browser_route.route_as(url_or_host)
+
+
+def fail_over(url_or_host: str) -> bool:
+    """A 403 through the session's proxy: move the publisher to the other Squid.
+
+    True when the publisher now routes through a different Squid; the caller
+    retries the page through it. False when the publisher was never routed,
+    has already failed over this session, or no other Squid is configured.
+    """
+    from .proxy_config import get_proxy_manager
+    from .proxy_router import _PROXY_POOL
+
+    key = _publisher_of(url_or_host)
+    if not key:
+        return False
+    failed = _routes.get(key)
+    if failed is None:
+        return False
+    for other in _PROXY_POOL:
+        if other is failed:
+            continue
+        try:
+            proxies = get_proxy_manager().get_requests_proxies_for_router_proxy(other)
+        except Exception as exc:  # never fail a page over a routing decision
+            logger.debug("failover lookup failed for %s: %s", key, exc)
+            proxies = None
+        upstream = proxies and (proxies.get("https") or proxies.get("http"))
+        if upstream and _browser_route.switch(key, upstream):
+            _routes[key] = other
+            logger.info(
+                "🔀 %s refused through %s; session moves to %s",
+                key,
+                getattr(failed, "value", failed),
+                other.value,
+            )
+            return True
+    return False
+
+
+def end_browser_session() -> None:
+    """Forget the publisher and its chosen proxy; the next browser asks anew."""
+    _browser_route.end_session()
 
 
 def publisher_pinned(url_or_host: str) -> contextlib.AbstractContextManager[None]:

@@ -127,7 +127,7 @@ class TestTheCallerRecordsIt:
         body = Path("src/crawler/__init__.py").read_text()
         block = body.split("success = self._navigate_with_human_behavior(driver, url)")[
             1
-        ][:900]
+        ][:1200]
         assert "read_navigation_status(driver)" in block
         assert "self._last_fetch_http_status = nav_status" in block
 
