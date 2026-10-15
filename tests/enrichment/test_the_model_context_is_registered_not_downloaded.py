@@ -64,3 +64,11 @@ def test_without_litellm_nothing_is_attempted(monkeypatch):
     monkeypatch.setattr(adapter, "_MODELS_REGISTERED", False)
     adapter._register_model_context()  # does not raise
     assert adapter._MODELS_REGISTERED is False
+
+
+def test_a_litellm_without_register_model_is_reported_not_fatal(monkeypatch):
+    stub = types.ModuleType("litellm")
+    monkeypatch.setitem(sys.modules, "litellm", stub)
+    monkeypatch.setattr(adapter, "_MODELS_REGISTERED", False)
+    adapter._register_model_context()  # does not raise
+    assert adapter._MODELS_REGISTERED is False

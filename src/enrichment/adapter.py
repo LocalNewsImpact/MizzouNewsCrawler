@@ -144,7 +144,14 @@ def _register_model_context() -> None:
             entry["input_cost_per_token"] = float(rate["in"])
             entry["output_cost_per_token"] = float(rate["out"])
         entries[model] = entry
-    litellm.register_model(entries)
+    register = getattr(litellm, "register_model", None)
+    if register is None:
+        logger.warning(
+            "litellm has no register_model; prompt budgets fall back to its "
+            "downloaded model table"
+        )
+        return
+    register(entries)
     _MODELS_REGISTERED = True
 
 
