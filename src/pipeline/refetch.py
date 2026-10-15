@@ -120,6 +120,22 @@ _SPEND_ATTEMPT = text("""
  RETURNING cl.id, (a.metadata::jsonb -> 'refetch' ->> 'attempts')::int
 """)
 
+#: The try `_SPEND_ATTEMPT` took, given back. Never below zero.
+_REFUND_ATTEMPT = text("""
+    UPDATE articles a
+       SET metadata = jsonb_set(
+             coalesce(a.metadata::jsonb, '{}'::jsonb),
+             '{refetch,attempts}',
+             to_jsonb(greatest(
+               coalesce((a.metadata::jsonb -> 'refetch' ->> 'attempts')::int, 0) - 1,
+               0)),
+             true)::json
+      FROM candidate_links cl
+     WHERE cl.id = a.candidate_link_id
+       AND cl.status = :refetch
+       AND cl.id = ANY(:link_ids)
+""")
+
 _GIVE_UP_ARTICLE = text("""
     UPDATE articles a
        SET status = :status,
@@ -336,6 +352,23 @@ def spend_attempt(session: Session, link_ids: list[str]) -> set[str]:
     if exhausted:
         give_up(session, exhausted, outcome=ABANDONED)
     return set(exhausted)
+
+
+def refund_attempt(session: Session, link_ids: list[str]) -> None:
+    """Give back the try `spend_attempt` took for a fetch that never happened.
+
+    A credentialed fetch with no confirmed session is declined before the page
+    is requested. Charging it spent the row's tries on the LOGIN, and three
+    refused logins abandoned a story nobody had asked for: on 2026-10-14 a
+    columbian.com row was charged a try while its login hung and the host was
+    refused. The login has its own budget (`_MAX_AUTH_ATTEMPTS` per driver).
+
+    No commit, for the reason `spend_attempt` gives.
+    """
+    if link_ids:
+        session.execute(
+            _REFUND_ATTEMPT, {"refetch": REFETCH, "link_ids": list(link_ids)}
+        )
 
 
 def give_up(session: Session, link_ids: list[str], *, outcome: str) -> int:
