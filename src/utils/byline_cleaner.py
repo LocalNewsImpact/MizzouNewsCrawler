@@ -7,6 +7,7 @@ Byline cleaning utility for news articles.
 # incrementally improve typing in higher-priority modules.
 # mypy: ignore-errors
 
+import html
 import json
 import logging
 import re
@@ -702,6 +703,79 @@ class BylineCleaner:
                 return self._MASTHEAD_JOIN.sub("", trimmed).strip()
         return byline
 
+    #: A job title printed on the line under the name: `World staff writer`,
+    #: `Herald staff reporter`, `Correspondent`.
+    _TITLE_TAIL = re.compile(
+        r"(?i)\b(?:staff\s+(?:writer|reporter|photographer)s?|correspondents?|"
+        r"contributing\s+writers?)\s*$"
+    )
+
+    #: Where the publisher broke the line. TownNews writes the author field as
+    #: `Name<br>World staff writer`; its meta tag keeps the `<br>` as a double
+    #: space -- or as nothing at all, which leaves `DìazWorld staff writer`.
+    _LINE_BREAK = re.compile(r"(?i)\s*<br\s*/?>\s*|\s*\n\s*|\s{2,}")
+
+    def drop_title_line(self, byline: str) -> str:
+        """Drop the newsroom-and-title line printed under a reporter's name.
+
+        `Reneé Dìaz <br> World staff writer` is Reneé Dìaz. The title words
+        were already removed downstream, but `World` -- the masthead's short
+        name -- is name-shaped, so 115 of 171 Wenatchee World bylines were
+        stored as `Reneé Dìaz World`, `Reneé Dìaz Word` (the page's own typo)
+        or `Renee DiazWorld`, and 30 more, glued, were emptied.
+
+        The title phrase itself always goes: left for the title rule
+        downstream, a two-word name beside it is half title words and the
+        whole byline was emptied -- `John Smith staff writer` stored nothing.
+
+        The words before the title are cut only where the boundary is the
+        publisher's: a line break (or the double space it leaves), or words of
+        this source's own name, even when glued onto the surname. Otherwise
+        every word before the title is kept: `Mary Ann Smith`.
+        """
+        if not byline:
+            return byline
+        text = html.unescape(byline)
+        if not self._TITLE_TAIL.search(text):
+            return text
+        lines = [p for p in self._LINE_BREAK.split(text) if p and p.strip()]
+        if len(lines) > 1:
+            while len(lines) > 1 and self._TITLE_TAIL.search(lines[-1]):
+                lines.pop()
+            text = " ".join(lines).strip()
+            if not self._TITLE_TAIL.search(text):
+                return text
+        return self._name_before_title(text)
+
+    def _name_before_title(self, text: str) -> str:
+        """`Kalie Worthen World staff writer` / `DìazWorld staff writer`.
+
+        Returns the name with the title phrase removed, and with any of the
+        source's own name words that stood between them.
+        """
+        source = (self._current_source_name or "").lower()
+        own = {w for w in re.findall(r"[^\W\d_]+", source) if len(w) > 2} - {"the"}
+        match = self._TITLE_TAIL.search(text)
+        if match is None:
+            return text
+        head = self._TRAILING_SEPARATOR.sub("", text[: match.start()]).strip()
+        if not head:
+            return text  # a title alone: the title rule's to judge
+        cut = head
+        while True:
+            for word in own:
+                tail = cut[-len(word) :]
+                before = cut[: -len(word)]
+                if tail.lower() != word or not tail[:1].isupper() or not before:
+                    continue
+                # A word of its own, or glued onto a lowercase surname end.
+                if before[-1].isspace() or before[-1].islower():
+                    cut = before.rstrip()
+                    break
+            else:
+                break
+        return cut or head
+
     @classmethod
     def drop_repeated_name(cls, byline: str) -> str:
         """`Jon Dykstra Jon Dykstra` is Jon Dykstra, on 52 articles."""
@@ -837,6 +911,9 @@ class BylineCleaner:
             # is the error: `Cameron Montemayor File Photo` trimmed to a
             # byline credits a reporter with a story he photographed.
             byline = self.drop_photo_credits(byline)
+            # The title line under the name, while the publisher's own line
+            # break still says where the name ends.
+            byline = self.drop_title_line(byline)
             # Then the masthead, BEFORE the dash split. `Rudi Keller -
             # MISSOURI INDEPENDENT` reaching `normalise_dash_separators`
             # first becomes two authors, because an uppercase masthead is

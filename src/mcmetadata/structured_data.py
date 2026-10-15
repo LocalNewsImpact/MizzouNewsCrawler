@@ -414,7 +414,10 @@ def _extract_from_meta_tags(html_text: str) -> dict[str, Any]:
     if not match:
         match = _META_AUTHOR_ALT_RE.search(html_text)
     if match:
-        result["author"] = match.group(1).strip()
+        # Unescaped for the same reason as the title: Wenatchee World's meta
+        # author is `Rene&eacute; D&igrave;az`, and the entities reached the
+        # byline cleaner, which could not read the name inside them.
+        result["author"] = unescape(match.group(1)).strip()
 
     # Publication time
     match = _META_PUBTIME_RE.search(html_text)
