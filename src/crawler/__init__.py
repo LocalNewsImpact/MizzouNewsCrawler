@@ -63,7 +63,12 @@ from .fingerprint_profile import (
 )
 from .headline import headline_from_title
 from .proxy_config import ProxyProvider, get_proxy_manager
-from .proxy_relay import get_relay_proxy, routed_proxy_for
+from .proxy_relay import (
+    follow_navigation,
+    get_relay_proxy,
+    publisher_pinned,
+    routed_proxy_for,
+)
 from .utils import mask_proxy_url
 
 UNBLOCK_MIN_HTML_BYTES = 3000
@@ -2300,12 +2305,15 @@ class ContentExtractor:
                     attempts,
                     ContentExtractor._MAX_AUTH_ATTEMPTS,
                 )
-                ok = perform_login(
-                    driver,
-                    auth_type=auth.get("auth_type"),
-                    auth_config=auth.get("auth_config"),
-                    credentials=credentials,
-                )
+                # The whole login -- SSO hosts included -- leaves through the
+                # Squid this publisher's pages will be read through.
+                with publisher_pinned(host):
+                    ok = perform_login(
+                        driver,
+                        auth_type=auth.get("auth_type"),
+                        auth_config=auth.get("auth_config"),
+                        credentials=credentials,
+                    )
                 if ok:
                     ContentExtractor._authenticated_domains.add(host)
                     logger.info("Authenticated session established for %s", host)
@@ -2920,6 +2928,11 @@ class ContentExtractor:
                     raise Exception("No Selenium implementation available")
 
                 ContentExtractor._shared_driver_creation_count += 1
+                if SELENIUM_AVAILABLE and isinstance(
+                    ContentExtractor._shared_persistent_driver,
+                    webdriver.remote.webdriver.WebDriver,
+                ):
+                    follow_navigation(ContentExtractor._shared_persistent_driver)
                 logger.info(f"Created persistent driver using {self._driver_method}")
 
             except Exception as e:
