@@ -531,6 +531,19 @@ def fail_over(url_or_host: str) -> bool:
     return False
 
 
+def session_upstream_for(url_or_host: str) -> Optional[str]:
+    """The upstream proxy URL this browser session uses for the publisher.
+
+    None before the publisher's first connection, or when the router declined
+    and the relay's fallback served it.
+    """
+    key = _publisher_of(url_or_host)
+    if not key:
+        return None
+    with _browser_route._lock:
+        return _browser_route._upstreams.get(key)
+
+
 def end_browser_session() -> None:
     """Forget the publisher and its chosen proxy; the next browser asks anew."""
     _browser_route.end_session()

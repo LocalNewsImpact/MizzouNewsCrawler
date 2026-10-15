@@ -70,5 +70,19 @@ def unmask_blurry_text(html: str | None) -> str | None:
     return str(soup)
 
 
+_BLURRY_ELEMENT = re.compile(r"""class=["'][^"']*\bblurry-text\b""")
+
+
+def is_blurred(html: str | None) -> bool:
+    """Whether the page served any of its text blurred.
+
+    On a credentialed host that is the paywall saying the session was not
+    honoured, whatever the login reported.
+    """
+    if not html:
+        return False
+    return _BLURRY_ELEMENT.search(html) is not None
+
+
 #: A body still carrying the shift: `uif` (the), `boe` (and), `jo uif` (in the).
 SHIFTED_BODY = re.compile(r" uif [a-z]| boe [a-z]| jo uif ")
