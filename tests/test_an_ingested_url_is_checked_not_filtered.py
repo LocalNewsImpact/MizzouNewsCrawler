@@ -226,4 +226,13 @@ class TestItRunsWithHousekeeping:
 
     def test_it_runs_the_command(self, housekeeping):
         command = housekeeping["check-ingested-step"]["container"]["command"]
-        assert command[-1] == "check-ingested"
+        assert command[-3:] == [
+            "check-ingested",
+            "--dataset",
+            "{{inputs.parameters.dataset}}",
+        ]
+
+    def test_housekeeping_checks_every_dataset(self, housekeeping):
+        """The dataset input defaults to empty, which the CLI reads as all."""
+        (param,) = housekeeping["check-ingested-step"]["inputs"]["parameters"]
+        assert param == {"name": "dataset", "value": ""}

@@ -1256,6 +1256,49 @@ class URLVerificationService:
     #: say about that choice.
     INGESTED_KIND = "ingested"
 
+    #: Rule types whose URL is a media file or player, not text. A curated link
+    #: flagged by one of these is HELD -- set to `not_article` -- rather than
+    #: only recorded: no extractor reads audio, video or a PDF, so fetching it
+    #: buys nothing and enrichment has no text to work on (decided 2026-10-15).
+    #: Every other flag stays a record for review: the curated list is
+    #: authoritative about whether a page is news.
+    MEDIA_PATTERN_TYPES = frozenset(
+        {
+            "audio",
+            "video",
+            "videos",
+            "video_gallery",
+            "pdf",
+            "pdf_path",
+            "asset_extension",
+        }
+    )
+
+    #: Statuses a hold may replace: work not yet fetched. A link that already
+    #: has an outcome keeps it.
+    HOLDABLE_STATUSES = ("discovered", "article")
+
+    _HOLD_SQL = """
+        UPDATE candidate_links cl
+           SET status = 'not_article',
+               error_message = :reason
+         WHERE cl.id = :id
+           AND cl.status IN ('discovered', 'article')
+           AND NOT EXISTS (
+                 SELECT 1 FROM articles a WHERE a.candidate_link_id = cl.id
+           )
+    """
+
+    @classmethod
+    def ingest_hold(cls, result: dict) -> str | None:
+        """The media rule that keeps an ingested URL out of extraction, or None."""
+        if result.get("error") or not result.get("pattern_filtered"):
+            return None
+        if (result.get("pattern_status") or "not_article") == "article":
+            return None
+        kind = (result.get("pattern_type") or "").strip().lower()
+        return kind if kind in cls.MEDIA_PATTERN_TYPES else None
+
     @staticmethod
     def ingest_flag(result: dict) -> str | None:
         """Why the checks doubt an ingested URL, or None when they do not.
@@ -1310,7 +1353,7 @@ class URLVerificationService:
         """
         from src.models.verification import URLVerification
 
-        counts = {"considered": 0, "written": 0, "flagged": 0, "errors": 0}
+        counts = {"considered": 0, "written": 0, "flagged": 0, "held": 0, "errors": 0}
         select = """
             SELECT cl.id, cl.url, cl.status, cl.dataset_id
             FROM candidate_links cl
@@ -1338,6 +1381,7 @@ class URLVerificationService:
             return counts
 
         pending: list[URLVerification] = []
+        holds: list[tuple[str, str]] = []
         for row in rows:
             counts["considered"] += 1
             result = self.verify_url(row.url)
@@ -1346,8 +1390,14 @@ class URLVerificationService:
             reason = self.ingest_flag(result)
             if reason:
                 counts["flagged"] += 1
+            hold = self.ingest_hold(result)
+            held = hold is not None and row.status in self.HOLDABLE_STATUSES
+            if held:
+                counts["held"] += 1
             if dry_run:
                 continue
+            if held:
+                holds.append((row.id, f"ingested URL is {hold}, not an article"))
             pending.append(
                 URLVerification(
                     candidate_link_id=row.id,
@@ -1356,9 +1406,9 @@ class URLVerificationService:
                     storysniffer_result=result.get("storysniffer_result"),
                     verification_confidence=self.score_margin(row.url),
                     dataset_id=row.dataset_id,
-                    # The link's status, both sides: nothing here changes it.
+                    # Unchanged unless a media rule held it out of extraction.
                     previous_status=row.status,
-                    new_status=row.status,
+                    new_status="not_article" if held else row.status,
                     verification_time_ms=result.get("verification_time_ms"),
                     verification_error=result.get("error"),
                     meta={
@@ -1376,6 +1426,13 @@ class URLVerificationService:
                 pending = []
         if pending:
             counts["written"] += self._write_backfilled(pending)
+        if holds:
+            with self.db.get_session() as session:
+                for link_id, why in holds:
+                    safe_execute(
+                        session, self._HOLD_SQL, {"id": link_id, "reason": why}
+                    )
+                session.commit()
         return counts
 
     def _write_backfilled(self, rows: list) -> int:

@@ -298,6 +298,12 @@ class TestStatsNamesTheStarvation:
         assert "authenticated pool" not in caplog.text
 
 
+def _extract_group(tpl):
+    """The step group that extracts. check-ingested runs before it."""
+    (group,) = [g for g in tpl["steps"] if any(st["name"] == "extract" for st in g)]
+    return group
+
+
 def _template(path: str, name: str) -> dict:
     doc = yaml.safe_load((ARGO / path).read_text())
     for tpl in doc["spec"]["templates"]:
@@ -350,7 +356,7 @@ class TestEveryOrdinaryPathAssertsAnonymous:
 
     def test_dataset_extraction_threads_it_to_the_step(self):
         tpl = _template("dataset-extraction-workflow.yaml", "extract-dataset")
-        step = tpl["steps"][0][0]
+        (step,) = _extract_group(tpl)
         assert _params(step)["worker-pool"] == "{{inputs.parameters.worker-pool}}"
 
 
@@ -359,14 +365,15 @@ class TestTheAuthenticatedWorker:
 
     def test_the_template_exists_and_asks_for_the_authenticated_pool(self):
         tpl = _template(self.PATH, "extract-credentialed")
-        step = tpl["steps"][0][0]
+        (step,) = _extract_group(tpl)
         assert _params(step)["worker-pool"] == "authenticated"
 
     def test_it_reuses_the_tested_extraction_step(self):
         """Copying the step would fork 40-odd env entries, the retry strategy
         and USE_WORK_QUEUE away from the one definition that is exercised."""
         tpl = _template(self.PATH, "extract-credentialed")
-        ref = tpl["steps"][0][0]["templateRef"]
+        (step,) = _extract_group(tpl)
+        ref = step["templateRef"]
         assert ref == {
             "name": "news-pipeline-template",
             "template": "extraction-step",
@@ -376,11 +383,13 @@ class TestTheAuthenticatedWorker:
         """Two workers on one host mean two sessions for one subscriber
         account, and the queue rations by domain anyway."""
         tpl = _template(self.PATH, "extract-credentialed")
-        step = tpl["steps"][0][0]
+        group = _extract_group(tpl)
+        (step,) = group
         assert "withSequence" not in step
         assert "withParam" not in step
-        assert len(tpl["steps"]) == 1
-        assert len(tpl["steps"][0]) == 1
+        # The only other step is check-ingested, which extracts nothing.
+        others = [st["name"] for g in tpl["steps"] for st in g if g is not group]
+        assert others == ["check-ingested"]
 
     def test_the_dataset_has_no_default(self):
         """An unscoped run draws another corpus's backlog and bills the compute

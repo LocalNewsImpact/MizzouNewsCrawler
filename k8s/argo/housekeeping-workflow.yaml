@@ -104,8 +104,9 @@ spec:
     # person chose -- which also meant nothing looked at it (KHQ's /video_
     # pages, ptleader's e-edition viewers). This records the checks' answer as
     # a `url_verifications` row, `verdict_kind: ingested`, and a doubt goes to
-    # the discovery review queue. It never writes `candidate_links.status`: the
-    # link is still fetched. The external wire check is not part of it.
+    # the discovery review queue and the link is still fetched -- except a
+    # media URL (audio, video, PDF, file), which is held at `not_article`
+    # because nothing can be extracted from it. No external wire check.
     #
     # Before the gate, like the step above: it owes nothing to rework. Only
     # links without an `ingested` row are selected, so a quiet night costs one
@@ -763,6 +764,13 @@ spec:
           memory: 1Gi
 
   - name: check-ingested-step
+    # Also the first step of dataset-extraction and authenticated-extraction,
+    # which pass their dataset: a media URL is held before anything fetches it.
+    # Empty here, so housekeeping checks every dataset's new ingested links.
+    inputs:
+      parameters:
+        - name: dataset
+          value: ""
     metadata:
       labels:
         stage: maintenance
@@ -775,6 +783,8 @@ spec:
         - -m
         - src.cli.cli_modular
         - check-ingested
+        - --dataset
+        - "{{inputs.parameters.dataset}}"
       env: *db_env
       resources:
         requests:
