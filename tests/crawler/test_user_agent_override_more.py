@@ -116,22 +116,23 @@ def test_full_payload_other_exception_falls_back_but_does_not_mark():
     assert getattr(fake, "_supports_user_agent_metadata", True) is True
 
 
-def test_version_check_skips_full_payload_for_chrome_143():
+def test_a_current_chrome_is_sent_the_client_hints():
+    """No version gate: Chrome 155 accepts the metadata (measured 2026-10-15),
+    and a `>= 143` skip had left every later Chrome with empty client hints."""
     extractor = ContentExtractor()
     extractor._fingerprint_profile = make_fp()
 
     class FakeDriverWithVersion(FakeDriver):
         def __init__(self):
             super().__init__(
-                responses={"Browser.getVersion": {"product": "Chrome/143.0.7499.169"}}
+                responses={"Browser.getVersion": {"product": "Chrome/155.0.8059.79"}}
             )
 
     fake = FakeDriverWithVersion()
 
     extractor._set_user_agent_override(fake, "Windows UA string")
 
-    # Ensure no call attempted with userAgentMetadata (we skip full payload)
-    assert not any(
+    assert any(
         c["cmd"] == "Network.setUserAgentOverride"
         and "userAgentMetadata" in c["params"]
         for c in fake.calls

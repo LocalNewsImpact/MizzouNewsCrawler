@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import os
+import re
 import shutil
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -53,6 +55,56 @@ class FingerprintProfile:
         webgl = self.raw.get("webgl") or {}
         renderer = webgl.get("webglRenderer") if isinstance(webgl, dict) else None
         return str(renderer) if renderer else None
+
+    @property
+    def timezone(self) -> str | None:
+        """IANA time zone the page should see, e.g. "America/Chicago"."""
+        tz = self.raw.get("timezone")
+        return str(tz) if tz else None
+
+
+_CHROME_PRODUCT = re.compile(r"Chrome/(\d+)(\.\d+\.\d+\.\d+)?")
+_UA_CHROME = re.compile(r"Chrome/\d+\.0\.0\.0")
+_CHROME_BRANDS = {"Google Chrome", "Chromium"}
+
+
+def matched_to_browser(
+    profile: FingerprintProfile, product: str | None
+) -> FingerprintProfile:
+    """The profile with its Chrome version set to the browser actually running.
+
+    The profile pinned Chrome 143 while the image moved to Chrome 155: a page
+    read 143 in the User-Agent and in `navigator.userAgentData`, and 155 in
+    every feature it could test. `product` is `Browser.getVersion`'s, e.g.
+    "Chrome/155.0.8059.79". The UA keeps the reduced form real Chrome sends
+    (`Chrome/155.0.0.0`); `fullVersionList` carries the full version. Unknown
+    `product` returns the profile unchanged.
+    """
+    found = _CHROME_PRODUCT.search(product or "")
+    if not found:
+        return profile
+    major = found.group(1)
+    full = major + (found.group(2) or ".0.0.0")
+    raw = copy.deepcopy(profile.raw)
+    reduced = f"Chrome/{major}.0.0.0"
+    if raw.get("userAgent"):
+        raw["userAgent"] = _UA_CHROME.sub(reduced, raw["userAgent"])
+    navigator = raw.get("navigator")
+    if isinstance(navigator, dict) and navigator.get("userAgent"):
+        navigator["userAgent"] = _UA_CHROME.sub(reduced, navigator["userAgent"])
+    ua_data = raw.get("uaData")
+    if isinstance(ua_data, dict):
+        for key, version in (("brands", major), ("fullVersionList", full)):
+            for brand in ua_data.get(key) or []:
+                if isinstance(brand, dict) and brand.get("brand") in _CHROME_BRANDS:
+                    brand["version"] = version
+    return replace(
+        profile,
+        raw=raw,
+        user_agent=raw.get("userAgent"),
+        client_hints=_build_client_hints(raw),
+        script=_build_fingerprint_script(raw),
+    )
 
 
 def load_fingerprint_profile(
