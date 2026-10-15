@@ -25,6 +25,7 @@ import requests
 from bs4 import BeautifulSoup, Tag
 from dateutil import parser as dateparser
 
+from src.crawler.leading_trailing import trim_leading_trailing
 from src.pipeline.byline_repair import repair as repair_scraped_byline
 from src.pipeline.title_repair import repair as repair_split_title
 from src.utils.boilerplate import (
@@ -374,6 +375,43 @@ _GRAY_DATALAYER_RE = re.compile(
     r'dataLayer\.push\s*\(\s*(\{[^}]*"articleTitle"[^}]*\})\s*\)',
     re.IGNORECASE | re.DOTALL,
 )
+
+
+def other_extractor_texts(url: str, html: str, skip: Optional[str]) -> list[str]:
+    """Every other mcmetadata extractor's text for the same HTML.
+
+    The cascade returns the first extractor that clears 200 chars and discards
+    the rest; `leading_trailing` needs them as votes. Run on the HTML already
+    fetched -- parser only, no network. The whole-page dumps (beautifulsoup4,
+    lxml) are left out: they contain every line of the page and so would vote
+    for page furniture too.
+    """
+    if not MCMETADATA_AVAILABLE or not html:
+        return []
+    try:
+        from mcmetadata import content as mc_content
+        from mcmetadata.form_widgets import strip_form_widgets
+    except ImportError:
+        return []
+    voters = {"trafilatura", "readability", "boilerpipe3", "goose3", "newspaper3k"}
+    cleaned = strip_form_widgets(html)
+    texts: list[str] = []
+    for info in mc_content.extractors:
+        method = info.get("method")
+        if method not in voters or method == skip:
+            continue
+        extractor = info["instance"]
+        try:
+            extractor.content = None
+            extractor.extract(url, cleaned, False)
+            text = (extractor.content or {}).get("text") or ""
+        except Exception:
+            continue
+        if isinstance(text, bytes):
+            text = text.decode("utf-8", errors="ignore")
+        if text.strip():
+            texts.append(text.strip())
+    return texts
 
 
 def consent_free_body(text: str) -> tuple[Optional[str], bool]:
@@ -4653,6 +4691,31 @@ class ContentExtractor:
 
         article_title = mc_result.get("article_title")
 
+        # Leading/trailing text that is not the story: gift and donation asks,
+        # a repeated headline, media labels. See leading_trailing for the rule
+        # and its measurement; it never touches lines in the middle.
+        trimmed_lines = {"leading": 0, "trailing": 0, "chars": 0}
+        if text_content:
+            other_texts = other_extractor_texts(
+                url, html, mc_result.get("text_extraction_method")
+            )
+            trimmed = trim_leading_trailing(text_content, other_texts, article_title)
+            if trimmed.leading or trimmed.trailing:
+                removed = (*trimmed.leading, *trimmed.trailing)
+                trimmed_lines = {
+                    "leading": len(trimmed.leading),
+                    "trailing": len(trimmed.trailing),
+                    "chars": sum(len(x) for x in removed),
+                }
+                logger.info(
+                    "Removed %d leading and %d trailing lines (%d chars) from %s",
+                    trimmed_lines["leading"],
+                    trimmed_lines["trailing"],
+                    trimmed_lines["chars"],
+                    url,
+                )
+                text_content = trimmed.text
+
         # Use article_author from mcmetadata (now populated from structured data)
         author_value = mc_result.get("article_author")
 
@@ -4691,6 +4754,7 @@ class ContentExtractor:
             "text_extraction_method": mc_result.get("text_extraction_method"),
             "title_extraction_method": title_method,
             "author_extraction_method": author_method,
+            "leading_trailing_removed": trimmed_lines,
         }
 
         mcmetadata_info = {
