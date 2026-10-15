@@ -31,6 +31,7 @@ re-validation. Without it, nothing is written.
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import logging
 import re
@@ -236,6 +237,24 @@ def arrive(driver, url: str) -> bool:
     return here == urllib.parse.urlparse(url).netloc
 
 
+def _routed_as_the_publisher(witness_fn):
+    """Route every navigation of a witnessed login as ``host``'s publisher.
+
+    The origin, the login page, any SSO host and the return trip all leave
+    through the one Squid the publisher is read through, as in extraction.
+    """
+
+    @functools.wraps(witness_fn)
+    def routed(extractor, host: str) -> dict:
+        from src.crawler.proxy_relay import publisher_pinned
+
+        with publisher_pinned(bare_host(host)):
+            return witness_fn(extractor, host)
+
+    return routed
+
+
+@_routed_as_the_publisher
 def witness(extractor, host: str) -> dict:
     """Run the login and return the evidence. Writes nothing."""
     from src.crawler.authenticated_login import (

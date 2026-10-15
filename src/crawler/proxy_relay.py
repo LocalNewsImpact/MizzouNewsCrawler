@@ -23,16 +23,26 @@ Handles both proxy modes:
   * absolute-URI requests  -- plain HTTP
 
 Credentials are never logged; only the upstream host:port is.
+
+Every connection is routed by the PUBLISHER the browser is reading, not by the
+host the connection is for. A Yakima Herald page pulls from yakimaherald.com,
+www.yakimaherald.com, townnews CDNs and google.com/recaptcha; routed host by
+host those left through different Squids, so one page reached the publisher
+and its bot scorer from several egress IPs at once -- and reCAPTCHA scores the
+reader on exactly that. ``route_as()`` names the publisher (``follow_navigation``
+sets it on every ``driver.get``); ``publisher_pinned()`` holds it through a
+login that crosses to an SSO host.
 """
 
 from __future__ import annotations
 
 import base64
+import contextlib
 import logging
 import socket
 import threading
 import urllib.parse
-from typing import Callable, Optional
+from typing import Callable, Iterator, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +115,67 @@ def _pipe(src: socket.socket, dst: socket.socket) -> None:
                 pass
 
 
+class PublisherRoute:
+    """The publisher the browser is reading, and the tunnels opened for it."""
+
+    def __init__(self) -> None:
+        self.publisher: Optional[str] = None
+        self._pinned = 0
+        # client socket -> the routing key it was opened under
+        self._live: dict[socket.socket, Optional[str]] = {}
+        self._lock = threading.Lock()
+
+    def route_as(self, url_or_host: str, *, force: bool = False) -> None:
+        """Route every connection from now on as ``url_or_host``'s publisher.
+
+        Ignored while a pin holds (``pinned``) unless ``force``. On a change of
+        publisher, tunnels opened for the previous one are closed: Chrome keeps
+        a CONNECT tunnel open and reuses it for the same host, so a recaptcha
+        or CDN tunnel from the last page would otherwise carry this
+        publisher's page out through the last publisher's Squid.
+        """
+        key = _publisher_of(url_or_host)
+        if not key:
+            return
+        with self._lock:
+            if self._pinned and not force:
+                return
+            if key == self.publisher:
+                return
+            self.publisher = key
+            stale = [c for c, k in self._live.items() if k != key]
+        for client in stale:
+            try:
+                client.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+
+    @contextlib.contextmanager
+    def pinned(self, url_or_host: str) -> Iterator[None]:
+        """Hold the publisher at ``url_or_host`` for the duration.
+
+        A login leaves the publisher's host -- an Auth0 tenant, an etype or
+        Newzware portal, ``myaccount.`` -- and each ``driver.get`` there would
+        otherwise re-route the session as that host.
+        """
+        self.route_as(url_or_host, force=True)
+        with self._lock:
+            self._pinned += 1
+        try:
+            yield
+        finally:
+            with self._lock:
+                self._pinned -= 1
+
+    def opened(self, client: socket.socket, key: Optional[str]) -> None:
+        with self._lock:
+            self._live[client] = key
+
+    def closed(self, client: socket.socket) -> None:
+        with self._lock:
+            self._live.pop(client, None)
+
+
 class ProxyAuthRelay:
     """Loopback proxy that forwards to an authenticated upstream proxy."""
 
@@ -112,6 +183,7 @@ class ProxyAuthRelay:
         self,
         upstream_url: str,
         resolve_upstream: Optional[Callable[[str], Optional[str]]] = None,
+        route: Optional[PublisherRoute] = None,
     ):
         """
         Args:
@@ -122,9 +194,10 @@ class ProxyAuthRelay:
                 because Chrome fixes --proxy-server when the process starts and
                 drivers are reused across domains (SELENIUM_DRIVER_REUSE_LIMIT),
                 so a per-domain choice made at launch would be carried to the
-                next domain. The relay sees every request's target host, so it
-                can route each connection independently behind one fixed
-                loopback endpoint.
+                next domain. The relay sees every connection, so it can
+                route each one behind one fixed loopback endpoint.
+            route: the browser's current publisher; connections are resolved
+                as that publisher, not as their own host.
         """
         self._default_upstream = upstream_url
         self._resolve_upstream = resolve_upstream
@@ -135,6 +208,7 @@ class ProxyAuthRelay:
         self._server: Optional[socket.socket] = None
         self._thread: Optional[threading.Thread] = None
         self.port: Optional[int] = None
+        self._route = route if route is not None else PublisherRoute()
 
     @staticmethod
     def _auth_for(user: Optional[str], password: Optional[str]) -> bytes:
@@ -165,10 +239,20 @@ class ProxyAuthRelay:
             return rest.rsplit("@", 1)[-1].rsplit(":", 1)[0] or None
         return None
 
-    def _upstream_for(self, head: bytes) -> tuple[str, int, bytes]:
+    def _routing_key(self, head: bytes) -> Optional[str]:
+        """The publisher this connection is routed as.
+
+        The browser's current publisher when one is set; the request's own
+        host only before the first navigation.
+        """
+        return self._route.publisher or self.target_host(head)
+
+    def _upstream_for(
+        self, head: bytes, key: Optional[str] = None
+    ) -> tuple[str, int, bytes]:
         """(host, port, auth_header) for this connection."""
         if self._resolve_upstream is not None:
-            host = self.target_host(head)
+            host = key if key is not None else self._routing_key(head)
             if host:
                 try:
                     chosen = self._resolve_upstream(host)
@@ -254,7 +338,9 @@ class ProxyAuthRelay:
                 if len(head) > 1_048_576:  # runaway header guard
                     return
 
-            host, port, auth = self._upstream_for(head)
+            key = self._routing_key(head)
+            self._route.opened(client, key)
+            host, port, auth = self._upstream_for(head, key)
             upstream = socket.create_connection((host, port), timeout=_CONNECT_TIMEOUT)
             upstream.settimeout(_IDLE_TIMEOUT)
             upstream.sendall(self._with_auth(head, auth))
@@ -264,6 +350,7 @@ class ProxyAuthRelay:
         except OSError as exc:
             logger.debug("relay connection ended: %s", exc)
         finally:
+            self._route.closed(client)
             for sock in (client, upstream):
                 if sock is not None:
                     try:
@@ -321,6 +408,63 @@ class ProxyAuthRelay:
 _relay: Optional[ProxyAuthRelay] = None
 _relay_lock = threading.Lock()
 
+
+def _publisher_of(url_or_host: str) -> Optional[str]:
+    """Publisher key for a URL or a bare host; None for about:/data: pages."""
+    from .proxy_router import publisher_key
+
+    text = (url_or_host or "").strip()
+    if text.lower().startswith(("about:", "data:", "blob:", "javascript:", "chrome:")):
+        return None
+    if "://" in text:
+        parsed = urllib.parse.urlsplit(text)
+        if parsed.scheme not in ("http", "https"):
+            return None
+        text = parsed.netloc
+    elif "/" in text:
+        text = text.split("/", 1)[0]
+    return publisher_key(text) or None
+
+
+#: The process's one browser reads one publisher at a time. Module-level so a
+#: pin taken before the browser (and its relay) exists still holds.
+_browser_route = PublisherRoute()
+
+
+def route_as(url_or_host: str) -> None:
+    """Route the process's browser as ``url_or_host``'s publisher."""
+    _browser_route.route_as(url_or_host)
+
+
+def publisher_pinned(url_or_host: str) -> contextlib.AbstractContextManager[None]:
+    """Keep the browser routed as ``url_or_host`` through every navigation.
+
+    For logins: the whole sign-in leaves through the publisher's Squid, so the
+    session cookie is issued to the same egress IP that then reads the paper.
+    """
+    return _browser_route.pinned(url_or_host)
+
+
+def follow_navigation(driver) -> None:
+    """Make every ``driver.get`` re-route the relay as the page's publisher.
+
+    Done on the driver rather than at each call site: extraction, discovery's
+    renderer, the login flows and validate-login all navigate the one shared
+    browser, and a call site that forgot would quietly route a publisher's
+    page by the previous publisher.
+    """
+    if getattr(driver, "_routes_by_publisher", False):
+        return
+    navigate = driver.get
+
+    def get(url, *args, **kwargs):
+        route_as(url)
+        return navigate(url, *args, **kwargs)
+
+    driver.get = get
+    driver._routes_by_publisher = True
+
+
 #: The router's last answer per target host, as the relay applied it. The
 #: browser path reads it to report how that proxy fared: the router chose the
 #: browser's egress and never heard the outcome, so a proxy Cloudflare refused
@@ -330,8 +474,10 @@ _routes: dict[str, object] = {}
 
 
 def routed_proxy_for(host: str):
-    """The RouterProxy the relay last used for ``host``, or None."""
-    return _routes.get((host or "").lower())
+    """The RouterProxy the relay last used for ``host``'s publisher, or None."""
+    from .proxy_router import publisher_key
+
+    return _routes.get(publisher_key(host))
 
 
 def _router_upstream(host: str) -> Optional[str]:
@@ -358,24 +504,30 @@ def _router_upstream(host: str) -> Optional[str]:
     if not proxies:
         return None
     if choice is not None:
-        _routes[host.lower()] = choice
+        from .proxy_router import publisher_key
+
+        _routes[publisher_key(host)] = choice
     return proxies.get("https") or proxies.get("http")
 
 
 def get_relay_proxy(upstream_url: str, *, route: bool = True) -> str:
     """Return a loopback ``host:port`` that proxies to Squid.
 
-    One relay per process, reused across drivers. With ``route`` the relay
-    picks the upstream per connection from the shared router, keyed on each
-    request's target host; ``upstream_url`` is the fallback when the router
-    declines or fails. Raises ValueError if that fallback is unusable --
-    callers must fail loudly rather than hand Chrome no proxy at all.
+    One relay per process, reused across drivers -- there is one shared browser
+    per process (``ContentExtractor._shared_persistent_driver``), so one
+    current publisher. With ``route`` the relay picks the upstream from the
+    shared router, keyed on that publisher (see ``route_as``); ``upstream_url``
+    is the fallback when the router declines or fails. Raises ValueError if
+    that fallback is unusable -- callers must fail loudly rather than hand
+    Chrome no proxy at all.
     """
     global _relay
     with _relay_lock:
         if _relay is None or _relay.port is None:
             _relay = ProxyAuthRelay(
-                upstream_url, resolve_upstream=_router_upstream if route else None
+                upstream_url,
+                resolve_upstream=_router_upstream if route else None,
+                route=_browser_route,
             )
             _relay.start()
         return _relay.proxy_url

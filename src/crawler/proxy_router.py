@@ -82,6 +82,22 @@ _DEFAULT_PREFERENCE = _PROXY_POOL
 _FALLBACK_CHOICE_REASON = "firestore unavailable, using sticky assignment"
 
 
+def publisher_key(host: str) -> str:
+    """The name one publisher is routed under, whatever host string names it.
+
+    ``www.yakimaherald.com``, ``yakimaherald.com`` and ``YakimaHerald.com:443``
+    are one publisher. Hashed as written they split ~50/50 across the pool, so
+    a login on the bare host and the article fetch on ``www.`` left through
+    different Squids -- two egress IPs for one reader -- and each kept its own
+    health record. Every routing decision and every health record goes through
+    this key.
+    """
+    host = (host or "").strip().lower().split("@")[-1]
+    host = host.rsplit(":", 1)[0] if host.count(":") == 1 else host
+    host = host.rstrip(".")
+    return host[4:] if host.startswith("www.") else host
+
+
 def assigned_proxy(domain: str) -> RouterProxy:
     """The domain's sticky home in the pool: a stable md5-based hash.
 
@@ -95,7 +111,7 @@ def assigned_proxy(domain: str) -> RouterProxy:
     md5 rather than hash(): Python salts hash() per process, and this
     assignment must agree across every pod and service.
     """
-    digest = hashlib.md5(domain.lower().encode("utf-8")).digest()
+    digest = hashlib.md5(publisher_key(domain).encode("utf-8")).digest()
     return _PROXY_POOL[digest[0] % len(_PROXY_POOL)]
 
 
@@ -148,7 +164,7 @@ def reset_client_cache() -> None:
 
 
 def _doc_id(proxy: RouterProxy, domain: str) -> str:
-    return f"{proxy.value}__{domain}"
+    return f"{proxy.value}__{publisher_key(domain)}"
 
 
 def get_proxy_for(domain: str, service: str = "unknown") -> ProxyChoice:
@@ -286,7 +302,7 @@ def report_result(
             doc_ref.set(
                 {
                     "proxy_id": proxy.value,
-                    "domain": domain,
+                    "domain": publisher_key(domain),
                     "last_success_at": now,
                     "consecutive_failures": 0,
                     "consecutive_successes": Increment(1),
@@ -310,7 +326,7 @@ def report_result(
 
         update = {
             "proxy_id": proxy.value,
-            "domain": domain,
+            "domain": publisher_key(domain),
             "last_failure_at": now,
             "consecutive_failures": consecutive_failures,
             "consecutive_successes": 0,
