@@ -2,6 +2,7 @@
 
 """News crawler module for discovering and fetching articles."""
 
+import functools
 import hashlib
 import json
 import logging
@@ -375,6 +376,46 @@ _GRAY_DATALAYER_RE = re.compile(
     r'dataLayer\.push\s*\(\s*(\{[^}]*"articleTitle"[^}]*\})\s*\)',
     re.IGNORECASE | re.DOTALL,
 )
+
+
+#: The implicit wait every driver is built with (`implicitly_wait(5)`).
+DRIVER_IMPLICIT_WAIT = 5
+
+
+def without_implicit_wait(method):
+    """Run a page-inspection helper with the driver's implicit wait off.
+
+    Drivers are built with a 5s implicit wait, so every `find_elements` that
+    matches nothing blocks for 5s. The detection and modal helpers ask "is this
+    on the page" of ten or more selectors that are normally absent: on
+    myedmondsnews.com, 2026-10-14, one captcha check took 50s (10 selectors x
+    5s) and ran four times on one article, and the modal and paywall checks
+    after it took another four minutes. They test for presence; they never
+    need to wait for anything to appear.
+
+    Methods take ``(self, driver, ...)``. The wait is restored afterwards, even
+    when the helper raises.
+    """
+
+    @functools.wraps(method)
+    def wrapper(self, driver, *args, **kwargs):
+        try:
+            previous = driver.timeouts.implicit_wait
+        except Exception:
+            previous = DRIVER_IMPLICIT_WAIT
+        try:
+            driver.implicitly_wait(0)
+        except Exception:
+            return method(self, driver, *args, **kwargs)
+        try:
+            return method(self, driver, *args, **kwargs)
+        finally:
+            try:
+                driver.implicitly_wait(previous)
+            except Exception:
+                pass
+
+    return wrapper
 
 
 def other_extractor_texts(url: str, html: str, skip: Optional[str]) -> list[str]:
@@ -6815,6 +6856,7 @@ class ContentExtractor:
         except Exception as e:
             logger.debug(f"Human behavior simulation failed: {e}")
 
+    @without_implicit_wait
     def _try_close_modals(self, driver, url: str) -> bool:
         """Try to close subscription modals and popups.
 
@@ -6904,6 +6946,7 @@ class ContentExtractor:
         )
         return True
 
+    @without_implicit_wait
     def _detect_subscription_wall(self, driver) -> bool:
         """Detect if page contains a subscription/paywall modal.
 
@@ -7290,6 +7333,7 @@ class ContentExtractor:
         self._last_capture_rejection = None
         return False
 
+    @without_implicit_wait
     def _page_has_article_content(self, driver) -> bool:
         """Whether the captured page still carries a story.
 
@@ -7378,6 +7422,7 @@ class ContentExtractor:
         except Exception:
             pass
 
+    @without_implicit_wait
     def _detect_captcha_or_challenge(self, driver) -> bool:
         """Detect if page contains CAPTCHA or other bot challenges.
 
@@ -7498,10 +7543,22 @@ class ContentExtractor:
 
             # 3. Check for specific CAPTCHA keywords
             # Note: Only CAPTCHA-specific terms, not generic 'challenge'/'verify'
+            #
+            # A keyword is the weakest signal here -- a word in a script tag --
+            # so it gets the same test as the soft widgets above: a wall
+            # REPLACES the article. myedmondsnews.com ships a Turnstile/
+            # reCAPTCHA script beside a readable story; this branch called it a
+            # challenge and every article paid four failed "bypass" attempts.
             if any(
                 k in page_source
                 for k in ["recaptcha", "hcaptcha", "perimeterx", "px-captcha"]
             ):
+                if has_article_content:
+                    logger.info(
+                        "CAPTCHA keyword in the page source but the page still "
+                        "carries article content (not blocking)"
+                    )
+                    return False
                 logger.info("Detected CAPTCHA keyword in page")
                 return True
 
