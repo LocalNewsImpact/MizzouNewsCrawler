@@ -1199,6 +1199,71 @@ ETYPE_PASSWORD_SELECTOR = 'form[name="etype_login"] input[name="etype_login[pass
 # a lapsed subscription alike.
 ETYPE_FAILURE_TEXT = "Incorrect login details or subscription has expired"
 
+#: What eType answers when the reCAPTCHA check fails -- an empty token
+#: included. Distinct from a wrong password, and logged as such.
+ETYPE_SPAM_TEXT = "likely spam"
+
+#: The hidden field the page's own submit handler fills with a reCAPTCHA token.
+ETYPE_RECAPTCHA_FIELD = "etype_login[recaptcha_response]"
+
+#: How long to wait for Google's script to hand back a token.
+ETYPE_RECAPTCHA_TIMEOUT = 20.0
+
+#: Ask the page's reCAPTCHA for a token the way its own submit handler does --
+#: `grecaptcha.execute(recaptcha_site_key, {action})`, the action being the
+#: field's id before `_recaptcha_response` -- and write it into the field.
+_ETYPE_TOKEN_SCRIPT = """
+var done = arguments[arguments.length - 1];
+var limit = arguments[1] * 1000;
+var field = document.querySelector('[name="' + arguments[0] + '"]');
+var key = window.recaptcha_site_key || (document.body && document.body.dataset.rc);
+if (!field || !key) { done({ok: false, why: 'no token field or site key'}); return; }
+var action = (field.id || '').split('_recaptcha_response')[0] || 'etype_login';
+var waited = 0;
+(function attempt() {
+  if (window.grecaptcha && grecaptcha.execute) {
+    grecaptcha.ready(function () {
+      grecaptcha.execute(key, {action: action}).then(
+        function (token) { field.value = token; done({ok: !!token, action: action}); },
+        function (err) { done({ok: false, why: String(err)}); });
+    });
+  } else if ((waited += 250) > limit) {
+    done({ok: false, why: 'reCAPTCHA script never loaded'});
+  } else { setTimeout(attempt, 250); }
+})();
+"""
+
+
+def _etype_recaptcha_token(driver, timeout: float = ETYPE_RECAPTCHA_TIMEOUT) -> bool:
+    """Fill the login form's reCAPTCHA field the way the page itself does.
+
+    The form is posted with ``HTMLFormElement.submit()`` (see `_login_etype`),
+    which skips the page's submit handler -- and that handler is what fetches
+    the token. Posted empty, the token now fails eType's check: Pend Oreille
+    River Valley answered "identified as likely spam" on every attempt through
+    2026-10-15, and seven stories waited on a login that could not succeed.
+
+    Returns whether a token was written. Never raises: without one the post
+    goes ahead and the answer is logged, as before.
+    """
+    run_async = getattr(driver, "execute_async_script", None)
+    if run_async is None:
+        return False
+    try:
+        driver.set_script_timeout(timeout + 5)
+    except Exception:
+        pass
+    try:
+        result = run_async(_ETYPE_TOKEN_SCRIPT, ETYPE_RECAPTCHA_FIELD, timeout)
+    except Exception as exc:
+        logger.warning("etype login: reCAPTCHA token request failed: %s", exc)
+        return False
+    if not (isinstance(result, dict) and result.get("ok")):
+        why = result.get("why") if isinstance(result, dict) else result
+        logger.warning("etype login: no reCAPTCHA token (%s)", why)
+        return False
+    return True
+
 
 def _login_etype(driver, cfg: dict, username: str, password: str) -> bool:
     """Log in through an eType Services paywall (e.g. the Newport Miner).
@@ -1213,9 +1278,13 @@ def _login_etype(driver, cfg: dict, username: str, password: str) -> bool:
     submit handler until Google's script resolves a token into the hidden
     ``etype_login[recaptcha_response]`` field. In a headless pod that script is
     slow, proxied, or scored as automation, so the click can hang indefinitely.
-    The server does not actually verify the token, so we fill the fields and
-    call ``HTMLFormElement.submit()``, which bypasses the onsubmit handler (and
-    therefore the lock) entirely.
+    So we fill the fields and call ``HTMLFormElement.submit()``, which bypasses
+    the onsubmit handler (and therefore the lock) entirely.
+
+    The handler is also what fetches the token, and the server now checks it:
+    a post with the field empty is answered "identified as likely spam". So the
+    token is requested here first, by the same call the handler makes
+    (`_etype_recaptcha_token`), and written into the field before the submit.
     """
     login_url = cfg.get("login_url")
     if not login_url:
@@ -1251,6 +1320,9 @@ def _login_etype(driver, cfg: dict, username: str, password: str) -> bool:
     pass_el.clear()
     pass_el.send_keys(password)
 
+    # The token the skipped submit handler would have fetched.
+    _etype_recaptcha_token(driver)
+
     # Submit the form element itself, not the button — see the docstring.
     form_name = cfg.get("form_name") or ETYPE_FORM_NAME
     try:
@@ -1268,7 +1340,11 @@ def _login_etype(driver, cfg: dict, username: str, password: str) -> bool:
 
     time.sleep(3)
 
-    if failure_text and failure_text.lower() in _page_source(driver).lower():
+    page = _page_source(driver).lower()
+    if ETYPE_SPAM_TEXT in page:
+        logger.warning("etype login: refused by the reCAPTCHA check (likely spam)")
+        return False
+    if failure_text and failure_text.lower() in page:
         logger.warning("etype login: credentials were rejected")
         return False
 

@@ -1072,3 +1072,72 @@ def test_etype_login_requires_login_url():
         )
         is False
     )
+
+
+# The token the skipped submit handler would have fetched. Pend Oreille River
+# Valley answered "identified as likely spam" to every login posted with the
+# field empty, through 2026-10-15.
+
+
+def test_etype_login_fetches_the_recaptcha_token_before_submitting():
+    order = []
+
+    def _logged_in(driver):
+        order.append("submit")
+        driver.current_url = "https://www.pendoreillerivervalley.com/"
+
+    driver, _login, _password = _etype_driver(on_submit=_logged_in)
+
+    def _token(script, field, timeout):
+        order.append("token")
+        assert "grecaptcha.execute" in script
+        assert field == al.ETYPE_RECAPTCHA_FIELD
+        return {"ok": True, "action": "etype_login"}
+
+    driver.execute_async_script = _token  # type: ignore[attr-defined]
+    driver.set_script_timeout = lambda s: None  # type: ignore[attr-defined]
+
+    assert (
+        al.perform_login(
+            driver,
+            auth_type="etype",
+            auth_config={"login_url": ETYPE_LOGIN_URL},
+            username="u",
+            password="pw",
+        )
+        is True
+    )
+    assert order == ["token", "submit"]
+
+
+def test_etype_login_without_a_token_still_posts_and_reports_why(caplog):
+    def _spam(driver):
+        driver.page_source = "<div>Your request was identified as likely spam.</div>"
+
+    driver, _login, _password = _etype_driver(on_submit=_spam)
+    driver.execute_async_script = lambda *a: {  # type: ignore[attr-defined]
+        "ok": False,
+        "why": "reCAPTCHA script never loaded",
+    }
+    driver.set_script_timeout = lambda s: None  # type: ignore[attr-defined]
+
+    with caplog.at_level("WARNING"):
+        ok = al.perform_login(
+            driver,
+            auth_type="etype",
+            auth_config={"login_url": ETYPE_LOGIN_URL},
+            username="u",
+            password="pw",
+        )
+    assert ok is False
+    assert "never loaded" in caplog.text
+    assert "reCAPTCHA check" in caplog.text
+
+
+def test_the_token_script_asks_the_way_the_page_does():
+    script = al._ETYPE_TOKEN_SCRIPT
+    assert "recaptcha_site_key" in script and "dataset.rc" in script
+    assert "split('_recaptcha_response')" in script
+    # The timeout is read once, not from the retry function's own arguments.
+    assert "var limit = arguments[1] * 1000;" in script
+    assert "> limit" in script
