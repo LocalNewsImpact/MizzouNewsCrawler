@@ -3255,6 +3255,13 @@ def _process_batch(
                         processed,
                     )
                 else:
+                    if status == REFETCH and getattr(
+                        extractor, "refused_without_session", False
+                    ):
+                        from src.pipeline.refetch import refund_attempt
+
+                        refund_attempt(session, [str(url_id)])
+
                     # Track failure for domain awareness
                     domain_failures[domain] = domain_failures.get(domain, 0) + 1
 

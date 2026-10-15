@@ -3323,6 +3323,8 @@ class ContentExtractor:
         self._raw_html_by_method = {}
         self._latest_raw_html = None
         self._latest_raw_html_method = None
+        # Set where a credentialed fetch is declined for want of a session.
+        self.refused_without_session = False
 
         # Initialize result structure
         result: Dict[str, Any] = {
@@ -5347,6 +5349,9 @@ class ContentExtractor:
                 # Returning nothing leaves the link owing a fetch, which is the
                 # honest state -- a stored wall is not.
                 logger.warning("Not fetching %s: no confirmed subscriber session", url)
+                # Read by the extraction loop: the page was never requested, so
+                # a rewound link must not be charged a try for it.
+                self.refused_without_session = True
                 return {}
 
             # Navigate with human-like behavior
