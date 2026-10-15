@@ -5261,6 +5261,18 @@ class ContentExtractor:
 
             logger.debug(f"Using persistent {stealth_method} driver for {url}")
 
+            # A credentialed fetch runs with the ad networks blocked, from the
+            # login through the article. Measured on a Wenatchee World article,
+            # 2026-10-14: with the ads allowed, ten idle seconds after
+            # window.stop() took the relay from 101 to 287 connections and a
+            # cookie read to 39.3s -- past the 30s client timeout, so the
+            # session check after navigation hung and the story was lost.
+            # Blocked: 12 connections, 0.2s. Anonymous fetches are unchanged.
+            if self._requires_login(urlparse(url).netloc):
+                from src.crawler.authenticated_login import block_ad_traffic
+
+                block_ad_traffic(driver)
+
             # For subscriber/paywalled publishers, establish an authenticated
             # session on the driver (once per driver lifetime) before navigating
             # so the session cookies carry through to the article fetch.
