@@ -2194,6 +2194,18 @@ def _process_batch(
                             f"({url})"
                         )
 
+                # A HARD 404 IN THE BROWSER. The HTTP path raises NotFoundError
+                # for a 404/410 and the link is marked `404`; the browser path
+                # only logged it, so the link stayed at `article` and was served
+                # again every batch -- a thenewstribune.com link six times in
+                # five minutes on 2026-10-15. A status is the server's answer,
+                # not page content, so a login cannot change it.
+                nav_status = getattr(extractor, "_last_navigation_status", None)
+                if nav_status in (404, 410) and not (content or {}).get("title"):
+                    raise NotFoundError(
+                        f"Browser navigation answered HTTP {nav_status} ({url})"
+                    )
+
                 # Check for proxy/bot challenge page before processing
                 if content and content.get("title"):
                     title = content.get("title", "")
