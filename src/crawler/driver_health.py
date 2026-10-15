@@ -27,6 +27,7 @@ starts on a new one.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import signal
@@ -72,6 +73,39 @@ def _chain(exc: BaseException) -> Iterator[BaseException]:
 
 def _is_webdriver_exception(exc: BaseException) -> bool:
     return any(k.__name__ == "WebDriverException" for k in type(exc).__mro__)
+
+
+#: The implicit wait every driver is built with (`implicitly_wait(5)`).
+DRIVER_IMPLICIT_WAIT = 5
+
+
+@contextlib.contextmanager
+def implicit_wait_off(driver: Any) -> Iterator[None]:
+    """Run presence checks with the driver's implicit wait off, then restore it.
+
+    Drivers are built with a 5s implicit wait, so every `find_elements` that
+    matches nothing blocks for 5s. A presence check over a list of selectors
+    that are normally absent pays that once per selector: the captcha check
+    took 50s on myedmondsnews.com, and the login form search 8 x 5s = 40s per
+    pass on columbian.com, 2026-10-14 -- long enough that the extraction run
+    called the browser unresponsive and refused the host.
+    """
+    try:
+        previous = driver.timeouts.implicit_wait
+    except Exception:
+        previous = DRIVER_IMPLICIT_WAIT
+    try:
+        driver.implicitly_wait(0)
+    except Exception:
+        yield
+        return
+    try:
+        yield
+    finally:
+        try:
+            driver.implicitly_wait(previous)
+        except Exception:
+            pass
 
 
 def driver_unresponsive(exc: BaseException) -> bool:

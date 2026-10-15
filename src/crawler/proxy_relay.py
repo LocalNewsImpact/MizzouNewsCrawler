@@ -321,6 +321,18 @@ class ProxyAuthRelay:
 _relay: Optional[ProxyAuthRelay] = None
 _relay_lock = threading.Lock()
 
+#: The router's last answer per target host, as the relay applied it. The
+#: browser path reads it to report how that proxy fared: the router chose the
+#: browser's egress and never heard the outcome, so a proxy Cloudflare refused
+#: for a host stayed that host's choice. myedmondsnews.com, 2026-10-14: the
+#: Mizzou Squid, refused every navigation, showed one failure, from September.
+_routes: dict[str, object] = {}
+
+
+def routed_proxy_for(host: str):
+    """The RouterProxy the relay last used for ``host``, or None."""
+    return _routes.get((host or "").lower())
+
 
 def _router_upstream(host: str) -> Optional[str]:
     """Ask the shared proxy_router which Squid should serve ``host``.
@@ -337,7 +349,7 @@ def _router_upstream(host: str) -> Optional[str]:
     try:
         from .proxy_config import get_proxy_manager
 
-        proxies, _choice, _method = get_proxy_manager().get_requests_proxies_for_domain(
+        proxies, choice, _method = get_proxy_manager().get_requests_proxies_for_domain(
             host, service="selenium"
         )
     except Exception as exc:  # router unavailable, misconfigured, anything
@@ -345,6 +357,8 @@ def _router_upstream(host: str) -> Optional[str]:
         return None
     if not proxies:
         return None
+    if choice is not None:
+        _routes[host.lower()] = choice
     return proxies.get("https") or proxies.get("http")
 
 

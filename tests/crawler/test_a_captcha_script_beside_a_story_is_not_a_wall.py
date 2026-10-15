@@ -71,6 +71,26 @@ class TestTheWaitIsOffDuringAChecks:
         assert hasattr(getattr(ContentExtractor, name), "__wrapped__")
 
 
+class TestTheLoginFormSearchDoesNotWait:
+    """columbian.com, 2026-10-14: 8 absent email candidates x 5s = 40s a pass,
+    and the extraction run called the browser unresponsive mid-login."""
+
+    def test_every_candidate_is_looked_up_with_the_wait_off(self):
+        from src.crawler.authenticated_login import _find_first
+
+        waits_seen: list[float] = []
+
+        class Driver(FakeDriver):
+            def find_elements(self, *_args):
+                waits_seen.append(self.timeouts.implicit_wait)
+                return []
+
+        driver = Driver()
+        assert _find_first(driver, ["#a", "#b", "#c"]) == (None, None)
+        assert waits_seen == [0, 0, 0]
+        assert driver.timeouts.implicit_wait == 5
+
+
 class TestTheKeywordIsWeighedAgainstTheStory:
     def _extractor(self, has_story: bool):
         extractor = ContentExtractor.__new__(ContentExtractor)

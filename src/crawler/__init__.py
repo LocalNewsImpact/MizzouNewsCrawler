@@ -48,7 +48,12 @@ from src.utils.comprehensive_telemetry import ExtractionMetrics
 
 from .browser_errors import interstitial_error
 from .browser_status import read_navigation_status
-from .driver_health import DriverUnresponsive, driver_unresponsive, kill_driver
+from .driver_health import (
+    DriverUnresponsive,
+    driver_unresponsive,
+    implicit_wait_off,
+    kill_driver,
+)
 from .fetch_plan import plan_fetch
 from .fingerprint_profile import (
     FingerprintProfile,
@@ -57,7 +62,7 @@ from .fingerprint_profile import (
 )
 from .headline import headline_from_title
 from .proxy_config import ProxyProvider, get_proxy_manager
-from .proxy_relay import get_relay_proxy
+from .proxy_relay import get_relay_proxy, routed_proxy_for
 from .utils import mask_proxy_url
 
 UNBLOCK_MIN_HTML_BYTES = 3000
@@ -378,10 +383,6 @@ _GRAY_DATALAYER_RE = re.compile(
 )
 
 
-#: The implicit wait every driver is built with (`implicitly_wait(5)`).
-DRIVER_IMPLICIT_WAIT = 5
-
-
 def without_implicit_wait(method):
     """Run a page-inspection helper with the driver's implicit wait off.
 
@@ -399,21 +400,8 @@ def without_implicit_wait(method):
 
     @functools.wraps(method)
     def wrapper(self, driver, *args, **kwargs):
-        try:
-            previous = driver.timeouts.implicit_wait
-        except Exception:
-            previous = DRIVER_IMPLICIT_WAIT
-        try:
-            driver.implicitly_wait(0)
-        except Exception:
+        with implicit_wait_off(driver):
             return method(self, driver, *args, **kwargs)
-        try:
-            return method(self, driver, *args, **kwargs)
-        finally:
-            try:
-                driver.implicitly_wait(previous)
-            except Exception:
-                pass
 
     return wrapper
 
@@ -2783,6 +2771,30 @@ class ContentExtractor:
             self._forget_domain_session(domain)
         return result
 
+    def _report_browser_route(self, url: str, nav_status: Optional[int]) -> None:
+        """Tell the router how the proxy the browser was routed through fared.
+
+        The relay routes every browser connection through the router, and
+        nothing reported back: no `report_domain_result` call was on this
+        path. So a challenge never backed the refused proxy off, the router
+        kept choosing it, and its failover never ran for browser traffic.
+        """
+        if nav_status is None:
+            return
+        host = (urlparse(url).hostname or "").lower()
+        proxy = routed_proxy_for(host)
+        if proxy is None:
+            return
+        if nav_status in (403, 429, 503):
+            self._report_proxy_outcome(
+                host,
+                proxy,
+                success=False,
+                reason=f"browser navigation answered HTTP {nav_status}",
+            )
+        elif nav_status < 400:
+            self._report_proxy_outcome(host, proxy, success=True)
+
     def _report_proxy_outcome(
         self, domain: str, router_proxy, success: bool, reason: Optional[str] = None
     ) -> None:
@@ -3395,8 +3407,15 @@ class ContentExtractor:
                         "http"  # downgrade to http (handled via amp html)
                     )
 
-        selenium_first = not replay and self._should_prioritize_selenium(
-            extraction_method
+        # The plan's "cloudscraper before selenium" was only logged: a
+        # `selenium` + `cloudflare` host still went to the browser first.
+        # myedmondsnews.com, 2026-10-14: cloudscraper through the residential
+        # Squid answered 200 for every page while the browser was held at
+        # "Just a moment..." for 60s+.
+        selenium_first = (
+            not replay
+            and not cloudflare_escalation_enabled
+            and self._should_prioritize_selenium(extraction_method)
         )
         selenium_attempted_primary = False
 
@@ -5345,6 +5364,7 @@ class ContentExtractor:
             nav_status, nav_final_url = read_navigation_status(driver)
             self._last_fetch_http_status = nav_status
             self._last_navigation_final_url = nav_final_url
+            self._report_browser_route(url, nav_status)
             if nav_status is not None:
                 if nav_status >= 400:
                     logger.warning(
@@ -5536,12 +5556,9 @@ class ContentExtractor:
             # the moment it started working again: 2026-07-28, all 47 of 250
             # rows missing proxy data were Selenium- or unblock-captured.
             #
-            # router_proxy stays None deliberately: Selenium reads a static
-            # SELENIUM_PROXY and never calls get_requests_proxies_for_domain(),
-            # so no router decision exists to record. That is a real gap in
-            # #413's home-vs-mizzou failover -- browser traffic is exempt from
-            # it -- but it is a behaviour change, not a telemetry one, so it is
-            # recorded honestly here rather than papered over with a guess.
+            # SELENIUM_PROXY is the relay's FALLBACK upstream only: the relay
+            # asks the router per connection (proxy_relay._router_upstream,
+            # since #429), and `_report_browser_route` reports the outcome.
             try:
                 selenium_proxy = self._resolve_selenium_proxy()
                 metrics.set_proxy_metrics(
@@ -6140,7 +6157,7 @@ class ContentExtractor:
             relay_endpoint = get_relay_proxy(selenium_proxy)
             options.add_argument(f"--proxy-server={relay_endpoint}")
             logger.info(
-                "🔀 Selenium proxying via auth relay %s -> %s",
+                "🔀 Selenium proxying via auth relay %s (routed per host; fallback %s)",
                 relay_endpoint,
                 mask_proxy_url(selenium_proxy),
             )
