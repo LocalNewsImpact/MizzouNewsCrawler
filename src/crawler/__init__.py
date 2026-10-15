@@ -29,7 +29,7 @@ from dateutil import parser as dateparser
 from src.crawler.leading_trailing import trim_leading_trailing
 from src.pipeline.byline_repair import repair as repair_scraped_byline
 from src.pipeline.title_repair import repair as repair_split_title
-from src.utils.blurry_text import unmask_blurry_text
+from src.utils.blurry_text import is_blurred, unmask_blurry_text
 from src.utils.boilerplate import (
     CONSENT,
     MAX_CAPITALIZATION,
@@ -71,6 +71,7 @@ from .proxy_relay import (
     get_relay_proxy,
     publisher_pinned,
     routed_proxy_for,
+    session_upstream_for,
 )
 from .utils import mask_proxy_url
 
@@ -2178,6 +2179,34 @@ class ContentExtractor:
         except Exception as exc:
             logger.warning("could not clear the login failure for %s: %s", host, exc)
 
+    def _proxy_used(self, url: str) -> Optional[Dict[str, Optional[str]]]:
+        """The Squid this extraction's page came through, and by which path.
+
+        A browser page is routed by the relay as its publisher, so the relay's
+        record for the publisher is the answer (`proxy_relay.routed_proxy_for`).
+        A plain fetch used its domain session, whose router choice is kept in
+        `domain_router_proxy`. None when neither path recorded one.
+        """
+        host = urlparse(url).netloc.lower()
+        # getattr: tests and `extract_content(url, html=...)` callers build an
+        # extractor that never fetched, and a record must not break a capture.
+        if (getattr(self, "_raw_html_by_method", None) or {}).get(
+            "selenium"
+        ) is not None:
+            routed = routed_proxy_for(host)
+            upstream = session_upstream_for(host)
+            return {
+                "router_proxy": getattr(routed, "value", None),
+                "proxy_url": mask_proxy_url(upstream) if upstream else None,
+                "path": "browser",
+            }
+        choice = (getattr(self, "domain_router_proxy", None) or {}).get(
+            urlparse(url).netloc
+        )
+        if choice is None:
+            return None
+        return {"router_proxy": getattr(choice, "value", None), "path": "http"}
+
     def _session_state(self, url_or_host: str) -> Optional[bool]:
         """Whether this fetch ran as a subscriber, for the row to record.
 
@@ -4081,6 +4110,33 @@ class ContentExtractor:
         )
         if replay:
             result_copy["metadata"]["replayed"] = True
+        # WHICH SQUID, AND WHAT THE PAGE GAVE THAT SESSION.
+        #
+        # 69 WSU stories were stored as the paywall's blurred text while
+        # `authenticated_session` said true: the login had run, the page did
+        # not honour it. Nothing on the row said which egress the page came
+        # through -- telemetry logged the relay's fallback Squid for every
+        # browser fetch, with `router_proxy` empty -- so "was it the IP?" had
+        # no answer. A replay fetched nothing, so it records neither.
+        if not replay:
+            try:
+                proxy = self._proxy_used(url)
+            except Exception as exc:  # a record never breaks a capture
+                logger.debug("proxy record failed: %s", exc)
+                proxy = None
+            result_copy["metadata"]["proxy"] = proxy
+            result_copy["metadata"]["paywall_blurred"] = is_blurred(
+                getattr(self, "_latest_raw_html", None)
+            )
+            if metrics is not None and proxy and proxy.get("router_proxy"):
+                # The browser path logged the relay's FALLBACK Squid when the
+                # fetch began; this is the one the relay actually used.
+                try:
+                    metrics.router_proxy = proxy["router_proxy"]
+                    if proxy.get("proxy_url"):
+                        metrics.proxy_url = proxy["proxy_url"]
+                except Exception as exc:  # telemetry never breaks a capture
+                    logger.debug("router_proxy telemetry failed: %s", exc)
         # Filled rather than overwritten: a parser that recovered a status from
         # its own failure (newspaper4k raises "Status code 403") knows
         # something `_last_fetch_http_status` does not.
