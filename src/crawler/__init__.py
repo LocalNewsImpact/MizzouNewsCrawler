@@ -3395,8 +3395,15 @@ class ContentExtractor:
                         "http"  # downgrade to http (handled via amp html)
                     )
 
-        selenium_first = not replay and self._should_prioritize_selenium(
-            extraction_method
+        # The plan's "cloudscraper before selenium" was only logged: a
+        # `selenium` + `cloudflare` host still went to the browser first.
+        # myedmondsnews.com, 2026-10-14: cloudscraper through the residential
+        # Squid answered 200 for every page while the browser was held at
+        # "Just a moment..." for 60s+.
+        selenium_first = (
+            not replay
+            and not cloudflare_escalation_enabled
+            and self._should_prioritize_selenium(extraction_method)
         )
         selenium_attempted_primary = False
 
