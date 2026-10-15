@@ -60,7 +60,9 @@ REFETCH = "refetch"
 TEXT_UNAVAILABLE = "text_unavailable"
 
 _ARTICLES_TO_MARK = text("""
-    SELECT a.id, a.candidate_link_id, cl.status AS link_status, a.url
+    SELECT a.id, a.candidate_link_id, cl.status AS link_status, a.url,
+           a.raw_gcs_path,
+           a.metadata::jsonb ->> 'authenticated_session' AS authenticated_session
       FROM articles a
       JOIN candidate_links cl ON cl.id = a.candidate_link_id
      WHERE a.id = ANY(:ids)
@@ -150,6 +152,45 @@ _RESTORE_LINK = text("""
 """)
 
 
+#: The page a rewound link is to be parsed from instead of fetched, with the
+#: session the capture ran under. Read by extraction for a link at `refetch`.
+_REPLAY_FOR_LINK = text("""
+    SELECT a.metadata::jsonb -> 'refetch' ->> 'replay' AS replay,
+           a.metadata::jsonb -> 'refetch' ->> 'replay_session' AS replay_session
+      FROM articles a
+     WHERE a.candidate_link_id = :link_id
+""")
+
+
+def replay_uri(raw_gcs_path: str | None, archive_root: str | None = None) -> str | None:
+    """Where the capture for `raw_gcs_path` is read from on a replay.
+
+    The archive deletes a capture 30 days after it was written (a bucket
+    lifecycle rule). A replay that has to outlive that reads a copy made
+    later -- the same path below `archive_root`, e.g.
+    `retained/wsu-reextract-2026-10-14` -- whose 30 days start at the copy.
+    """
+    if not raw_gcs_path or not raw_gcs_path.startswith("gs://"):
+        return None
+    if not archive_root:
+        return raw_gcs_path
+    bucket, _, path = raw_gcs_path[len("gs://") :].partition("/")
+    return f"gs://{bucket}/{archive_root.strip('/')}/{path}"
+
+
+def replay_for_link(session: Session, link_id: str) -> tuple[str, bool | None] | None:
+    """The capture to parse for a rewound link, and its session, or None.
+
+    None means fetch: the rewind asked for a fetch, or recorded no capture.
+    """
+    row = session.execute(_REPLAY_FOR_LINK, {"link_id": link_id}).mappings().first()
+    if not row or not row["replay"]:
+        return None
+    recorded = row["replay_session"]
+    session_state = None if recorded is None else recorded in ("true", True)
+    return row["replay"], session_state
+
+
 class Refused(Exception):
     """The rewind was not performed, and the reason is the message."""
 
@@ -161,12 +202,21 @@ def mark(
     by: str,
     reason: str,
     dry_run: bool = False,
+    replay: bool = False,
+    archive_root: str | None = None,
 ) -> dict:
     """Rewind these articles' links so extraction will fetch them again.
 
     `by` and `reason` are required and stored. A body replaced without a record
     of who asked and why is indistinguishable from a body that was always
     wrong, and these rows carry a measurement somebody may later question.
+
+    With `replay`, extraction parses the page archived at the article's
+    `raw_gcs_path` (below `archive_root` when given) instead of fetching it.
+    That is the rewind for a body the PARSER got wrong: the page was right,
+    and fetching it again costs a request, a credentialed session and the
+    host's patience, and may no longer return the same page. An article with
+    no capture recorded is rewound for an ordinary fetch.
     """
     if not by or not by.strip():
         raise Refused("a rewind needs --by: who asked for it")
@@ -179,23 +229,30 @@ def mark(
     found = {r["id"]: dict(r) for r in rows}
     missing = [i for i in article_ids if i not in found]
 
-    marked = already = 0
+    marked = already = replays = 0
     now = datetime.now(timezone.utc).isoformat()
     for article_id, row in found.items():
         if row["link_status"] == REFETCH:
             already += 1
             continue
+        uri = replay_uri(row["raw_gcs_path"], archive_root) if replay else None
+        replays += uri is not None
         if dry_run:
             marked += 1
             continue
-        note = json.dumps(
-            {
-                "by": by.strip(),
-                "reason": reason.strip(),
-                "at": now,
-                "previous_link_status": row["link_status"],
-            }
-        )
+        record: dict = {
+            "by": by.strip(),
+            "reason": reason.strip(),
+            "at": now,
+            "previous_link_status": row["link_status"],
+        }
+        if uri:
+            # The capture's session travels with it: a replay runs on a
+            # driver that never signed in, and the row must still say
+            # whether the page it holds was served to a subscriber.
+            record["replay"] = uri
+            record["replay_session"] = row["authenticated_session"]
+        note = json.dumps(record)
         session.execute(_MARK_ARTICLE, {"id": article_id, "note": note})
         session.execute(
             _MARK_LINK, {"link_id": row["candidate_link_id"], "refetch": REFETCH}
@@ -210,6 +267,7 @@ def mark(
         "already": already,
         "missing": len(missing),
         "missing_ids": missing,
+        "replay": replays,
     }
 
 

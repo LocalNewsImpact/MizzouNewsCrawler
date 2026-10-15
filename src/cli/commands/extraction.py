@@ -13,6 +13,7 @@ import time
 import uuid
 from collections import defaultdict
 from collections.abc import Iterable
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
@@ -738,10 +739,47 @@ ARTICLE_REFETCH_SQL = text(
     "publish_date = coalesce(:publish_date, publish_date), "
     "status = :status, extracted_at = :extracted_at, "
     "raw_gcs_path = coalesce(:raw_gcs_path, raw_gcs_path), "
-    "metadata = jsonb_set(coalesce(metadata::jsonb, '{}'::jsonb), "
+    # MERGED, the new extraction's keys over the old. This set only
+    # `refetch.completed_at`, so a replaced body went on carrying the facts
+    # of the extraction it replaced -- its byline result, its wire evidence,
+    # what the parse removed -- beside a body they no longer describe. Keys
+    # the new extraction does not write (the rewind's own `refetch` note)
+    # stay.
+    "metadata = jsonb_set(coalesce(metadata::jsonb, '{}'::jsonb) "
+    "                     || CAST(:metadata AS jsonb), "
     "                     '{refetch,completed_at}', to_jsonb(CAST(:extracted_at AS text)), true)::json "
     "WHERE id = :id"
 )
+
+
+@dataclass(frozen=True)
+class _Replay:
+    html: str
+    uri: str
+    session: bool | None
+
+
+def _replay_capture(session, link_id: str, url: str) -> _Replay | None:
+    """The archived page a rewound link is parsed from, or None to fetch it.
+
+    A capture the rewind named but the archive no longer holds is fetched
+    instead, and said so: the rewind asked for the body to be redone, and a
+    fetch still does that.
+    """
+    from src.pipeline.refetch import replay_for_link
+    from src.utils.raw_html_archive import fetch_html
+
+    found = replay_for_link(session, link_id)
+    if found is None:
+        return None
+    uri, session_state = found
+    html = fetch_html(uri)
+    if not html:
+        logger.warning("refetch: no capture at %s for %s; fetching it", uri, url)
+        return None
+    logger.info("refetch: parsing the archived page %s for %s", uri, url)
+    return _Replay(html=html, uri=uri, session=session_state)
+
 
 #: The article a rewound link already has. Its id is what must survive.
 ARTICLE_FOR_LINK_SQL = text(
@@ -2117,7 +2155,21 @@ def _process_batch(
             )
 
             try:
-                content = extractor.extract_content(url, metrics=metrics)
+                replay = (
+                    _replay_capture(session, str(url_id), url)
+                    if status == REFETCH
+                    else None
+                )
+                if replay is not None:
+                    content = extractor.extract_content(
+                        url, html=replay.html, metrics=metrics, replay=True
+                    )
+                    if content:
+                        meta = content.setdefault("metadata", {})
+                        meta["authenticated_session"] = replay.session
+                        meta["replayed_from"] = replay.uri
+                else:
+                    content = extractor.extract_content(url, metrics=metrics)
                 detection_payload = None
 
                 # A SOFT 404: the site's own "Page not found" page, served with a
@@ -3008,6 +3060,7 @@ def _process_batch(
                                 "status": article_status,
                                 "extracted_at": now.isoformat(),
                                 "raw_gcs_path": raw_gcs_path,
+                                "metadata": json.dumps(content.get("metadata", {})),
                             },
                         )
                         logger.info(

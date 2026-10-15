@@ -16,6 +16,11 @@ teaser, a subscription appeal, a form's dropdown list. See
     news-crawler refetch-articles --dataset WSU-Washington-State \
         --status paywall --by damon --reason "no body; BLOX auth wired"
 
+    # the parser got it wrong, not the page: parse the archived capture
+    news-crawler refetch-articles --ids-file ids.txt --replay \
+        --archive-root retained/wsu-reextract-2026-10-14 \
+        --by damon --reason "flattened body; parser fixed in #716"
+
     # give up on one: put the link back where it was
     news-crawler refetch-articles --clear --ids-file gave_up.txt
 """
@@ -54,6 +59,18 @@ def add_refetch_articles_parser(subparsers: argparse._SubParsersAction) -> None:
         "--reason",
         default=None,
         help="why the stored body is wrong (required to rewind)",
+    )
+    parser.add_argument(
+        "--replay",
+        action="store_true",
+        help="parse each article's archived page instead of fetching it "
+        "(articles with no capture are fetched)",
+    )
+    parser.add_argument(
+        "--archive-root",
+        default=None,
+        help="with --replay: read the capture from this prefix of the archive "
+        "bucket (a retained copy) instead of its original path",
     )
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument(
@@ -142,7 +159,13 @@ def handle_refetch_command(args) -> int:
 
         try:
             counts = refetch.mark(
-                session, ids, by=args.by, reason=args.reason, dry_run=args.dry_run
+                session,
+                ids,
+                by=args.by,
+                reason=args.reason,
+                dry_run=args.dry_run,
+                replay=args.replay,
+                archive_root=args.archive_root,
             )
         except refetch.Refused as exc:
             print(f"refused: {exc}")
@@ -153,6 +176,7 @@ def handle_refetch_command(args) -> int:
             f"rewound:   {counts['marked']}\n"
             f"already:   {counts['already']}\n"
             f"missing:   {counts['missing']}"
+            + (f"\nreplay:    {counts['replay']}" if args.replay else "")
             + ("\n(dry run — nothing written)" if args.dry_run else "")
         )
         if counts.get("missing_ids"):

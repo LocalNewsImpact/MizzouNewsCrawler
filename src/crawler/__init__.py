@@ -3275,7 +3275,12 @@ class ContentExtractor:
         return data
 
     def extract_content(
-        self, url: str, html: str = None, metrics: Optional[ExtractionMetrics] = None
+        self,
+        url: str,
+        html: str = None,
+        metrics: Optional[ExtractionMetrics] = None,
+        *,
+        replay: bool = False,
     ) -> Dict[str, Any]:
         """Fetch page if needed, extract article data using multiple methods.
 
@@ -3289,6 +3294,9 @@ class ContentExtractor:
             url: URL to extract content from
             html: Optional pre-fetched HTML content
             metrics: Optional ExtractionMetrics object for telemetry tracking
+            replay: Parse ``html`` -- an archived capture -- and fetch nothing.
+                Without it, ``html`` is only the first capture: a parser that
+                comes up short still escalates to a fetch of its own.
 
         Returns a dictionary with keys: title, author, content, publish_date,
         metadata (original meta), and extracted_at.
@@ -3336,6 +3344,21 @@ class ContentExtractor:
         )
         skip_http_methods = plan.skip_http_methods
         cloudflare_escalation_enabled = plan.allow_cloudflare_escalation
+
+        # A REPLAY PARSES THE BYTES IT WAS GIVEN AND FETCHES NOTHING.
+        #
+        # The capture is the page as it was served -- for a credentialed host,
+        # to a signed-in subscriber -- and re-parsing it is the point: the
+        # parser changed, the page did not. Every rung below that would fetch
+        # (Selenium first or last, the HTTP capture, tls_client, the unblock
+        # proxy) is off, and the parsers run on the capture whatever the
+        # host's fetch plan says. A fetch here would replace the subscriber's
+        # page with an anonymous one.
+        if replay and not html:
+            raise ValueError(f"replay of {url} needs the archived html")
+        if replay:
+            skip_http_methods = False
+            cloudflare_escalation_enabled = False
         if plan.credentialed:
             logger.info("🔐 %s - %s", domain, plan.reason)
         if cloudflare_escalation_enabled:
@@ -3372,7 +3395,9 @@ class ContentExtractor:
                         "http"  # downgrade to http (handled via amp html)
                     )
 
-        selenium_first = self._should_prioritize_selenium(extraction_method)
+        selenium_first = not replay and self._should_prioritize_selenium(
+            extraction_method
+        )
         selenium_attempted_primary = False
 
         # DIAGNOSTIC: Skip Selenium if disabled for diagnostics (force_all_methods mode)
@@ -3692,7 +3717,8 @@ class ContentExtractor:
         # refusal just means this rung failed, and Selenium still gets its turn.
         domain_requires_unblock = extraction_method == "unblock"
         try_tls_capture = (
-            bool(missing_fields)
+            not replay
+            and bool(missing_fields)
             # NOT FOR A CREDENTIALED HOST. This rung is anonymous, and it is a
             # general fallback rather than one reserved for `unblock` hosts, so
             # without this it runs before the browser on a publisher we hold a
@@ -3807,7 +3833,12 @@ class ContentExtractor:
         missing_fields = self._get_missing_fields(result)
 
         # Try Selenium final fallback for remaining missing fields when not already attempted
-        if missing_fields and SELENIUM_AVAILABLE and not selenium_attempted_primary:
+        if (
+            missing_fields
+            and SELENIUM_AVAILABLE
+            and not selenium_attempted_primary
+            and not replay
+        ):
             if self._selenium_would_add_value(result, missing_fields):
                 fallback_reason = (
                     "selenium_secondary" if skip_http_methods else "http_fallback"
@@ -3966,7 +3997,14 @@ class ContentExtractor:
         # Stamped here, beside extraction_method, because this is the point
         # where the cascade is over and facts about the whole extraction are
         # recorded regardless of which parser won which field.
-        result_copy["metadata"]["authenticated_session"] = self._session_state(url)
+        #
+        # Not for a replay: whether THIS driver is signed in says nothing about
+        # the run that captured the page. The caller carries that run's answer.
+        result_copy["metadata"]["authenticated_session"] = (
+            None if replay else self._session_state(url)
+        )
+        if replay:
+            result_copy["metadata"]["replayed"] = True
         # Filled rather than overwritten: a parser that recovered a status from
         # its own failure (newspaper4k raises "Status code 403") knows
         # something `_last_fetch_http_status` does not.

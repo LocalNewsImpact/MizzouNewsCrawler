@@ -131,7 +131,12 @@ class AbstractExtractor(ABC):
 class Newspaper3kExtractor(AbstractExtractor):
 
     def extract(self, url, html_text: str, include_metadata: bool = False):
-        doc = newspaper.Article(url)
+        # fetch_images=False: parse() otherwise downloads every image on the
+        # page to choose a top image -- network egress from a parser, direct
+        # from the pod rather than through the proxy. On thenewstribune.com,
+        # 2026-10-14, that was ten images at ~14.5s each: 2.5 minutes per
+        # article once newspaper3k became a leading/trailing voter (#716).
+        doc = newspaper.Article(url, fetch_images=False)
         doc.download(input_html=html_text)
         doc.parse()
         self.content = {
