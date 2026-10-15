@@ -90,3 +90,65 @@ def test_the_meta_author_is_unescaped():
         '<meta name="author" content="Rene&eacute; D&igrave;az  World staff writer" />'
     )
     assert _extract_from_meta_tags(html)["author"] == "Reneé Dìaz  World staff writer"
+
+
+@pytest.mark.parametrize(
+    "raw, source, want",
+    [
+        # Real bylines (production telemetry, 2026-10-15) the first cut of
+        # this rule got wrong: a title in its own segment named its outlet.
+        (
+            "Theresa Brandt, UD Staff Writer",
+            "The Unterrified Democrat",
+            ["Theresa Brandt"],
+        ),
+        (
+            "LISA MASCARO - AP Congressional Correspondent",
+            "The Joplin Globe",
+            ["Lisa Mascaro"],
+        ),
+        (
+            "Sponsored content by Mary McHugh, Brand Ave. Studios contributing writer",
+            "St. Louis Post-Dispatch",
+            ["Sponsored Mary McHugh"],
+        ),
+        # A line that goes on with the names is not the title line.
+        (
+            "Sandra Tan  and Deidre Williams News Staff Reporters",
+            "St. Louis Post-Dispatch",
+            ["Sandra Tan", "Deidre Williams"],
+        ),
+        # An empty segment before the title.
+        (
+            "Jeremiah Yonemara; Staff Writer",
+            "Maries County Advocate",
+            ["Jeremiah Yonemara"],
+        ),
+        # A sister publication glued on: the glue is the boundary.
+        ("Reneé DìazEmpire Press staff writer", SOURCE, ["Reneé Dìaz"]),
+        ("Reneé DìazBusiness World staff writer", SOURCE, ["Reneé Dìaz"]),
+        # The newsroom's own name word, spaced.
+        (
+            "Christine Yearwood Republican Staff Writer",
+            "Gasconade County Republican",
+            ["Christine Yearwood"],
+        ),
+        ("Ryan Bailey  Missourian Sports Correspondent", "Missourian", ["Ryan Bailey"]),
+    ],
+)
+def test_real_bylines(cleaner, raw, source, want):
+    assert cleaner.clean_byline(raw, source_name=source) == want
+
+
+@pytest.mark.parametrize(
+    "name", ["Jane McDonald", "Mary LaToya Smith", "Ann MacArthur"]
+)
+def test_a_capital_inside_a_surname_is_not_glue(cleaner, name):
+    assert cleaner.clean_byline(f"{name} staff writer", source_name=SOURCE) == [name]
+
+
+def test_entities_in_any_byline_are_read(cleaner):
+    assert cleaner.clean_byline(
+        "Bridget Mills&nbsp;and&nbsp;Torrey Lin Weiner",
+        source_name="Columbia Missourian",
+    ) == ["Bridget Mills", "Torrey Lin Weiner"]
