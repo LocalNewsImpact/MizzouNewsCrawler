@@ -2771,6 +2771,18 @@ class ContentExtractor:
             self._forget_domain_session(domain)
         return result
 
+    @staticmethod
+    def _leave_page(driver) -> None:
+        """Unload the page the browser just captured. Never raises.
+
+        A driver that has already stopped answering is left to the next
+        navigation, which detects it and replaces the driver.
+        """
+        try:
+            driver.get("about:blank")
+        except Exception as exc:  # noqa: BLE001 - best-effort cleanup
+            logger.debug("could not leave the page: %s", exc)
+
     def _report_browser_route(self, url: str, nav_status: Optional[int]) -> None:
         """Tell the router how the proxy the browser was routed through fared.
 
@@ -5498,6 +5510,20 @@ class ContentExtractor:
                 )
 
             self._attach_publish_date_fallback_metadata(result)
+
+            # LEAVE THE PAGE ONCE IT IS READ. `window.stop()` stops loading, not
+            # running: a subscriber page's scripts went on running after the
+            # capture and held the renderer, so the NEXT command waited out the
+            # 30s client timeout and the driver was replaced. Measured on
+            # tri-cityherald.com logged in, 2026-10-14: ten idle seconds after
+            # the capture took the process from 88 to 119 threads and a
+            # `current_url` read to 85.8s; with the page left for about:blank,
+            # three articles in a row loaded in 1.1-1.7s with every command
+            # instant. Anonymous pages did not hang -- the subscriber page did.
+            #
+            # Last, after `_confirm_session` above: `get_cookies()` reads only
+            # the current document's origin, and about:blank has none.
+            self._leave_page(driver)
 
             return result
 
