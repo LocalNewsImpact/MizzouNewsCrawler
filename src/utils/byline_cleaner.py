@@ -631,6 +631,10 @@ class BylineCleaner:
         r"(?i)(?:^|\s)(?:all\s+|file\s+|staff\s+|courtesy\s+|submitted\s+)?photos?(?:\s|$)"
     )
 
+    #: A courtesy credit: `Courtesy Port of Columbia` names who supplied
+    #: something, not who reported it.
+    _COURTESY = re.compile(r"(?i)^\s*courtesy\b")
+
     #: Segments of a byline. A credit is usually its own comma segment --
     #: "Chris Higgins, File Photo" -- and the segment is the unit dropped.
     _SEGMENTS = re.compile(r"\s*[,;]\s*|\s+/\s+")
@@ -652,18 +656,47 @@ class BylineCleaner:
         string, it leaves nothing, which is the right answer: the article has
         no byline, and an empty field says so where an invented one does not.
         """
-        if not byline or not cls._PHOTO_CREDIT.search(byline):
+        if not byline:
+            return byline
+        parts = cls._SEGMENTS.split(byline)
+        if not any(
+            cls._PHOTO_CREDIT.search(p) or cls._COURTESY.match(p) for p in parts
+        ):
             return byline
         kept = [
             part.strip()
-            for part in cls._SEGMENTS.split(byline)
-            if part and part.strip() and not cls._PHOTO_CREDIT.search(part)
+            for part in parts
+            if part
+            and part.strip()
+            and not cls._PHOTO_CREDIT.search(part)
+            and not cls._COURTESY.match(part)
         ]
         return ", ".join(kept)
 
+    #: A CMS account, not a person: `Administrator`, `Admin`, `ohtadmin`.
+    _CMS_ACCOUNT = re.compile(
+        r"(?i)^\s*(?:[a-z0-9_.-]*admin(?:istrator)?|webmaster)\s*$"
+    )
+
+    @classmethod
+    def drop_cms_account(cls, byline: str) -> str:
+        """A byline that is only a CMS login is no byline.
+
+        `Administrator` stood on 28 My Lynnwood News stories and `ohtadmin` on
+        5 Port Townsend Leader ones: the account the story was posted from,
+        which says nothing about who wrote it.
+        """
+        if byline and cls._CMS_ACCOUNT.match(byline):
+            return ""
+        return byline
+
     #: Separators a masthead is hung off a name with: "Rudi Keller - MISSOURI
     #: INDEPENDENT", "... | Missouri Independent", "... ~ Missouri Independent".
-    _MASTHEAD_JOIN = re.compile(r"\s*[|~\u2013\u2014-]+\s*$")
+    #: `ERICK BENGEL Special to the Yakima Herald-Republic` -- left as
+    #: `ERICK BENGEL Special to`, the byline read as nothing.
+    _MASTHEAD_JOIN = re.compile(
+        r"(?i)(?:\s*[|~\u2013\u2014-]+|\s+(?:special\s+to|for)(?:\s+the)?)\s*$"
+    )
 
     @staticmethod
     def _without_article(tokens: tuple[str, ...]) -> tuple[str, ...]:
@@ -707,7 +740,10 @@ class BylineCleaner:
     #: `Herald staff reporter`, `Correspondent`.
     _TITLE_TAIL = re.compile(
         r"(?i)\b(?:staff\s+(?:writer|reporter|photographer)s?|correspondents?|"
-        r"contributing\s+writers?)\s*$"
+        # Bare `writer` only as the pages print it, lowercase: `Anna Writer`
+        # and `Anna Fellow` are surnames. A fellowship needs its qualifier.
+        r"contributing\s+writers?|(?-i:writers?)|"
+        r"(?:(?:wsu|murrow|news)\s+)+fellows?)\s*$"
     )
 
     #: Where the publisher broke the line. TownNews writes the author field as
@@ -752,29 +788,52 @@ class BylineCleaner:
         if not byline:
             return byline
         text = html.unescape(byline)
-        if not self._TITLE_TAIL.search(text):
+        lines = [p.strip() for p in self._LINE_BREAK.split(text) if p and p.strip()]
+        if not any(
+            self._TITLE_TAIL.search(part)
+            for line in lines
+            for part in self._AND_SPLIT.split(line)
+        ):
             return text
-        lines = [p for p in self._LINE_BREAK.split(text) if p and p.strip()]
-        if len(lines) > 1:
-            while (
-                len(lines) > 1
-                and self._TITLE_TAIL.search(lines[-1])
-                and not self._NAME_CONTINUES.match(lines[-1].strip())
+        kept: list[str] = []
+        for line in lines:
+            if not kept:
+                kept.append(line)
+                continue
+            if self._NAME_CONTINUES.match(line):
+                kept[-1] = f"{kept[-1]} {line}"
+            elif not self._looks_like_a_person(
+                self._name_in_part(kept[-1]).split(",")[-1].strip()
             ):
-                lines.pop()
-            text = " ".join(lines).strip()
-            match = self._TITLE_TAIL.search(text)
-            if not match:
-                return text
+                # `Larissa  Babiak`: a double space inside a name, not a break.
+                kept[-1] = f"{kept[-1]} {line}"
+            elif self._TITLE_TAIL.search(line) and not self._looks_like_a_person(
+                self._TITLE_TAIL.sub("", line).strip(" ,;")
+            ):
+                continue  # `World staff writer`: the line under the name
+            else:
+                kept.append(line)
+        return ", ".join(
+            "".join(self._name_in_part(part) for part in self._AND_SPLIT.split(line))
+            for line in kept
+        ).strip()
+
+    #: Co-authors joined in prose: `Reneé Dìaz World staff writer and Johanna
+    #: Bejarano ...`. The joiner is kept (a capturing split) so it survives.
+    _AND_SPLIT = re.compile(r"(\s+(?:and|&)\s+)", re.IGNORECASE)
+
+    def _name_in_part(self, text: str) -> str:
+        """One co-author's part with a trailing title, and its newsroom, cut."""
         match = self._TITLE_TAIL.search(text)
-        if match is None:
+        if match is None or self._AND_SPLIT.fullmatch(text):
             return text
         head = text[: match.start()]
         separators = list(self._SEGMENT_BEFORE_TITLE.finditer(head))
         if separators:
             last = separators[-1]
             segment = head[last.end() :].strip()
-            if not segment:  # `Taylor James; Staff Writer`
+            if not segment or self._is_own_masthead(segment):
+                # `Taylor James; Staff Writer`, `Reneé Dìaz, World staff writer`
                 return head[: last.start()].strip()
             cut = self._without_masthead(segment)
             if cut == segment:
@@ -784,6 +843,78 @@ class BylineCleaner:
         if not head:
             return text  # a title alone: the title rule's to judge
         return self._without_masthead(head) or head
+
+    def _own_words(self) -> set[str]:
+        source = (self._current_source_name or "").lower()
+        return {w for w in re.findall(r"[^\W\d_]+", source) if len(w) > 2} - {"the"}
+
+    def _is_own_masthead(self, text: str) -> bool:
+        """`World` on Wenatchee World: words of this source's name and no others."""
+        words = re.findall(r"[^\W\d_]+", text.lower())
+        return bool(words) and set(words) <= self._own_words()
+
+    #: Words that make the far side of a slash an outlet or a title, not a
+    #: second reporter: `Aspen Ford/Washington State Standard`, `Elena
+    #: Perry/The Spokesman-Review`, `Kevin Teeter NonStop Local/WSU Murrow
+    #: News Fellow`.
+    _OUTLET_WORDS = frozenset(
+        """standard review spokesman-review sun observer herald herald-republic
+        republic news press times post journal tribune gazette radio
+        broadcasting public media network leader record chronicle daily weekly
+        fellow fellows local wsu murrow columbian report magazine online tv
+        staff writer reporter correspondent contributor photographer editor
+        kuow kxly kirotv kiro king5 komo""".split()
+    )
+
+    #: `Name/Outlet` -- one slash, not a URL, not `//`.
+    _SLASH = re.compile(r"(?<![/:])\s*/\s*(?!/)")
+
+    def drop_slash_outlet(self, byline: str) -> str:
+        """`Aspen Ford/Washington State Standard` is Aspen Ford.
+
+        The slash is the publisher's own boundary between a reporter and the
+        outlet, or title, the story came from. Stored as written: 16 Chinook
+        Observer stories as `Aspen Ford/Washington`, 20 KHQ ones as `Kevin
+        Teeter Local/WSU Murrow Fellow`, 7 Spokane Public Radio co-bylines as
+        `Elena Perry/ Spokesman-Review`. The far side is dropped when it is an
+        outlet or a title; when it is a second person (`Jane Doe/John Roe`)
+        both are kept. The near side loses this source's own masthead words:
+        `Kevin Teeter NonStop Local` on KHQ NonStop Local is Kevin Teeter.
+        """
+        if not byline or "/" not in byline or "://" in byline:
+            return byline
+        out = []
+        for segment in re.split(r"\s*[,;]\s*", byline):
+            parts = self._SLASH.split(segment, maxsplit=1)
+            if len(parts) != 2:
+                out.append(segment)
+                continue
+            near, far = parts[0].strip(), parts[1].strip()
+            if not self._looks_like_a_person(self._without_masthead(near) or near):
+                out.append(segment)
+                continue
+            if self._is_outlet(far):
+                out.append(self._without_masthead(near) or near)
+            elif self._looks_like_a_person(far):
+                out.extend([near, far])
+            else:
+                out.append(segment)
+        return ", ".join(p for p in out if p)
+
+    def _is_outlet(self, text: str) -> bool:
+        lowered = text.lower().strip()
+        words = re.findall(r"[\w-]+", lowered)
+        if not words:
+            return False
+        if words[0] == "the":
+            words = words[1:]
+        name = " ".join(words)
+        return (
+            bool(set(words) & self._OUTLET_WORDS)
+            or name in self.get_publication_names()
+            or self._is_own_masthead(text)
+            or not self._looks_like_a_person(text)
+        )
 
     #: A capital glued onto the end of a name: `DìazWorld`, `MeatsWorld`.
     _GLUED_CAPITAL = re.compile(r"(?<=[^\W\d_])(?=[A-Z])")
@@ -795,8 +926,7 @@ class BylineCleaner:
         and anything after a capital glued onto three or more lowercase
         letters. Returned unchanged when neither is there.
         """
-        source = (self._current_source_name or "").lower()
-        own = {w for w in re.findall(r"[^\W\d_]+", source) if len(w) > 2} - {"the"}
+        own = self._own_words()
         cut = head.strip()
         while True:
             for word in own:
@@ -951,7 +1081,10 @@ class BylineCleaner:
             # to salvage a name and a credit is the one case where salvaging
             # is the error: `Cameron Montemayor File Photo` trimmed to a
             # byline credits a reporter with a story he photographed.
+            byline = self.drop_cms_account(byline)
             byline = self.drop_photo_credits(byline)
+            # A `Name/Outlet` slash, before the title step reads the tail.
+            byline = self.drop_slash_outlet(byline)
             # The title line under the name, while the publisher's own line
             # break still says where the name ends.
             byline = self.drop_title_line(byline)
