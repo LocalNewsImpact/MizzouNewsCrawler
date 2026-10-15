@@ -29,6 +29,7 @@ from dateutil import parser as dateparser
 from src.crawler.leading_trailing import trim_leading_trailing
 from src.pipeline.byline_repair import repair as repair_scraped_byline
 from src.pipeline.title_repair import repair as repair_split_title
+from src.utils.blurry_text import unmask_blurry_text
 from src.utils.boilerplate import (
     CONSENT,
     MAX_CAPITALIZATION,
@@ -3298,6 +3299,7 @@ class ContentExtractor:
         """
         if not html:
             return {}
+        html = unmask_blurry_text(html) or html
 
         try:
             soup = BeautifulSoup(html, "html.parser")
@@ -4752,6 +4754,10 @@ class ContentExtractor:
             # passes html in. No html => nothing to parse.
             raise RuntimeError("mcmetadata requires HTML; none was provided")
 
+        # A paywall that blurs the story still serves it, shifted one letter
+        # on. Read it back before any parser sees the letters.
+        html = unmask_blurry_text(html) or html
+
         include_other = (
             self.mcmetadata_include_other_metadata
             if include_other_metadata is None
@@ -5512,6 +5518,8 @@ class ContentExtractor:
 
             self._update_wire_hints_from_html(html, url)
             self._record_raw_html(html, "selenium")
+            # The capture is archived as served; the parse reads it unblurred.
+            html = unmask_blurry_text(html) or html
 
             soup = BeautifulSoup(html, "html.parser")
 
