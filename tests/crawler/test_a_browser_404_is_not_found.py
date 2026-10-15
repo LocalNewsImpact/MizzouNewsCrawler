@@ -32,7 +32,7 @@ def test_it_is_checked_before_the_page_is_judged():
 
 def test_every_article_starts_with_no_browser_status():
     """An article fetched over HTTP must not read the last article's 404."""
-    assert "self._last_navigation_status = None" in inspect.getsource(
+    assert "self._last_navigation_status: int | None = None" in inspect.getsource(
         ContentExtractor.extract_content
     )
 
