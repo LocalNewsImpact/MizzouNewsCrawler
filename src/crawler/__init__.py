@@ -64,6 +64,8 @@ from .fingerprint_profile import (
 from .headline import headline_from_title
 from .proxy_config import ProxyProvider, get_proxy_manager
 from .proxy_relay import (
+    end_browser_session,
+    fail_over,
     follow_navigation,
     get_relay_proxy,
     publisher_pinned,
@@ -2792,20 +2794,23 @@ class ContentExtractor:
         except Exception as exc:  # noqa: BLE001 - best-effort cleanup
             logger.debug("could not leave the page: %s", exc)
 
-    def _report_browser_route(self, url: str, nav_status: Optional[int]) -> None:
+    def _report_browser_route(self, url: str, nav_status: Optional[int]) -> bool:
         """Tell the router how the proxy the browser was routed through fared.
 
         The relay routes every browser connection through the router, and
         nothing reported back: no `report_domain_result` call was on this
         path. So a challenge never backed the refused proxy off, the router
         kept choosing it, and its failover never ran for browser traffic.
+
+        True when a 403 moved the publisher to the other Squid for the rest of
+        the session (`proxy_relay.fail_over`); the caller retries the page.
         """
         if nav_status is None:
-            return
+            return False
         host = (urlparse(url).hostname or "").lower()
         proxy = routed_proxy_for(host)
         if proxy is None:
-            return
+            return False
         if nav_status in (403, 429, 503):
             self._report_proxy_outcome(
                 host,
@@ -2813,8 +2818,21 @@ class ContentExtractor:
                 success=False,
                 reason=f"browser navigation answered HTTP {nav_status}",
             )
-        elif nav_status < 400:
+            return nav_status == 403 and fail_over(host)
+        if nav_status < 400:
             self._report_proxy_outcome(host, proxy, success=True)
+        return False
+
+    def _navigate_after_failover(self, driver, url: str):
+        """Load ``url`` again through the Squid the session failed over to.
+
+        Returns (status, final_url), or None when the navigation failed.
+        """
+        if not self._navigate_with_human_behavior(driver, url):
+            return None
+        nav_status, nav_final_url = read_navigation_status(driver)
+        self._report_browser_route(url, nav_status)
+        return nav_status, nav_final_url
 
     def _report_proxy_outcome(
         self, domain: str, router_proxy, success: bool, reason: Optional[str] = None
@@ -2974,6 +2992,9 @@ class ContentExtractor:
             finally:
                 ContentExtractor._shared_persistent_driver = None
                 ContentExtractor._shared_driver_reuse_count = 0
+                # A new browser is a new session: each publisher's proxy is
+                # asked of the router again.
+                end_browser_session()
                 # New driver starts with no authenticated sessions and a clean
                 # login-failure cache.
                 ContentExtractor._authenticated_domains = set()
@@ -5403,10 +5424,15 @@ class ContentExtractor:
             # Read once per navigation: get_log() CONSUMES the buffer, so a
             # second call returns only what arrived afterwards.
             nav_status, nav_final_url = read_navigation_status(driver)
+            if self._report_browser_route(url, nav_status):
+                # 403: the session moved to the other Squid; ask once more.
+                retried = self._navigate_after_failover(driver, url)
+                if retried is None:
+                    return {}
+                nav_status, nav_final_url = retried
             self._last_fetch_http_status = nav_status
             self._last_navigation_status = nav_status
             self._last_navigation_final_url = nav_final_url
-            self._report_browser_route(url, nav_status)
 
             # A PDF IS NOT A PAGE. The link is the publisher's document, but no
             # parser reads it, and it is not a browser failure either: it is

@@ -135,7 +135,7 @@ class TestTheRelayRoutesByPublisher:
             "www.gstatic.com",
         ]:
             _tunnel(relay, host).close()
-        assert relay.asked == ["yakimaherald.com"] * 4
+        assert relay.asked == ["yakimaherald.com"]  # asked once, kept
 
     def test_before_any_navigation_a_connection_is_routed_as_its_host(self, relay):
         _tunnel(relay, "www.example.com").close()
@@ -198,3 +198,134 @@ def test_the_route_record_is_found_under_either_spelling(monkeypatch):
     proxy_relay._routes[publisher_key("www.yakimaherald.com")] = "choice"
     assert proxy_relay.routed_proxy_for("yakimaherald.com") == "choice"
     assert proxy_relay.routed_proxy_for("www.yakimaherald.com") == "choice"
+
+
+class TestTheSessionKeepsTheRoutersChoice:
+    """The router balances; once it has chosen for a publisher, the session
+    keeps that choice -- until a 403 moves it to the other Squid."""
+
+    def test_the_router_is_asked_once_per_publisher(self, relay, route):
+        route.route_as("https://www.yakimaherald.com/")
+        for host in ["www.yakimaherald.com", "www.google.com", "cdn.example"]:
+            _tunnel(relay, host).close()
+        assert relay.asked == ["yakimaherald.com"]
+
+    def test_a_new_browser_asks_again(self, relay, route):
+        route.route_as("https://www.yakimaherald.com/")
+        _tunnel(relay, "www.google.com").close()
+        route.end_session()
+        route.route_as("https://www.yakimaherald.com/")
+        _tunnel(relay, "www.google.com").close()
+        assert relay.asked == ["yakimaherald.com", "yakimaherald.com"]
+
+
+class FakeManager:
+    def __init__(self, urls):
+        self.urls = urls
+
+    def get_requests_proxies_for_router_proxy(self, proxy):
+        url = self.urls.get(proxy)
+        return {"http": url, "https": url} if url else None
+
+
+@pytest.fixture
+def two_squids(monkeypatch, route):
+    from src.crawler import proxy_config
+
+    monkeypatch.setattr(proxy_relay, "_routes", {})
+    manager = FakeManager(
+        {
+            RouterProxy.HOME_SQUID: "http://u:p@home:3128",
+            RouterProxy.MIZZOU_SQUID: "http://u:p@mizzou:3128",
+        }
+    )
+    monkeypatch.setattr(proxy_config, "get_proxy_manager", lambda: manager)
+    return manager
+
+
+class TestA403FailsOver:
+    def test_the_publisher_moves_to_the_other_squid(self, two_squids, route):
+        proxy_relay._routes["yakimaherald.com"] = RouterProxy.HOME_SQUID
+        route.upstream_for("yakimaherald.com", lambda k: "http://u:p@home:3128")
+        assert proxy_relay.fail_over("www.yakimaherald.com") is True
+        assert proxy_relay.routed_proxy_for("yakimaherald.com") is (
+            RouterProxy.MIZZOU_SQUID
+        )
+        never = pytest.fail  # the session's choice is not asked of the router
+        assert route.upstream_for("yakimaherald.com", never) == (
+            "http://u:p@mizzou:3128"
+        )
+
+    def test_only_once_per_session(self, two_squids, route):
+        proxy_relay._routes["yakimaherald.com"] = RouterProxy.HOME_SQUID
+        assert proxy_relay.fail_over("yakimaherald.com") is True
+        assert proxy_relay.fail_over("yakimaherald.com") is False
+        route.end_session()
+        proxy_relay._routes["yakimaherald.com"] = RouterProxy.MIZZOU_SQUID
+        assert proxy_relay.fail_over("yakimaherald.com") is True
+
+    def test_no_other_squid_configured_means_no_failover(self, two_squids):
+        two_squids.urls.pop(RouterProxy.MIZZOU_SQUID)
+        proxy_relay._routes["yakimaherald.com"] = RouterProxy.HOME_SQUID
+        assert proxy_relay.fail_over("yakimaherald.com") is False
+
+    def test_a_publisher_never_routed_does_not_fail_over(self, two_squids):
+        assert proxy_relay.fail_over("yakimaherald.com") is False
+
+    def test_the_publishers_open_tunnels_are_closed(self, relay, route):
+        route.route_as("https://www.yakimaherald.com/")
+        old = _tunnel(relay, "www.yakimaherald.com")
+        assert route.switch("yakimaherald.com", "http://u:p@mizzou:3128")
+        old.settimeout(5)
+        assert old.recv(1) == b""
+        old.close()
+
+
+class TestTheBrowserRetriesThroughTheOtherSquid:
+    def _extractor(self, monkeypatch, statuses, failover=True):
+        from src.crawler import ContentExtractor
+
+        extractor = ContentExtractor.__new__(ContentExtractor)
+        reported = []
+        monkeypatch.setattr(
+            "src.crawler.routed_proxy_for", lambda host: RouterProxy.HOME_SQUID
+        )
+        monkeypatch.setattr("src.crawler.fail_over", lambda host: failover)
+        extractor._report_proxy_outcome = lambda *a, **k: reported.append(
+            k.get("success")
+        )
+        return extractor, reported
+
+    def test_a_403_fails_over(self, monkeypatch):
+        extractor, reported = self._extractor(monkeypatch, [403])
+        assert extractor._report_browser_route("https://www.x.com/a", 403) is True
+        assert reported == [False]
+
+    @pytest.mark.parametrize("status", [429, 503])
+    def test_other_refusals_are_reported_but_keep_the_proxy(self, monkeypatch, status):
+        extractor, reported = self._extractor(monkeypatch, [status])
+        assert extractor._report_browser_route("https://www.x.com/a", status) is False
+        assert reported == [False]
+
+    def test_the_page_is_asked_for_again_after_a_failover(self, monkeypatch):
+        from src.crawler import ContentExtractor
+
+        extractor = ContentExtractor.__new__(ContentExtractor)
+        navigated, reported = [], []
+        extractor._navigate_with_human_behavior = (
+            lambda d, u: navigated.append(u) or True
+        )
+        extractor._report_browser_route = lambda u, s: reported.append(s) or False
+        monkeypatch.setattr(
+            "src.crawler.read_navigation_status", lambda d: (200, "https://x.com/a")
+        )
+        got = extractor._navigate_after_failover(object(), "https://x.com/a")
+        assert got == (200, "https://x.com/a")
+        assert navigated == ["https://x.com/a"] and reported == [200]
+
+    def test_the_browser_path_retries_on_failover(self):
+        from pathlib import Path
+
+        body = Path("src/crawler/__init__.py").read_text()
+        block = body.split("if self._report_browser_route(url, nav_status):")[1][:300]
+        assert "self._navigate_after_failover(driver, url)" in block
