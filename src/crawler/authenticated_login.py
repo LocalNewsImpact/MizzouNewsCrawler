@@ -502,31 +502,53 @@ AD_NETWORK_PATTERNS = (
 )
 
 
+#: Set on a driver while its ad networks are blocked.
+_ADS_BLOCKED_ATTR = "_mnc_ad_networks_blocked"
+
+
 def block_ad_traffic(driver, patterns=AD_NETWORK_PATTERNS) -> bool:
     """Block the ad networks on this driver. Returns whether it took effect."""
     try:
         driver.execute_cdp_cmd("Network.enable", {})
         driver.execute_cdp_cmd("Network.setBlockedURLs", {"urls": list(patterns)})
-        return True
     except Exception as exc:
         logger.debug("could not block ad traffic: %s", exc)
         return False
+    try:
+        setattr(driver, _ADS_BLOCKED_ATTR, True)
+    except Exception:
+        pass
+    return True
+
+
+def ad_traffic_is_blocked(driver) -> bool:
+    """Whether `block_ad_traffic` set the block on this driver.
+
+    `is True`, not truthiness: only the flag this module sets counts.
+    """
+    return getattr(driver, _ADS_BLOCKED_ATTR, False) is True
 
 
 @contextmanager
 def ad_traffic_blocked(driver):
-    """Block the ad networks for a login, and lift the block afterwards.
+    """Block the ad networks for a login; lift the block only if this set it.
 
-    Lifted because the driver goes on to extract, and an article page whose ads
-    are refused is a page a publisher's anti-adblock script may wall.
+    A credentialed fetch keeps the block for the whole fetch (see
+    `ContentExtractor._extract_with_selenium`). Lifting it unconditionally when
+    the login finished is what froze the article fetch after it: on a
+    Wenatchee World article, 2026-10-14, with the ads allowed the relay went
+    from 101 to 287 connections in ten idle seconds after window.stop() and a
+    cookie read took 39.3s; with them blocked, 12 connections and 0.2s.
     """
+    already = ad_traffic_is_blocked(driver)
     blocked = block_ad_traffic(driver)
     try:
         yield
     finally:
-        if blocked:
+        if blocked and not already:
             try:
                 driver.execute_cdp_cmd("Network.setBlockedURLs", {"urls": []})
+                setattr(driver, _ADS_BLOCKED_ATTR, False)
             except Exception as exc:
                 logger.debug("could not lift the ad block: %s", exc)
 

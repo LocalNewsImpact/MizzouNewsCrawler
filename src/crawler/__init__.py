@@ -2,6 +2,7 @@
 
 """News crawler module for discovering and fetching articles."""
 
+import functools
 import hashlib
 import json
 import logging
@@ -25,6 +26,7 @@ import requests
 from bs4 import BeautifulSoup, Tag
 from dateutil import parser as dateparser
 
+from src.crawler.leading_trailing import trim_leading_trailing
 from src.pipeline.byline_repair import repair as repair_scraped_byline
 from src.pipeline.title_repair import repair as repair_split_title
 from src.utils.boilerplate import (
@@ -33,6 +35,7 @@ from src.utils.boilerplate import (
     MAX_UTILITY_WORD_RATE,
     MIN_PROSE_DENSITY,
     capitalization_ratio,
+    excise_furniture_lines,
     looks_like_article,
     looks_like_paywall,
     prose_density,
@@ -373,6 +376,107 @@ _GRAY_DATALAYER_RE = re.compile(
     r'dataLayer\.push\s*\(\s*(\{[^}]*"articleTitle"[^}]*\})\s*\)',
     re.IGNORECASE | re.DOTALL,
 )
+
+
+#: The implicit wait every driver is built with (`implicitly_wait(5)`).
+DRIVER_IMPLICIT_WAIT = 5
+
+
+def without_implicit_wait(method):
+    """Run a page-inspection helper with the driver's implicit wait off.
+
+    Drivers are built with a 5s implicit wait, so every `find_elements` that
+    matches nothing blocks for 5s. The detection and modal helpers ask "is this
+    on the page" of ten or more selectors that are normally absent: on
+    myedmondsnews.com, 2026-10-14, one captcha check took 50s (10 selectors x
+    5s) and ran four times on one article, and the modal and paywall checks
+    after it took another four minutes. They test for presence; they never
+    need to wait for anything to appear.
+
+    Methods take ``(self, driver, ...)``. The wait is restored afterwards, even
+    when the helper raises.
+    """
+
+    @functools.wraps(method)
+    def wrapper(self, driver, *args, **kwargs):
+        try:
+            previous = driver.timeouts.implicit_wait
+        except Exception:
+            previous = DRIVER_IMPLICIT_WAIT
+        try:
+            driver.implicitly_wait(0)
+        except Exception:
+            return method(self, driver, *args, **kwargs)
+        try:
+            return method(self, driver, *args, **kwargs)
+        finally:
+            try:
+                driver.implicitly_wait(previous)
+            except Exception:
+                pass
+
+    return wrapper
+
+
+def other_extractor_texts(url: str, html: str, skip: Optional[str]) -> list[str]:
+    """Every other mcmetadata extractor's text for the same HTML.
+
+    The cascade returns the first extractor that clears 200 chars and discards
+    the rest; `leading_trailing` needs them as votes. Run on the HTML already
+    fetched -- parser only, no network. The whole-page dumps (beautifulsoup4,
+    lxml) are left out: they contain every line of the page and so would vote
+    for page furniture too.
+    """
+    if not MCMETADATA_AVAILABLE or not html:
+        return []
+    try:
+        from mcmetadata import content as mc_content
+        from mcmetadata.form_widgets import strip_form_widgets
+    except ImportError:
+        return []
+    voters = {"trafilatura", "readability", "boilerpipe3", "goose3", "newspaper3k"}
+    cleaned = strip_form_widgets(html)
+    texts: list[str] = []
+    for info in mc_content.extractors:
+        method = info.get("method")
+        if method not in voters or method == skip:
+            continue
+        extractor = info["instance"]
+        try:
+            extractor.content = None
+            extractor.extract(url, cleaned, False)
+            text = (extractor.content or {}).get("text") or ""
+        except Exception:
+            continue
+        if isinstance(text, bytes):
+            text = text.decode("utf-8", errors="ignore")
+        if text.strip():
+            texts.append(text.strip())
+    return texts
+
+
+def consent_free_body(text: str) -> tuple[Optional[str], bool]:
+    """(body to store, whether consent furniture was found) for a parsed body.
+
+    strip_furniture DETECTS; its text is not a body. It rejoins with " " --
+    every paragraph break gone -- and its menu-run pass eats agate
+    (`boilerplate.excise_furniture_lines` says why). Storing its text flattened
+    236 of 2,515 WSU bodies, all 30 of Wenatchee World's, measured 2026-10-14:
+    their privacy opt-out notice is consent furniture, so every one took this
+    path.
+
+    The body is the line-level excision, layout byte-exact, whenever that
+    removes the consent text. Only a table buried inside one giant line --
+    kq2's 27,372 chars with no line breaks -- needs the segment-level text.
+    Returns None for the body when nothing but furniture was left.
+    """
+    stripped = strip_furniture(text)
+    if CONSENT not in stripped.kinds:
+        return text, False
+    excised, _kinds = excise_furniture_lines(text)
+    if excised and CONSENT not in strip_furniture(excised).kinds:
+        return excised, True
+    return (stripped.text or None), True
 
 
 def _enable_performance_log(options) -> bool:
@@ -4609,25 +4713,49 @@ class ContentExtractor:
         # AND a story lost the story too. strip_furniture removes the table and
         # returns the rest, so a real article below a banner survives intact.
         if text_content:
-            stripped = strip_furniture(text_content)
-            if CONSENT in stripped.kinds:
-                if stripped.text:
+            body, consent_found = consent_free_body(text_content)
+            if consent_found:
+                if body:
                     logger.warning(
                         "mcmetadata returned a consent-banner table for %s; "
                         "excised it and kept %d chars of article text",
                         url,
-                        len(stripped.text),
+                        len(body),
                     )
-                    text_content = stripped.text
                 else:
                     logger.warning(
                         "mcmetadata returned consent-banner text for %s; discarding "
                         "content so downstream extractors can provide it",
                         url,
                     )
-                    text_content = None
+                text_content = body
 
         article_title = mc_result.get("article_title")
+
+        # Leading/trailing text that is not the story: gift and donation asks,
+        # a repeated headline, media labels. See leading_trailing for the rule
+        # and its measurement; it never touches lines in the middle.
+        trimmed_lines = {"leading": 0, "trailing": 0, "chars": 0}
+        if text_content:
+            other_texts = other_extractor_texts(
+                url, html, mc_result.get("text_extraction_method")
+            )
+            trimmed = trim_leading_trailing(text_content, other_texts, article_title)
+            if trimmed.leading or trimmed.trailing:
+                removed = (*trimmed.leading, *trimmed.trailing)
+                trimmed_lines = {
+                    "leading": len(trimmed.leading),
+                    "trailing": len(trimmed.trailing),
+                    "chars": sum(len(x) for x in removed),
+                }
+                logger.info(
+                    "Removed %d leading and %d trailing lines (%d chars) from %s",
+                    trimmed_lines["leading"],
+                    trimmed_lines["trailing"],
+                    trimmed_lines["chars"],
+                    url,
+                )
+                text_content = trimmed.text
 
         # Use article_author from mcmetadata (now populated from structured data)
         author_value = mc_result.get("article_author")
@@ -4667,6 +4795,7 @@ class ContentExtractor:
             "text_extraction_method": mc_result.get("text_extraction_method"),
             "title_extraction_method": title_method,
             "author_extraction_method": author_method,
+            "leading_trailing_removed": trimmed_lines,
         }
 
         mcmetadata_info = {
@@ -5131,6 +5260,18 @@ class ContentExtractor:
             stealth_method = getattr(self, "_driver_method", "unknown")
 
             logger.debug(f"Using persistent {stealth_method} driver for {url}")
+
+            # A credentialed fetch runs with the ad networks blocked, from the
+            # login through the article. Measured on a Wenatchee World article,
+            # 2026-10-14: with the ads allowed, ten idle seconds after
+            # window.stop() took the relay from 101 to 287 connections and a
+            # cookie read to 39.3s -- past the 30s client timeout, so the
+            # session check after navigation hung and the story was lost.
+            # Blocked: 12 connections, 0.2s. Anonymous fetches are unchanged.
+            if self._requires_login(urlparse(url).netloc):
+                from src.crawler.authenticated_login import block_ad_traffic
+
+                block_ad_traffic(driver)
 
             # For subscriber/paywalled publishers, establish an authenticated
             # session on the driver (once per driver lifetime) before navigating
@@ -6727,6 +6868,7 @@ class ContentExtractor:
         except Exception as e:
             logger.debug(f"Human behavior simulation failed: {e}")
 
+    @without_implicit_wait
     def _try_close_modals(self, driver, url: str) -> bool:
         """Try to close subscription modals and popups.
 
@@ -6816,6 +6958,7 @@ class ContentExtractor:
         )
         return True
 
+    @without_implicit_wait
     def _detect_subscription_wall(self, driver) -> bool:
         """Detect if page contains a subscription/paywall modal.
 
@@ -7202,6 +7345,7 @@ class ContentExtractor:
         self._last_capture_rejection = None
         return False
 
+    @without_implicit_wait
     def _page_has_article_content(self, driver) -> bool:
         """Whether the captured page still carries a story.
 
@@ -7290,6 +7434,7 @@ class ContentExtractor:
         except Exception:
             pass
 
+    @without_implicit_wait
     def _detect_captcha_or_challenge(self, driver) -> bool:
         """Detect if page contains CAPTCHA or other bot challenges.
 
@@ -7410,10 +7555,22 @@ class ContentExtractor:
 
             # 3. Check for specific CAPTCHA keywords
             # Note: Only CAPTCHA-specific terms, not generic 'challenge'/'verify'
+            #
+            # A keyword is the weakest signal here -- a word in a script tag --
+            # so it gets the same test as the soft widgets above: a wall
+            # REPLACES the article. myedmondsnews.com ships a Turnstile/
+            # reCAPTCHA script beside a readable story; this branch called it a
+            # challenge and every article paid four failed "bypass" attempts.
             if any(
                 k in page_source
                 for k in ["recaptcha", "hcaptcha", "perimeterx", "px-captcha"]
             ):
+                if has_article_content:
+                    logger.info(
+                        "CAPTCHA keyword in the page source but the page still "
+                        "carries article content (not blocking)"
+                    )
+                    return False
                 logger.info("Detected CAPTCHA keyword in page")
                 return True
 
