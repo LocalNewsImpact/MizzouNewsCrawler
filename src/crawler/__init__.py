@@ -46,7 +46,7 @@ from src.utils.boilerplate import (
 from src.utils.bot_sensitivity_manager import BotSensitivityManager
 from src.utils.comprehensive_telemetry import ExtractionMetrics
 
-from .browser_errors import interstitial_error
+from .browser_errors import interstitial_error, is_pdf_viewer
 from .browser_status import read_navigation_status
 from .driver_health import (
     DriverUnresponsive,
@@ -3337,6 +3337,8 @@ class ContentExtractor:
         self._latest_raw_html_method = None
         # Set where a credentialed fetch is declined for want of a session.
         self.refused_without_session = False
+        # Set where the browser loaded a PDF instead of a page.
+        self.loaded_a_pdf = False
 
         # Initialize result structure
         result: Dict[str, Any] = {
@@ -5325,6 +5327,10 @@ class ContentExtractor:
 
     def _extract_with_selenium(self, url: str) -> Dict[str, Any]:
         """Extract content using persistent Selenium driver."""
+        # The status THIS navigation got, for the failure counter. Not
+        # `_last_fetch_http_status`, which also carries the HTTP rung's code
+        # into the row and is stale if this navigation never happens.
+        self._last_navigation_status = None
         try:
             # Get the persistent driver (creates one if needed)
             driver = self.get_persistent_driver()
@@ -5380,8 +5386,18 @@ class ContentExtractor:
             # second call returns only what arrived afterwards.
             nav_status, nav_final_url = read_navigation_status(driver)
             self._last_fetch_http_status = nav_status
+            self._last_navigation_status = nav_status
             self._last_navigation_final_url = nav_final_url
             self._report_browser_route(url, nav_status)
+
+            # A PDF IS NOT A PAGE. The link is the publisher's document, but no
+            # parser reads it, and it is not a browser failure either: it is
+            # settled by the extraction loop rather than retried every batch.
+            if is_pdf_viewer(nav_final_url):
+                logger.info("Not a page: %s opened as a PDF", url)
+                self.loaded_a_pdf = True
+                self._leave_page(driver)
+                return {}
             if nav_status is not None:
                 if nav_status >= 400:
                     logger.warning(
@@ -5722,7 +5738,19 @@ class ContentExtractor:
             # first turn, and "Skipping Selenium ... already failed 8 times"
             # kept the host from ever being logged into again across 13 driver
             # rebuilds. The login has its own budget; it does not need this one.
-            if self._bare_host(dom) not in ContentExtractor._auth_failed_domains:
+            #
+            # Nor is a page that loaded and held no story. The counter exists to
+            # stop asking a host that refuses the browser; a page that answered
+            # below 400 was not refused. ptleader.com, 2026-10-15: one PDF link
+            # answered three times, the counter reached 3, and the run skipped
+            # the host -- 35 of its articles -- while every login to it held.
+            loaded = getattr(self, "_last_navigation_status", None)
+            page_answered = isinstance(loaded, int) and loaded < 400
+            refused_login = (
+                self._bare_host(dom) in ContentExtractor._auth_failed_domains
+            )
+            loaded_a_pdf = getattr(self, "loaded_a_pdf", False)
+            if not refused_login and not page_answered and not loaded_a_pdf:
                 self._selenium_failure_counts[dom] = (
                     self._selenium_failure_counts.get(dom, 0) + 1
                 )

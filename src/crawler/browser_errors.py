@@ -57,6 +57,18 @@ _SCAFFOLDING = (
 BROWSER_ERROR_SCHEME = "chrome-error://"
 
 
+#: Chrome's built-in PDF viewer. A navigation that ends here loaded a PDF: the
+#: document is the publisher's, but it is not an HTML story the parsers can
+#: read. ptleader.com/dynamicpage/pdf/222596, 2026-10-14, ended at this URL
+#: three times, and each counted as a browser failure for the host.
+PDF_VIEWER_PREFIX = "chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/"
+
+
+def is_pdf_viewer(url: str | None) -> bool:
+    """Whether the browser is showing a PDF rather than a page."""
+    return isinstance(url, str) and url.startswith(PDF_VIEWER_PREFIX)
+
+
 def interstitial_error(html: str | None, current_url: str | None = None) -> str | None:
     """The browser error code this page reports, or None if it is a page.
 

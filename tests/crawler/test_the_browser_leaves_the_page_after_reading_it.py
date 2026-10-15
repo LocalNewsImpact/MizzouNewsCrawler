@@ -33,5 +33,6 @@ def test_it_runs_after_the_session_check_and_before_the_return():
     session check must see the article's page, not about:blank."""
     source = inspect.getsource(ContentExtractor._extract_with_selenium)
     confirm = source.index("self._confirm_session(driver, url)")
-    leave = source.index("self._leave_page(driver)")
+    # The LAST unload: an earlier one leaves a PDF, which has no session check.
+    leave = source.rindex("self._leave_page(driver)")
     assert confirm < leave < source.index("return result", leave)
