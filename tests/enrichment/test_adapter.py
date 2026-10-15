@@ -26,7 +26,11 @@ def litellm_stub(monkeypatch):
     stub = _types.ModuleType("litellm")
     stub.success_callback = []
     stub.completion = None  # tests assign per-case
+    stub.register_model = lambda entries: None
     monkeypatch.setitem(sys.modules, "litellm", stub)
+    # Same reason as `_WRAPPED` below: a module global that an earlier test
+    # may have set, which made the registration call order-dependent.
+    monkeypatch.setattr(adapter, "_MODELS_REGISTERED", False)
     # `_WRAPPED` is a module global: once any test has installed the wrapper it
     # stays installed, and the next test's fresh stub is never wrapped at all.
     # Individual tests used to reset it, so whether a test saw a labelled call

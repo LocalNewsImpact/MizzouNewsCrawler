@@ -25,7 +25,7 @@ from importlib import import_module
 from pathlib import Path
 from typing import Any, Callable, Iterator
 
-from src.enrichment.cost import call_cost
+from src.enrichment.cost import RATES, call_cost
 from src.enrichment.types import ArticleInput, StepResult
 
 logger = logging.getLogger(__name__)
@@ -99,6 +99,60 @@ _CALLBACK_REGISTERED = False
 #: `user` KEYWORD never reaches the wire; see `_label_calls_with_the_dataset`.
 _DATASET: ContextVar[str | None] = ContextVar("enrichment_dataset", default=None)
 _WRAPPED = False
+
+
+#: The context window of every model this pipeline calls, from OpenRouter's
+#: model API (https://openrouter.ai/api/v1/models, read 2026-10-15).
+#:
+#: REGISTERED WITH LITELLM, NOT LOOKED UP. backfield sizes every prompt from
+#: `litellm.get_model_info`, and litellm builds that table from a JSON file it
+#: DOWNLOADS FROM GITHUB on import. The file carried this model at 163,840
+#: input tokens through at least 2026-10-05 and has since dropped every
+#: `openrouter/deepseek` entry (marked deprecated 2026-09-28 upstream; OpenRouter
+#: still serves the model). With no entry, backfield assumes 8,000 tokens, and
+#: the places prompt -- about 7,300 tokens of instructions before any article --
+#: failed for every article: 192 failures in the first WSU enrichment run of
+#: 2026-10-15, from an image unchanged since the September runs that passed.
+MODEL_CONTEXT: dict[str, dict[str, int]] = {
+    "openrouter/deepseek/deepseek-v3.2": {
+        "max_input_tokens": 163_840,
+        "max_output_tokens": 147_456,
+    },
+}
+_MODELS_REGISTERED = False
+
+
+def _register_model_context() -> None:
+    """Tell litellm the context window of each model in `MODEL_CONTEXT`, once."""
+    global _MODELS_REGISTERED
+    if _MODELS_REGISTERED:
+        return
+    try:
+        import litellm
+    except ImportError:
+        return  # absent in the crawler venv; see `_register_usage_callback`
+    entries: dict[str, dict[str, Any]] = {}
+    for model, window in MODEL_CONTEXT.items():
+        entry: dict[str, Any] = {
+            "litellm_provider": model.split("/", 1)[0],
+            "mode": "chat",
+            "max_tokens": window["max_output_tokens"],
+            **window,
+        }
+        rate = RATES.get(model)
+        if rate is not None:
+            entry["input_cost_per_token"] = float(rate["in"])
+            entry["output_cost_per_token"] = float(rate["out"])
+        entries[model] = entry
+    register = getattr(litellm, "register_model", None)
+    if register is None:
+        logger.warning(
+            "litellm has no register_model; prompt budgets fall back to its "
+            "downloaded model table"
+        )
+        return
+    register(entries)
+    _MODELS_REGISTERED = True
 
 
 def _register_usage_callback() -> None:
@@ -399,6 +453,7 @@ def _run_node(
     articles re-run through the orchestrator by hand.
     """
     _register_usage_callback()
+    _register_model_context()
     last_error: str | None = None
 
     for attempt in range(1, attempts + 1):
