@@ -48,7 +48,12 @@ from src.utils.comprehensive_telemetry import ExtractionMetrics
 
 from .browser_errors import interstitial_error
 from .browser_status import read_navigation_status
-from .driver_health import DriverUnresponsive, driver_unresponsive, kill_driver
+from .driver_health import (
+    DriverUnresponsive,
+    driver_unresponsive,
+    implicit_wait_off,
+    kill_driver,
+)
 from .fetch_plan import plan_fetch
 from .fingerprint_profile import (
     FingerprintProfile,
@@ -378,10 +383,6 @@ _GRAY_DATALAYER_RE = re.compile(
 )
 
 
-#: The implicit wait every driver is built with (`implicitly_wait(5)`).
-DRIVER_IMPLICIT_WAIT = 5
-
-
 def without_implicit_wait(method):
     """Run a page-inspection helper with the driver's implicit wait off.
 
@@ -399,21 +400,8 @@ def without_implicit_wait(method):
 
     @functools.wraps(method)
     def wrapper(self, driver, *args, **kwargs):
-        try:
-            previous = driver.timeouts.implicit_wait
-        except Exception:
-            previous = DRIVER_IMPLICIT_WAIT
-        try:
-            driver.implicitly_wait(0)
-        except Exception:
+        with implicit_wait_off(driver):
             return method(self, driver, *args, **kwargs)
-        try:
-            return method(self, driver, *args, **kwargs)
-        finally:
-            try:
-                driver.implicitly_wait(previous)
-            except Exception:
-                pass
 
     return wrapper
 

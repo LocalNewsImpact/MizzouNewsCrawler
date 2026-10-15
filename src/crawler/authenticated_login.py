@@ -48,7 +48,11 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 
-from src.crawler.driver_health import DriverUnresponsive, driver_unresponsive
+from src.crawler.driver_health import (
+    DriverUnresponsive,
+    driver_unresponsive,
+    implicit_wait_off,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -612,18 +616,23 @@ def _open(driver, url: str, what: str) -> None:
 
 
 def _find_first(driver, selectors):
-    """Return the first visible element matching any of the given selectors."""
-    for sel in [s for s in selectors if s]:
-        try:
-            els = driver.find_elements(By.CSS_SELECTOR, sel)
-        except Exception:
-            continue
-        for el in els:
+    """Return the first visible element matching any of the given selectors.
+
+    A presence check, polled by its callers: run with the implicit wait off,
+    or every candidate that is absent costs 5s (see `implicit_wait_off`).
+    """
+    with implicit_wait_off(driver):
+        for sel in [s for s in selectors if s]:
             try:
-                if el.is_displayed():
-                    return el, sel
+                els = driver.find_elements(By.CSS_SELECTOR, sel)
             except Exception:
                 continue
+            for el in els:
+                try:
+                    if el.is_displayed():
+                        return el, sel
+                except Exception:
+                    continue
     return None, None
 
 
