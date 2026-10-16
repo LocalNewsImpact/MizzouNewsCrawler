@@ -12,9 +12,11 @@ WSU articles that had been deliberately set aside: 24 `not_article`, 7
 `paywall`, 1 `non_english`. Measured against production 2026-09-19, before a
 planned full WSU reclassification.
 
-`non_english` and `text_unavailable` are terminal by decision rather than by
+`non_english` and the no-text statuses are terminal by decision rather than by
 content — a Spanish article waits for a Spanish classifier, and a row with no
 usable body exists only to record that the publication ran the story.
+`not_found`, `fetch_failed`, `pdf_document` and `no_story_text` name why the
+body is missing; `text_unavailable` stays for the rows written before them.
 """
 
 from __future__ import annotations
@@ -32,6 +34,11 @@ def test_the_two_lists_are_now_one_object():
 def test_the_statuses_that_were_missing_are_covered():
     # These four are the gap the divergence left.
     for status in ("paywall", "not_article", "non_english", "text_unavailable"):
+        assert status in NEVER_CLASSIFIED, status
+
+
+def test_a_record_with_no_text_is_never_classified_whatever_the_cause():
+    for status in ("not_found", "fetch_failed", "pdf_document", "no_story_text"):
         assert status in NEVER_CLASSIFIED, status
 
 

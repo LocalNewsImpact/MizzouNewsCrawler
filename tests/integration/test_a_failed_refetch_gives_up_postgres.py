@@ -48,8 +48,9 @@ def test_the_third_failed_try_retires_the_link_and_keeps_the_record():
         )
         conn.execute(
             text(
-                "INSERT INTO candidate_links (id, url, source, source_id, status, discovered_at) "
-                "VALUES (:id, :url, 't', :sid, :st, now())"
+                "INSERT INTO candidate_links "
+                "(id, url, source, source_id, status, error_message, discovered_at) "
+                "VALUES (:id, :url, 't', :sid, :st, 'timeout', now())"
             ),
             {
                 "id": link_id,
@@ -86,7 +87,7 @@ def test_the_third_failed_try_retires_the_link_and_keeps_the_record():
                 {"id": article_id},
             ).one()
         meta = row[4] if isinstance(row[4], dict) else json.loads(row[4])
-        assert row[0] == refetch.TEXT_UNAVAILABLE
+        assert row[0] == refetch.FETCH_FAILED
         assert (row[1], row[2], row[3]) == (
             "Headline",
             "Jane Doe",
@@ -94,6 +95,7 @@ def test_the_third_failed_try_retires_the_link_and_keeps_the_record():
         ), "the record survives"
         assert meta["refetch"]["attempts"] == MAX_ATTEMPTS
         assert meta["refetch"]["outcome"] == ABANDONED
+        assert meta["refetch"]["last_error"] == "timeout", "the cause is kept"
         assert meta["refetch"]["by"] == "t", "sibling keys survive jsonb_set"
         assert (
             row[5] == "extracted"
@@ -159,7 +161,7 @@ def test_a_404_does_not_undo_the_404():
                 ),
                 {"id": article_id},
             ).one()
-        assert row == (refetch.TEXT_UNAVAILABLE, "404")
+        assert row == (refetch.NOT_FOUND, "404")
     finally:
         with engine.begin() as conn:
             conn.execute(

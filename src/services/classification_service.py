@@ -89,6 +89,11 @@ NEVER_CLASSIFIED: frozenset[str] = frozenset(
         "not_article",
         "non_english",
         "text_unavailable",
+        # Why a record has no text (src/pipeline/refetch.py).
+        "not_found",
+        "fetch_failed",
+        "pdf_document",
+        "no_story_text",
     }
 )
 
