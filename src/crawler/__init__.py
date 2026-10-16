@@ -3443,6 +3443,12 @@ class ContentExtractor:
         # here as well as per navigation: an article that never reaches the
         # browser must not read the previous article's status.
         self._last_navigation_status: int | None = None
+        # Likewise the HTTP status, which only a live fetch resets. A replay
+        # fetches nothing, so it read the previous article's: on 2026-10-15, 51
+        # WSU stories re-parsed from good archived pages inherited a 404 or
+        # 403, were judged no article, and were stored as text_unavailable
+        # with their bodies dropped.
+        self._last_fetch_http_status: int | None = None
 
         # Initialize result structure
         result: Dict[str, Any] = {

@@ -229,6 +229,24 @@ class TestAReplayFetchesNothing:
         )
         assert result["metadata"]["authenticated_session"] is None
 
+    @pytest.mark.parametrize("left_over", [404, 403])
+    def test_a_replay_carries_no_status_from_the_fetch_before_it(
+        self, credentialed_selenium_host, left_over
+    ):
+        """It fetched nothing, so it got no status.
+
+        On 2026-10-15, 51 WSU stories re-parsed from good archived pages read
+        the previous article's 404 or 403, were judged no article, and were
+        stored as text_unavailable with their bodies dropped.
+        """
+        extractor, _ = credentialed_selenium_host
+        extractor._last_fetch_http_status = left_over
+        result = extractor.extract_content(
+            "https://www.ptleader.com/stories/a1", html=STORY_HTML, replay=True
+        )
+        assert result["metadata"]["http_status"] is None
+        assert extractor._last_fetch_http_status is None
+
     def test_a_replay_without_the_page_is_refused(self, credentialed_selenium_host):
         extractor, _ = credentialed_selenium_host
         with pytest.raises(ValueError):
