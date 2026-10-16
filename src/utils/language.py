@@ -2,12 +2,14 @@
 
 TWO JOBS, AND THEY NEED DIFFERENT ANSWERS
 -----------------------------------------
-1. A Spanish-language article must not be classified or enriched. CIN is an
+1. A Spanish-language article must not be CIN-classified. CIN is an
    English-trained model and a Spanish body produces a label that means
    nothing: `redlatinastl.com` had two articles sitting at `Political life`
    before somebody set `non_english` on them by hand, and `abc17news.com`
    carries ~1,500 Spanish `CNN en Espanol` wire stories, several already
-   labelled `Civic Life` and `Sports`.
+   labelled `Civic Life` and `Sports`. It IS enriched -- places, people and
+   topics do not need CIN -- and goes on with no CIN label (decided
+   2026-10-16, for the NWPB and Spokane Public Radio stories in WSU).
 
 2. A BILINGUAL article must be analysed on its English half. This is not a
    rare shape: `redlatinastl.com` runs the same story twice on one page, an
@@ -98,22 +100,15 @@ MIN_ENGLISH_CHARS = 400
 ENGLISH = "en"
 SPANISH = "es"
 
-#: The article status a Spanish-language record is filed under. Already in the
-#: production vocabulary -- two `redlatinastl.com` rows carry it -- and
-#: selected by no stage, which is the property being relied on.
-#:
-#: THIS IS TERMINAL. Not a queue, not a hold, and nothing rewinds it: there is
-#: no English text to classify and CIN is English-trained, so the record is
-#: finished until a Spanish-language classifier exists. That is the one event
-#: that reopens it, which is why the verdict is written to
-#: `metadata.language` as well as the status -- the status says "not for this
-#: pipeline", and the metadata is what a Spanish classifier will select on
-#: when there is one. A re-extraction does not change the answer; the page is
-#: in Spanish.
+#: The status a Spanish-language record was filed under until 2026-10-16:
+#: terminal, selected by no stage, so the story was never enriched either.
+#: A Spanish story now goes to enrichment at `labeled` with no CIN label, and
+#: the verdict is on `metadata.language`. Rows still carrying this are read,
+#: never written.
 NON_ENGLISH_STATUS = "non_english"
 
-#: Where the verdict is recorded on the row, and the key a future Spanish
-#: classifier queries to find its corpus.
+#: Where the verdict is recorded on the row: why a story has no CIN label, and
+#: the key a future Spanish classifier queries to find its corpus.
 LANGUAGE_METADATA_KEY = "language"
 
 _PARAGRAPH_SPLIT = re.compile(r"\n\s*\n|\r\n\s*\r\n|\n|\r")

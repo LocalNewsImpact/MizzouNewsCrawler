@@ -450,3 +450,45 @@ def test_select_articles_applies_limit_clause():
     stmt = session_mock.scalars.call_args[0][0]  # type: ignore[union-attr]
     assert getattr(stmt, "_limit_clause", None) is not None
     assert getattr(stmt._limit_clause, "value", None) == 5
+
+
+_SPANISH_BODY = (
+    "El concejo de la ciudad voto el martes para aprobar el presupuesto del "
+    "proximo ano, y la alcaldesa dijo que el plan protegeria los servicios "
+    "que los residentes necesitan.\n\n"
+    "Dos de los lideres mas influyentes viajaron al distrito esta semana y "
+    "dijeron a la multitud que los recortes afectarian mas a las familias que "
+    "menos pueden pagarlos."
+)
+
+
+def _run_one_spanish_story(monkeypatch, *, dry_run: bool):
+    service = _make_service()
+    article = _make_article(text=_SPANISH_BODY, title="Grupos buscan ayuda")
+    batches = iter([[article]])
+    monkeypatch.setattr(
+        service, "_select_articles", lambda *_a, **_k: next(batches, [])
+    )
+    classifier = DummyClassifier([], error=AssertionError("CIN must not run"))
+    stats = service.apply_classification(
+        classifier, label_version="v1", dry_run=dry_run
+    )
+    return service, classifier, stats
+
+
+def test_a_batch_of_only_spanish_stories_is_committed(monkeypatch):
+    """A rollback here lost the move to enrichment, and the run never selected
+    the story again."""
+    service, classifier, stats = _run_one_spanish_story(monkeypatch, dry_run=False)
+    assert classifier.calls == []
+    assert stats.labeled == 0
+    assert service.session.execute.call_count == 2
+    service.session.commit.assert_called_once()
+    service.session.rollback.assert_not_called()
+
+
+def test_a_dry_run_does_not_send_a_spanish_story_on(monkeypatch):
+    service, classifier, _ = _run_one_spanish_story(monkeypatch, dry_run=True)
+    assert classifier.calls == []
+    service.session.execute.assert_not_called()
+    service.session.commit.assert_not_called()

@@ -1,5 +1,8 @@
 """CIN reads the English half of a body, and refuses a Spanish one.
 
+A Spanish story is still enriched: it goes on at `labeled` with no CIN label
+(decided 2026-10-16).
+
 CIN is English-trained, so a Spanish body produces a label that means nothing:
 two `redlatinastl.com` articles sat at `Political life` before somebody set
 `non_english` by hand, and `abc17news.com` carries Spanish `CNN en Espanol`
@@ -102,21 +105,37 @@ class TestOnlyTheEnglishHalfOfABilingualBody:
 
 class TestASpanishBodyIsRefusedAndFiled:
     def test_prepare_text_returns_no_body_for_spanish(self):
-        """Only the headline survives, and a Spanish headline leaves nothing."""
         out = _service()._prepare_text(_Article(text=f"{ES}\n\n{ES_2}"))
         assert out is None
 
-    def test_the_record_is_filed_terminal_with_its_verdict(self):
+    def test_a_spanish_body_is_not_classified_on_its_headline(self):
+        """Six WSU stories from nwpb.org and Spokane Public Radio carried CIN
+        labels on 2026-10-16: the body was refused, the Spanish headline was
+        classified on its own."""
+        article = _Article(
+            text=f"{ES}\n\n{ES_2}", title="Grupos buscan proteger a los inmigrantes"
+        )
+        assert _service()._prepare_text(article) is None
+
+    def test_a_story_with_no_body_is_still_classified_on_its_headline(self):
+        assert _service()._prepare_text(_Article(title=HEAD_EN)) == HEAD_EN
+
+    def test_the_story_goes_to_enrichment_with_no_cin_label(self):
         """Written through the session, as `save_article_classification` is."""
         service = _service()
         body = f"{ES}\n\n{ES_2}"
         found = language.profile(body)
-        service._mark_non_english("article-1", found)
+        service._send_spanish_to_enrichment("article-1", found)
 
-        service.session.execute.assert_called_once()
-        _, params = service.session.execute.call_args[0]
+        move, drop = (c.args for c in service.session.execute.call_args_list)
+        sql, params = str(move[0]), move[1]
         assert params["id"] == "article-1"
-        assert params["status"] == language.NON_ENGLISH_STATUS
+        assert "THEN 'labeled'" in sql, "labeled is what enrichment selects"
+        assert "status IN ('cleaned', 'local')" in sql, "an enriched row stays"
+        assert "primary_label = NULL" in sql
+        assert language.NON_ENGLISH_STATUS not in sql
+        assert "DELETE FROM article_labels" in str(drop[0])
+        assert drop[1] == {"id": "article-1"}
         recorded = json.loads(params["note"])
         assert recorded["primary"] == language.SPANISH
         assert recorded["verdict"] == "spanish"
@@ -127,8 +146,10 @@ class TestASpanishBodyIsRefusedAndFiled:
         """`jsonb_set` on one path, so a sibling metadata key survives: these
         rows carry `wsu_notebook.inputtext`, which is a study measurement."""
         service = _service()
-        service._mark_non_english("article-1", language.profile(f"{ES}\n\n{ES_2}"))
-        stmt, params = service.session.execute.call_args[0]
+        service._send_spanish_to_enrichment(
+            "article-1", language.profile(f"{ES}\n\n{ES_2}")
+        )
+        stmt, params = service.session.execute.call_args_list[0].args
         sql = str(stmt)
         assert params["key"] == "{" + language.LANGUAGE_METADATA_KEY + "}"
         assert "jsonb_set" in sql

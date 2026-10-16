@@ -18,15 +18,25 @@ from src.models import Article, ArticleLabel, CandidateLink
 from src.models.database import save_article_classification
 from src.utils import language
 
-#: Files a Spanish-language record terminally. `jsonb_set` with `create_missing`
-#: adds the key without reading the row first, so a concurrent writer's other
-#: metadata survives.
-_MARK_NON_ENGLISH_SQL = sa_text(
-    "UPDATE articles SET status = :status, "
+#: Sends a Spanish-language story on to enrichment with no CIN label.
+#: `jsonb_set` with `create_missing` adds the key without reading the row
+#: first, so a concurrent writer's other metadata survives. Only a record the
+#: classifier would have moved is moved: an `enriched` story re-run here keeps
+#: its status.
+_SPANISH_TO_ENRICHMENT_SQL = sa_text(
+    "UPDATE articles SET "
+    "status = CASE WHEN status IN ('cleaned', 'local') THEN 'labeled' "
+    "ELSE status END, "
+    "primary_label = NULL, primary_label_confidence = NULL, "
+    "alternate_label = NULL, alternate_label_confidence = NULL, "
     "metadata = jsonb_set(coalesce(metadata::jsonb, '{}'::jsonb), "
     "CAST(:key AS text[]), CAST(:note AS jsonb), true)::json "
     "WHERE id = :id"
 )
+
+#: A CIN label on a Spanish body is the English model's guess at a language
+#: it was not trained on. One left from before the language check is removed.
+_DROP_CIN_LABELS_SQL = sa_text("DELETE FROM article_labels WHERE article_id = :id")
 
 logger = logging.getLogger(__name__)
 
@@ -66,9 +76,9 @@ class ClassificationStats:
 #: re-labelled 32 WSU articles that had been deliberately set aside.
 #:
 #: Two of these are terminal by decision rather than by content:
-#:   `non_english`  -- Spanish-language articles wait for a Spanish
-#:                     classifier; an English model's verdict on them is
-#:                     noise, and the status is the record that we know.
+#:   `non_english`  -- written until 2026-10-16 for a Spanish-language story.
+#:                     A Spanish story now goes to enrichment with no CIN
+#:                     label; rows still carrying this stay out of CIN.
 #:   `text_unavailable` -- the body is unusable and the row exists to record
 #:                     that the publication ran the story. There is nothing
 #:                     to classify.
@@ -254,38 +264,46 @@ class ArticleClassificationService:
         bilingual article is classified on its English paragraphs rather than
         on both languages at once -- `redlatinastl.com` runs every story twice
         on one page, and those bodies measure 46-57% Spanish by paragraph. A
-        Spanish-language body returns None and the caller files the record as
-        non-English instead of classifying it.
+        Spanish-language body returns None, HEADLINE INCLUDED, and the caller
+        sends the story on to enrichment with no CIN label. Classifying the
+        headline alone is how six WSU stories from `nwpb.org` and Spokane
+        Public Radio carried CIN labels on 2026-10-16: their titles were
+        Spanish too.
         """
         parts: list[str] = []
+
+        stored = self._body_field(article)
+        body = language.analysis_text(stored)
+        if stored and body is None:
+            return None
 
         title = getattr(article, "title", None)
         if isinstance(title, str) and title.strip():
             parts.append(title.strip())
 
-        body = language.analysis_text(self._body_field(article))
         if isinstance(body, str) and body.strip():
             parts.append(body.strip())
 
         return "\n\n".join(parts) if parts else None
 
-    def _mark_non_english(
+    def _send_spanish_to_enrichment(
         self, article_id: str, found: language.LanguageProfile
     ) -> None:
-        """File a Spanish-language record so it stops being offered for work.
+        """Pass a Spanish-language story to enrichment with no CIN label.
 
-        Without this the article keeps its eligible status, is re-selected on
-        every run and skipped again forever: `attempted_article_ids` only
+        CIN is English-trained, so a Spanish story is not classified; it is
+        still a story, and places, people and topics do not need CIN. The
+        record moves to `labeled` -- what enrichment selects -- with the
+        label columns empty and any `article_labels` row removed. The verdict
+        goes to `metadata.language`: it is why the story has no CIN label,
+        and how a Spanish classifier will find its corpus.
+
+        Without the move the article keeps its eligible status, is re-selected
+        on every run and skipped again forever: `attempted_article_ids` only
         suppresses a repeat inside ONE run.
 
-        The status is TERMINAL -- see `language.NON_ENGLISH_STATUS`. Nothing
-        here rewinds or retries it, because a second fetch returns the same
-        Spanish page. The verdict goes to `metadata.language` as well, so the
-        Spanish classifier this is waiting on can find its corpus by query.
-
-        Written through the session rather than by assigning to the model, as
-        `save_article_classification` does, and with `jsonb_set` so a sibling
-        metadata key is not clobbered by a read-modify-write.
+        Written through the session, with `jsonb_set` so a sibling metadata
+        key is not clobbered by a read-modify-write.
         """
         note = json.dumps(
             {
@@ -298,19 +316,19 @@ class ArticleClassificationService:
             }
         )
         self.session.execute(
-            _MARK_NON_ENGLISH_SQL,
+            _SPANISH_TO_ENRICHMENT_SQL,
             {
                 "id": article_id,
-                "status": language.NON_ENGLISH_STATUS,
                 "key": "{" + language.LANGUAGE_METADATA_KEY + "}",
                 "note": note,
             },
         )
+        self.session.execute(_DROP_CIN_LABELS_SQL, {"id": article_id})
         self.logger.info(
-            "Article %s is Spanish (%.0f%% of measured text); filed as %s",
+            "Article %s is Spanish (%.0f%% of measured text); "
+            "sent to enrichment with no CIN label",
             article_id,
             found.spanish_share * 100,
-            language.NON_ENGLISH_STATUS,
         )
 
     def apply_classification(
@@ -424,6 +442,7 @@ class ArticleClassificationService:
             texts: list[str] = []
             article_refs: list[Article] = []
             batch_article_ids: set[str] = set()
+            spanish_sent_on = 0
 
             for article in articles:
                 article_id_value = getattr(article, "id", None)
@@ -436,7 +455,17 @@ class ArticleClassificationService:
                     found = language.profile(self._body_field(article))
                     article_id_value = getattr(article, "id", None)
                     if found.verdict == "spanish" and article_id_value:
-                        self._mark_non_english(str(article_id_value), found)
+                        if dry_run:
+                            self.logger.info(
+                                "[dry-run] %s is Spanish; would go to "
+                                "enrichment with no CIN label",
+                                article_id_value,
+                            )
+                        else:
+                            self._send_spanish_to_enrichment(
+                                str(article_id_value), found
+                            )
+                            spanish_sent_on += 1
                     stats.skipped += 1
                     self.logger.debug(
                         "Skipping article %s due to empty content",
@@ -450,8 +479,13 @@ class ArticleClassificationService:
                 attempted_article_ids.update(batch_article_ids)
 
             if not texts:
-                # Release any row locks before continuing
-                self.session.rollback()
+                # Release any row locks before continuing. A batch with
+                # nothing to classify can still have sent Spanish stories on;
+                # a rollback lost them, and the run never selected them again.
+                if spanish_sent_on:
+                    self.session.commit()
+                else:
+                    self.session.rollback()
                 continue
 
             try:

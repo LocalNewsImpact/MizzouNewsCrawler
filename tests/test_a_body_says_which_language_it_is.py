@@ -172,11 +172,9 @@ class TestSharesAreOverCharactersNotParagraphs:
 
 
 class TestSpanishIsTerminal:
-    """`non_english` is an end state, not a queue.
-
-    There is no English text to classify and CIN is English-trained, so a
-    Spanish record is finished until a Spanish-language classifier exists. A
-    re-extraction cannot change the answer -- the page is in Spanish.
+    """`non_english` is an end state, not a queue. Nothing writes it since
+    2026-10-16 -- a Spanish story goes to enrichment with no CIN label -- and
+    the rows still carrying it stay out of every stage.
     """
 
     def test_the_status_is_selected_by_no_analysis_stage(self):
