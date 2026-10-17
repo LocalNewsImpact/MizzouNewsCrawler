@@ -85,7 +85,7 @@ ENRICHMENT_PROVIDERS = tuple(
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 GATE_PROMPT_VERSION = "content_gate-v1"
 GATE_WINDOW_CHARS = 800
-FOCUS_PROMPT_VERSION = "focus-v2"
+FOCUS_PROMPT_VERSION = "focus-v3"
 FOCUS_MAX_CHARS = 20000
 DEFAULT_TIMEOUT_S = 300
 
@@ -421,6 +421,44 @@ def _article_text(article: ArticleInput) -> str:
     return f"Headline: {article.title}\n\n{article.content}"
 
 
+def publication_place(article: ArticleInput) -> str | None:
+    """ "Seymour, Missouri": where the publication is, for the model to tell
+    apart places that share a name. None when neither is known."""
+    from src.enrichment.fips import STATE_NAME_TO_USPS
+
+    state = (article.publication_state or "").strip()
+    if len(state) == 2:
+        names = {v: k for k, v in STATE_NAME_TO_USPS.items()}
+        state = names.get(state.upper(), state).title()
+    city = (article.publication_city or "").strip()
+    place = ", ".join(part for part in (city, state) if part)
+    return place or None
+
+
+#: Appended after the article for the places step. A Seymour, Missouri
+#: weekly's "Seymour" came back as Seymour, Tennessee, Indiana and Wisconsin,
+#: and a Marshfield, Missouri weekly's "Marshfield" as Marshfield, Wisconsin:
+#: the model was given the headline and body only, so a bare town name was a
+#: guess among every town of that name. AFTER the article, not before it, so
+#: the node's dateline anchor -- the article's first line -- is untouched;
+#: in "City, State" form, so the node's own state inference reads it. It is
+#: not article text: grounding reads `article.content`, so a place named only
+#: here is never recorded as the story's geography.
+PLACES_CONTEXT = (
+    "\n\n[Publication context, not part of the article: published in {place}. "
+    "Use this only to decide which of several places with the same name the "
+    "article means: a place it names without a state is the one in or near "
+    "{place} unless the article says otherwise. Do not report {place} "
+    "because of this line.]"
+)
+
+
+def _places_text(article: ArticleInput) -> str:
+    place = publication_place(article)
+    text = _article_text(article)
+    return text + PLACES_CONTEXT.format(place=place) if place else text
+
+
 def _run_node(
     step: str,
     node: str,
@@ -538,7 +576,7 @@ def run_places(article: ArticleInput, model: str) -> StepResult:
         "places",
         "place_extract",
         {"model": model},
-        {"text": _article_text(article)},
+        {"text": _places_text(article)},
         model,
     )
 
@@ -641,7 +679,12 @@ def run_focus(article: ArticleInput, model: str) -> StepResult:
         text = (
             f"Headline: {article.title}\n\n{(article.content or '')[:FOCUS_MAX_CHARS]}"
         )
-        prompt = (PROMPTS_DIR / "focus.md").read_text().replace("{text}", text)
+        prompt = (
+            (PROMPTS_DIR / "focus.md")
+            .read_text()
+            .replace("{publication}", publication_place(article) or "not known")
+            .replace("{text}", text)
+        )
         response = litellm.completion(
             model=model,
             messages=[{"role": "user", "content": prompt}],
