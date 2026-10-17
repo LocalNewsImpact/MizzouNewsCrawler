@@ -86,6 +86,12 @@ PROMPTS_DIR = Path(__file__).parent / "prompts"
 GATE_PROMPT_VERSION = "content_gate-v1"
 GATE_WINDOW_CHARS = 800
 FOCUS_PROMPT_VERSION = "focus-v3"
+#: The scope prompt is the bundled `geographic_scope` preset plus two rules,
+#: passed to the node as its custom prompt (prompts/geographic_scope.md):
+#: a local team at a state event is local, and a statewide story is
+#: statewide in the state it is about. 1,810 Missouri stories in March 2026
+#: were `statewide`; in a sample of 25, 7 were local teams at state events.
+SCOPE_PROMPT_VERSION = "geographic_scope-v2"
 FOCUS_MAX_CHARS = 20000
 DEFAULT_TIMEOUT_S = 300
 
@@ -548,6 +554,7 @@ def run_scope(article: ArticleInput, model: str) -> StepResult:
             "prompt_preset": "geographic_scope",
             "meta_type": "geographic_scope",
             "llmTimeout": DEFAULT_TIMEOUT_S,
+            "prompt": (PROMPTS_DIR / "geographic_scope.md").read_text(),
         },
         {"text": _article_text(article)},
         model,

@@ -904,6 +904,34 @@ _INSTITUTION_CITIES = text("""
 """)
 
 
+def story_state(
+    places_payload: dict | None, publication_state: str | None
+) -> str | None:
+    """The state a statewide story is about: the state the most of its places
+    are in. A Kansas City station's story on a Kansas bill names Topeka and
+    Kansas; recording the publication's state filed it under Missouri. The
+    publication's state is used only on a tie or when no place carries one."""
+    from collections import Counter
+
+    from src.enrichment.fips import _usps
+
+    counts: Counter[str] = Counter()
+    for location in (places_payload or {}).get("locations") or []:
+        components = (location.get("location") or {}).get("components") or {}
+        state = components.get("state")
+        if isinstance(state, dict):
+            state = state.get("abbr") or state.get("name")
+        usps = _usps(state)
+        if usps and state_geoid(usps) is not None:
+            counts[usps] += 1
+    home = _usps(publication_state)
+    if not counts:
+        return home or publication_state
+    top = max(counts.values())
+    leaders = [s for s, n in counts.items() if n == top]
+    return home if home in leaders else leaders[0]
+
+
 def institution_places(session: Session, article_id: str) -> list[str]:
     """Cities of the institutions this article names."""
     return [row[0] for row in session.execute(_INSTITUTION_CITIES, {"id": article_id})]
@@ -1047,8 +1075,9 @@ def persist_outcome(
     geo_skip_reason = None
     if geoid is None:
         category = scope_category
-        if category == "statewide" and article.publication_state:
-            geoid = state_geoid(article.publication_state)
+        if category == "statewide":
+            state = story_state(places_payload, article.publication_state)
+            geoid = state_geoid(state) if state else None
         elif (
             category in ("city_municipality", "neighborhood_community")
             and article.publication_city
