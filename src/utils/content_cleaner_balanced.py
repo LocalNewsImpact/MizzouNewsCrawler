@@ -14,6 +14,7 @@ from src.models.database import DatabaseManager, safe_session_execute
 from src.utils.boilerplate import SUBSCRIPTION_MARKERS as bp_SUBSCRIPTION_MARKERS
 from src.utils.boilerplate import is_boilerplate_segment as bp_is_boilerplate_segment
 from src.utils.boilerplate import segments as bp_segments
+from src.utils.boilerplate import strip_premium_notice
 
 from .byline_cleaner import BylineCleaner
 from .content_cleaning_telemetry import ContentCleaningTelemetry
@@ -1596,6 +1597,10 @@ class BalancedBoundaryContentCleaner:
                     was_removed=True,
                     removal_reason="High-confidence social share header",
                 )
+
+        # The TownNews premium-content notice, where a story follows it
+        # (boilerplate.strip_premium_notice).
+        text = strip_premium_notice(text) or text
 
         # Finalize telemetry and return
         if self.enable_telemetry:

@@ -29,6 +29,7 @@ from src.enrichment.profiles import Profile, parse_profile
 from src.enrichment.reground import regrounded
 from src.enrichment.resolve import norm, resolve_point
 from src.enrichment.types import ArticleInput, EnrichmentOutcome
+from src.utils.boilerplate import strip_premium_notice
 
 TERMINAL_STATUSES = ("enriched", "enrichment_skipped", "out_of_scope")
 EXPORTABLE_STATUSES = ("enriched", "enrichment_skipped")
@@ -176,7 +177,7 @@ def _rows_to_articles(rows) -> list[ArticleInput]:
         ArticleInput(
             id=r.id,
             title=r.title or "",
-            content=r.text or "",
+            content=strip_premium_notice(r.text) or "",
             dataset_slug=r.dataset_slug,
             publication_city=r.publication_city,
             publication_state=getattr(r, "publication_state", None),
@@ -310,7 +311,7 @@ def select_by_ids(session: Session, ids: list[str], max_attempts: int) -> ListRe
                 ArticleInput(
                     row.id,
                     row.title or "",
-                    row.text or "",
+                    strip_premium_notice(row.text) or "",
                     row.dataset_slug,
                     row.publication_city,
                     getattr(row, "publication_state", None),
