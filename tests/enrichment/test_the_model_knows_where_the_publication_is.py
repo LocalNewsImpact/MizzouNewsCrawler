@@ -64,7 +64,7 @@ class TestTheFocusStepIsGivenIt:
         text = (adapter.PROMPTS_DIR / "focus.md").read_text()
         assert "{publication}" in text
         assert "Buffalo Bills" in text and "Washington Capitals" in text
-        assert adapter.FOCUS_PROMPT_VERSION == "focus-v3"
+        assert adapter.FOCUS_PROMPT_VERSION == "focus-v4"
 
 
 class TestANameHeadingAFeaturesNameIsNotTheTown:

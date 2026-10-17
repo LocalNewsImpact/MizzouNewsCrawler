@@ -59,3 +59,13 @@ class TestTheScopePrompt:
 
         adapter.run_scope(ArticleInput("a", "t", "b", "ds", "Doniphan", "MO"), "m")
         assert "A state event is the venue" in seen["prompt"]
+
+
+class TestAGameIsCentredOnItsTeam:
+    def test_the_focus_prompt_says_so(self):
+        """ "Blues in 5-4 loss to Sharks ... in San Jose" was filed under San
+        Jose. The story is about St. Louis's team."""
+        text = (adapter.PROMPTS_DIR / "focus.md").read_text()
+        assert "HOME of the team" in text
+        assert "San Jose" in text
+        assert adapter.FOCUS_PROMPT_VERSION == "focus-v4"

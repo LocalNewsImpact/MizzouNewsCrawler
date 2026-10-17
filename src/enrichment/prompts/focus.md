@@ -37,6 +37,12 @@ Then, from the places you have justified: name the CENTRAL geography — the one
 place where the events, people or institutions at the center of the story are
 located — and list the rest as mentions.
 
+A game, a meet, a match or a competition is centred on the HOME of the team,
+school or athlete the story is about -- not on the venue. "The Blues lost 5-4
+to the Sharks in San Jose" is a St. Louis story; "Doniphan girls cruise in
+sectional rout of Potosi" is a Doniphan story wherever the sectional was
+played. Report the venue as a mention.
+
 Where the story is centred on a county or a region rather than a single town,
 give the county and leave the city empty. Do not reach for the county seat or
 the largest city to fill the gap: a story about the Jackson County Detention

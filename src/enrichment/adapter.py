@@ -85,7 +85,7 @@ ENRICHMENT_PROVIDERS = tuple(
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 GATE_PROMPT_VERSION = "content_gate-v1"
 GATE_WINDOW_CHARS = 800
-FOCUS_PROMPT_VERSION = "focus-v3"
+FOCUS_PROMPT_VERSION = "focus-v4"
 #: The scope prompt is the bundled `geographic_scope` preset plus two rules,
 #: passed to the node as its custom prompt (prompts/geographic_scope.md):
 #: a local team at a state event is local, and a statewide story is
