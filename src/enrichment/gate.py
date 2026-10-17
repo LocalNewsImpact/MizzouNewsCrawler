@@ -105,6 +105,36 @@ DECISIVE_WALLS: tuple[str, ...] = (
 )
 
 
+#: A wall after a long story is a partial story, and the model reads partial
+#: text: the geography in what came before the wall is real. The Unterrified
+#: Democrat (Osage County's only outlet) prints 6,500 and 15,700 characters of
+#: story before "This item is available in full to subscribers"; skipping
+#: those discarded their places. Measured on UNIQUE sentences, so the shape the
+#: wall rule was built for -- a teaser repeated three times with furniture
+#: around it -- still reads as the stub it is.
+LONG_PARTIAL_STORY_CHARS = 1500
+
+_SENTENCE = re.compile(r"(?<=[.!?])\s+")
+
+
+def unique_story_chars(body: str | None) -> int:
+    """Characters of story in `body`, each distinct sentence counted once."""
+    seen: set[str] = set()
+    total = 0
+    for sentence in _SENTENCE.split(story_text(body or "")):
+        key = " ".join(sentence.lower().split())
+        if len(key) < 2 or key in seen:
+            continue
+        seen.add(key)
+        total += len(key)
+    return total
+
+
+def long_partial_story(body: str | None) -> bool:
+    """Enough story came with the wall to enrich what is there."""
+    return unique_story_chars(body) >= LONG_PARTIAL_STORY_CHARS
+
+
 def decisive_wall(text: str | None) -> str | None:
     """The conclusive wall phrase this body states, or None."""
     lowered = flatten(text or "")
@@ -120,8 +150,9 @@ def paywalled_stub(text: str | None) -> str | None:
     body = text or ""
     stated = decisive_wall(body)
     if stated is not None:
-        # The body says the content is withheld. There is nothing to measure.
-        return stated
+        # The body says the rest is withheld. Only a stub is skipped: a long
+        # partial story is enriched from the part that is there.
+        return None if long_partial_story(body) else stated
     wall = looks_like_paywall(body)
     if wall is None:
         return None

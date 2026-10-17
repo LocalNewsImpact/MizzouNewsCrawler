@@ -285,6 +285,37 @@ def strip_boilerplate(body: str) -> str:
     return " ".join(kept).strip()
 
 
+#: TownNews prints this inline, mid-body, on stories it serves whole once
+#: decoded -- 1,924 Missouri bodies in March 2026 still carried it. Read as a
+#: paywall, it had the enrichment gate skip complete stories ("Story cut off by
+#: premium content prompt" on a 3,900-character Joplin Globe story that ends on
+#: a full paragraph). It is removed where real story text follows it; where
+#: nothing does, it is left, because then it may be the wall.
+_PREMIUM_NOTICE = re.compile(
+    r"(?:\bx\s+)?javascript is required for you to be able to read premium content\.?"
+    r"(?:\s*please enable it in your browser settings\.?)?",
+    re.IGNORECASE,
+)
+PREMIUM_NOTICE_FOLLOWING_CHARS = 200
+
+
+def strip_premium_notice(text: str | None) -> str | None:
+    """Remove the TownNews premium-content notice where a story follows it."""
+    if not text or "premium content" not in text.lower():
+        return text
+    out, last = [], 0
+    for match in _PREMIUM_NOTICE.finditer(text):
+        after = text[match.end() :]
+        if len("".join(after.split())) < PREMIUM_NOTICE_FOLLOWING_CHARS:
+            continue
+        out.append(text[last : match.start()])
+        last = match.end()
+    if not out:
+        return text
+    out.append(text[last:])
+    return re.sub(r"[ \t]{2,}", " ", "".join(out)).strip()
+
+
 def story_text(body: str) -> str:
     """The segments of a body that read as reporting, by THE detector.
 

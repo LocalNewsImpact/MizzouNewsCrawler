@@ -45,7 +45,8 @@ class TestTheScopePrompt:
         assert "{text}" in text
         assert "A state event is the venue, not the impact" in text
         assert "Statewide means statewide in the state the story is about" in text
-        assert adapter.SCOPE_PROMPT_VERSION == "geographic_scope-v2"
+        assert adapter.SCOPE_PROMPT_VERSION == "geographic_scope-v3"
+        assert "A name with the state in it is still in one place" in text
 
     def test_it_is_passed_to_the_node(self, monkeypatch):
         seen = {}
@@ -59,6 +60,7 @@ class TestTheScopePrompt:
 
         adapter.run_scope(ArticleInput("a", "t", "b", "ds", "Doniphan", "MO"), "m")
         assert "A state event is the venue" in seen["prompt"]
+        assert "The publication is in Doniphan, Missouri." in seen["prompt"]
 
 
 class TestAGameIsCentredOnItsTeam:

@@ -23,6 +23,7 @@ from src.enrichment.gate import (
     HEURISTIC_REJECT,
     NOT_NEWS_SKIP_REASON,
     boilerplate_score,
+    long_partial_story,
     paywalled_stub,
 )
 from src.enrichment.profiles import Profile
@@ -170,6 +171,11 @@ def enrich_article(
         if not gate.ok or gate.payload is None:
             return transient_failure()
         verdict = gate.payload["verdict"]
+        # The paid gate's "paywall" means the story is cut off. A long partial
+        # story is still enriched from the part that is there -- the same rule
+        # as the free pre-check, so the two cannot disagree on one body.
+        if verdict == "paywall" and long_partial_story(article.content):
+            verdict = "news"
         if (
             verdict in _GATE_VERDICT_STATUS
             and _GATE_VERDICT_SKIP_REASON.get(verdict) not in answered

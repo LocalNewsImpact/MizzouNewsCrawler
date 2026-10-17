@@ -48,6 +48,21 @@ Choose **one** scope — the single **dominant** level of impact.
   about teams from several counties). It is `statewide` only when the story is
   about the event or the state body itself -- the bracket, the association's
   rules, results across the whole state.
+- **A name with the state in it is still in one place.** The University of
+  Missouri and its teams (Mizzou, the Tigers) are in Columbia; Missouri State
+  University is in Springfield; the Missouri State Fair is in Sedalia; a state
+  park, prison or hospital is in its town. A story about the team, the campus,
+  the fair or the facility is about that town -- `city_municipality` -- not
+  `statewide`. "Mizzou forward will return for fourth season" and "Tiger
+  baseball drops game to Lindenwood" are Columbia stories; "Country star to
+  play the Missouri State Fair" is a Sedalia story.
+- **A state official acting on named local places is about those places.**
+  "Attorney general accuses 13 Kansas City hemp shops" is a Kansas City story;
+  "MoDOT to close Route 5 bridge" is about the communities on Route 5. It is
+  `statewide` only when the action applies across the state: a law, a rule, a
+  statewide program, a budget, an election for statewide office.
+- **The publication is in {publication}.** A state event or institution in
+  the publication's own community is local news for it.
 - **Statewide means statewide in the state the story is about.** A Kansas bill,
   a Kansas agency or a Kansas lawsuit reported by a Missouri outlet is
   `statewide` (for Kansas), not `regional` and not `elsewhere_to_local`, unless
@@ -107,6 +122,17 @@ Choose **one** scope — the single **dominant** level of impact.
   "category": "city_municipality",
   "confidence": 0.9,
   "rationale": "A state playoff game is the venue; the story is about the Doniphan team and its community."
+}
+```
+
+#### Example 4c — A state-named institution
+**Headline:** "Mizzou forward Trent Pierce will return for fourth season"
+
+```json
+{
+  "category": "city_municipality",
+  "confidence": 0.9,
+  "rationale": "Mizzou's teams are in Columbia; the story is about Columbia's team, not the state."
 }
 ```
 
