@@ -29,8 +29,9 @@ def test_the_repair_does_not_touch_status():
     written = str(repair.REPAIR_SQL)
     assert "status" not in written, "the repair rewrites a verdict"
     assert "wire" not in written
-    for column in ("raw", "text", "text_hash", "text_excerpt"):
+    for column in ("text", "text_hash", "text_excerpt"):
         assert column in written
+    assert "raw" not in written, "the capture is never processed in place"
 
 
 def test_it_selects_on_the_body_not_the_status():
@@ -38,7 +39,7 @@ def test_it_selects_on_the_body_not_the_status():
     135, out_of_scope 65 and so on -- so selecting by status would find
     some of them and no reliable subset."""
     found = str(repair.FIND_SQL)
-    assert "raw LIKE" in found
+    assert "text LIKE" in found
     assert "status" not in found
 
 
@@ -51,7 +52,7 @@ def test_a_body_that_will_not_decode_is_left_alone():
     body = Path("src/cli/commands/rot47_body_repair.py").read_text()
     guard = body[body.index("if not decoded or") : body.index("unchanged += 1")]
     assert "CIPHERTEXT_MARKER in decoded" in guard
-    assert "decoded == content" in guard
+    assert "decoded == body" in guard
 
 
 def test_the_decoder_reads_what_the_page_served():

@@ -61,7 +61,6 @@ STATEMENTS = [
         ROT47_REPAIR_SQL,
         {
             "id": "no-such-article",
-            "raw": "decoded",
             "text": "decoded",
             "text_hash": "abc",
             "excerpt": "decoded",

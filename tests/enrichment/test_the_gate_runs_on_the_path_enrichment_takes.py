@@ -9,8 +9,10 @@ dataset and every unit test green.
 
 Two things were true at once that no test could see:
 
-- The repository feeds `a.raw`. Every measurement that day was made
+- The repository fed `a.raw`. Every measurement that day was made
   on `COALESCE(a.text, a.raw)`, which differs on ~4.5% of articles.
+  (Since 2026-10-17 only the free pre-check reads `a.raw`; the model
+  reads `a.text`.)
 - A stated wall was subject to a length test that the capture could
   inflate: the teaser repeated, the headline again, "| Log in".
 
@@ -75,23 +77,24 @@ def article(body):
 
 
 class TestTheGateScoresTheColumnProductionReads:
-    def test_the_repository_feeds_raw_not_text(self):
+    def test_the_gate_reads_raw_and_the_model_reads_text(self):
         """`_rows_to_articles` is the only mapping from a row to what the
-        gate sees. If it ever switched columns, every threshold measured
-        against production would be measured against the wrong thing --
-        which is exactly what happened to the measurements, if not the
-        code, on 2026-09-13."""
+        gate and the model see. The free paywall pre-check reads the capture
+        (`raw`): every threshold it uses was measured against that column,
+        on 2026-09-13, and cleaning removes the furniture it looks for. The
+        model reads the processed body (`text`) -- the story, decoded and
+        cleaned, not the capture."""
         row = SimpleNamespace(
             id="a1",
             title="t",
             raw=WALLED_WITH_REPEATED_TEASER,
-            text=REAL_STORY,  # the OTHER column: a real story
+            text=REAL_STORY,  # the processed body
             dataset_slug="ds",
             publication_city="Columbia",
         )
         [got] = _rows_to_articles([row])
-        assert got.content == WALLED_WITH_REPEATED_TEASER
-        assert got.content != REAL_STORY
+        assert got.capture == WALLED_WITH_REPEATED_TEASER
+        assert got.content == REAL_STORY
 
     def test_a_row_reaches_the_orchestrator_through_the_real_mapping(self):
         """The row as production holds it, through the real mapping and the

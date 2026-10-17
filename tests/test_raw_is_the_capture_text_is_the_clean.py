@@ -69,16 +69,19 @@ class TestNothingDownstreamWritesTheCapture:
         assert "raw" not in str(extraction.ARTICLE_UPDATE_SQL)
 
 
-class TestTheRepairReadsAndRewritesTheCapture:
-    """ROT47 ciphertext is a property of the capture; decoding it is the one
-    legitimate rewrite of `raw`, and it says so by name."""
+class TestTheRepairDecodesTheProcessedBody:
+    """`raw` is unprocessed; decoding is processing, so it is written to
+    `text` and never to `raw`. The first version read and rewrote `raw`, and
+    March 2026 was found inverted: ciphertext in `text`, a decoded `raw`."""
 
-    def test_it_finds_ciphertext_in_raw(self):
-        assert "a.raw LIKE '%k^Am%'" in str(rot47_body_repair.FIND_SQL)
+    def test_it_finds_ciphertext_in_text(self):
+        assert "a.text LIKE '%k^Am%'" in str(rot47_body_repair.FIND_SQL)
+        assert "a.raw" not in str(rot47_body_repair.FIND_SQL)
 
-    def test_it_writes_the_decoded_capture_to_raw(self):
+    def test_it_never_writes_the_capture(self):
         sql = str(rot47_body_repair.REPAIR_SQL)
-        assert "SET raw = :raw" in sql
+        assert "SET text = :text" in sql
+        assert "raw" not in sql
         assert "content" not in sql
 
 
@@ -86,18 +89,19 @@ class TestEveryReaderNamesTheColumnItMeans:
     def test_cin_reads_the_clean_body_first_and_the_capture_last(self):
         assert ArticleClassificationService._BODY_FIELD_PREFERENCE == ("text", "raw")
 
-    def test_enrichment_still_reads_the_capture_by_its_real_name(self):
-        """Behaviour unchanged on purpose: the paywall thresholds were measured
-        against this column, and moving enrichment to `text` re-measures
-        them. That is its own change. Here the column is only named honestly."""
+    def test_enrichment_reads_the_processed_body(self):
+        """Places are found in `text`, the processed body. The capture is
+        still selected, for the free paywall pre-check alone: its
+        thresholds were measured against `raw`."""
         for sql in (repository._CANDIDATE_SQL, repository._REPROCESS_SQL):
             body = str(sql)
-            assert "a.raw" in body
-            assert "coalesce(a.raw, '') <> ''" in body
+            assert "a.text, a.raw" in body
+            assert "coalesce(a.text, '') <> ''" in body
+            assert "coalesce(a.raw, '')" not in body
             assert "content" not in body
 
-    def test_restore_points_read_the_capture_then_the_clean(self):
-        assert "COALESCE(a.raw, a.text, '')" in str(restore_points._CANDIDATES)
+    def test_restore_points_read_the_clean_then_the_capture(self):
+        assert "COALESCE(a.text, a.raw, '')" in str(restore_points._CANDIDATES)
 
 
 class TestTheMigrationSaysWhatItMeasures:

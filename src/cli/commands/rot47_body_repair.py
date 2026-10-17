@@ -23,6 +23,17 @@ This repairs a body and touches nothing else. The status stays whatever
 it was, because whether an article is wire or weather or local is not a
 question about its encoding, and answering it again here would silently
 re-litigate 5,377 verdicts a person may already have reviewed.
+
+IT REPAIRS `text`, AND NEVER WRITES `raw`
+-----------------------------------------
+`raw` is the unprocessed capture; `text` is the processed body that every
+reader of the story uses. Decoding is processing, so it belongs in `text`.
+
+The first version found rows by ciphertext in `raw` and wrote both columns.
+On production (2026-10-17) March 2026 was inverted: 970 articles held
+ciphertext in `text`, and 955 of them a decoded `raw` -- rows a `raw`
+selector cannot find. It now finds rows by `text`, decodes `text` from its
+own value, and leaves `raw` exactly as it is.
 """
 
 import argparse
@@ -37,9 +48,9 @@ logger = logging.getLogger(__name__)
 CIPHERTEXT_MARKER = "k^Am"
 
 FIND_SQL = text("""
-    SELECT a.id, a.raw, a.text
+    SELECT a.id, a.text
       FROM articles a
-     WHERE a.raw LIKE '%k^Am%'
+     WHERE a.text LIKE '%k^Am%'
        AND (CAST(:since AS date) IS NULL OR a.publish_date >= CAST(:since AS date))
        AND (CAST(:until AS date) IS NULL OR a.publish_date < CAST(:until AS date))
      ORDER BY a.publish_date DESC NULLS LAST
@@ -47,11 +58,11 @@ FIND_SQL = text("""
     """)
 
 #: Status is absent on purpose. So is `wire`: this rewrites what the body
-#: says, not what anybody concluded from it.
+#: says, not what anybody concluded from it. So is `raw`: the capture is
+#: never processed in place.
 REPAIR_SQL = text("""
     UPDATE articles
-       SET raw = :raw,
-           text = :text,
+       SET text = :text,
            text_hash = :text_hash,
            text_excerpt = :excerpt
      WHERE id = :id
@@ -102,9 +113,9 @@ def handle_rot47_body_repair_command(args) -> int:
         ).fetchall()
         logger.info("Found %d articles holding ciphertext", len(rows))
 
-        for article_id, content, body_text in rows:
+        for article_id, body in rows:
             try:
-                decoded = decode_rot47_segments(content)
+                decoded = decode_rot47_segments(body)
             except Exception:
                 logger.exception("Decoder raised on %s", article_id)
                 failed += 1
@@ -114,26 +125,18 @@ def handle_rot47_body_repair_command(args) -> int:
             # it is. A partial decode written back is worse than
             # ciphertext, because the marker that finds these rows again
             # would be gone.
-            if not decoded or CIPHERTEXT_MARKER in decoded or decoded == content:
+            if not decoded or CIPHERTEXT_MARKER in decoded or decoded == body:
                 unchanged += 1
                 continue
-
-            # `text` is the cleaned body and holds the same ciphertext on
-            # all but 115 of these rows. Decoded from its own value rather
-            # than copied from `content`, which is the raw capture and was
-            # never the same string.
-            decoded_text = decode_rot47_segments(body_text) if body_text else None
-            final_text = decoded_text or decoded
 
             if not args.dry_run:
                 session.execute(
                     REPAIR_SQL,
                     {
                         "id": article_id,
-                        "raw": decoded,
-                        "text": final_text,
-                        "text_hash": calculate_content_hash(final_text),
-                        "excerpt": final_text[:500],
+                        "text": decoded,
+                        "text_hash": calculate_content_hash(decoded),
+                        "excerpt": decoded[:500],
                     },
                 )
             repaired += 1
