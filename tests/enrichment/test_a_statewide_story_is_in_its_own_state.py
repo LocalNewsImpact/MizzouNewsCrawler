@@ -67,5 +67,6 @@ class TestAGameIsCentredOnItsTeam:
         Jose. The story is about St. Louis's team."""
         text = (adapter.PROMPTS_DIR / "focus.md").read_text()
         assert "HOME of the team" in text
-        assert "San Jose" in text
+        assert "its local team" in text
+        assert "the venue and the other team's home" in text
         assert adapter.FOCUS_PROMPT_VERSION == "focus-v4"
