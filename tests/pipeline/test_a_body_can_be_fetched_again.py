@@ -348,14 +348,44 @@ class TestAFailedRefetchGivesUp:
     -- the 226 shared-body rows never were -- had no bound at all, and a fetch
     that kept failing was retried every run."""
 
-    def test_the_status_it_gives_up_to_is_selected_by_no_stage(self):
-        assert refetch.TEXT_UNAVAILABLE == "text_unavailable"
-        for selected in (
-            ("cleaned", "local"),
-            ("labeled",),
-            ("enriched", "enrichment_skipped"),
-        ):
-            assert refetch.TEXT_UNAVAILABLE not in selected
+    def test_the_statuses_it_gives_up_to_are_selected_by_no_stage(self):
+        from src.services.classification_service import NEVER_CLASSIFIED
+
+        causes = (
+            refetch.NOT_FOUND,
+            refetch.FETCH_FAILED,
+            refetch.PDF_DOCUMENT,
+            refetch.NO_STORY_TEXT,
+        )
+        for status in causes:
+            assert status in NEVER_CLASSIFIED, status
+            for selected in (
+                ("cleaned", "local"),
+                ("labeled",),
+                ("enriched", "enrichment_skipped"),
+            ):
+                assert status not in selected
+
+    def test_the_status_names_the_cause_not_the_result(self):
+        """All 27 WSU `text_unavailable` rows on 2026-10-16 were 404s, and the
+        status said only that the text was missing."""
+        from src.pipeline.rework import ABANDONED
+
+        assert refetch.status_for_outcome("404") == refetch.NOT_FOUND
+        assert refetch.status_for_outcome("410") == refetch.NOT_FOUND
+        assert refetch.status_for_outcome("pdf_document") == refetch.PDF_DOCUMENT
+        assert refetch.status_for_outcome(ABANDONED) == refetch.FETCH_FAILED
+        assert refetch.TEXT_UNAVAILABLE not in {
+            refetch.status_for_outcome(o)
+            for o in ("404", "410", "pdf_document", ABANDONED, "anything")
+        }
+
+    def test_giving_up_records_the_last_error(self):
+        session = _Session()
+        refetch.give_up(session, ["l1"], outcome="failed_max_attempts")
+        article = session.statements[0]
+        assert "'{refetch,last_error}'" in article
+        assert "cl.error_message" in article
 
     def test_a_try_below_the_bound_gives_up_on_nothing(self):
         session = _Session(answers=[[("l1", 1), ("l2", 2)]])
@@ -373,7 +403,7 @@ class TestAFailedRefetchGivesUp:
             s for s in session.statements if "UPDATE articles" in s and "outcome" in s
         ]
         assert len(gave_up) == 1
-        assert session.params[1]["status"] == refetch.TEXT_UNAVAILABLE
+        assert session.params[1]["status"] == refetch.FETCH_FAILED
         assert session.params[1]["outcome"] == ABANDONED
         assert session.params[1]["link_ids"] == ["l1"]
 
@@ -424,7 +454,8 @@ class TestExtractionGivesUpOnTheRightPaths:
             self._source().count('give_up(session, [str(url_id)], outcome="404")') == 2
         )
 
-    def test_furniture_on_a_rewound_record_is_text_unavailable_not_not_article(self):
+    def test_furniture_on_a_rewound_record_is_no_story_text_not_not_article(self):
         source = self._source()
         assert 'if status == REFETCH and article_status == "not_article":' in source
-        assert "article_status = TEXT_UNAVAILABLE" in source
+        assert "article_status = NO_STORY_TEXT" in source
+        assert "TEXT_UNAVAILABLE" not in source, "nothing writes the old status"

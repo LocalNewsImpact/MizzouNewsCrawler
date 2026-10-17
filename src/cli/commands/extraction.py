@@ -828,7 +828,7 @@ ARTICLE_FOR_LINK_SQL = text(
 #: every dataset. Held here so there is one spelling, and asserted at use.
 #: Imported rather than spelled again: the rewind writes this status and the
 #: selectors read it, and two spellings of it would be two behaviours.
-from src.pipeline.refetch import REFETCH, TEXT_UNAVAILABLE  # noqa: E402
+from src.pipeline.refetch import NO_STORY_TEXT, REFETCH  # noqa: E402
 
 LINK_STATUS_CLAUSE = f"WHERE cl.status IN ('article', '{REFETCH}')"
 
@@ -3099,10 +3099,10 @@ def _process_batch(
                     # behave differently.
                     if status == REFETCH and article_status == "not_article":
                         # A rewound record IS the publication's story; a capture
-                        # that found furniture instead says the text is not to
-                        # be had, not that the page never was one. `paywall`
+                        # that found furniture instead says the page served no
+                        # story text, not that the page never was one. `paywall`
                         # and `duplicate` stay: each says something more.
-                        article_status = TEXT_UNAVAILABLE
+                        article_status = NO_STORY_TEXT
 
                     existing_id = None
                     if status == REFETCH:

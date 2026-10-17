@@ -1,7 +1,7 @@
 """A rewound link is not charged a try for a fetch that never happened.
 
 `spend_attempt` charges a rewound link before its fetch, and three charges
-abandon it as `text_unavailable`. A credentialed fetch with no confirmed
+abandon it as `fetch_failed`. A credentialed fetch with no confirmed
 session is declined before the page is requested, so charging it spent the
 row's tries on the LOGIN: on 2026-10-14 a columbian.com row was charged while
 its login hung and the host was refused. The login has its own budget.

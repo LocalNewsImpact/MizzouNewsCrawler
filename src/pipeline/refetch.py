@@ -51,13 +51,38 @@ from sqlalchemy.orm import Session
 #: discovery never writes it, so a link at `refetch` was put there on purpose.
 REFETCH = "refetch"
 
-#: The article status when the text could not be had: the page 404s, the
-#: fetch keeps failing, or what came back is a wall or furniture. The record
-#: STANDS -- URL, headline, byline, date say the publication ran the story --
-#: and no analysis stage selects the status, so nothing is classified or
-#: enriched from a body that is not there. Distinct from `not_article`, which
-#: says the page never was a story, and from `paywall`, which says why.
+#: WHY A RECORD HAS NO TEXT -- the status says the cause, not the result.
+#:
+#: These all used to be `text_unavailable`, which said only that the text was
+#: missing. On 2026-10-16 all 27 WSU rows carrying it turned out to be 404s --
+#: the publisher deleted the page -- and 225 Mizzou rows carried it with no
+#: cause recorded anywhere. "Unavailable" sent a reviewer to find out what an
+#: extractor had already known when it wrote the row.
+#:
+#: Every one keeps the record -- URL, headline, byline, date say the
+#: publication ran the story -- and no analysis stage selects any of them, so
+#: nothing is classified or enriched from a body that is not there.
+#:
+#: The page is gone: the fetch answered 404 or 410.
+NOT_FOUND = "not_found"
+#: The fetch kept failing -- timeouts, blocks, errors -- until the attempts
+#: ran out. The last error goes to `metadata.refetch.last_error`.
+FETCH_FAILED = "fetch_failed"
+#: The URL is a PDF. No parser reads one; the page is the document.
+PDF_DOCUMENT = "pdf_document"
+#: The page answered, and what it served was furniture with no story in it --
+#: a video page, a gallery, a shell. Not `not_article`: the record says the
+#: publication ran a story at this address.
+NO_STORY_TEXT = "no_story_text"
+#: Written before 2026-10-16. Rows still carrying it are read, never written.
 TEXT_UNAVAILABLE = "text_unavailable"
+
+#: The cause a give-up names, as the status it files the record under.
+_STATUS_FOR_OUTCOME = {
+    "404": NOT_FOUND,
+    "410": NOT_FOUND,
+    "pdf_document": PDF_DOCUMENT,
+}
 
 _ARTICLES_TO_MARK = text("""
     SELECT a.id, a.candidate_link_id, cl.status AS link_status, a.url,
@@ -140,8 +165,14 @@ _GIVE_UP_ARTICLE = text("""
     UPDATE articles a
        SET status = :status,
            metadata = jsonb_set(
-             coalesce(a.metadata::jsonb, '{}'::jsonb),
-             '{refetch,outcome}', to_jsonb(CAST(:outcome AS text)), true)::json
+             jsonb_set(
+               coalesce(a.metadata::jsonb, '{}'::jsonb),
+               '{refetch,outcome}', to_jsonb(CAST(:outcome AS text)), true),
+             '{refetch,last_error}',
+             to_jsonb(coalesce(
+               (SELECT cl.error_message FROM candidate_links cl
+                 WHERE cl.id = a.candidate_link_id), '')),
+             true)::json
      WHERE a.candidate_link_id = ANY(:link_ids)
 """)
 
@@ -371,11 +402,19 @@ def refund_attempt(session: Session, link_ids: list[str]) -> None:
         )
 
 
+def status_for_outcome(outcome: str) -> str:
+    """The status a give-up files a record under: the cause, by name."""
+    return _STATUS_FOR_OUTCOME.get(str(outcome), FETCH_FAILED)
+
+
 def give_up(session: Session, link_ids: list[str], *, outcome: str) -> int:
     """The text is not going to be had: keep the record, stop the asking.
 
-    The article goes to `TEXT_UNAVAILABLE` with the reason under
-    `metadata.refetch.outcome`; the link gets back the status it had before
+    The article is filed under the status that names the cause --
+    `not_found` for a 404 or 410, `pdf_document`, and `fetch_failed` for
+    anything else, which is attempts running out -- with the outcome under
+    `metadata.refetch.outcome` and the link's last error under
+    `metadata.refetch.last_error`. The link gets back the status it had before
     the rewind if it is still waiting at `refetch`. Title, byline, date and
     the body already stored are left as they are -- what the record says the
     publication ran is exactly what must survive a fetch that failed.
@@ -384,7 +423,11 @@ def give_up(session: Session, link_ids: list[str], *, outcome: str) -> int:
         return 0
     result = session.execute(
         _GIVE_UP_ARTICLE,
-        {"status": TEXT_UNAVAILABLE, "outcome": outcome, "link_ids": list(link_ids)},
+        {
+            "status": status_for_outcome(outcome),
+            "outcome": outcome,
+            "link_ids": list(link_ids),
+        },
     )
     session.execute(
         _RESTORE_LINK_BY_LINK, {"refetch": REFETCH, "link_ids": list(link_ids)}
