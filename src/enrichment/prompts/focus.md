@@ -38,10 +38,12 @@ place where the events, people or institutions at the center of the story are
 located — and list the rest as mentions.
 
 A game, a meet, a match or a competition is centred on the HOME of the team,
-school or athlete the story is about -- not on the venue. "The Blues lost 5-4
-to the Sharks in San Jose" is a St. Louis story; "Doniphan girls cruise in
-sectional rout of Potosi" is a Doniphan story wherever the sectional was
-played. Report the venue as a mention.
+school or athlete the publication treats as its own -- its local team -- not
+on the venue and not on the opponent. "The Blues lost 5-4 to the Sharks in
+San Jose" in a St. Louis paper is a St. Louis story; "Doniphan girls cruise in
+sectional rout of Potosi" in a Doniphan-area paper is a Doniphan story
+wherever the sectional was played. Report the venue and the other team's home
+as mentions: San Jose, and Potosi, are places the story names.
 
 Where the story is centred on a county or a region rather than a single town,
 give the county and leave the city empty. Do not reach for the county seat or
