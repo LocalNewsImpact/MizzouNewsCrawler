@@ -156,6 +156,103 @@ def _marker_density(s: str) -> float:
     return sum(1 for ch in s if ch in _ROT47_MARKERS) / len(s) if s else 0.0
 
 
+_OPEN_MARKER = re.compile(r"^kA[^m]{0,120}m")
+_CLOSE_MARKER = "k^Am"
+_WORDLIKE = re.compile(
+    r"^(?:[A-Z]?[a-z]+(?:'[a-z]+)?|[A-Z]+|[A-Z][a-z]+[A-Z][a-z]+|\d[\d,.:/-]*)$"
+)
+_EDGE_PUNCT = re.compile(r"^[^\w]+|[^\w]+$")
+
+
+def _wordlike(token: str) -> bool:
+    core = _EDGE_PUNCT.sub("", token)
+    return bool(core) and bool(_WORDLIKE.match(core))
+
+
+def _has_plaintext_words(segment: str) -> bool:
+    """Does a marked paragraph already hold plaintext? A word of four letters
+    or more that reads as a word and does NOT once decoded ("winner",
+    "throwing") is plaintext; ciphertext of English is almost never one."""
+    body = html.unescape(segment)
+    opener = _OPEN_MARKER.match(body)
+    inner = body[opener.end() :] if opener else body
+    for token in inner.replace(_CLOSE_MARKER, " ").split():
+        core = _EDGE_PUNCT.sub("", token)
+        if len(core) >= 4 and _wordlike(core) and not _wordlike(_rot47(core)):
+            return True
+    return False
+
+
+def _decode_mixed_segment(segment: str) -> str | None:
+    """Decode a marked paragraph WORD BY WORD, for the two shapes the
+    whole-paragraph decode refuses (16 of 970 March bodies, 2026-10-17):
+
+    MIXED -- part plaintext, part ciphertext: "y2J&gt;6D@? qC@H? H2D E96
+    winner, throwing". An earlier word-level pass decoded some words and not
+    others, so decoding the paragraph whole turns the plaintext half into
+    ciphertext. Each word is decoded only when decoding makes it a word:
+    "H2D" -> "was", "`_" -> "10"; "winner," stays.
+
+    SHORT -- "qJi" -> "By:", "r~}%pr%i" -> "CONTACT:". Correct decodes whose
+    marker density does not fall, because neither side has marker
+    characters; the relative test above refuses them on the tie.
+
+    A word that reads as a word both ways, or neither ("2" / "a"), takes the
+    decision of its nearest decided neighbours: inside a run of ciphertext it
+    is ciphertext. The paragraph tags are decoded and stripped as above.
+    Returns None when nothing in the paragraph decodes.
+    """
+    body = html.unescape(segment)
+    opener = _OPEN_MARKER.match(body)
+    if not opener or not body.endswith(_CLOSE_MARKER):
+        return None
+    inner = body[opener.end() : -len(_CLOSE_MARKER)]
+    decoded = _decode_words(inner)
+    if decoded is None:
+        return None
+    return " " + _DECODED_TAG_RE.sub(" ", decoded).strip() + " "
+
+
+def _decode_words(inner: str) -> str | None:
+    """The word-by-word rule of `_decode_mixed_segment`, on any span."""
+    parts = re.split(r"(\s+)", inner)
+    words = [i for i in range(0, len(parts), 2) if parts[i]]
+    choice: dict[int, bool | None] = {}
+    for i in words:
+        plain, decoded = _wordlike(parts[i]), _wordlike(_rot47(parts[i]))
+        choice[i] = decoded and not plain if plain != decoded else None
+    decided = [i for i in words if choice[i] is not None]
+    for i in words:
+        if choice[i] is None:
+            before = [j for j in decided if j < i]
+            after = [j for j in decided if j > i]
+            near = [choice[j] for j in (before[-1:] + after[:1])]
+            choice[i] = bool(near) and any(near)
+    if not any(choice.get(i) for i in words):
+        return None
+    for i in words:
+        if choice[i]:
+            parts[i] = _rot47(parts[i])
+    return "".join(parts)
+
+
+def _decode_orphan_runs(text: str) -> str:
+    """Ciphertext that ends in a closing marker whose opener was lost --
+    "...7@C t2DE r6?EC2=]k^Am" -- matches no paragraph pattern. Four March
+    bodies kept one each after every marked paragraph was decoded. The span
+    before each orphan closer is decoded word by word: its plaintext words
+    stay, its ciphertext words decode."""
+    if _CLOSE_MARKER not in text:
+        return text
+    pieces = text.split(_CLOSE_MARKER)
+    out = []
+    for piece in pieces[:-1]:
+        decoded = _decode_words(html.unescape(piece))
+        out.append(_DECODED_TAG_RE.sub(" ", decoded) if decoded is not None else piece)
+    out.append(pieces[-1])
+    return " ".join(out)
+
+
 def _decode_rot47_by_markers(text: str) -> str | None:
     """Decode ROT47 text using paragraph markers (kAm/k^Am).
 
@@ -204,10 +301,22 @@ def _decode_rot47_by_markers(text: str) -> str | None:
         # Verified against every one of the 44 kAm/k^Am paragraphs in the
         # production row that surfaced this (2026-07-28): marker density drops
         # after decoding in all 44, including the 2 the old floor rejected.
+        if _has_plaintext_words(segment):
+            # Part of it was decoded before: whole, the plaintext half would
+            # be turned into ciphertext. Word by word instead.
+            mixed = _decode_mixed_segment(segment)
+            if mixed is not None:
+                replacements.append((match.start(), match.end(), mixed))
+            continue
         if _marker_density(decoded) < _marker_density(segment):
             # Clean up HTML tags
             cleaned = _DECODED_TAG_RE.sub(" ", decoded)
             replacements.append((match.start(), match.end(), cleaned))
+            continue
+        # Refused whole: decode it word by word (`_decode_mixed_segment`).
+        mixed = _decode_mixed_segment(segment)
+        if mixed is not None:
+            replacements.append((match.start(), match.end(), mixed))
 
     if not replacements:
         return None
@@ -221,7 +330,7 @@ def _decode_rot47_by_markers(text: str) -> str | None:
         last_index = end
     parts.append(text[last_index:])
 
-    result = "".join(parts)
+    result = _decode_orphan_runs("".join(parts))
     # Also handle standalone markers like k9C ^m (<hr >)
     result = re.sub(r"k9C\s*\^m", " ", result)
     result = re.sub(r"\s+", " ", result)
