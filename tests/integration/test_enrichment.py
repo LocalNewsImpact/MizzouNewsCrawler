@@ -232,8 +232,9 @@ def _seed_wire_local(session):
     session.execute(
         sa.text(
             "INSERT INTO articles (id, candidate_link_id, status, wire_check_status, "
-            " title, raw, created_at, extracted_at) "
-            "VALUES ('art-wl', 'clwl', 'labeled', 'local', 'WL', 'Body. ', now(), now())"
+            " title, raw, text, created_at, extracted_at) "
+            "VALUES ('art-wl', 'clwl', 'labeled', 'local', 'WL', 'Body. ', 'Body. ', "
+            "now(), now())"
         )
     )
     session.commit()
@@ -271,8 +272,8 @@ def _seed(session, n=3, dataset="Mizzou-Missouri-State"):
         session.execute(
             sa.text(
                 "INSERT INTO articles (id, candidate_link_id, status, wire_check_status, "
-                " title, raw, created_at, extracted_at) "
-                "VALUES (:id, :cl, 'labeled', 'complete', :t, :c, now(), now())"
+                " title, raw, text, created_at, extracted_at) "
+                "VALUES (:id, :cl, 'labeled', 'complete', :t, :c, :c, now(), now())"
             ),
             {
                 "id": f"art{i}",
