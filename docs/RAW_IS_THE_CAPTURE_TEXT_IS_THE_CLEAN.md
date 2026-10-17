@@ -105,21 +105,24 @@ rows whose body is the wall or the furniture, where "cleaning ran and left
 nothing" is the right answer. `''` counts as a measured zero because
 `coalesce()` skips NULL, not the empty string.
 
-**Enrichment is renamed, not re-pointed.** It reads `a.raw` — the same
-column, under its real name — because its paywall thresholds were measured
-against that column and moving it to `text` re-measures them. That is its own
-change. `tests/enrichment/test_an_empty_body_is_not_a_verdict.py` pins the
-choice by name so nobody re-measures it by accident.
+**Enrichment reads `text` (changed 2026-10-17).** The model, grounding and
+restore points read the processed body. Only the free paywall pre-check
+(`gate.paywalled_stub`, `gate.boilerplate_score`) still reads `a.raw`, carried
+on `ArticleInput.capture`: its wall phrases and 500-character story threshold
+were measured against the capture, and cleaning removes the furniture it looks
+for. Until then enrichment read `a.raw`, so a body stored decoded in one column
+and encoded in the other was enriched from whichever `raw` happened to hold.
+`tests/enrichment/test_an_empty_body_is_not_a_verdict.py` pins both reads.
 
 **The cleaning pass stops writing the capture.** `cleaning.py`'s
 `ARTICLE_UPDATE_SQL` wrote cleaned prose back into `content`, which is how the
 two columns converged on 159,709 rows. It now writes `text` only. The ROT47
-repair keeps its rewrite of `raw`: decoding ciphertext is a property of the
-capture, and it says so by name.
+repair writes `text` only (changed 2026-10-17): decoding is processing, and
+the capture is never processed in place.
 
 **`ArticleInput.content` stays.** The enrichment input dataclass keeps its
-field name; it is filled from `r.raw` in `_rows_to_articles` and is internal
-to the enrichment package.
+field name; it is filled from `r.text` in `_rows_to_articles`, with the
+capture beside it in `capture`, and is internal to the enrichment package.
 
 **The datadesk console edits and displays `raw`, and that is an open
 decision.** Its model comment said `content` "is the current field and the one

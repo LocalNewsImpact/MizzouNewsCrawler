@@ -149,6 +149,25 @@ def _patterns(name: str) -> list[re.Pattern]:
     ]
 
 
+#: A place name immediately followed by one of these is the head of a longer
+#: name -- a cemetery, a road, a creek, a family -- and usually a surname,
+#: not the town. "Gentry Cemetery meeting set April 18" in a Seymour weekly
+#: is a local cemetery; read as "Gentry" it became Gentry, Missouri, 200
+#: miles north, and the story was filed under Gentry County. Such an
+#: occurrence is not evidence the story is about the town; another
+#: occurrence of the bare name still is.
+_FEATURE_TAIL = re.compile(
+    r"\s+(?:cemetery|cemeteries|road|rd|street|lane|ln|drive|avenue|ave"
+    r"|boulevard|blvd|creek|hollow|branch|ridge|chapel|farm|farms|family"
+    r"|families|trail|bridge|mill)(?![a-z0-9])"
+)
+
+
+def part_of_longer_name(folded: str, end: int) -> bool:
+    """Is the occurrence ending at `end` the head of a feature's name?"""
+    return bool(_FEATURE_TAIL.match(folded, end))
+
+
 def occurrences(name: str, folded: str) -> list[tuple[int, int]]:
     """(start, end) of every place-name match in a folded haystack."""
     spans = {
@@ -267,8 +286,13 @@ def grounded(
         ):
             return True
 
-    if title and occurrences(name, fold(_WS.sub(" ", title).strip())):
-        return True
+    if title:
+        folded_title = fold(_WS.sub(" ", title).strip())
+        if any(
+            not part_of_longer_name(folded_title, end)
+            for _, end in occurrences(name, folded_title)
+        ):
+            return True
 
     flat = _WS.sub(" ", content or "").strip()
     if not flat:
@@ -289,6 +313,8 @@ def grounded(
     for start, end in hits:
         if start < end_of_dateline:
             continue  # the newsroom's own address
+        if part_of_longer_name(folded, end):
+            continue  # "Gentry Cemetery", "Seymour Road": not the town
         if in_furniture(lowered, start, end):
             continue  # a weather rail, a headline rail, a reporter's bio
         return True

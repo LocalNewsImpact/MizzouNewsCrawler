@@ -43,6 +43,18 @@ the largest city to fill the gap: a story about the Jackson County Detention
 Center is a Jackson County story, not a Kansas City story, unless the article
 gives you Kansas City.
 
+WHERE THE PUBLICATION IS: {publication}
+
+Use this ONLY to decide which of several places with the same name the article
+means. A Seymour, Missouri weekly that writes "the egg drop is Saturday at
+Seymour Elementary" means Seymour, Missouri, not Seymour, Indiana; "the meeting
+was in Buffalo" in a Missouri paper is Buffalo, Missouri. A place the article
+names without a state is the one in or near the publication unless the article
+says otherwise -- it names another state ("Buffalo, N.Y."), or the name belongs
+to something national ("the Buffalo Bills", "the Washington Capitals",
+"Congress in Washington"). It is never, on its own, a reason to report the
+publication's place: that rule above still holds.
+
 Respond as JSON:
 {"central": {"city": ..., "county": ..., "state": ..., "evidence": "<quote>"},
  "mentions": [{"city": ..., "county": ..., "state": ..., "evidence": "<quote>"}],

@@ -153,8 +153,9 @@ def enrich_article(
         # came back to `labeled`; refusing it on the same finding would undo
         # that decision by a stage that never knew it was made.
         answered = article.answered
+        walled = article.capture if article.capture is not None else article.content
         if (
-            boilerplate_score(article.content) >= HEURISTIC_REJECT
+            boilerplate_score(walled) >= HEURISTIC_REJECT
             and BOILERPLATE_SKIP_REASON not in answered
         ):
             return outcome("not_article", BOILERPLATE_SKIP_REASON)
@@ -162,7 +163,7 @@ def enrich_article(
         # decisive wall settles it on its own; a weaker prompt settles it
         # only when little story came with it (measured at 100% precision
         # against production). Everything else still costs a call.
-        if paywalled_stub(article.content) is not None:
+        if paywalled_stub(walled) is not None:
             return outcome(_GATE_VERDICT_STATUS["paywall"], PAYWALL_RULE_SKIP_REASON)
         gate = adapter.run_content_gate(article, model)
         results.append(gate)

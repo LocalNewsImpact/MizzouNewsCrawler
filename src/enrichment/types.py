@@ -23,6 +23,12 @@ class ArticleInput:
     #: overruled is not made again, or the record would be held, released,
     #: and held again by the next run -- a loop with a person in it.
     answered: frozenset = frozenset()
+    #: The unprocessed capture (`articles.raw`), read only by the free paywall
+    #: pre-check: its wall phrases and story-length threshold were measured
+    #: against the capture, and cleaning removes the very furniture it looks
+    #: for. Everything the model reads is `content`, the processed `text`.
+    #: None where no capture was loaded; the pre-check then reads `content`.
+    capture: str | None = None
 
 
 @dataclass(frozen=True)

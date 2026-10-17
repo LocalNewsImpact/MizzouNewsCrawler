@@ -267,6 +267,7 @@ class TestTheAnswerReachesTheGateFromTheRow:
         return SimpleNamespace(
             id="a1",
             title="T",
+            text=STORY,
             raw=STORY,
             metadata=metadata,
             dataset_slug="ds",
@@ -343,6 +344,7 @@ class TestTheAnswerReachesTheGateOnTheIdsFilePath:
         row = SimpleNamespace(
             id="a1",
             title="T",
+            text=STORY,
             raw=STORY,
             metadata=metadata,
             status="labeled",
