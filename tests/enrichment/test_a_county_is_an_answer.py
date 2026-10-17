@@ -29,7 +29,7 @@ class TestWhatCountsAsAnAnswer:
     def test_the_prompt_version_is_recorded(self):
         """Every row carries the prompt that produced it, so a change is
         auditable after the fact rather than guessed at."""
-        assert adapter.FOCUS_PROMPT_VERSION == "focus-v3"
+        assert adapter.FOCUS_PROMPT_VERSION == "focus-v4"
 
     def test_the_prompt_forbids_the_things_that_fabricated(self):
         """The four sources measured as fabrication, named in the file
