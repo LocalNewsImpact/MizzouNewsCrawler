@@ -80,7 +80,7 @@ jobs:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
       - uses: google-github-actions/setup-gcloud@v2
         with:
-          # Pinned. `latest` (594.0.0, 2026-11-17) crashed kubectl auth; 589.0.0 last deployed green.
+          # Pinned so a gcloud release cannot change a deploy unannounced.
           version: '589.0.0'
       - run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
@@ -118,7 +118,7 @@ jobs:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
       - uses: google-github-actions/setup-gcloud@v2
         with:
-          # Pinned. `latest` (594.0.0, 2026-11-17) crashed kubectl auth; 589.0.0 last deployed green.
+          # Pinned so a gcloud release cannot change a deploy unannounced.
           version: '589.0.0'
       - run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
@@ -153,7 +153,7 @@ jobs:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
       - uses: google-github-actions/setup-gcloud@v2
         with:
-          # Pinned. `latest` (594.0.0, 2026-11-17) crashed kubectl auth; 589.0.0 last deployed green.
+          # Pinned so a gcloud release cannot change a deploy unannounced.
           version: '589.0.0'
       - run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 

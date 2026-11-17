@@ -29,7 +29,12 @@ concurrency:
 jobs:
   detect-changes:
     name: Detect Changed Services
-    runs-on: ubuntu-latest
+    # ubuntu-24.04, not ubuntu-latest: on ubuntu-26.04 (the runner image
+    # ubuntu-latest moved to by 2026-11-17) gcloud crashes inside kubectl's
+    # credential helper -- "'Credentials' object has no attribute
+    # 'private_key_id'" -- with the same gcloud and action versions that
+    # deployed green on ubuntu-24.04.
+    runs-on: ubuntu-24.04
     outputs:
       processor: ${{ steps.detect.outputs.processor }}
       api: ${{ steps.detect.outputs.api }}
@@ -326,7 +331,7 @@ jobs:
   build-processor:
     name: Build Processor
     needs: [detect-changes, base-images]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       build_id: ${{ steps.trigger.outputs.build_id }}
 
@@ -348,7 +353,7 @@ jobs:
         if: needs.detect-changes.outputs.processor == 'true'
         uses: google-github-actions/setup-gcloud@v3
         with:
-          # Pinned. `latest` (594.0.0, 2026-11-17) crashed kubectl auth; 589.0.0 last deployed green.
+          # Pinned so a gcloud release cannot change a deploy unannounced.
           version: '589.0.0'
 
       - name: Trigger Cloud Build
@@ -372,7 +377,7 @@ jobs:
   build-api:
     name: Build API
     needs: [detect-changes, build-processor]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       build_id: ${{ steps.trigger.outputs.build_id }}
 
@@ -394,7 +399,7 @@ jobs:
         if: needs.detect-changes.outputs.api == 'true'
         uses: google-github-actions/setup-gcloud@v3
         with:
-          # Pinned. `latest` (594.0.0, 2026-11-17) crashed kubectl auth; 589.0.0 last deployed green.
+          # Pinned so a gcloud release cannot change a deploy unannounced.
           version: '589.0.0'
 
       - name: Trigger Cloud Build
@@ -418,7 +423,7 @@ jobs:
   build-crawler:
     name: Build Crawler
     needs: [detect-changes, build-api]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       build_id: ${{ steps.trigger.outputs.build_id }}
 
@@ -440,7 +445,7 @@ jobs:
         if: needs.detect-changes.outputs.crawler == 'true'
         uses: google-github-actions/setup-gcloud@v3
         with:
-          # Pinned. `latest` (594.0.0, 2026-11-17) crashed kubectl auth; 589.0.0 last deployed green.
+          # Pinned so a gcloud release cannot change a deploy unannounced.
           version: '589.0.0'
 
       - name: Trigger Cloud Build
@@ -467,7 +472,7 @@ jobs:
     # migrator is FROM python:3.11-slim directly, so it depends on none of
     # them and runs alongside.
     needs: [detect-changes]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       build_id: ${{ steps.trigger.outputs.build_id }}
 
@@ -489,7 +494,7 @@ jobs:
         if: needs.detect-changes.outputs.migrator == 'true'
         uses: google-github-actions/setup-gcloud@v3
         with:
-          # Pinned. `latest` (594.0.0, 2026-11-17) crashed kubectl auth; 589.0.0 last deployed green.
+          # Pinned so a gcloud release cannot change a deploy unannounced.
           version: '589.0.0'
 
       - name: Trigger Cloud Build
@@ -513,7 +518,7 @@ jobs:
   build-enrichment:
     name: Build Enrichment
     needs: [detect-changes, build-crawler]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       build_id: ${{ steps.trigger.outputs.build_id }}
 
@@ -535,7 +540,7 @@ jobs:
         if: needs.detect-changes.outputs.enrichment == 'true'
         uses: google-github-actions/setup-gcloud@v3
         with:
-          # Pinned. `latest` (594.0.0, 2026-11-17) crashed kubectl auth; 589.0.0 last deployed green.
+          # Pinned so a gcloud release cannot change a deploy unannounced.
           version: '589.0.0'
 
       - name: Trigger Cloud Build
@@ -568,7 +573,7 @@ jobs:
       github.ref == 'refs/heads/main' &&
       needs.detect-changes.outputs.migrator == 'true' &&
       needs.build-migrator.outputs.build_id != ''
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v7
@@ -581,7 +586,7 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v3
         with:
-          # Pinned. `latest` (594.0.0, 2026-11-17) crashed kubectl auth; 589.0.0 last deployed green.
+          # Pinned so a gcloud release cannot change a deploy unannounced.
           version: '589.0.0'
           # kubectl authenticates with nothing without this, and every command
           # fails on "Install gke-gcloud-auth-plugin ... exit code 1" -- a message
@@ -703,7 +708,7 @@ jobs:
         build-enrichment,
       ]
     if: needs.detect-changes.outputs.any_changed == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v7
@@ -716,7 +721,7 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v3
         with:
-          # Pinned. `latest` (594.0.0, 2026-11-17) crashed kubectl auth; 589.0.0 last deployed green.
+          # Pinned so a gcloud release cannot change a deploy unannounced.
           version: '589.0.0'
 
       - name: Wait for builds to complete
@@ -830,7 +835,7 @@ jobs:
     name: Build Summary
     needs: [detect-changes, wait-for-builds]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Report build status
@@ -900,7 +905,7 @@ jobs:
         needs.build-enrichment.outputs.build_id != ''
       ) &&
       (needs.wait-for-builds.result == 'success' || needs.wait-for-builds.result == 'skipped')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v7
@@ -913,7 +918,7 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v3
         with:
-          # Pinned. `latest` (594.0.0, 2026-11-17) crashed kubectl auth; 589.0.0 last deployed green.
+          # Pinned so a gcloud release cannot change a deploy unannounced.
           version: '589.0.0'
           # Without the plugin every kubectl command fails on "Install
           # gke-gcloud-auth-plugin", which names a missing plugin rather
@@ -995,7 +1000,7 @@ jobs:
         needs.build-crawler.outputs.build_id != ''
       ) &&
       (needs.wait-for-builds.result == 'success' || needs.wait-for-builds.result == 'skipped')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v7

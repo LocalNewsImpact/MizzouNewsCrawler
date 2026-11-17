@@ -23,7 +23,7 @@ on:
 jobs:
   approve-production:
     name: Approve Production Migration
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: github.event.inputs.environment == 'production'
     environment: production-migrations
     steps:
@@ -35,7 +35,7 @@ jobs:
 
   run-migrations:
     name: Run Migrations (${{ github.event.inputs.environment }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [approve-production]
     if: always() && (needs.approve-production.result == 'success' || github.event.inputs.environment == 'staging')
 
@@ -227,7 +227,7 @@ jobs:
 
   cleanup:
     name: Cleanup
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [run-migrations]
     if: always()
     steps:
