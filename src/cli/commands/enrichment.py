@@ -280,8 +280,9 @@ def _rescope(db, session, args, model) -> int:
         return 0
     candidates = rescope.select(session, args.dataset, args.limit)
     by_scope: dict[str, int] = {}
-    for _article, old_scope in candidates:
-        by_scope[old_scope] = by_scope.get(old_scope, 0) + 1
+    for candidate in candidates:
+        key = str(candidate.old_scope)
+        by_scope[key] = by_scope.get(key, 0) + 1
     print(
         f"rescope {args.dataset} under {adapter.SCOPE_PROMPT_VERSION}: "
         f"{len(candidates)} stories"

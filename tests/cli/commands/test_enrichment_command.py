@@ -215,7 +215,7 @@ def test_process_writes_every_outcome_and_totals_the_spend(seams):
     assert written["backfield_commit"] == "deadbeef"
     assert written["prompt_versions"] == {
         "content_gate": "content_gate-v1",
-        "scope": "geographic_scope-v4",
+        "scope": "geographic_scope-v5",
     }
 
 

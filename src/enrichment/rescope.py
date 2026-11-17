@@ -17,10 +17,11 @@ So this asks the scope question and nothing else that it does not have to:
   anything else                 re-placed from the stored places: the point
                                 cleared, a place set or a state code written
 
-"Never given one" is judged by the rules that placed the stored record.
-Before v4 only a neighborhood or city story got a point; a crossing scope
-(`elsewhere_to_local`, `local_to_elsewhere`) did not, so one of those is
-placed now even when its scope does not change.
+"Never given one" is judged by the rules of the prompt version that
+answered the stored record. Before v4 only a neighborhood or city story got
+a point; a crossing scope (`elsewhere_to_local`, `local_to_elsewhere`) did
+not, so a pre-v4 one of those is placed now even when its scope does not
+change. From v4 every point scope was placed.
 
 The extracted places are read back from `article_places` rather than asked
 for again, so the place set a story is coded with changes only because its
@@ -80,9 +81,18 @@ SCOPES = frozenset(
     }
 )
 
-#: The scopes that were given a point before geographic_scope-v4. Every
-#: record this selects was placed under that rule.
+#: The scopes that were given a point before geographic_scope-v4.
 PLACED_BEFORE_V4 = frozenset({"neighborhood_community", "city_municipality"})
+
+
+def placed_scopes(version: str | None) -> frozenset[str]:
+    """The scopes the prompt version that answered a record gave a point."""
+    prefix = "geographic_scope-v"
+    if version and version.startswith(prefix) and version[len(prefix) :].isdigit():
+        if int(version[len(prefix) :]) >= 4:
+            return POINT_SCOPES
+    return PLACED_BEFORE_V4
+
 
 #: Measured on the v4 validation run: $0.0994 for 109 stories. Used only by
 #: --dry-run.
@@ -93,7 +103,8 @@ _CANDIDATES = text("""
            d.slug AS dataset_slug, s.city AS publication_city,
            coalesce(nullif(s.metadata::json->>'state',''),
                     d.metadata::json->>'default_state') AS publication_state,
-           e.scope AS old_scope
+           e.scope AS old_scope,
+           CAST(e.prompt_versions AS jsonb)->>'scope' AS old_version
       FROM article_enrichment e
       JOIN articles a          ON a.id = e.article_id
       JOIN candidate_links cl  ON cl.id = a.candidate_link_id
@@ -180,11 +191,22 @@ _LOG = text("""
 
 
 @dataclass(frozen=True)
+class Candidate:
+    article: ArticleInput
+    old_scope: str | None
+    #: Whether its stored scope was given a point by the version that
+    #: answered it.
+    placed: bool
+
+
+@dataclass(frozen=True)
 class Answer:
     """What the model said for one article. Built on a worker thread."""
 
     article: ArticleInput
     old_scope: str | None
+    #: Whether the stored record's scope was given a point when answered.
+    placed: bool
     scope: StepResult
     focus: StepResult | None
 
@@ -203,7 +225,10 @@ def select(session: Session, dataset: str, limit: int | None = None):
     if limit is not None:
         rows = rows[:limit]
     articles = _rows_to_articles(rows)
-    return [(a, r.old_scope) for a, r in zip(articles, rows, strict=True)]
+    return [
+        Candidate(a, r.old_scope, r.old_scope in placed_scopes(r.old_version))
+        for a, r in zip(articles, rows, strict=True)
+    ]
 
 
 def scope_meta(result: StepResult) -> dict | None:
@@ -216,29 +241,36 @@ def scope_meta(result: StepResult) -> dict | None:
     return meta
 
 
-def ask(article: ArticleInput, old_scope: str | None, model: str) -> Answer:
+def ask(candidate: Candidate, model: str) -> Answer:
     """The model calls for one article: scope, and focus when it is needed.
 
     Focus is asked only for a story that now needs a point and was never
     given one. A story already placed at a point scope keeps its point;
     asking focus again would only re-roll it.
     """
+    article = candidate.article
     scope = adapter.run_scope(article, model)
     meta = scope_meta(scope)
     focus = None
-    if meta is not None and needs_point(meta["category"], old_scope):
+    if meta is not None and needs_point(meta["category"], candidate.placed):
         focus = adapter.run_focus(article, model)
-    return Answer(article=article, old_scope=old_scope, scope=scope, focus=focus)
+    return Answer(
+        article=article,
+        old_scope=candidate.old_scope,
+        placed=candidate.placed,
+        scope=scope,
+        focus=focus,
+    )
 
 
-def needs_point(new_scope: str, old_scope: str | None) -> bool:
-    return new_scope in POINT_SCOPES and old_scope not in PLACED_BEFORE_V4
+def needs_point(new_scope: str, placed: bool) -> bool:
+    return new_scope in POINT_SCOPES and not placed
 
 
-def needs_placing(new_scope: str, old_scope: str | None) -> bool:
+def needs_placing(new_scope: str, old_scope: str | None, placed: bool) -> bool:
     """Whether the stored geography is wrong for the new scope."""
     if new_scope in POINT_SCOPES:
-        return needs_point(new_scope, old_scope)
+        return needs_point(new_scope, placed)
     return new_scope != old_scope
 
 
@@ -356,7 +388,7 @@ def apply(session: Session, answer: Answer, *, run_id: str, model: str) -> str:
         "version": adapter.SCOPE_PROMPT_VERSION,
         "cost": answer.cost,
     }
-    if needs_placing(new_scope, answer.old_scope):
+    if needs_placing(new_scope, answer.old_scope, answer.placed):
         _replace(session, article, new_scope, answer, scope_params)
     else:
         session.execute(_UPDATE_SCOPE, scope_params)
@@ -477,8 +509,8 @@ def run(
     halted = False
     with ThreadPoolExecutor(max_workers=concurrency) as pool:
         submitted = {}
-        for position, (article, old_scope) in enumerate(candidates):
-            submitted[pool.submit(ask, article, old_scope, model)] = position
+        for position, candidate in enumerate(candidates):
+            submitted[pool.submit(ask, candidate, model)] = position
         pending = set(submitted)
         try:
             with session_factory() as session:
