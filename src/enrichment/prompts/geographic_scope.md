@@ -73,6 +73,13 @@ Choose **one** scope — the level of the place the story is about.
   someone in Fulton, or a county court hearing about a crime in one town, are
   stories about that town.
   The agency is the actor; the town is where the story happens.
+- **A district story set in one town is about that town.** A school, library,
+  hospital, fire, port or transit district that serves several towns is not a
+  county. A story about one of its schools, libraries, clinics or stations, an
+  event at one of them, or a decision about one of them, is about the town
+  where it is. It is `regional` only when the story is about the district as a
+  whole: a district-wide levy, budget, election, policy, or results across all
+  of its schools.
 - **`regional` is for a county or a wider area as the subject.** Use it when:
   - the story is about the county government's own business -- its budget,
     ordinances, commission decisions, countywide programs, elections, or the
@@ -155,6 +162,28 @@ Choose **one** scope — the level of the place the story is about.
   "category": "regional",
   "confidence": 0.92,
   "rationale": "A county government's decision applied across the county; no single town is the subject."
+}
+```
+
+#### Example 3d — One school in a district that serves several towns
+**Headline:** "Cle Elum elementary opens new reading room for its students"
+
+```json
+{
+  "category": "city_municipality",
+  "confidence": 0.9,
+  "rationale": "The story is about one school in Cle Elum; the district's other towns are not the subject."
+}
+```
+
+#### Example 3e — A whole district
+**Headline:** "Voters approve school district levy covering four towns"
+
+```json
+{
+  "category": "regional",
+  "confidence": 0.9,
+  "rationale": "A district-wide levy across several towns; no single town is the subject."
 }
 ```
 

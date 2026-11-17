@@ -546,15 +546,16 @@ class TestRepository:
             [article] = select_candidates(s, "Mizzou-Missouri-State", 1, 3)
             _persist_enriched(s, article)
         with db() as s:
-            [(found, old_scope)] = [
+            [found] = [
                 c
                 for c in rescope.select(s, "Mizzou-Missouri-State")
-                if c[0].id == article.id
+                if c.article.id == article.id
             ]
-            assert old_scope == "city_municipality"
+            assert found.old_scope == "city_municipality" and found.placed
             answer = rescope.Answer(
-                found,
-                old_scope,
+                found.article,
+                found.old_scope,
+                found.placed,
                 _ok(
                     "scope",
                     {
@@ -603,7 +604,7 @@ class TestRepository:
             )
             # answered under the current prompt: not selected again
             assert article.id not in {
-                a.id for a, _ in rescope.select(s, "Mizzou-Missouri-State")
+                c.article.id for c in rescope.select(s, "Mizzou-Missouri-State")
             }
             s.execute(sa.text("DELETE FROM enrichment_rescope_log"))
             s.commit()

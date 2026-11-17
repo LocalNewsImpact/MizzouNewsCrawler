@@ -95,7 +95,10 @@ FOCUS_PROMPT_VERSION = "focus-v4"
 #: the county or a multi-county service area; `regional` is a county or a
 #: wider area as the subject. In WSU, Leavenworth's storm recovery and a
 #: Chewelah clinic's funding were `regional` and lost their central place.
-SCOPE_PROMPT_VERSION = "geographic_scope-v4"
+#: v5: a story about one school, library, clinic or station of a district
+#: that serves several towns is about that town; only a district-wide story
+#: (levy, budget, election, policy) is `regional`.
+SCOPE_PROMPT_VERSION = "geographic_scope-v5"
 FOCUS_MAX_CHARS = 20000
 DEFAULT_TIMEOUT_S = 300
 

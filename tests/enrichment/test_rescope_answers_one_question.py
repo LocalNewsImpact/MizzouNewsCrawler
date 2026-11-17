@@ -126,7 +126,21 @@ class _Session:
     ],
 )
 def test_a_story_is_re_placed_only_when_its_geography_is_wrong(old, new, placed):
-    assert rescope.needs_placing(new, old) is placed
+    stored = old in rescope.placed_scopes(None)  # answered before v4
+    assert rescope.needs_placing(new, old, stored) is placed
+
+
+def test_placement_is_judged_by_the_version_that_answered_the_record():
+    """A v4 record already gave a crossing scope its point; asking v5
+    must not place it again. A pre-v4 record did not."""
+    assert "elsewhere_to_local" not in rescope.placed_scopes(None)
+    assert "elsewhere_to_local" not in rescope.placed_scopes("geographic_scope-v3")
+    assert "elsewhere_to_local" in rescope.placed_scopes("geographic_scope-v4")
+    assert "elsewhere_to_local" in rescope.placed_scopes("geographic_scope-v12")
+    v4 = "elsewhere_to_local" in rescope.placed_scopes("geographic_scope-v4")
+    assert (
+        rescope.needs_placing("elsewhere_to_local", "elsewhere_to_local", v4) is False
+    )
 
 
 def test_focus_is_asked_only_for_a_story_that_needs_a_point(monkeypatch):
@@ -137,8 +151,10 @@ def test_focus_is_asked_only_for_a_story_that_needs_a_point(monkeypatch):
     monkeypatch.setattr(
         rescope.adapter, "run_focus", lambda a, m: calls.append(a.id) or _scope(None)
     )
-    assert rescope.ask(_article(), "city_municipality", "m").focus is None
-    assert rescope.ask(_article(), "regional", "m").focus is not None
+    placed = rescope.Candidate(_article(), "city_municipality", True)
+    unplaced = rescope.Candidate(_article(), "regional", False)
+    assert rescope.ask(placed, "m").focus is None
+    assert rescope.ask(unplaced, "m").focus is not None
     assert calls == ["a1"]
 
 
@@ -180,13 +196,19 @@ def test_the_change_is_read_off_the_record():
 def test_a_failed_answer_changes_nothing_and_is_logged():
     before = _record("regional", geoids=["5312345"])
     session = _Session([before])
-    answer = rescope.Answer(_article(), "regional", _scope(None, ok=False), None)
+    answer = rescope.Answer(_article(), "regional", False, _scope(None, ok=False), None)
     assert rescope.apply(session, answer, run_id="r", model="m") == "error"
     assert not any("UPDATE article_enrichment" in s for s in session.statements)
     log = session.log_row()
     assert log["change"] == "error" and log["error"] == "timeout"
     assert log["new_geoids"] == log["old_geoids"]
     assert session.commits == 1
+
+
+def test_the_prompt_sends_a_district_story_to_its_town():
+    text = (rescope.adapter.PROMPTS_DIR / "geographic_scope.md").read_text()
+    assert "A district story set in one town is about that town" in text
+    assert "district-wide levy, budget, election, policy" in text
 
 
 def test_a_story_keeping_its_kind_of_geography_has_only_its_scope_written():
@@ -198,7 +220,7 @@ def test_a_story_keeping_its_kind_of_geography_has_only_its_scope_written():
     }
     session = _Session([before, after])
     answer = rescope.Answer(
-        _article(), "city_municipality", _scope("neighborhood_community"), None
+        _article(), "city_municipality", True, _scope("neighborhood_community"), None
     )
     assert rescope.apply(session, answer, run_id="r", model="m") == "scope_only"
     updates = [s for s in session.statements if "UPDATE article_enrichment" in s]
@@ -245,7 +267,9 @@ def test_a_story_that_became_regional_loses_its_point(monkeypatch):
     monkeypatch.setattr(
         rescope, "write_story_geoids", lambda *a, **k: seen.setdefault("geoids", k)
     )
-    answer = rescope.Answer(_article(), "city_municipality", _scope("regional"), None)
+    answer = rescope.Answer(
+        _article(), "city_municipality", True, _scope("regional"), None
+    )
 
     assert rescope.apply(session, answer, run_id="r", model="m") == "point_removed"
     (placed,) = [
@@ -296,7 +320,9 @@ def test_a_new_point_story_is_placed_by_the_focus_answer(monkeypatch):
     monkeypatch.setattr(rescope, "story_point", fake_point)
     monkeypatch.setattr(rescope, "institution_places", lambda s, i: [])
     monkeypatch.setattr(rescope, "write_story_geoids", lambda *a, **k: None)
-    answer = rescope.Answer(_article(), "regional", _scope("city_municipality"), focus)
+    answer = rescope.Answer(
+        _article(), "regional", False, _scope("city_municipality"), focus
+    )
 
     assert rescope.apply(session, answer, run_id="r", model="m") == "point_added"
     assert seen["focus"] == {"central": {"city": "Chewelah"}}

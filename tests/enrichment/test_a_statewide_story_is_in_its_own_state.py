@@ -45,7 +45,7 @@ class TestTheScopePrompt:
         assert "{text}" in text
         assert "A state event is the venue, not the impact" in text
         assert "Statewide means statewide in the state the story is about" in text
-        assert adapter.SCOPE_PROMPT_VERSION == "geographic_scope-v4"
+        assert adapter.SCOPE_PROMPT_VERSION == "geographic_scope-v5"
         assert "A story set in one town is about that town" in text
         assert "A name with the state in it is still in one place" in text
 
