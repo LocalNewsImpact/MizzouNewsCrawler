@@ -19,6 +19,24 @@ from dataclasses import dataclass
 # decision (proposal §12).
 PRODUCTION_PRESETS = ("subject", "topic", "format", "temporal_orientation", "user_need")
 
+# Scopes that get a single central point. The two `*_local*` scopes are
+# local stories by their own definitions -- national forces landing on a
+# local place, or a local place reaching beyond itself -- and each has the
+# place it is about. Excluding them dropped that place: "FISH, other food
+# banks experiencing record demand due to government shutdown" (Gig Harbor)
+# was `elsewhere_to_local` and recorded no central place.
+#
+# The ONE definition: the orchestrator, the repository and restore_points
+# all read it. Three hand-copied tuples is how a fourth scope goes missing.
+POINT_SCOPES = frozenset(
+    {
+        "neighborhood_community",
+        "city_municipality",
+        "elsewhere_to_local",
+        "local_to_elsewhere",
+    }
+)
+
 # Scope categories a dataset may exclude from export. The two point scopes are
 # not excludable: local coverage is the product. elsewhere_to_local is
 # excludable but note it means "external events with direct local impact" —

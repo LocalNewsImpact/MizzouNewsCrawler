@@ -3,6 +3,8 @@ call is exercised only in the live contract test."""
 
 from unittest.mock import patch
 
+import pytest
+
 from src.enrichment import fips
 from src.enrichment.fips import (
     county_geoid,
@@ -264,6 +266,13 @@ class TestGeoSkipReason:
         reason, geoid = self._run("statewide")
         assert geoid == "29" and reason is None
         reason, geoid = self._run("city_municipality")
+        assert geoid == "2915670" and reason is None
+
+    @pytest.mark.parametrize("scope", ["elsewhere_to_local", "local_to_elsewhere"])
+    def test_a_crossing_scope_is_coded_like_a_town(self, scope):
+        """A local story about outside forces is still a local story: it
+        takes the same point, and the same fallback, as a city story."""
+        reason, geoid = self._run(scope)
         assert geoid == "2915670" and reason is None
 
     def test_designed_absences(self):

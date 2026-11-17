@@ -32,10 +32,11 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
 from src.enrichment.grounding import support_for
+from src.enrichment.profiles import POINT_SCOPES
 
 logger = logging.getLogger(__name__)
 
@@ -58,10 +59,10 @@ _CANDIDATES = text("""
      WHERE p.is_point
        AND p.geoid IS NOT NULL
        AND e.point_geoid IS NULL
-       AND e.scope IN ('city_municipality', 'neighborhood_community')
+       AND e.scope IN :point_scopes
        AND COALESCE(NULLIF(p.city, ''), p.county) IS NOT NULL
      ORDER BY p.article_id
-""")
+""").bindparams(bindparam("point_scopes", expanding=True))
 
 _INSTITUTIONS = text("""
     SELECT DISTINCT np.place_name
@@ -97,7 +98,11 @@ def restorable(session: Session, *, limit: int | None = None) -> list[dict]:
     gate accepts wins, in the order the model wrote them, because a second
     point would be a second answer to a question with one.
     """
-    rows = session.execute(_CANDIDATES).mappings().all()
+    rows = (
+        session.execute(_CANDIDATES, {"point_scopes": sorted(POINT_SCOPES)})
+        .mappings()
+        .all()
+    )
     cache: dict[str, list[str]] = {}
     taken: set[str] = set()
     out: list[dict] = []

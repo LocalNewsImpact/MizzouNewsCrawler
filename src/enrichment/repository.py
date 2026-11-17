@@ -25,7 +25,7 @@ from src.enrichment.fips import (
     state_geoid,
 )
 from src.enrichment.grounding import grounded, support_for
-from src.enrichment.profiles import Profile, parse_profile
+from src.enrichment.profiles import POINT_SCOPES, Profile, parse_profile
 from src.enrichment.reground import regrounded
 from src.enrichment.resolve import norm, resolve_point
 from src.enrichment.types import ArticleInput, EnrichmentOutcome
@@ -1009,7 +1009,7 @@ def persist_outcome(
     if places_payload:
         # A point is resolved only at point scope. Regional keeps its places
         # rows (each with a per-place GEOID) and no story-level point.
-        if scope_category in ("city_municipality", "neighborhood_community"):
+        if scope_category in POINT_SCOPES:
             # The claim chain (decided 2026-08-21): the model's central-
             # geography designation first, the name-match heuristic second,
             # the publication place (below) last. point_method records which
@@ -1080,7 +1080,7 @@ def persist_outcome(
             state = story_state(places_payload, article.publication_state)
             geoid = state_geoid(state) if state else None
         elif (
-            category in ("city_municipality", "neighborhood_community")
+            category in POINT_SCOPES
             and article.publication_city
             and article.publication_state
         ):
@@ -1096,7 +1096,7 @@ def persist_outcome(
             geo_skip_reason = "no_codeable_geography"
         elif scope_category is None:
             geo_skip_reason = "not_scoped"
-        elif scope_category in ("city_municipality", "neighborhood_community"):
+        elif scope_category in POINT_SCOPES:
             if not article.publication_state:
                 geo_skip_reason = "publication_state_unknown"
             elif point is not None:

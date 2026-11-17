@@ -22,7 +22,7 @@ Choose **one** scope — the single **dominant** level of impact.
 |-------|------------|-------------|
 | `neighborhood_community` | Impacts a single neighborhood, district, school, or hyperlocal community. | Street-level issues; school boundary debates; neighborhood conflicts; park changes. |
 | `city_municipality` | Impacts residents of an entire city or town. | Citywide policy, mayoral decisions, municipal services, city elections. |
-| `regional` | Impacts multiple communities or counties within a broader geographic area (metro or non-metro). Includes multi-county regions, tribal nations, and multi-state regions like the Upper Midwest. | Metro-wide transit; Northern Minnesota wildfires; Iron Range mining issues. |
+| `regional` | A county, or multiple communities or counties within a broader geographic area (metro or non-metro). Includes a single county's government and programs, multi-county regions, tribal nations, river basins, and multi-state regions like the Upper Midwest. | County commission decisions; countywide programs; metro-wide transit; Northern Minnesota wildfires; Iron Range mining issues. |
 | `statewide` | Impacts residents across the entire state. | State legislation, state programs, governor's actions, state agency decisions. |
 | `national` | Impacts people across the United States; no specific local or state focus. | Federal elections; national economic trends; Supreme Court decisions (unless localized). |
 | `international` | Impacts multiple countries or deals with global affairs; no specific U.S. or local focus. | Global conflicts; international markets; WHO guidelines; diplomatic issues. |
@@ -61,6 +61,22 @@ Choose **one** scope — the single **dominant** level of impact.
   "MoDOT to close Route 5 bridge" is about the communities on Route 5. It is
   `statewide` only when the action applies across the state: a law, a rule, a
   statewide program, a budget, an election for statewide office.
+- **A story set in one town is about that town, even when its effects reach
+  past it.** An event, closure, opening, storm, project or institution in one
+  town is `city_municipality` for that town, even when the story also names
+  nearby communities, the county, a highway, or a service area that spans
+  several counties. "Ellensburg reopens downtown after water main break" is an
+  Ellensburg story even when it names the county and the interstate; "Colville
+  hospital wins grant to expand care" is a Colville story whatever counties the
+  hospital serves. A facility is in its town whoever runs it: a county park or
+  fairground next to a town is a story about that town. Naming other places is
+  mention, not a second subject.
+- **`regional` is for a county or a wider area as the subject.** Use it when
+  the story is about a county itself -- its government, budget, program or
+  countywide conditions -- or about several communities with no single one at
+  its center, or about a river, basin, watershed or other system that crosses
+  community lines. Never use it only because a one-town story mentions
+  neighboring places.
 - **The publication is in {publication}.** A state event or institution in
   the publication's own community is local news for it.
 - **Statewide means statewide in the state the story is about.** A Kansas bill,
@@ -100,6 +116,28 @@ Choose **one** scope — the single **dominant** level of impact.
   "category": "regional",
   "confidence": 0.91,
   "rationale": "The project spans several communities across the metro area."
+}
+```
+
+#### Example 3b — One town, with effects beyond it
+**Headline:** "Ellensburg reopens downtown after water main break"
+
+```json
+{
+  "category": "city_municipality",
+  "confidence": 0.9,
+  "rationale": "The story is set in Ellensburg; the county and the interstate are mentioned, not a second subject."
+}
+```
+
+#### Example 3c — A county as the subject
+**Headline:** "Benton County commissioners approve $4 million for rural road repairs"
+
+```json
+{
+  "category": "regional",
+  "confidence": 0.92,
+  "rationale": "A county government's decision applied across the county; no single town is the subject."
 }
 ```
 

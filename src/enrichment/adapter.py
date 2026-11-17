@@ -91,7 +91,11 @@ FOCUS_PROMPT_VERSION = "focus-v4"
 #: a local team at a state event is local, and a statewide story is
 #: statewide in the state it is about. 1,810 Missouri stories in March 2026
 #: were `statewide`; in a sample of 25, 7 were local teams at state events.
-SCOPE_PROMPT_VERSION = "geographic_scope-v3"
+#: v4: a one-town story is `city_municipality` even when it names neighbors,
+#: the county or a multi-county service area; `regional` is a county or a
+#: wider area as the subject. In WSU, Leavenworth's storm recovery and a
+#: Chewelah clinic's funding were `regional` and lost their central place.
+SCOPE_PROMPT_VERSION = "geographic_scope-v4"
 FOCUS_MAX_CHARS = 20000
 DEFAULT_TIMEOUT_S = 300
 

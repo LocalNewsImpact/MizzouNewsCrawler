@@ -26,11 +26,9 @@ from src.enrichment.gate import (
     long_partial_story,
     paywalled_stub,
 )
-from src.enrichment.profiles import Profile
+from src.enrichment.profiles import POINT_SCOPES, Profile
 from src.enrichment.resolve import resolve_point
 from src.enrichment.types import ArticleInput, EnrichmentOutcome, StepResult
-
-POINT_SCOPES = frozenset({"city_municipality", "neighborhood_community"})
 
 # PLACE EXTRACTION IS NO LONGER GATED ON SCOPE.
 #
