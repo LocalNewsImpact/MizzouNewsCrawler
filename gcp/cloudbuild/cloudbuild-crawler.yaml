@@ -77,7 +77,7 @@ steps:
     waitFor: ['get-gke-credentials']
 
   # Update Argo WorkflowTemplate to use new crawler image SHA
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:589.0.0'
     id: 'update-argo-workflow-template'
     entrypoint: 'bash'
     args:

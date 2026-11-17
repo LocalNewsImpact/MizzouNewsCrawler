@@ -28,7 +28,7 @@ steps:
     waitFor: ['build-migrator']
 
   # Run database migrations BEFORE building other services (only on main branch)
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:589.0.0'
     id: 'run-migrations'
     entrypoint: 'bash'
     args:
@@ -190,7 +190,7 @@ steps:
     waitFor: ['build-crawler']
 
   # PHASE 3: Create Cloud Deploy release (only on main branch)
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:589.0.0'
     id: 'create-release'
     entrypoint: 'bash'
     args:
@@ -211,7 +211,7 @@ steps:
     waitFor: ['push-processor', 'push-api', 'push-crawler']
 
   # PHASE 4: Update Argo WorkflowTemplate to use new crawler image SHA (only on main branch)
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:589.0.0'
     id: 'update-argo-workflow-template'
     entrypoint: 'bash'
     args:

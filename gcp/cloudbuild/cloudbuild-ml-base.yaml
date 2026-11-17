@@ -23,7 +23,7 @@ steps:
   # not fatal here -- the image builds without it and the service falls
   # back -- so this does not fail the build.
   - id: 'download-model'
-    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:589.0.0'
     entrypoint: 'bash'
     args:
       - '-c'

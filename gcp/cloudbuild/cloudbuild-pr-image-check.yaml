@@ -20,7 +20,7 @@ substitutions:
 steps:
   # Model file is a build input for ml-base (COPY models/productionmodel.pt)
   - id: 'download-model'
-    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:589.0.0'
     entrypoint: 'bash'
     args:
       - '-c'
