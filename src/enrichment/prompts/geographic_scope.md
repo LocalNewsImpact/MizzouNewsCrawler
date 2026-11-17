@@ -1,9 +1,9 @@
 ### TASK: Classify the **Scope** of a local news article
 
-You are an assistant that identifies the article's **geographic scope of impact** — the primary level at which the story's events, decisions, or effects matter.
-Scope reflects **who is affected**, not who is mentioned, quoted, or referenced.
+You are an assistant that identifies the article's **geographic scope**: the level of the place the story is **about** — where its events happen, and whose community, government or institution it concerns.
+Scope is the story's **subject**, not the reach of its effects. A story set in one town whose effects spread to neighboring places, a county or a service area is still about that town.
 
-Choose **one** scope — the single **dominant** level of impact.
+Choose **one** scope — the level of the place the story is about.
 
 ## Categories
 - neighborhood_community
@@ -20,8 +20,8 @@ Choose **one** scope — the single **dominant** level of impact.
 
 | Label | Definition | Key Signals |
 |-------|------------|-------------|
-| `neighborhood_community` | Impacts a single neighborhood, district, school, or hyperlocal community. | Street-level issues; school boundary debates; neighborhood conflicts; park changes. |
-| `city_municipality` | Impacts residents of an entire city or town. | Citywide policy, mayoral decisions, municipal services, city elections. |
+| `neighborhood_community` | About a single neighborhood, district, school, or hyperlocal community. | Street-level issues; school boundary debates; neighborhood conflicts; park changes. |
+| `city_municipality` | About one city or town: its government, services, events, businesses, institutions or places. | Citywide policy, mayoral decisions, municipal services, city elections; a storm, closure or opening in the town; a town's clinic, park or school. |
 | `regional` | A county, or multiple communities or counties within a broader geographic area (metro or non-metro). Includes a single county's government and programs, multi-county regions, tribal nations, river basins, and multi-state regions like the Upper Midwest. | County commission decisions; countywide programs; metro-wide transit; Northern Minnesota wildfires; Iron Range mining issues. |
 | `statewide` | Impacts residents across the entire state. | State legislation, state programs, governor's actions, state agency decisions. |
 | `national` | Impacts people across the United States; no specific local or state focus. | Federal elections; national economic trends; Supreme Court decisions (unless localized). |
@@ -32,9 +32,9 @@ Choose **one** scope — the single **dominant** level of impact.
 
 ### Rules
 
-- **Choose only one scope** — the level at which the story's *impact* is primarily felt.
-- **Mention is not impact.** If Congress is mentioned but does not affect locals, the story is not national.
-- **Choose the smallest scale** that accurately describes who is affected.
+- **Choose only one scope** — the level of the place the story is about.
+- **Mention is not subject.** If Congress is mentioned but the story is about a local program, the story is not national.
+- **Choose the smallest scale** that contains the story's subject. Effects that reach further do not raise the scale.
 - Use `regional` for metro areas, multi-county regions, non-metro regions, multi-state regions, and tribal nations.
 - Use `elsewhere_to_local` when the story's main dynamic is external forces affecting locals.
 - Use `local_to_elsewhere` only when the local action **creates meaningful broader influence**, not merely symbolic attention.
@@ -68,15 +68,32 @@ Choose **one** scope — the single **dominant** level of impact.
   several counties. "Ellensburg reopens downtown after water main break" is an
   Ellensburg story even when it names the county and the interstate; "Colville
   hospital wins grant to expand care" is a Colville story whatever counties the
-  hospital serves. A facility is in its town whoever runs it: a county park or
-  fairground next to a town is a story about that town. Naming other places is
-  mention, not a second subject.
-- **`regional` is for a county or a wider area as the subject.** Use it when
-  the story is about a county itself -- its government, budget, program or
-  countywide conditions -- or about several communities with no single one at
-  its center, or about a river, basin, watershed or other system that crosses
-  community lines. Never use it only because a one-town story mentions
-  neighboring places.
+  hospital serves. Naming other places is mention, not a second subject.
+- **A county agency acting in a town is about that town.** Deputies arresting
+  someone in Fulton, or a county court hearing about a crime in one town, are
+  stories about that town.
+  The agency is the actor; the town is where the story happens.
+- **`regional` is for a county or a wider area as the subject.** Use it when:
+  - the story is about the county government's own business -- its budget,
+    ordinances, commission decisions, countywide programs, elections, or the
+    county government acting on its own property and facilities (a county park
+    it buys or reopens, fees it sets at a county transfer station);
+  - the story is set in the county but in no particular town;
+  - the story is a county-wide event or institution -- a county fair or
+    festival, a county chamber of commerce -- even when it is held in one town;
+  - the story is local to two or more communities that share it equally --
+    the same thing happening in each, such as food banks in two towns. Where
+    the people involved are from is not a second community: a crash near
+    Centerville whose driver lives in Ellington is a Centerville story;
+  - the story is about a business, service or organization AS A WHOLE that
+    has locations across several communities, wherever its headquarters is: a
+    warning about a chain with stores across a metro area is `regional`. When
+    the story is about what that organization is doing in one town -- a branch,
+    a building, a grant or an expansion there -- it is about that town;
+  - several communities share the story with no single one at its center; or
+  - the subject is a river, basin, watershed or other system that crosses
+    community lines.
+  Never use it only because a one-town story mentions neighboring places.
 - **The publication is in {publication}.** A state event or institution in
   the publication's own community is local news for it.
 - **Statewide means statewide in the state the story is about.** A Kansas bill,
