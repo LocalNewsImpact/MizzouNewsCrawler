@@ -213,7 +213,10 @@ def test_process_writes_every_outcome_and_totals_the_spend(seams):
     assert written["profile"] is profile
     assert written["model"] == "some/model"
     assert written["backfield_commit"] == "deadbeef"
-    assert written["prompt_versions"] == {"content_gate": "content_gate-v1"}
+    assert written["prompt_versions"] == {
+        "content_gate": "content_gate-v1",
+        "scope": "geographic_scope-v4",
+    }
 
 
 def test_process_halts_at_the_ceiling_after_committing_the_article(seams, monkeypatch):

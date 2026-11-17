@@ -8,6 +8,7 @@ Subcommands per docs/BACKFIELD_IMPLEMENTATION.md Phase 5:
   enrich reground   [--dataset SLUG] [--since D] [--until D] [--dry-run]
   enrich status     [--dataset SLUG]
   enrich reprocess  --dataset SLUG --profile-version N [--dry-run]
+  enrich rescope    --dataset SLUG [--limit N] [--dry-run]
 
 --dry-run resolves candidates, prints the plan and projected cost, and makes no
 model call and no write. The spend ceiling (ENRICHMENT_SPEND_CEILING_USD) is
@@ -104,6 +105,26 @@ def add_enrichment_parser(subparsers):
     )
     reprocess.add_argument("--dry-run", action="store_true")
 
+    rescope = actions.add_parser(
+        "rescope",
+        help=(
+            "Answer scope again under the current prompt; re-place only "
+            "stories whose new scope needs it; log every change"
+        ),
+    )
+    rescope.add_argument("--dataset", required=True)
+    rescope.add_argument("--limit", type=int, default=None)
+    rescope.add_argument(
+        "--concurrency",
+        type=int,
+        default=int(os.getenv("ENRICHMENT_CONCURRENCY", "10")),
+    )
+    rescope.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="count the stories and project the cost; no model call, no write",
+    )
+
     support = actions.add_parser(
         "point-support",
         help="Record why each existing central place survived the gate",
@@ -149,6 +170,18 @@ def _ceiling() -> Decimal | None:
 
 def _backfield_commit() -> str:
     return os.getenv("BACKFIELD_COMMIT", "unknown")
+
+
+def _prompt_versions() -> dict[str, str]:
+    """What a new record was asked with. `scope` is what `rescope` selects
+    on: a record answered under the current scope prompt is not asked
+    again."""
+    from src.enrichment import adapter
+
+    return {
+        "content_gate": adapter.GATE_PROMPT_VERSION,
+        "scope": adapter.SCOPE_PROMPT_VERSION,
+    }
 
 
 def _process(
@@ -215,7 +248,7 @@ def _process(
                             profile=profile,
                             model=model,
                             backfield_commit=_backfield_commit(),
-                            prompt_versions={"content_gate": "content_gate-v1"},
+                            prompt_versions=_prompt_versions(),
                             dataset_id=dataset_id,
                         )
                         counts[outcome.status] = counts.get(outcome.status, 0) + 1
@@ -237,6 +270,50 @@ def _process(
             for future in pending:
                 future.cancel()
     return {"counts": counts, "spent": str(spent), "halted": halted}
+
+
+def _rescope(db, session, args, model) -> int:
+    from src.enrichment import adapter, repository, rescope
+
+    if not repository.dataset_profile(session, args.dataset).scope:
+        print(f"{args.dataset}: the profile does not ask scope; nothing to do")
+        return 0
+    candidates = rescope.select(session, args.dataset, args.limit)
+    by_scope: dict[str, int] = {}
+    for _article, old_scope in candidates:
+        by_scope[old_scope] = by_scope.get(old_scope, 0) + 1
+    print(
+        f"rescope {args.dataset} under {adapter.SCOPE_PROMPT_VERSION}: "
+        f"{len(candidates)} stories"
+    )
+    for scope, count in sorted(by_scope.items(), key=lambda kv: -kv[1]):
+        print(f"  {scope:24s} {count}")
+    if args.dry_run:
+        projected = rescope.PROJECTED_SCOPE_COST * len(candidates)
+        print(f"  projected scope cost: ~${projected:.2f}, plus focus where a")
+        print("  story newly needs a point")
+        print("  no model call made, nothing written")
+        return 0
+    if not candidates:
+        return 0
+    result = rescope.run(
+        db.get_session,
+        candidates,
+        model=model,
+        concurrency=args.concurrency,
+        ceiling=_ceiling(),
+    )
+    print(
+        f"run {result['run_id']}: spent ${result['spent']}  "
+        f"halted: {result['halted']}"
+    )
+    for change, count in sorted(result["counts"].items(), key=lambda kv: -kv[1]):
+        print(f"  {change:20s} {count}")
+    print(
+        "  changes: SELECT * FROM enrichment_rescope_log "
+        f"WHERE run_id = '{result['run_id']}'"
+    )
+    return 1 if result["halted"] else 0
 
 
 def handle_enrichment_command(args) -> int:
@@ -269,6 +346,9 @@ def handle_enrichment_command(args) -> int:
                     + ("\n(dry run — nothing written)" if args.dry_run else "")
                 )
                 return 0
+
+            if action == "rescope":
+                return _rescope(db, session, args, model)
 
             if action == "restore-points":
                 from src.enrichment import restore_points

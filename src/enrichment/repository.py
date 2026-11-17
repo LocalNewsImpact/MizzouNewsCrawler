@@ -25,7 +25,7 @@ from src.enrichment.fips import (
     state_geoid,
 )
 from src.enrichment.grounding import grounded, support_for
-from src.enrichment.profiles import Profile, parse_profile
+from src.enrichment.profiles import POINT_SCOPES, Profile, parse_profile
 from src.enrichment.reground import regrounded
 from src.enrichment.resolve import norm, resolve_point
 from src.enrichment.types import ArticleInput, EnrichmentOutcome
@@ -955,66 +955,30 @@ def _says(
     )
 
 
-def persist_outcome(
+def story_point(
     session: Session,
     article: ArticleInput,
-    outcome: EnrichmentOutcome,
-    *,
-    profile: Profile,
-    model: str,
-    backfield_commit: str,
-    prompt_versions: dict[str, str],
-    dataset_id: str | None = None,
-) -> None:
-    """Write one article's outcome and commit. §5.2: a 'labeled' outcome writes
-    nothing but the attempt counter; partial results are discarded."""
-    now = datetime.now(timezone.utc)
+    scope_category: str | None,
+    places_payload: dict | None,
+    focus_payload: dict | None,
+    named_places: list[str],
+):
+    """A story's central point and why it has none: (point, geoid, skip reason).
 
-    if outcome.status == "labeled":
-        session.execute(
-            text(
-                "UPDATE articles SET enrichment_attempts = enrichment_attempts + 1 "
-                "WHERE id = :id"
-            ),
-            {"id": article.id},
-        )
-        session.commit()
-        return
-
-    step_payloads = {r.step: r.payload for r in outcome.results if r.ok and r.payload}
-    presets = {
-        "scope": step_payloads.get("scope"),
-        "subject": step_payloads.get("subject"),
-        "topic": step_payloads.get("topic"),
-        "format": step_payloads.get("format"),
-        "timeframe": step_payloads.get("temporal_orientation"),
-        "user_need": step_payloads.get("user_need"),
-    }
-    columns: dict[str, object] = {}
-    rationales: dict[str, str] = {}
-    for column, payload in presets.items():
-        meta = (payload or {}).get("article_metadata") or {}
-        columns[column] = meta.get("category")
-        columns[f"{column}_confidence"] = _confidence(meta)
-        if meta.get("rationale"):
-            rationales[column] = meta["rationale"]
-
-    gate = step_payloads.get("content_gate") or {}
-    named_places = institution_places(session, article.id)
+    Shared by enrichment and `rescope`, so a scope answered again is placed
+    by exactly the rules that placed it the first time.
+    """
     point = None
     geoid = None
-    places_payload = step_payloads.get("places")
-    scope_meta = (step_payloads.get("scope") or {}).get("article_metadata") or {}
-    scope_category = scope_meta.get("category")
     if places_payload:
         # A point is resolved only at point scope. Regional keeps its places
         # rows (each with a per-place GEOID) and no story-level point.
-        if scope_category in ("city_municipality", "neighborhood_community"):
+        if scope_category in POINT_SCOPES:
             # The claim chain (decided 2026-08-21): the model's central-
             # geography designation first, the name-match heuristic second,
             # the publication place (below) last. point_method records which
             # rung made the claim.
-            focus = step_payloads.get("focus") or {}
+            focus = focus_payload or {}
             central = focus.get("central") or {}
             # A CLAIM THE ARTICLE DOES NOT SUPPORT IS NOT MADE (2026-09-15).
             #
@@ -1080,7 +1044,7 @@ def persist_outcome(
             state = story_state(places_payload, article.publication_state)
             geoid = state_geoid(state) if state else None
         elif (
-            category in ("city_municipality", "neighborhood_community")
+            category in POINT_SCOPES
             and article.publication_city
             and article.publication_state
         ):
@@ -1096,7 +1060,7 @@ def persist_outcome(
             geo_skip_reason = "no_codeable_geography"
         elif scope_category is None:
             geo_skip_reason = "not_scoped"
-        elif scope_category in ("city_municipality", "neighborhood_community"):
+        elif scope_category in POINT_SCOPES:
             if not article.publication_state:
                 geo_skip_reason = "publication_state_unknown"
             elif point is not None:
@@ -1105,6 +1069,182 @@ def persist_outcome(
                 geo_skip_reason = "publication_city_not_in_census_gazetteer"
         elif scope_category == "statewide":
             geo_skip_reason = "publication_state_unknown"
+    return point, geoid, geo_skip_reason
+
+
+def write_story_geoids(
+    session: Session,
+    article: ArticleInput,
+    *,
+    geoid,
+    point,
+    scope_category: str | None,
+    places_payload: dict | None,
+    named_places: list[str],
+    geo_skip_reason: str | None,
+) -> str | None:
+    """Rebuild the story-to-FIPS set and the flat `geoids` column.
+
+    Returns the skip reason as written, which the set can sharpen.
+    """
+    # The story-to-FIPS set (one row per distinct GEOID; news geography is
+    # one-to-many). Rebuilt whole on every persist.
+    mention_geoids: list[tuple[str | None, str | None]] = []
+    mention_names: list[str | None] = []
+    if places_payload:
+        for location in places_payload.get("locations") or []:
+            components = (location.get("location") or {}).get("components") or {}
+            loc_state = components.get("state")
+            if isinstance(loc_state, dict):
+                loc_state = loc_state.get("abbr") or loc_state.get("name")
+            loc_state = loc_state or article.publication_state
+            city = components.get("city")
+            # Same gate, same reason: 17.2% of mentions named a place the
+            # article does not name in reporting. A location is kept on
+            # whichever of its own names the article actually uses.
+            if not any(
+                _says(article, name, named_places)
+                for name in (city, components.get("county"))
+                if name
+            ):
+                continue
+            g = place_geoid(city, loc_state) if (city and loc_state) else None
+            if g is None and components.get("county") and loc_state:
+                g = county_geoid(components["county"], loc_state)
+            mention_geoids.append((g.geoid if g else None, g.level if g else None))
+            mention_names.append(city)
+    state_code = None
+    if article.publication_state:
+        sg = state_geoid(article.publication_state)
+        state_code = sg.geoid if sg else None
+    story_geoids = build_story_geoids(
+        geoid,
+        mention_geoids,
+        scope_category,
+        state_code,
+        point_place_name=point[0] if point else None,
+        place_row_names=mention_names,
+    )
+    # WHAT A PERSON PUT IN.
+    #
+    # Rebuilt into the set rather than left to survive in it, because the
+    # set is deleted and rewritten on every run. `source = 'human'` is
+    # what keeps this honest: every consumer -- the story map, the
+    # BigQuery export, any query against article_geoids -- reads a human
+    # contribution in exactly the same shape as an extracted one, on the
+    # same ladder, resolved by the same crosswalk, and an analysis that
+    # wants to tell them apart still can.
+    #
+    # Neither outranks the other. Where the pipeline also found the
+    # place, both rows stand: one is what was extracted and one is what a
+    # person said, and neither is evidence the other is wrong.
+    claimed = {g for g, _lvl, _p, _src in story_geoids}
+    for code, level, is_point in manual_geoids(session, article.id):
+        if code in claimed:
+            continue
+        story_geoids.append((code, level, is_point and geoid is None, "human"))
+        claimed.add(code)
+    # Two columns (decided 2026-08-21): point_geoid is the central-location
+    # claim; the flat geoids column carries ONLY the mentioned FIPS — the
+    # claim is never repeated there. article_geoids keeps the superset with
+    # is_primary flags.
+    mention_set = [g for g, _lvl, primary, _src in story_geoids if not primary]
+    geoids_json = json.dumps(mention_set) if mention_set else json.dumps([])
+    session.execute(
+        text("DELETE FROM article_geoids WHERE article_id = :id"), {"id": article.id}
+    )
+    for g_code, g_level, g_primary, g_source in story_geoids:
+        session.execute(
+            text(
+                "INSERT INTO article_geoids "
+                "(article_id, geoid, geoid_level, is_primary, source) "
+                "VALUES (:a, :g, :l, :p, :s) ON CONFLICT DO NOTHING"
+            ),
+            {"a": article.id, "g": g_code, "l": g_level, "p": g_primary, "s": g_source},
+        )
+
+    # A SKIP REASON MUST AGREE WITH WHAT WAS WRITTEN (§5.4b).
+    #
+    # `regional_uses_place_set` asserts a story's geography lives in its
+    # place set rather than in a point. Chosen up at the point-resolution
+    # step, which is 200 lines before the set exists, so it was asserted
+    # for six March stories whose set came out EMPTY -- four having
+    # extracted real places that failed to resolve, two having extracted
+    # none at all. From the outside those were indistinguishable from a
+    # working regional story, which is why they had to be found by
+    # querying the database rather than by reading a status.
+    #
+    # Now that the set is known, the reason says which happened.
+    if not mention_set and geo_skip_reason == "regional_uses_place_set":
+        geo_skip_reason = "places_unresolved" if mention_geoids else "no_places_found"
+
+    session.execute(
+        text(
+            "UPDATE article_enrichment SET geoids = :g, geo_skip_reason = :r "
+            "WHERE article_id = :id"
+        ),
+        {"g": geoids_json, "r": geo_skip_reason, "id": article.id},
+    )
+    return geo_skip_reason
+
+
+def persist_outcome(
+    session: Session,
+    article: ArticleInput,
+    outcome: EnrichmentOutcome,
+    *,
+    profile: Profile,
+    model: str,
+    backfield_commit: str,
+    prompt_versions: dict[str, str],
+    dataset_id: str | None = None,
+) -> None:
+    """Write one article's outcome and commit. §5.2: a 'labeled' outcome writes
+    nothing but the attempt counter; partial results are discarded."""
+    now = datetime.now(timezone.utc)
+
+    if outcome.status == "labeled":
+        session.execute(
+            text(
+                "UPDATE articles SET enrichment_attempts = enrichment_attempts + 1 "
+                "WHERE id = :id"
+            ),
+            {"id": article.id},
+        )
+        session.commit()
+        return
+
+    step_payloads = {r.step: r.payload for r in outcome.results if r.ok and r.payload}
+    presets = {
+        "scope": step_payloads.get("scope"),
+        "subject": step_payloads.get("subject"),
+        "topic": step_payloads.get("topic"),
+        "format": step_payloads.get("format"),
+        "timeframe": step_payloads.get("temporal_orientation"),
+        "user_need": step_payloads.get("user_need"),
+    }
+    columns: dict[str, object] = {}
+    rationales: dict[str, str] = {}
+    for column, payload in presets.items():
+        meta = (payload or {}).get("article_metadata") or {}
+        columns[column] = meta.get("category")
+        columns[f"{column}_confidence"] = _confidence(meta)
+        if meta.get("rationale"):
+            rationales[column] = meta["rationale"]
+
+    gate = step_payloads.get("content_gate") or {}
+    named_places = institution_places(session, article.id)
+    places_payload = step_payloads.get("places")
+    scope_meta = (step_payloads.get("scope") or {}).get("article_metadata") or {}
+    scope_category = scope_meta.get("category")
+    point, geoid, geo_skip_reason = story_point(
+        session,
+        article,
+        scope_category,
+        places_payload,
+        step_payloads.get("focus"),
+        named_places,
+    )
 
     session.execute(
         text("""
@@ -1336,103 +1476,15 @@ def persist_outcome(
                 },
             )
 
-    # The story-to-FIPS set (one row per distinct GEOID; news geography is
-    # one-to-many). Rebuilt whole on every persist.
-    mention_geoids: list[tuple[str | None, str | None]] = []
-    mention_names: list[str | None] = []
-    if places_payload:
-        for location in places_payload.get("locations") or []:
-            components = (location.get("location") or {}).get("components") or {}
-            loc_state = components.get("state")
-            if isinstance(loc_state, dict):
-                loc_state = loc_state.get("abbr") or loc_state.get("name")
-            loc_state = loc_state or article.publication_state
-            city = components.get("city")
-            # Same gate, same reason: 17.2% of mentions named a place the
-            # article does not name in reporting. A location is kept on
-            # whichever of its own names the article actually uses.
-            if not any(
-                _says(article, name, named_places)
-                for name in (city, components.get("county"))
-                if name
-            ):
-                continue
-            g = place_geoid(city, loc_state) if (city and loc_state) else None
-            if g is None and components.get("county") and loc_state:
-                g = county_geoid(components["county"], loc_state)
-            mention_geoids.append((g.geoid if g else None, g.level if g else None))
-            mention_names.append(city)
-    state_code = None
-    if article.publication_state:
-        sg = state_geoid(article.publication_state)
-        state_code = sg.geoid if sg else None
-    story_geoids = build_story_geoids(
-        geoid,
-        mention_geoids,
-        scope_category,
-        state_code,
-        point_place_name=point[0] if point else None,
-        place_row_names=mention_names,
-    )
-    # WHAT A PERSON PUT IN.
-    #
-    # Rebuilt into the set rather than left to survive in it, because the
-    # set is deleted and rewritten on every run. `source = 'human'` is
-    # what keeps this honest: every consumer -- the story map, the
-    # BigQuery export, any query against article_geoids -- reads a human
-    # contribution in exactly the same shape as an extracted one, on the
-    # same ladder, resolved by the same crosswalk, and an analysis that
-    # wants to tell them apart still can.
-    #
-    # Neither outranks the other. Where the pipeline also found the
-    # place, both rows stand: one is what was extracted and one is what a
-    # person said, and neither is evidence the other is wrong.
-    claimed = {g for g, _lvl, _p, _src in story_geoids}
-    for code, level, is_point in manual_geoids(session, article.id):
-        if code in claimed:
-            continue
-        story_geoids.append((code, level, is_point and geoid is None, "human"))
-        claimed.add(code)
-    # Two columns (decided 2026-08-21): point_geoid is the central-location
-    # claim; the flat geoids column carries ONLY the mentioned FIPS — the
-    # claim is never repeated there. article_geoids keeps the superset with
-    # is_primary flags.
-    mention_set = [g for g, _lvl, primary, _src in story_geoids if not primary]
-    geoids_json = json.dumps(mention_set) if mention_set else json.dumps([])
-    session.execute(
-        text("DELETE FROM article_geoids WHERE article_id = :id"), {"id": article.id}
-    )
-    for g_code, g_level, g_primary, g_source in story_geoids:
-        session.execute(
-            text(
-                "INSERT INTO article_geoids "
-                "(article_id, geoid, geoid_level, is_primary, source) "
-                "VALUES (:a, :g, :l, :p, :s) ON CONFLICT DO NOTHING"
-            ),
-            {"a": article.id, "g": g_code, "l": g_level, "p": g_primary, "s": g_source},
-        )
-
-    # A SKIP REASON MUST AGREE WITH WHAT WAS WRITTEN (§5.4b).
-    #
-    # `regional_uses_place_set` asserts a story's geography lives in its
-    # place set rather than in a point. Chosen up at the point-resolution
-    # step, which is 200 lines before the set exists, so it was asserted
-    # for six March stories whose set came out EMPTY -- four having
-    # extracted real places that failed to resolve, two having extracted
-    # none at all. From the outside those were indistinguishable from a
-    # working regional story, which is why they had to be found by
-    # querying the database rather than by reading a status.
-    #
-    # Now that the set is known, the reason says which happened.
-    if not mention_set and geo_skip_reason == "regional_uses_place_set":
-        geo_skip_reason = "places_unresolved" if mention_geoids else "no_places_found"
-
-    session.execute(
-        text(
-            "UPDATE article_enrichment SET geoids = :g, geo_skip_reason = :r "
-            "WHERE article_id = :id"
-        ),
-        {"g": geoids_json, "r": geo_skip_reason, "id": article.id},
+    write_story_geoids(
+        session,
+        article,
+        geoid=geoid,
+        point=point,
+        scope_category=scope_category,
+        places_payload=places_payload,
+        named_places=named_places,
+        geo_skip_reason=geo_skip_reason,
     )
 
     # AN EXCLUSION DECIDED HERE IS REVIEWED, NOT WRITTEN.

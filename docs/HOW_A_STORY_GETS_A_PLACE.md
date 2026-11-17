@@ -530,6 +530,7 @@ without re-running the model.
 |---|---|---|
 | `enrich reground` | removes stored geography the text does not support | none |
 | `enrich restore-points` | writes a point for a stored claim the gate now accepts | none |
+| `enrich rescope` | answers scope again under the current prompt; re-places only where the new scope requires | scope; focus where a story newly needs a point |
 
 **Re-enrichment is not the mechanism.** Given an unchanged prompt and
 profile, a second pass moved 34 of 167 points and demoted 32 from a city
@@ -544,6 +545,37 @@ can separate a place the story named from one an institution implied.
 
 Recovered to date: 89 points — 71 on improved gazetteer data, 18 further
 after re-extraction exposed the new names as entity spans.
+
+### 7.1 A scope prompt change
+
+`enrich rescope --dataset SLUG` is the one pass that calls the model, and it
+asks only the question whose prompt changed. Places are read back from
+`article_places`, not extracted again, so the place set moves only because
+the scope did.
+
+| stored scope → new scope | written |
+|---|---|
+| unchanged, or one point scope to another | scope, confidence, rationale |
+| into a point scope from a scope that had no point | focus runs; point placed |
+| a point scope to a non-point scope, or between non-point scopes | point cleared; place set or state code rebuilt |
+
+Before `geographic_scope-v4`, only `neighborhood_community` and
+`city_municipality` stories were given a point, so a crossing-scope story
+(`elsewhere_to_local`, `local_to_elsewhere`) is placed even when its scope
+does not change.
+
+Every article read writes one row to `enrichment_rescope_log`, with the
+scope, confidence, rationale, point and place set before and after, and a
+`change` label: `unchanged`, `scope_only`, `point_added`, `point_removed`,
+`point_moved`, `place_set_changed` or `error`. Selection keys on
+`prompt_versions.scope`, so an interrupted run resumes and a finished one
+selects nothing.
+
+```sql
+SELECT change, old_scope, new_scope, count(*)
+  FROM enrichment_rescope_log WHERE run_id = :run
+ GROUP BY 1, 2, 3 ORDER BY 4 DESC;
+```
 
 ---
 

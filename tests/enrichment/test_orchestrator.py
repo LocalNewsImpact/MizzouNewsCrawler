@@ -293,6 +293,32 @@ class TestScopeGating:
         assert "places" in result.steps_applied
 
     @pytest.mark.parametrize(
+        "scope_value",
+        [
+            "city_municipality",
+            "neighborhood_community",
+            "elsewhere_to_local",
+            "local_to_elsewhere",
+        ],
+    )
+    def test_a_local_story_is_asked_for_its_central_place(self, scope_value):
+        """Every local scope gets the central-place question.
+
+        `elsewhere_to_local` is national forces landing on a local place,
+        and `local_to_elsewhere` a local place reaching beyond itself: both
+        are local stories with the place they are about. "FISH, other food
+        banks experiencing record demand due to government shutdown" (Gig
+        Harbor) was `elsewhere_to_local` and recorded no central place.
+        """
+        _, stub = run(FULL, scope=ok("scope", meta(scope_value)))
+        assert "focus" in stub.calls
+
+    @pytest.mark.parametrize("scope_value", ["regional", "statewide", "national"])
+    def test_a_wider_story_is_not_given_one_point(self, scope_value):
+        _, stub = run(FULL, scope=ok("scope", meta(scope_value)))
+        assert "focus" not in stub.calls
+
+    @pytest.mark.parametrize(
         "scope_value", ["city_municipality", "neighborhood_community"]
     )
     def test_point_scopes_reach_places(self, scope_value):

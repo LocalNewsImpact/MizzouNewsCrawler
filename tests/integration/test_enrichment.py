@@ -536,6 +536,78 @@ class TestRepository:
             ("2943238", False, "human"),
         ]
 
+    def test_a_rescoped_story_is_re_placed_and_logged(self, db):
+        """`enrich rescope` against real PostgreSQL: the jsonb merges, the
+        array test on steps_applied, and a point cleared outright where the
+        enrichment upsert would have COALESCEd it back."""
+        from src.enrichment import rescope
+
+        with db() as s:
+            [article] = select_candidates(s, "Mizzou-Missouri-State", 1, 3)
+            _persist_enriched(s, article)
+        with db() as s:
+            [(found, old_scope)] = [
+                c
+                for c in rescope.select(s, "Mizzou-Missouri-State")
+                if c[0].id == article.id
+            ]
+            assert old_scope == "city_municipality"
+            answer = rescope.Answer(
+                found,
+                old_scope,
+                _ok(
+                    "scope",
+                    {
+                        "article_metadata": {
+                            "category": "regional",
+                            "confidence": 0.8,
+                            "rationale": "a county story",
+                        }
+                    },
+                ),
+                None,
+            )
+            assert rescope.apply(s, answer, run_id="r1", model="m") == "point_removed"
+        with db() as s:
+            row = s.execute(
+                sa.text(
+                    "SELECT scope, point_place, point_geoid, geo_skip_reason, "
+                    "CAST(rationales AS jsonb)->>'scope' AS why, "
+                    "CAST(prompt_versions AS jsonb)->>'scope' AS version "
+                    "FROM article_enrichment WHERE article_id=:id"
+                ),
+                {"id": article.id},
+            ).one()
+            assert row.scope == "regional"
+            assert row.point_place is None and row.point_geoid is None
+            assert row.why == "a county story"
+            assert row.version == rescope.adapter.SCOPE_PROMPT_VERSION
+            assert not s.execute(
+                sa.text(
+                    "SELECT bool_or(is_point) FROM article_places WHERE article_id=:id"
+                ),
+                {"id": article.id},
+            ).scalar()
+            log = s.execute(
+                sa.text(
+                    "SELECT change, old_scope, new_scope, old_point_place "
+                    "FROM enrichment_rescope_log WHERE article_id=:id"
+                ),
+                {"id": article.id},
+            ).one()
+            assert tuple(log) == (
+                "point_removed",
+                "city_municipality",
+                "regional",
+                "Columbia",
+            )
+            # answered under the current prompt: not selected again
+            assert article.id not in {
+                a.id for a, _ in rescope.select(s, "Mizzou-Missouri-State")
+            }
+            s.execute(sa.text("DELETE FROM enrichment_rescope_log"))
+            s.commit()
+
     def test_writes_all_four_tables_and_flips_status(self, db):
         with db() as s:
             [article] = select_candidates(s, "Mizzou-Missouri-State", 1, 3)
