@@ -27,7 +27,7 @@ steps:
     waitFor: ['build-processor']
 
   # Create Cloud Deploy release for Processor only
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:589.0.0'
     id: 'create-release'
     entrypoint: 'bash'
     args:

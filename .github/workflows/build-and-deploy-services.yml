@@ -347,6 +347,9 @@ jobs:
       - name: Set up Cloud SDK
         if: needs.detect-changes.outputs.processor == 'true'
         uses: google-github-actions/setup-gcloud@v3
+        with:
+          # Pinned. `latest` (594.0.0, 2026-11-17) crashed kubectl auth; 589.0.0 last deployed green.
+          version: '589.0.0'
 
       - name: Trigger Cloud Build
         id: trigger
@@ -390,6 +393,9 @@ jobs:
       - name: Set up Cloud SDK
         if: needs.detect-changes.outputs.api == 'true'
         uses: google-github-actions/setup-gcloud@v3
+        with:
+          # Pinned. `latest` (594.0.0, 2026-11-17) crashed kubectl auth; 589.0.0 last deployed green.
+          version: '589.0.0'
 
       - name: Trigger Cloud Build
         id: trigger
@@ -433,6 +439,9 @@ jobs:
       - name: Set up Cloud SDK
         if: needs.detect-changes.outputs.crawler == 'true'
         uses: google-github-actions/setup-gcloud@v3
+        with:
+          # Pinned. `latest` (594.0.0, 2026-11-17) crashed kubectl auth; 589.0.0 last deployed green.
+          version: '589.0.0'
 
       - name: Trigger Cloud Build
         id: trigger
@@ -479,6 +488,9 @@ jobs:
       - name: Set up Cloud SDK
         if: needs.detect-changes.outputs.migrator == 'true'
         uses: google-github-actions/setup-gcloud@v3
+        with:
+          # Pinned. `latest` (594.0.0, 2026-11-17) crashed kubectl auth; 589.0.0 last deployed green.
+          version: '589.0.0'
 
       - name: Trigger Cloud Build
         id: trigger
@@ -522,6 +534,9 @@ jobs:
       - name: Set up Cloud SDK
         if: needs.detect-changes.outputs.enrichment == 'true'
         uses: google-github-actions/setup-gcloud@v3
+        with:
+          # Pinned. `latest` (594.0.0, 2026-11-17) crashed kubectl auth; 589.0.0 last deployed green.
+          version: '589.0.0'
 
       - name: Trigger Cloud Build
         id: trigger
@@ -566,6 +581,8 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v3
         with:
+          # Pinned. `latest` (594.0.0, 2026-11-17) crashed kubectl auth; 589.0.0 last deployed green.
+          version: '589.0.0'
           # kubectl authenticates with nothing without this, and every command
           # fails on "Install gke-gcloud-auth-plugin ... exit code 1" -- a message
           # naming a missing plugin rather than a missing permission, raised after
@@ -698,6 +715,9 @@ jobs:
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v3
+        with:
+          # Pinned. `latest` (594.0.0, 2026-11-17) crashed kubectl auth; 589.0.0 last deployed green.
+          version: '589.0.0'
 
       - name: Wait for builds to complete
         env:
@@ -893,6 +913,8 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v3
         with:
+          # Pinned. `latest` (594.0.0, 2026-11-17) crashed kubectl auth; 589.0.0 last deployed green.
+          version: '589.0.0'
           # Without the plugin every kubectl command fails on "Install
           # gke-gcloud-auth-plugin", which names a missing plugin rather
           # than a missing permission and is raised after the images built.
